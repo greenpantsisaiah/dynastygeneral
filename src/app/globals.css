@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #07080a;
+  --surface: #0d0f13;
+  --surface-2: #14171d;
+  --border-soft: #1f232c;
+  --border-strong: #2a2f3a;
+  --foreground: #e7e9ee;
+  --muted: #a3a8b4;
+  --muted-2: #7a8090;
+  --accent: #f59e0b;
+  --accent-soft: #fbbf24;
+  --success: #34d399;
+  --warning: #f59e0b;
+  --danger: #f87171;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border-soft: var(--border-soft);
+  --color-border-strong: var(--border-strong);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  /* Bumped from default 16px to 18px so every rem-based Tailwind size
+     scales up ~12%. equivalent to one browser zoom step. Keeps the
+     design language while making body text readable without zooming.
+     Affects ~all text-* classes (text-xs/sm/base/lg/xl). Arbitrary
+     px sizes (text-[10px] etc.) don't scale and have been bumped
+     explicitly to text-xs throughout the strategy components. */
+  font-size: 18px;
 }
 
+html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.bg-glow {
+  background: radial-gradient(
+    1000px 600px at 20% -10%,
+    rgba(245, 158, 11, 0.08),
+    transparent 60%
+  );
+}
+
+::selection {
+  background: rgba(245, 158, 11, 0.3);
+  color: var(--foreground);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
