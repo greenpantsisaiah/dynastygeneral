@@ -15,6 +15,7 @@ import type {
   OpponentCharacterization,
   TeamLean,
 } from "@/lib/strategy/opponents/characterize";
+import { AskCoachButton } from "./ask-coach-button";
 
 const LEAN_LABEL: Record<TeamLean, string> = {
   punted_season: "Punted this season",
@@ -401,12 +402,7 @@ function LeagueSpectrum({
                 {item.owner_name}
               </text>
               <title>
-                {item.owner_name} · {LEAN_LABEL[item.lean]} ·{" "}
-                {Math.round(item.confidence * 100)}% confidence ·{" "}
-                {item.picks_made} picks ·{" "}
-                {item.ev != null
-                  ? `EV ${Math.round(item.ev * 100)}/100`
-                  : "EV unknown"}
+                {`${item.owner_name} · ${LEAN_LABEL[item.lean]} · ${Math.round(item.confidence * 100)}% confidence · ${item.picks_made} picks · ${item.ev != null ? `EV ${Math.round(item.ev * 100)}/100` : "EV unknown"}`}
               </title>
             </g>
           );
@@ -461,6 +457,10 @@ function CharacterizationCard({
           {item.trade_implication}
         </div>
       )}
+
+      <AskCoachButton
+        prompt={`What's my best trade angle with ${item.owner_name}? They look ${LEAN_LABEL[item.lean].toLowerCase()}. What would I offer and what do I ask for?`}
+      />
     </article>
   );
 }

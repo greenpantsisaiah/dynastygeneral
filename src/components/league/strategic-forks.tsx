@@ -34,6 +34,7 @@ import type {
 } from "@/lib/strategy/archetypes/schema";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { AskCoachButton } from "./ask-coach-button";
 
 const PICKS_PER_FORK = 3; // primary + 2 backups
 const POSITION_ORDER: Position[] = ["QB", "RB", "WR", "TE"];
@@ -483,6 +484,36 @@ function ForkCard({ fork }: { fork: Fork }) {
               ? earnedValueTradeoff()
               : depthTradeoff(fork.position)}
       </p>
+
+      <AskCoachButton prompt={buildForkCoachPrompt(fork)} />
     </div>
   );
+}
+
+// Compose a sharp question for the coach based on the fork kind. The
+// coach already has league context; this just tells it which angle.
+function buildForkCoachPrompt(fork: Fork): string {
+  const primary = fork.candidates[0]?.name ?? "the top pick";
+  const backups = fork.candidates
+    .slice(1)
+    .map((c) => c.name)
+    .join(", ");
+  if (fork.kind === "path") {
+    return `Should I push ${fork.ranked.archetype.name} by taking ${primary}? Tradeoffs vs my other options${
+      backups ? ` (alternatives: ${backups})` : ""
+    }?`;
+  }
+  if (fork.kind === "starter_need") {
+    return `I'm ${fork.have}/${fork.need} at ${POSITION_LABEL[fork.position]}. Should I take ${primary} to fill it? Which dynasty option is sharpest${
+      backups ? ` (others: ${backups})` : ""
+    }?`;
+  }
+  if (fork.kind === "earned_value") {
+    return `Max dynasty value on the board is ${primary}${
+      backups ? ` (then ${backups})` : ""
+    }. Should I take the highest-value player regardless of position here?`;
+  }
+  return `Best depth at ${POSITION_LABEL[fork.position]} is ${primary}${
+    backups ? ` or ${backups}` : ""
+  }. Worth taking, or push a different direction?`;
 }

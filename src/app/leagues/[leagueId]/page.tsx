@@ -18,8 +18,6 @@ import { resolveDraftState, type DraftStatus } from "@/lib/sleeper/draft-state";
 import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { LiveStrategyBoard } from "@/components/league/live-strategy-board";
-import { LeaguePulse } from "@/components/league/league-pulse";
-import { generatePulse, type Pulse } from "@/lib/strategy/pulse";
 import { computeWindows, type WindowsResult } from "@/lib/strategy/windows/compute";
 import { selectPlaysFromHere } from "@/lib/strategy/plays-from-here/select";
 import { enrichPlaysFromHere } from "@/lib/strategy/plays-from-here/enrich";
@@ -37,14 +35,12 @@ import { WindowWeightingPrompt } from "@/components/league/window-weighting-prom
 import { PlaysFromHere } from "@/components/league/plays-from-here";
 import { PickApproach } from "@/components/league/pick-approach";
 import { StrategicForks } from "@/components/league/strategic-forks";
-import { detectVanillaWarning, type VanillaWarning } from "@/lib/strategy/vanilla-warning/detect";
-import { VanillaWarningPanel } from "@/components/league/vanilla-warning";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
-import { OpponentObservations } from "@/components/league/opponent-observations";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
 import type { OpponentCharacterization } from "@/lib/strategy/opponents/characterize";
 import { BriefingFeed } from "@/components/league/briefing-feed";
+import { CoachChat } from "@/components/league/coach-chat";
 import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
@@ -96,15 +92,12 @@ export default async function LeagueHubPage({
   const draftActive =
     draftState?.status === "drafting" || draftState?.status === "paused";
 
-  // Live strategy board + League pulse: both consume the same snapshot.
-  // Tolerant of failure. UI degrades to empty state if snapshot can't
-  // build (e.g. Sleeper outage or player cache failure).
+  // Hub data pipeline. Tolerant of failure; UI degrades to empty state
+  // if snapshot can't build (e.g. Sleeper outage or player cache fail).
   let rankedArchetypes: RankedArchetype[] = [];
-  let pulse: Pulse[] = [];
   let windows: WindowsResult | null = null;
   let playsFromHere: ResolvedPlayFromHere[] = [];
   let pickApproach: PickApproachData | null = null;
-  let vanillaWarning: VanillaWarning | null = null;
   let opponentReadout: OpponentReadout | null = null;
   let opponentCharacterizations: OpponentCharacterization[] = [];
   let availablePlayers: Awaited<
@@ -124,10 +117,8 @@ export default async function LeagueHubPage({
       });
       const snapshot = leagueSnapshot;
       rankedArchetypes = rankArchetypes(snapshot);
-      pulse = generatePulse(snapshot);
       windows = computeWindows(snapshot);
       playsFromHere = selectPlaysFromHere(snapshot);
-      vanillaWarning = detectVanillaWarning(snapshot, rankedArchetypes);
       opponentReadout = buildOpponentReadout(snapshot);
       opponentCharacterizations = await buildOpponentCharacterizations(
         snapshot,
@@ -197,45 +188,31 @@ export default async function LeagueHubPage({
   const standing = myRoster ? calcStanding(rosters, myRoster.roster_id) : null;
   const season = seasonParam ?? league.season;
 
-  // Hub action grid. Pruned to workflows that aren't covered above:
-  // incoming trade evaluation, outbound trade construction, and the
-  // freeform coach chat. "I'm on the clock" deep-LLM form moved to an
-  // inline link near Strategic Forks; "What's my strategy?" snapshot
-  // is the always-visible Live Strategy Board + Forks panels.
-  const actions = [
-    {
-      href: `/leagues/${leagueId}/trade${qs({ username: cleanedUsername, season })}`,
-      label: "I have a trade",
-      sub: "Incoming trade decision",
-      ring: "foreground",
-    },
-    {
-      href: `/leagues/${leagueId}/trade?mode=outbound${qsTail({
-        username: cleanedUsername,
-        season,
-      })}`,
-      label: "I want to make a trade",
-      sub: "Attack a target",
-      ring: "foreground",
-    },
-    {
-      href: `/leagues/${leagueId}/coach${qs({ username: cleanedUsername, season })}`,
-      label: "Talk it through",
-      sub: "Debate picks, ask for advice",
-      ring: "accent",
-    },
-  ] as const;
+  // Header trade buttons. Trade-incoming and trade-outbound are the
+  // workflows the hub doesn't cover inline; they get small header
+  // buttons. The coach used to be a third card; now it's the always-
+  // visible right column on desktop.
+  const tradeIncomingHref = `/leagues/${leagueId}/trade${qs({ username: cleanedUsername, season })}`;
+  const tradeOutboundHref = `/leagues/${leagueId}/trade?mode=outbound${qsTail({
+    username: cleanedUsername,
+    season,
+  })}`;
   const onClockHref = `/leagues/${leagueId}/pick${qs({ username: cleanedUsername, season })}`;
+
+  // Lean label for coach context chip. Derive from top-ranked archetype
+  // when available, else leave undefined.
+  const topLean = rankedArchetypes[0]?.archetype.name ?? null;
 
   return (
     <>
       <SiteNav />
       <main className="flex-1 bg-grid">
-        <div className="mx-auto max-w-5xl px-6 py-16 sm:py-24">
+        <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 sm:py-12">
           <Ticker
             label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}`}
           />
 
+          {/* Hub header with title + trade buttons */}
           <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
@@ -256,91 +233,98 @@ export default async function LeagueHubPage({
               </div>
             </div>
 
-            {!cleanedUsername && (
-              <UsernamePrompt leagueId={leagueId} season={season} />
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {!cleanedUsername ? (
+                <UsernamePrompt leagueId={leagueId} season={season} />
+              ) : (
+                <>
+                  <Link
+                    href={tradeIncomingHref}
+                    className="rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 hover:text-accent"
+                  >
+                    Incoming trade
+                  </Link>
+                  <Link
+                    href={tradeOutboundHref}
+                    className="rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 hover:text-accent"
+                  >
+                    Attack a trade
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
 
-          {draftActive && draftState && (
-            <DraftBanner state={draftState} />
-          )}
+          {/* Dual-column body. Hub left, coach right. Stacks on <lg. */}
+          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
+            <div className="min-w-0">
+              {draftActive && draftState && (
+                <DraftBanner state={draftState} />
+              )}
 
-          {sleeperUser && <WindowWeightingPrompt leagueId={leagueId} />}
+              {sleeperUser && <WindowWeightingPrompt leagueId={leagueId} />}
 
-          {windows && sleeperUser && (
-            <WindowsBar leagueId={leagueId} windows={windows} />
-          )}
+              {windows && sleeperUser && (
+                <WindowsBar leagueId={leagueId} windows={windows} />
+              )}
 
-          <LeaguePulse pulse={pulse} />
+              {pickApproach && <PickApproach approach={pickApproach} />}
 
-          {vanillaWarning && <VanillaWarningPanel warning={vanillaWarning} />}
+              <StrategicForks
+                ranked={rankedArchetypes}
+                available={availablePlayers}
+                snapshot={leagueSnapshot}
+                myPickLabel={pickApproach?.my_pick_label ?? null}
+              />
 
-          {pickApproach && <PickApproach approach={pickApproach} />}
+              {pickApproach && (
+                <div className="mt-3 text-right text-xs text-muted">
+                  Need deeper analysis with custom context for this pick?{" "}
+                  <Link
+                    href={onClockHref}
+                    className="text-accent hover:underline"
+                  >
+                    Open the on-clock form →
+                  </Link>
+                </div>
+              )}
 
-          <StrategicForks
-            ranked={rankedArchetypes}
-            available={availablePlayers}
-            snapshot={leagueSnapshot}
-            myPickLabel={pickApproach?.my_pick_label ?? null}
-          />
+              <PlaysFromHere plays={playsFromHere} />
 
-          {pickApproach && (
-            <div className="mt-3 text-right text-xs text-muted">
-              Need deeper analysis with custom context for this pick?{" "}
-              <Link
-                href={onClockHref}
-                className="text-accent hover:underline"
-              >
-                Open the on-clock form →
-              </Link>
+              <LiveStrategyBoard
+                leagueId={leagueId}
+                ranked={rankedArchetypes}
+                isIdentified={!!sleeperUser}
+                draftStatus={draftState?.status ?? null}
+              />
+
+              {opponentCharacterizations.length > 0 && (
+                <OpponentCharacterizations items={opponentCharacterizations} />
+              )}
+
+              {sleeperUser && (
+                <BriefingFeed leagueId={leagueId} username={cleanedUsername} />
+              )}
             </div>
-          )}
 
-          <PlaysFromHere plays={playsFromHere} />
-
-          <LiveStrategyBoard
-            leagueId={leagueId}
-            ranked={rankedArchetypes}
-            isIdentified={!!sleeperUser}
-            draftStatus={draftState?.status ?? null}
-          />
-
-          {opponentCharacterizations.length > 0 && (
-            <OpponentCharacterizations items={opponentCharacterizations} />
-          )}
-
-          {opponentReadout && (
-            <OpponentObservations readout={opponentReadout} />
-          )}
-
-          {sleeperUser && (
-            <BriefingFeed leagueId={leagueId} username={cleanedUsername} />
-          )}
-
-          <section className="mt-12">
-            <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-2">
-              What do you want help with?
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {actions.map((a) => (
-                <Link
-                  key={a.label}
-                  href={a.href}
-                  className="group flex items-start justify-between rounded-lg border border-border-strong bg-surface p-5 transition hover:border-accent/60"
-                >
-                  <div>
-                    <div className="text-base font-semibold text-foreground">
-                      {a.label}
-                    </div>
-                    <div className="mt-1 text-sm text-muted">{a.sub}</div>
-                  </div>
-                  <span className="font-mono text-xs text-accent opacity-0 transition group-hover:opacity-100">
-                    →
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
+            {/* Coach column: sticky on desktop, inline on mobile. */}
+            {sleeperUser && (
+              <aside className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
+                <CoachChat
+                  leagueId={leagueId}
+                  username={cleanedUsername}
+                  displayName={String(teamName)}
+                  variant="panel"
+                  context={{
+                    leagueName: league.name,
+                    myPickLabel: pickApproach?.my_pick_label ?? null,
+                    picksUntilMe: pickApproach?.picks_until_me ?? null,
+                    lean: topLean,
+                  }}
+                />
+              </aside>
+            )}
+          </div>
         </div>
       </main>
     </>
