@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { runPickDecision } from "@/lib/engine/decisions";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
+import { checkBudget } from "@/lib/budget";
 
 const bodySchema = z.object({
   league_id: z.string().min(1),
@@ -19,6 +21,30 @@ export const runtime = "nodejs";
 export const maxDuration = 45;
 
 export async function POST(req: Request) {
+  const rate = await checkRateLimit("decisions", clientIpFrom(req));
+  if (!rate.allowed) {
+    return Response.json(
+      {
+        ok: false,
+        error: `Too many pick submissions. Wait ${Math.ceil(rate.reset_ms / 1000)}s.`,
+      },
+      {
+        status: 429,
+        headers: { "retry-after": String(Math.ceil(rate.reset_ms / 1000)) },
+      },
+    );
+  }
+  const budget = await checkBudget();
+  if (!budget.allowed) {
+    return Response.json(
+      {
+        ok: false,
+        error: "Daily analysis capacity reached. Try again tomorrow.",
+      },
+      { status: 503 },
+    );
+  }
+
   let json: unknown;
   try {
     json = await req.json();

@@ -72,7 +72,7 @@ type CacheEntry = {
 };
 
 const cache = new Map<string, CacheEntry>(); // keyed by season
-let inflight: Map<string, Promise<CacheEntry>> = new Map();
+const inflight: Map<string, Promise<CacheEntry>> = new Map();
 
 async function fetchProjections(season: string): Promise<CacheEntry> {
   // Pull QB/RB/WR/TE in one URL via multi-value query params.

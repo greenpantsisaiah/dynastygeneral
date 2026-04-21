@@ -20,11 +20,40 @@ import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { buildOpponentReadout } from "@/lib/strategy/opponents/observe";
 import { generateBriefings } from "@/lib/strategy/briefings/analyst";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
+import { checkBudget } from "@/lib/budget";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ leagueId: string }> },
 ) {
+  const ip = clientIpFrom(req);
+  const rate = await checkRateLimit("briefings", ip);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      {
+        error: "rate_limited",
+        message: `Too many briefing runs. Wait ${Math.ceil(rate.reset_ms / 1000)}s.`,
+      },
+      {
+        status: 429,
+        headers: {
+          "retry-after": String(Math.ceil(rate.reset_ms / 1000)),
+        },
+      },
+    );
+  }
+  const budget = await checkBudget();
+  if (!budget.allowed) {
+    return NextResponse.json(
+      {
+        error: "budget_exceeded",
+        message: "Daily analyst capacity reached. Try again tomorrow.",
+      },
+      { status: 503 },
+    );
+  }
+
   const { leagueId } = await params;
   const url = new URL(req.url);
   const username = url.searchParams.get("username")?.trim().replace(/^@/, "") ?? "";

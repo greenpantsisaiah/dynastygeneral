@@ -31,6 +31,12 @@ export function Waitlist() {
   useEffect(() => {
     const cleaned = username.trim().replace(/^@/, "");
     if (cleaned.length < 2) {
+      // Debounce-reset to idle on short/empty input. The setState here
+      // is the correct behavior (input < 2 chars → cancel pending lookup)
+      // and doesn't cause a cascading render: it's inside an effect
+      // already gated on `username` and only writes when the derived
+      // condition differs from the current state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCount({ kind: "idle" });
       return;
     }

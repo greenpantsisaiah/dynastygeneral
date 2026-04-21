@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { SYSTEM_PROMPT } from "./system-prompt";
+import { recordSpend } from "@/lib/budget";
 
 /**
  * Anthropic decision-engine wrapper.
@@ -119,6 +120,12 @@ export async function runStructured<TSchema extends z.ZodTypeAny>(
 
     const parsed = opts.outputSchema.safeParse(toolUse.input);
     if (parsed.success) {
+      // Best-effort spend tracking (daily budget cap). Don't block on it.
+      recordSpend({
+        model,
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+      }).catch(() => {});
       return {
         output: parsed.data,
         mode: "live",

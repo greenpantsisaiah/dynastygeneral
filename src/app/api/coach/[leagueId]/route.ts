@@ -15,6 +15,8 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
+import { checkBudget, recordSpend } from "@/lib/budget";
 import {
   getLeague,
   getLeagueUsers,
@@ -72,6 +74,36 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ leagueId: string }> },
 ) {
+  // Rate limit + daily budget check BEFORE any expensive work.
+  const ip = clientIpFrom(req);
+  const rate = await checkRateLimit("coach", ip);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      {
+        error: "rate_limited",
+        message: `Too many coach calls. Wait ${Math.ceil(rate.reset_ms / 1000)}s and try again.`,
+      },
+      {
+        status: 429,
+        headers: {
+          "x-ratelimit-limit": String(rate.limit),
+          "x-ratelimit-remaining": String(rate.remaining),
+          "retry-after": String(Math.ceil(rate.reset_ms / 1000)),
+        },
+      },
+    );
+  }
+  const budget = await checkBudget();
+  if (!budget.allowed) {
+    return NextResponse.json(
+      {
+        error: "budget_exceeded",
+        message: `Daily coach capacity reached. Try again tomorrow.`,
+      },
+      { status: 503 },
+    );
+  }
+
   const { leagueId } = await params;
   const url = new URL(req.url);
   const username = url.searchParams.get("username")?.trim().replace(/^@/, "") ?? "";
@@ -129,7 +161,7 @@ export async function POST(
   const ranked = rankArchetypes(snapshot);
   const opponents = buildOpponentReadout(snapshot);
   const windows = computeWindows(snapshot);
-  let pickApproach = buildPickApproach(snapshot, ranked);
+  const pickApproach = buildPickApproach(snapshot, ranked);
   const available = await getAvailableForRequest(snapshot).catch(() => []);
 
   // Trim context to what's useful in chat. Top 30 available players
@@ -237,6 +269,14 @@ export async function POST(
     .map((b) => b.text)
     .join("\n")
     .trim();
+
+  // Record spend AFTER the call succeeds. Best-effort; don't block
+  // the response on a bookkeeping failure.
+  await recordSpend({
+    model: "claude-sonnet-4-6",
+    input_tokens: response.usage.input_tokens,
+    output_tokens: response.usage.output_tokens,
+  }).catch(() => {});
 
   return NextResponse.json({
     reply: text || "(no response)",
