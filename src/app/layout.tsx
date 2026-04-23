@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { FeedbackWidget } from "@/components/feedback/feedback-widget";
+import { getOptionalUser } from "@/lib/auth/session";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,11 +29,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Best-effort attribution. If the user is signed in, we surface their
+  // email in the feedback widget so they don't have to retype it AND so
+  // they see "we know it's you" before submitting (consent transparency
+  // per the security-audit MEDIUM finding from 2026-04-23).
+  const user = await getOptionalUser();
   return (
     <html
       lang="en"
@@ -40,7 +46,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
-        <FeedbackWidget />
+        <FeedbackWidget signedInEmail={user?.email ?? null} />
       </body>
     </html>
   );

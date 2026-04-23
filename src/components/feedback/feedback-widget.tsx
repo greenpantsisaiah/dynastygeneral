@@ -29,7 +29,11 @@ const RATINGS: Array<{ value: number; label: string; tone: string }> = [
   },
 ];
 
-export function FeedbackWidget() {
+export function FeedbackWidget({
+  signedInEmail = null,
+}: {
+  signedInEmail?: string | null;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
   const [message, setMessage] = useState("");
@@ -172,9 +176,18 @@ export function FeedbackWidget() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={
+                    signedInEmail
+                      ? `${signedInEmail} (or leave blank to stay anonymous)`
+                      : "you@example.com"
+                  }
                   className="mt-1 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-2 focus:border-accent focus:outline-none"
                 />
+                {signedInEmail && (
+                  <span className="mt-1 block font-mono text-[10px] text-muted-2">
+                    Signed in. Linked to your account regardless of email field.
+                  </span>
+                )}
               </label>
               {error && (
                 <div className="rounded-md border border-danger/50 bg-danger/10 px-3 py-2 text-xs text-foreground">
