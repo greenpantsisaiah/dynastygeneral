@@ -15,14 +15,17 @@
  * feed. Hits the server-side analyst route.
  */
 
-import { useCallback, useState, useSyncExternalStore } from "react";
-import type { Briefing } from "@/lib/strategy/briefings/types";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import type { Briefing, BriefingKind, BriefingSeverity } from "@/lib/strategy/briefings/types";
 import {
   appendBriefings,
   clearFeed,
+  depositInBank,
   pinBriefing,
   readFeed,
   readPinned,
+  readPinnedBank,
+  removeFromBank,
   subscribeBriefings,
   unpinBriefing,
 } from "@/lib/strategy/briefings/store";
@@ -37,6 +40,42 @@ import {
 // requires server snapshots to return the SAME reference each call.
 const SSR_EMPTY_FEED: Briefing[] = [];
 const SSR_EMPTY_PINNED: string[] = [];
+const SSR_EMPTY_BANK: Record<string, Briefing> = {};
+
+// Server-side pinned-briefing row shape. Mirrors the pinned_briefings
+// table columns we select. The `data` and `body` fields can be null;
+// older rows may have a slightly different shape than the current
+// types. The renderer is tolerant of missing optional fields.
+type ServerPinnedRow = {
+  briefing_id: string;
+  kind: string;
+  severity: string;
+  headline: string;
+  body: string | null;
+  data: unknown;
+  pinned_at: string;
+};
+
+function serverRowToBriefing(row: ServerPinnedRow): Briefing {
+  // Reconstruct the Briefing meta as best we can from the stored
+  // fields. The triggered_by/topic_tags/evidence we don't persist
+  // server-side; render with conservative defaults so the card still
+  // shows something useful.
+  return {
+    id: row.briefing_id,
+    kind: row.kind as BriefingKind,
+    severity: row.severity as BriefingSeverity,
+    headline: row.headline,
+    body: row.body ?? "",
+    evidence: [],
+    topic_tags: [],
+    generated_at: row.pinned_at,
+    triggered_by: "pinned",
+    // Per-kind data is opaque here; the renderer's discriminated union
+    // will accept it. We trust what the server stored.
+    data: (row.data ?? {}) as never,
+  } as Briefing;
+}
 
 export function BriefingFeed({
   leagueId,
@@ -67,13 +106,77 @@ export function BriefingFeed({
     useCallback(() => readPinned(leagueId), [leagueId]),
     () => SSR_EMPTY_PINNED,
   );
+  const pinnedBank = useSyncExternalStore(
+    subscribe,
+    useCallback(() => readPinnedBank(leagueId), [leagueId]),
+    () => SSR_EMPTY_BANK,
+  );
 
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paywall, setPaywall] = useState<PaywallReason | null>(null);
 
   const pinnedSet = new Set(pinnedIds);
-  const pinnedBriefings = feed.filter((b) => pinnedSet.has(b.id));
+  // Pinned briefings come from the feed when present (always
+  // preferred: it has the freshest evidence/preconditions); fall back
+  // to the bank for ones that have rolled out of the feed or were
+  // hydrated from the server.
+  const seenPinned = new Set<string>();
+  const pinnedBriefings: Briefing[] = [];
+  for (const b of feed) {
+    if (pinnedSet.has(b.id) && !seenPinned.has(b.id)) {
+      pinnedBriefings.push(b);
+      seenPinned.add(b.id);
+    }
+  }
+  for (const id of pinnedIds) {
+    if (seenPinned.has(id)) continue;
+    const banked = pinnedBank[id];
+    if (banked) {
+      pinnedBriefings.push(banked);
+      seenPinned.add(id);
+    }
+  }
+
+  // Hydrate pinned briefings from the server on mount. Pro users get
+  // cross-device War Room continuity. Free / anonymous users see an
+  // empty server response and keep localStorage-only.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/briefings/${leagueId}/pinned`);
+        if (!res.ok) return;
+        const { pinned } = (await res.json()) as { pinned: ServerPinnedRow[] };
+        if (cancelled || pinned.length === 0) return;
+        // Reconstruct briefings; merge ids into local pinned set; bank
+        // the full payloads so we can render them when the feed
+        // doesn't carry them.
+        const reconstructed = pinned.map(serverRowToBriefing);
+        depositInBank(leagueId, reconstructed);
+        const localIds = readPinned(leagueId);
+        const merged = Array.from(new Set([...localIds, ...pinned.map((p) => p.briefing_id)]));
+        if (merged.length !== localIds.length) {
+          // pinBriefing would re-write each individually; do a single
+          // direct set to avoid N storage events.
+          window.localStorage.setItem(
+            `dc:briefing-pinned:${leagueId}`,
+            JSON.stringify(merged),
+          );
+          window.dispatchEvent(
+            new StorageEvent("storage", {
+              key: `dc:briefing-pinned:${leagueId}`,
+            }),
+          );
+        }
+      } catch {
+        // Silent fallback; localStorage continues to work.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueId]);
 
   async function runAnalysis() {
     if (running) return;
@@ -105,9 +208,42 @@ export function BriefingFeed({
     }
   }
 
-  function togglePin(id: string) {
-    if (pinnedSet.has(id)) unpinBriefing(leagueId, id);
-    else pinBriefing(leagueId, id);
+  async function togglePin(id: string) {
+    if (pinnedSet.has(id)) {
+      unpinBriefing(leagueId, id);
+      removeFromBank(leagueId, id);
+      // Server unpin (Pro). Free / anonymous returns 200 with no
+      // persistence; never blocks the UI.
+      try {
+        await fetch(
+          `/api/briefings/${leagueId}/pinned?id=${encodeURIComponent(id)}`,
+          { method: "DELETE" },
+        );
+      } catch {
+        // Optimistic local update already applied.
+      }
+      return;
+    }
+    // Pin: find the full briefing payload so the server can store it.
+    const briefing = feed.find((b) => b.id === id) ?? pinnedBank[id];
+    pinBriefing(leagueId, id, briefing);
+    if (!briefing) return;
+    try {
+      await fetch(`/api/briefings/${leagueId}/pinned`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          briefing_id: briefing.id,
+          kind: briefing.kind,
+          severity: briefing.severity,
+          headline: briefing.headline,
+          body: briefing.body,
+          data: briefing.data,
+        }),
+      });
+    } catch {
+      // Optimistic local pin already applied.
+    }
   }
 
   function handleClear() {
