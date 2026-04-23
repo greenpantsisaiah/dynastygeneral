@@ -5,6 +5,7 @@ import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { PLATFORMS } from "@/lib/leagues/types";
 
 export const metadata = {
   title: "Account · Dynasty Copilot",
@@ -120,6 +121,8 @@ export default async function AccountPage({
               </div>
             </div>
 
+            <ConnectedPlatforms />
+
             <ConnectedLeagues userId={user.id} />
 
             <div className="mt-8 rounded-lg border border-border-soft bg-surface px-5 py-5">
@@ -144,6 +147,40 @@ export default async function AccountPage({
       </main>
       <Footer />
     </>
+  );
+}
+
+function ConnectedPlatforms() {
+  return (
+    <div className="mt-8 rounded-lg border border-border-strong bg-surface px-5 py-5">
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+        Connected platforms
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        We support multiple fantasy hosts. Your Sleeper username drives the
+        league list below. MFL ships next.
+      </p>
+      <ul className="mt-3 space-y-2 text-sm">
+        {PLATFORMS.map((p) => {
+          const live = p.status === "live";
+          return (
+            <li
+              key={p.id}
+              className="flex items-baseline justify-between gap-2 rounded-md border border-border-soft bg-surface-2 px-3 py-2"
+            >
+              <span className="font-medium text-foreground">{p.name}</span>
+              <span
+                className={`font-mono text-[10px] uppercase tracking-[0.16em] ${
+                  live ? "text-success" : "text-muted-2"
+                }`}
+              >
+                {live ? "Connected via /connect" : "Coming soon"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

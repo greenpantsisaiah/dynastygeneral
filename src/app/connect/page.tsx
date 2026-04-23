@@ -8,17 +8,55 @@ import {
   isDynastyLeague,
   type SleeperLeague,
 } from "@/lib/sleeper";
+import { PLATFORMS, type PlatformId } from "@/lib/leagues/types";
 
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  searchParams: Promise<{ username?: string; season?: string }>;
+  searchParams: Promise<{
+    username?: string;
+    season?: string;
+    platform?: string;
+  }>;
 };
 
 export default async function ConnectPage({ searchParams }: PageProps) {
-  const { username = "", season } = await searchParams;
+  const { username = "", season, platform: platformParam } = await searchParams;
+  const platform: PlatformId =
+    platformParam === "mfl" ? "mfl" : "sleeper";
   const cleaned = username.trim().replace(/^@/, "");
 
+  // MFL flow not implemented yet; show coming-soon state when picked.
+  if (platform === "mfl") {
+    return (
+      <>
+        <SiteNav />
+        <main className="flex-1 bg-grid">
+          <div className="mx-auto max-w-3xl px-6 py-20 sm:py-28">
+            <Ticker label="Connect · pick your platform" />
+            <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              MFL support is coming next.
+            </h1>
+            <p className="mt-4 max-w-xl text-muted">
+              MyFantasyLeague support is on the roadmap. The engine is
+              already platform-agnostic; we're wiring the MFL adapter
+              now. Drop your email on the waitlist and we'll ping you the
+              day it ships.
+            </p>
+            <PlatformPicker selected={platform} username={cleaned} />
+            <Link
+              href="/#waitlist"
+              className="mt-8 inline-flex h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
+            >
+              Notify me when MFL ships →
+            </Link>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // Sleeper flow (current production behavior).
   let sleeperUser = null;
   let leagues: SleeperLeague[] = [];
   let resolvedSeason = season ?? "";
@@ -50,16 +88,19 @@ export default async function ConnectPage({ searchParams }: PageProps) {
       <SiteNav />
       <main className="flex-1 bg-grid">
         <div className="mx-auto max-w-3xl px-6 py-20 sm:py-28">
-          <Ticker label="Connect Sleeper · no password required" />
+          <Ticker label="Connect · pick your platform" />
           <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             Pull in your leagues.
           </h1>
           <p className="mt-4 max-w-xl text-muted">
-            Enter your Sleeper username. We&apos;ll fetch your dynasty leagues
-            and drop you into the decision hub.
+            We support multiple fantasy hosts. Sleeper is live today.
+            MyFantasyLeague is on the roadmap.
           </p>
 
-          <form method="GET" action="/connect" className="mt-10">
+          <PlatformPicker selected={platform} username={cleaned} />
+
+          <form method="GET" action="/connect" className="mt-8">
+            <input type="hidden" name="platform" value="sleeper" />
             <label className="grid gap-2">
               <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
                 Sleeper username
@@ -99,7 +140,7 @@ export default async function ConnectPage({ searchParams }: PageProps) {
                     </div>
                     <div className="mt-1 text-foreground">
                       <span className="font-semibold">
-                        {sleeperUser.display_name ?? sleeperUser.username ?? "–"}
+                        {sleeperUser.display_name ?? sleeperUser.username ?? "-"}
                       </span>
                       <span className="text-muted"> · {sleeperUser.user_id}</span>
                       <span className="text-muted"> · season {resolvedSeason}</span>
@@ -142,6 +183,56 @@ export default async function ConnectPage({ searchParams }: PageProps) {
         </div>
       </main>
     </>
+  );
+}
+
+function PlatformPicker({
+  selected,
+  username,
+}: {
+  selected: PlatformId;
+  username: string;
+}) {
+  return (
+    <div className="mt-8 grid gap-3 sm:grid-cols-2">
+      {PLATFORMS.map((p) => {
+        const isSelected = p.id === selected;
+        const isLive = p.status === "live";
+        const href = `/connect?platform=${p.id}${
+          username ? `&username=${encodeURIComponent(username)}` : ""
+        }`;
+        return (
+          <Link
+            key={p.id}
+            href={href}
+            aria-current={isSelected ? "page" : undefined}
+            className={`rounded-lg border-2 px-4 py-4 transition ${
+              isSelected
+                ? "border-accent bg-accent/5"
+                : "border-border-strong bg-surface hover:border-border-strong/80"
+            }`}
+          >
+            <div className="flex items-baseline justify-between">
+              <div className="text-base font-semibold text-foreground">
+                {p.name}
+              </div>
+              <span
+                className={`font-mono text-[10px] uppercase tracking-[0.16em] ${
+                  isLive ? "text-success" : "text-muted-2"
+                }`}
+              >
+                {isLive ? "Live" : "Coming soon"}
+              </span>
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              {isLive
+                ? "Read-only public API. Free to connect."
+                : "API mapped, adapter wiring in progress."}
+            </div>
+          </Link>
+        );
+      })}
+    </div>
   );
 }
 
