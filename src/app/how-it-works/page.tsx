@@ -22,10 +22,11 @@ export default function HowItWorksPage() {
               One engine. One decision per pick. Five years of trajectory.
             </h1>
             <p className="mt-6 max-w-3xl text-lg leading-relaxed text-muted">
-              The product reads your Sleeper league once per session and turns
-              the raw state into one synthesized take. No multi-tab dashboard.
-              No tab-flipping. The screenshots below are the live app on real
-              dynasty leagues.
+              The product reads your league once per session and turns the raw
+              state into one synthesized take. No multi-tab dashboard. No
+              tab-flipping. Sleeper today, MyFantasyLeague next; the engine
+              under the hood is the same. The screenshots below are the live
+              app on real dynasty leagues.
             </p>
           </div>
         </section>
@@ -35,23 +36,23 @@ export default function HowItWorksPage() {
             <Step
               n={1}
               title="The Snapshot"
-              kicker="What we read from Sleeper"
+              kicker="What we read from your fantasy host"
               imageSrc="/marketing/league-hub.png"
               imageAlt="League hub showing Do or Dynasty league with snapshot, windows, and contender outlook"
             >
               <p>
-                Each session pulls your league directly from the Sleeper API:
+                Each session pulls your league directly from the host's API:
                 rosters, draft state, traded picks, opponent owners, league
                 format (1QB / superflex / TE-premium), and your full pick
-                schedule. We never store league data on a server. Each pick
-                triggers a fresh read; the snapshot lives only as long as the
-                page does.
+                schedule. Sleeper is live today; MyFantasyLeague support is
+                shipping next via the same engine. We never store league data
+                on a server. Each pick triggers a fresh read; the snapshot
+                lives only as long as the page does.
               </p>
               <p>
-                Mid-draft, picks live in `/draft/&lt;draft_id&gt;/picks`, NOT
-                on the roster object. We merge them so your team appears with
-                what you've actually drafted, not what you started the day
-                with.
+                Mid-draft, picks live on the host's draft endpoint, NOT on the
+                roster object. We merge them so your team appears with what
+                you've actually drafted, not what you started the day with.
               </p>
             </Step>
 
@@ -181,8 +182,9 @@ export default function HowItWorksPage() {
               See it on your league
             </h2>
             <p className="mt-3 text-muted">
-              Connect your Sleeper username. We pull your dynasty leagues and
-              show you the engine's read on each one. Free during beta.
+              Connect your Sleeper account today (MyFantasyLeague support
+              ships next). We pull your dynasty leagues and show you the
+              engine's read on each one. Free tier covers one league.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link

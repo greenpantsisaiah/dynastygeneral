@@ -36,8 +36,8 @@ export function Footer() {
           </nav>
           <div className="text-[11px] leading-relaxed text-muted-2 sm:text-right sm:max-w-md">
             Dynasty Copilot is an independent dynasty analytics tool. It is
-            not affiliated with, endorsed by, or sponsored by Sleeper or
-            the NFL.
+            not affiliated with, endorsed by, or sponsored by Sleeper,
+            MyFantasyLeague, or the NFL.
           </div>
         </div>
       </div>

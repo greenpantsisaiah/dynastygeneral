@@ -12,7 +12,8 @@ export function Preview() {
         </h2>
         <p className="mt-6 max-w-2xl text-lg text-muted">
           Five surfaces, one engine. Each shot is the actual app on a real
-          dynasty roster. Click through to the walkthrough for context.
+          dynasty roster. Sleeper today, MyFantasyLeague next via the same
+          engine. Click through to the walkthrough for context.
         </p>
 
         <div className="mt-12 grid gap-6 lg:grid-cols-2">

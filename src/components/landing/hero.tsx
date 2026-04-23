@@ -7,7 +7,7 @@ export function Hero() {
       <div className="absolute inset-0 bg-grid opacity-60" />
       <div className="absolute inset-0 bg-glow" />
       <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-24 sm:pt-28 sm:pb-32">
-        <Ticker label="Private beta · Sleeper · Dynasty only" />
+        <Ticker label="Live · Sleeper today, MyFantasyLeague next · Dynasty only" />
         <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-6xl">
           Win the decision in front of you.
         </h1>
@@ -20,21 +20,22 @@ export function Hero() {
         <p className="mt-8 max-w-2xl text-sm leading-relaxed text-muted-2">
           Draft smarter. Trade harder. Stay disciplined. A dynasty copilot that
           remembers your strategy, detects leverage, and helps you act with
-          conviction before the moment passes.
+          conviction before the moment passes. Sleeper users today;
+          MyFantasyLeague support shipping next.
         </p>
 
         <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
           <Link
-            href="#waitlist"
+            href="/connect"
             className="inline-flex h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
           >
-            Request private beta access
+            Try with your Sleeper account
           </Link>
           <Link
-            href="/connect"
+            href="/pricing"
             className="inline-flex h-11 items-center justify-center rounded-md border border-border-strong bg-surface px-6 text-sm font-medium text-foreground transition hover:border-accent/60 hover:text-accent"
           >
-            Try a Sleeper preview →
+            See pricing →
           </Link>
         </div>
 

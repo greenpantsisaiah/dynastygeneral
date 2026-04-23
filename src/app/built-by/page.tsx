@@ -123,7 +123,8 @@ export default function BuiltByPage() {
               See the engine on your league
             </h2>
             <p className="mt-3 text-muted">
-              Free preview. Connect your Sleeper username. No signup.
+              Sleeper today, MyFantasyLeague next. Connect your Sleeper account
+              to see it on real leagues. Free tier covers one league.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link

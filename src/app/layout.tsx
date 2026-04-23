@@ -15,12 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Dynasty Copilot: Win the decision in front of you.",
   description:
-    "A Sleeper-first dynasty decision copilot. Remembers your strategy, detects leverage, and helps you act with conviction on picks, trades, and counters.",
-  metadataBase: new URL("http://localhost:3000"),
+    "A dynasty decision copilot. Sleeper today, MyFantasyLeague next. Remembers your strategy, detects leverage, and helps you act with conviction on picks, trades, and counters.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://dynastygeneral.app",
+  ),
   openGraph: {
     title: "Dynasty Copilot",
     description:
-      "Win the decision in front of you. A dynasty copilot for serious Sleeper players.",
+      "Win the decision in front of you. A dynasty copilot for serious dynasty managers. Sleeper today, MyFantasyLeague next.",
     type: "website",
   },
 };

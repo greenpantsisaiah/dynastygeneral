@@ -1,7 +1,10 @@
 import { Ticker } from "@/components/ui/ticker";
 
 const qa = [
-  { q: "What sites does this support?", a: "Sleeper first." },
+  {
+    q: "What sites does this support?",
+    a: "Sleeper today. MyFantasyLeague support is shipping next, then Fantrax. The engine is platform-agnostic; only the data pull changes per host.",
+  },
   {
     q: "Is this a trade calculator?",
     a: "No. It is a decision copilot built for live picks, trades, and negotiation moments.",

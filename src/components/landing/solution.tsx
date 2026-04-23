@@ -18,8 +18,8 @@ export function Solution() {
           A decision engine for picks, trades, and leverage moments.
         </h2>
         <p className="mt-6 max-w-2xl text-lg text-muted">
-          Sync your Sleeper leagues and get just-in-time help on the decisions
-          that actually matter.
+          Sync your Sleeper leagues (MyFantasyLeague next) and get
+          just-in-time help on the decisions that actually matter.
         </p>
         <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-border-soft bg-border-soft sm:grid-cols-2">
           {lines.map((line) => (
