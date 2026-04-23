@@ -1,100 +1,86 @@
+import Image from "next/image";
+import Link from "next/link";
 import { Ticker } from "@/components/ui/ticker";
 
 export function Preview() {
   return (
     <section className="border-b border-border-soft bg-surface py-24 sm:py-32">
       <div className="mx-auto max-w-6xl px-6">
-        <Ticker label="06 · In the moment" />
+        <Ticker label="06 · The live product" />
         <h2 className="mt-6 max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-          Three moments. One brain.
+          Real screenshots. Real Sleeper leagues. Live at dynastygeneral.app.
         </h2>
         <p className="mt-6 max-w-2xl text-lg text-muted">
-          Picks, trades, and negotiation: all answered the same way, with a
-          clear recommendation, grounded in your strategy and the timing.
+          Five surfaces, one engine. Each shot is the actual app on a real
+          dynasty roster. Click through to the walkthrough for context.
         </p>
 
-        <div className="mt-12 grid gap-4 lg:grid-cols-3">
-          <PickCard />
-          <TradeCard />
-          <NegotiationCard />
+        <div className="mt-12 grid gap-6 lg:grid-cols-2">
+          <Shot
+            title="Contender Outlook"
+            blurb="5-year per-year forecast. Rebuild / Bubble / Contender bands. THE TAKE names your window. PROTECT bullets name the picks that fund it."
+            src="/marketing/contender-outlook.png"
+            alt="Contender Outlook with peak 2030 contender (81/100) and protect-the-window bullets"
+          />
+          <Shot
+            title="Decision Card · Plays From Here"
+            blurb="One synthesized take per pick. Move-level options with window deltas, payoff odds, and what to watch for. Drift-based path tracking below."
+            src="/marketing/decision-card.png"
+            alt="Decision card showing Plays From Here with move-level options and Live Strategy Board"
+          />
+          <Shot
+            title="Decision Quadrant"
+            blurb="Top candidates plotted by win-now horizon × confidence. Inline reasoning per dot. The MY LEAN tag points at the engine's primary call."
+            src="/marketing/decision-quadrant.png"
+            alt="Decision Quadrant with ranked candidates including Rico Dowdle, Jakobi Meyers, Rhamondre Stevenson"
+          />
+          <Shot
+            title="League Spectrum"
+            blurb="Every team in your league plotted by Strategy × Value. Find motivated buyers and sellers at a glance. Dot size = our confidence in the read."
+            src="/marketing/opponent-spectrum.png"
+            alt="League spectrum showing 12 teams plotted by strategic lean and expected value with izzydabomb (you) at top"
+          />
+        </div>
+
+        <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <Link
+            href="/connect"
+            className="inline-flex h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
+          >
+            Try with your Sleeper account
+          </Link>
+          <Link
+            href="/how-it-works"
+            className="inline-flex h-11 items-center justify-center rounded-md border border-border-strong bg-background px-6 text-sm font-medium text-foreground transition hover:border-accent/60 hover:text-accent"
+          >
+            Full walkthrough →
+          </Link>
         </div>
       </div>
     </section>
   );
 }
 
-function PickCard() {
+function Shot({
+  title,
+  blurb,
+  src,
+  alt,
+}: {
+  title: string;
+  blurb: string;
+  src: string;
+  alt: string;
+}) {
   return (
-    <div className="rounded-lg border border-border-strong bg-background p-5">
-      <Header label="Pick decision" right="ON THE CLOCK" />
-      <div className="mt-3 text-base font-semibold text-foreground">
-        Draft Jordan Addison
-      </div>
-      <ul className="mt-3 space-y-1.5 text-sm text-muted">
-        <li>Fits young WR-heavy rebuild</li>
-        <li>Holds future flexibility</li>
-        <li>Avoids RB age-curve trap</li>
-      </ul>
-      <div className="mt-4 flex items-center gap-2 border-t border-border-soft pt-3 font-mono text-[11px] text-success">
-        <Dot className="bg-success" /> On strategy
-      </div>
-    </div>
-  );
-}
-
-function TradeCard() {
-  return (
-    <div className="rounded-lg border border-border-strong bg-background p-5">
-      <Header label="Trade decision" right="COUNTER" />
-      <div className="mt-3 text-base font-semibold text-foreground">
-        Ask for 2026 2nd, then accept
-      </div>
-      <div className="mt-4 rounded-md border border-border-soft bg-surface-2 p-3 text-xs text-muted">
-        <div className="font-mono uppercase tracking-[0.16em] text-muted-2">
-          Opponent
+    <figure className="overflow-hidden rounded-lg border border-border-strong bg-background">
+      <div className="border-b border-border-soft bg-surface-2 px-4 py-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          {title}
         </div>
-        <div className="mt-1.5 text-foreground">Win-now · thin at RB</div>
-        <div className="mt-0.5 text-foreground">Bye-week pressure: high</div>
+        <div className="mt-1 text-sm text-muted leading-snug">{blurb}</div>
       </div>
-      <div className="mt-4 flex items-center gap-2 border-t border-border-soft pt-3 font-mono text-[11px] text-accent">
-        <Dot className="bg-accent" /> Leverage: strong
-      </div>
-    </div>
+      <Image src={src} alt={alt} width={1400} height={1050} className="w-full" />
+    </figure>
   );
-}
-
-function NegotiationCard() {
-  return (
-    <div className="rounded-lg border border-border-strong bg-background p-5">
-      <Header label="Negotiation" right="SEND" />
-      <div className="mt-3 rounded-md border border-border-soft bg-surface-2 p-3 text-sm leading-relaxed text-foreground">
-        “Like the structure. Given your RB situation this week, I need a bit
-        more. Add a 2nd and I&apos;m in.”
-      </div>
-      <div className="mt-3 flex gap-2 font-mono text-[10px] uppercase tracking-[0.16em]">
-        <span className="rounded-sm border border-border-soft px-2 py-1 text-muted-2">
-          Softer
-        </span>
-        <span className="rounded-sm border border-accent/60 px-2 py-1 text-accent">
-          Confident
-        </span>
-        <span className="rounded-sm border border-border-soft px-2 py-1 text-muted-2">
-          Pressure
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function Header({ label, right }: { label: string; right: string }) {
-  return (
-    <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em]">
-      <span className="text-muted-2">{label}</span>
-      <span className="text-accent">{right}</span>
-    </div>
-  );
-}
-
-function Dot({ className }: { className: string }) {
-  return <span className={`inline-block h-1.5 w-1.5 rounded-full ${className}`} />;
 }
