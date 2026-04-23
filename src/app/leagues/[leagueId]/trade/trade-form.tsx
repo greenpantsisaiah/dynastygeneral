@@ -10,6 +10,7 @@ import type {
   TradeOutboundOutput,
 } from "@/lib/engine/schemas";
 import { readDeclared } from "@/lib/strategy/declared";
+import { AssetTokenInput } from "@/components/league/asset-token-input";
 
 type ApiResponse =
   | {
@@ -151,22 +152,18 @@ function MetaWrap({
 function IncomingFields() {
   return (
     <>
-      <Field label="You send (one per line or comma-separated)">
-        <textarea
+      <Field label="You send">
+        <AssetTokenInput
           name="you_send"
           required
-          rows={4}
-          placeholder="Jalen Hurts&#10;2027 2nd"
-          className={`${inputCls} resize-y font-mono text-sm`}
+          placeholder="Type a player or pick (e.g. Jalen Hurts, 2027 2nd)"
         />
       </Field>
       <Field label="You receive">
-        <textarea
+        <AssetTokenInput
           name="you_receive"
           required
-          rows={4}
-          placeholder="Malik Nabers&#10;2026 4th"
-          className={`${inputCls} resize-y font-mono text-sm`}
+          placeholder="Type a player or pick (e.g. Malik Nabers, 2026 4th)"
         />
       </Field>
       <Field label="Who's offering (optional: team or manager)">
@@ -197,11 +194,9 @@ function OutboundFields() {
         />
       </Field>
       <Field label="Willing to move (optional)">
-        <textarea
+        <AssetTokenInput
           name="willing_to_move"
-          rows={3}
-          placeholder="Jalen Hurts&#10;2027 1st"
-          className={`${inputCls} resize-y font-mono text-sm`}
+          placeholder="Type a player or pick (e.g. Jalen Hurts, 2027 1st)"
         />
       </Field>
       <Field label="Context (optional)">
