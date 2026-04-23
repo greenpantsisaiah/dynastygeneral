@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
 import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
+import { PrivacyPanel } from "@/components/account/privacy-panel";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PLATFORMS } from "@/lib/leagues/types";
@@ -124,6 +125,8 @@ export default async function AccountPage({
             <ConnectedPlatforms />
 
             <ConnectedLeagues userId={user.id} />
+
+            <PrivacyPanel />
 
             <div className="mt-8 rounded-lg border border-border-soft bg-surface px-5 py-5">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
