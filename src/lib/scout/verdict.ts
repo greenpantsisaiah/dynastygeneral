@@ -131,6 +131,10 @@ function buildUserMessage(args: {
       total_rosters: p.total_rosters,
       top_players: p.top_players,
     })),
+    // 5-year contender outlook summary. Lets the verdict tie its take
+    // to forward trajectory: a "bubble now, contender 2028-2029" team
+    // should NOT be told to chase 2026 wins.
+    outlook_summary: t.outlook_summary,
     // Cross-portfolio "best in class" badge if this team tops a category
     superlative: t.superlative,
   }));
@@ -155,6 +159,13 @@ The system already labels each position's depth in 'position_adequacy'. Trust it
 - 'adequate' means starters are covered but no real bench depth. Don't oversell as deep, don't undersell as thin.
 - 'thin' is the only label you may describe as a depth concern. It corresponds to count below the league's required starter_needs at that position.
 'starter_needs' tells you the league's required starter count per position. Reference this when explaining a 'thin' label, not raw roster size.
+
+Reading the contender outlook (NON-NEGOTIABLE):
+'outlook_summary' projects each team's win-now score across the next 5 seasons under position-specific aging + materialized-pick assumptions, banded as Rebuild (<60), Bubble (60-74), or Contender (75+). When present, USE IT to ground takes about trajectory:
+- A team with peak_tier='contender' in a future year is on a real window. Frame the take around protecting that window. Do NOT advise them to chase the current year if the current year is Rebuild/Bubble.
+- A team with contender_window spanning multiple years (e.g. 2028-2029) is positioned for sustained contention; the lever is holding the assets that fund it.
+- A team with peak_tier='rebuild' across the whole horizon needs more capital or younger talent acquired now.
+- 'outlook_summary' is null when we couldn't compute the projection (empty roster, snapshot failure). Don't fabricate a window in that case.
 
 Reading future-pick capital (NON-NEGOTIABLE):
 'future_picks' lists draft picks owned across the next five seasons. 'future_pick_value' is its dynasty-equivalent value, calibrated against KeepTradeCut market pricing (an elite young player like Bijan or Chase ≈180 on this scale; a generic next-year R1 ≈100; an early R2 ≈60). Class-strength and superflex multipliers are already baked into the number; trust it.

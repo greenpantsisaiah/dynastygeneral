@@ -566,6 +566,32 @@ function ScoutCard({ rank, team }: { rank: number; team: ScoutTeamScore }) {
             </div>
           </div>
         )}
+        {team.outlook_summary && (
+          <div className="col-span-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              5yr outlook
+            </span>
+            <div className="text-foreground">
+              Peak {team.outlook_summary.peak_year} ·{" "}
+              {team.outlook_summary.peak_tier === "contender"
+                ? "Contender"
+                : team.outlook_summary.peak_tier === "bubble"
+                  ? "Bubble"
+                  : "Rebuild"}{" "}
+              ({team.outlook_summary.peak_score}/100)
+              {team.outlook_summary.contender_window && (
+                <span className="text-muted">
+                  {" "}
+                  · window {team.outlook_summary.contender_window.first}
+                  {team.outlook_summary.contender_window.first !==
+                  team.outlook_summary.contender_window.last
+                    ? `-${team.outlook_summary.contender_window.last}`
+                    : ""}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

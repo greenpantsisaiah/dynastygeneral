@@ -11,6 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { __dumpAllPlayers, humanize } from "@/lib/players/cache";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 // Cached at the edge for 10 minutes per query; the underlying player
@@ -77,9 +78,25 @@ type SearchHit = {
   kind: "player" | "pick";
 };
 
+// Cap query length so an attacker can't send 10KB strings into the
+// case-insensitive substring scan. Real player names + pick formats
+// fit comfortably in 32 chars.
+const MAX_QUERY_LENGTH = 32;
+
 export async function GET(req: Request) {
+  const rate = await checkRateLimit("players-search", clientIpFrom(req));
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { results: [], error: "rate_limited" },
+      {
+        status: 429,
+        headers: { "retry-after": String(Math.ceil(rate.reset_ms / 1000)) },
+      },
+    );
+  }
   const url = new URL(req.url);
-  const q = (url.searchParams.get("q") ?? "").trim();
+  let q = (url.searchParams.get("q") ?? "").trim();
+  if (q.length > MAX_QUERY_LENGTH) q = q.slice(0, MAX_QUERY_LENGTH);
   const currentYear = new Date().getFullYear();
 
   // Synthesize pick suggestions FIRST so they appear up top when query

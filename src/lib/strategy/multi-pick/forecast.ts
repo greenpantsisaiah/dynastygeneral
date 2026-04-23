@@ -26,8 +26,13 @@ import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { MultiPickEntry, MultiPickPlan } from "./types";
 
-const MAX_PICKS_PROJECTED = 6; // beyond ~6 user picks, projections are mush
-const ALT_COUNT = 2;
+// Hard cap dropped from 6 to 4 per assumption-auditor 2026-04-23: dynasty
+// mock-draft data (RotoWire 200+ sims, DLF tiering, FantasyPoints ADP
+// risers) shows top-6 stability collapses past pick 7. Anything past
+// the 4th projected user pick is "directional" framing only.
+const MAX_PICKS_PROJECTED = 4;
+const HIGH_CONFIDENCE_PICKS = 1; // current pick gets 1 alt, mids get 2, late get 3
+const MAX_ALTS = 3;
 
 /**
  * Build the projected plan. Returns null when the user has fewer than
@@ -57,16 +62,22 @@ export function buildMultiPickPlan(args: {
   for (let i = 0; i < schedule.length && i < MAX_PICKS_PROJECTED; i++) {
     const slot = schedule[i];
 
-    // The pool at this pick = remainingPool. Take top entry as
-    // primary, next ALT_COUNT as alternates.
+    // The pool at this pick = remainingPool. Categorical confidence
+    // (HIGH / MEDIUM / DIRECTIONAL) replaces the prior numeric taper:
+    // numeric implied precision the deterministic depletion model
+    // hasn't earned. Alt count scales inversely with confidence so
+    // late picks surface more options to absorb sniping.
     if (remainingPool.length === 0) break;
     const primary = remainingPool[0];
-    const alts = remainingPool.slice(1, 1 + ALT_COUNT);
-
-    // Confidence shape: linear taper from 1.0 (current pick) to 0.4
-    // (sixth projected pick). Surfaces uncertainty without nuking
-    // the projection's usefulness.
-    const confidence = Math.max(0.4, 1.0 - i * 0.12);
+    const confidence: "high" | "medium" | "directional" =
+      i < HIGH_CONFIDENCE_PICKS
+        ? "high"
+        : i < HIGH_CONFIDENCE_PICKS + 2
+          ? "medium"
+          : "directional";
+    const altCount =
+      confidence === "high" ? 1 : confidence === "medium" ? 2 : MAX_ALTS;
+    const alts = remainingPool.slice(1, 1 + altCount);
 
     picks.push({
       pick_label: slot.pick_label,
@@ -154,7 +165,13 @@ function buildThread(
   const middle = ageFrame
     ? `Pattern fits a ${ageFrame}. The first pick is the only certain one; alternates listed at each step are what the engine drops to if the primary gets sniped.`
     : `The first pick is the only certain one; alternates listed at each step are what the engine drops to if the primary gets sniped.`;
-  const tail = `Confidence drops past pick ${Math.min(picks.length, 4)}; treat the late picks as directional, not contractual.`;
+  // Find the first DIRECTIONAL-confidence pick to anchor the honesty
+  // sentence. Falls back to "late picks" when everything is HIGH/MEDIUM.
+  const firstDir = picks.findIndex((p) => p.confidence === "directional");
+  const tail =
+    firstDir >= 0
+      ? `Picks from ${picks[firstDir].pick_label} onward are directional, not contractual; treat them as a guide.`
+      : "Past the immediate pick the projection is best-effort; alts are your safety net.";
 
   return `${head} ${middle} ${tail}`;
 }

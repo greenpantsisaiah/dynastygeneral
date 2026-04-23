@@ -21,7 +21,8 @@ type BucketName =
   | "briefings"
   | "decisions"
   | "scout"
-  | "decisions-strategy";
+  | "decisions-strategy"
+  | "players-search";
 
 type LimitSpec = {
   // Requests allowed
@@ -44,6 +45,12 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // 2026-04-22). Tight bucket appropriate; legitimate users only need a
   // handful of scout views per session.
   scout: { requests: 3, window: "10 m" },
+  // Player autocomplete: high frequency by design (every keystroke
+  // triggers a debounced fetch), but cap so a bot can't loop through
+  // q=a..q=zzz busting the cache + forcing a full pool scan each
+  // time. Per security-auditor 2026-04-23: each call holds the full
+  // player pool in memory and CPU-scans it.
+  "players-search": { requests: 60, window: "1 m" },
 };
 
 let redis: Redis | null = null;

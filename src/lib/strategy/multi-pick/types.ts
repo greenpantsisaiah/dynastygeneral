@@ -30,10 +30,12 @@ export type MultiPickEntry = {
     team: string | null;
     age: number | null;
   }>;
-  // Confidence drops as we project further out. 1.0 = "this player will
-  // almost certainly be there." 0.3 = "lottery ticket; pool is wide
-  // open by then."
-  confidence: number;
+  // Categorical confidence label. Numeric confidence implies precision
+  // the model hasn't earned (per assumption-auditor 2026-04-23: linear
+  // taper + deterministic depletion don't justify a 0-1 number).
+  // Buckets: HIGH (current/next pick), MEDIUM (mid-horizon), DIRECTIONAL
+  // (late, treat as flavor not contract).
+  confidence: "high" | "medium" | "directional";
 };
 
 export type MultiPickPlan = {

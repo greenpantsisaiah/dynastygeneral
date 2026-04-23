@@ -5,6 +5,7 @@ import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalUser } from "@/lib/auth/session";
+import { safeNextPath } from "@/lib/auth/safe-next";
 
 export const metadata = {
   title: "Sign in · Dynasty Copilot",
@@ -20,7 +21,10 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const user = await getOptionalUser();
-  if (user) redirect(params.next ?? "/account");
+  // Same-origin gate on `next` to prevent open-redirect phishing
+  // (HIGH finding from security-auditor 2026-04-23).
+  const safeNext = safeNextPath(params.next);
+  if (user) redirect(safeNext);
 
   return (
     <>
@@ -48,11 +52,7 @@ export default async function LoginPage({
           )}
 
           <form action={sendMagicLinkAction} className="mt-6 space-y-3">
-            <input
-              type="hidden"
-              name="next"
-              value={params.next ?? "/account"}
-            />
+            <input type="hidden" name="next" value={safeNext} />
             <label className="block">
               <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
                 Email
@@ -94,7 +94,8 @@ export default async function LoginPage({
 async function sendMagicLinkAction(formData: FormData) {
   "use server";
   const email = String(formData.get("email") ?? "").trim();
-  const next = String(formData.get("next") ?? "/account");
+  // Re-validate `next` server-side; never trust the form-supplied path.
+  const next = safeNextPath(String(formData.get("next") ?? ""));
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     redirect(`/login?error=Please+enter+a+valid+email`);

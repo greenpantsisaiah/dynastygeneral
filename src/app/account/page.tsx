@@ -130,8 +130,10 @@ export default async function AccountPage({
                 Sign out
               </div>
               <p className="mt-2 text-sm text-muted">
-                Signs you out on this device. Chat history and pinned briefings
-                stay on your account.
+                Signs you out of your account on this device. Local chat
+                history and declared-window preferences remain in this
+                browser; clear site data in your browser settings to
+                remove them.
               </p>
               <form action={signOutAction} className="mt-3">
                 <button

@@ -38,9 +38,10 @@ import type {
   SleeperRoster,
   SleeperLeagueUser,
 } from "@/lib/sleeper/schemas";
-import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { buildLeagueSnapshot, getMyRoster } from "@/lib/strategy/league-state/snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { computeWindows } from "@/lib/strategy/windows/compute";
+import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forecast";
 import type { DraftState } from "@/lib/sleeper/draft-state";
 import {
   walkLeagueHistory,
@@ -158,6 +159,16 @@ export type ScoutTeamScore = {
   // prior chain (new startup) or fetch failed. Lets the verdict cite
   // history: "you won 2024, finished 6-7 in 2025."
   prior_seasons: PriorSeasonSummary[];
+  // Compact 5-year contender outlook summary. Lets the verdict tie its
+  // take to forward trajectory ("you're a bubble team this year but
+  // project to peak Contender in 2028-2029, so don't sell the picks").
+  // Null when snapshot/outlook compute failed for this team.
+  outlook_summary: {
+    peak_year: string;
+    peak_score: number;
+    peak_tier: "rebuild" | "bubble" | "contender";
+    contender_window: { first: string; last: string } | null;
+  } | null;
 };
 
 const DYNASTY_VALUE_CEILING = 250;
@@ -491,6 +502,46 @@ export async function scoreTeamForLeague(args: {
     console.error("[scout:history]", league.league_id, err);
   }
 
+  // Contender outlook summary. Reuses the snapshot the strategy build
+  // already produced (when present). Best-effort; failure leaves the
+  // verdict unable to cite trajectory but doesn't break the team.
+  // Skip for empty rosters (nothing to project from).
+  let outlook_summary: ScoutTeamScore["outlook_summary"] = null;
+  if (draftState && playerIds.length > 0) {
+    try {
+      const snap = await buildLeagueSnapshot({
+        league,
+        rosters,
+        users,
+        draftState,
+        mySleeperUserId,
+      });
+      const meSnap = getMyRoster(snap);
+      const years = await computeContenderForecast(snap, meSnap);
+      if (years.length > 0) {
+        const peak = years.reduce(
+          (best, y) => (y.score > best.score ? y : best),
+          years[0],
+        );
+        const contenders = years.filter((y) => y.tier === "contender");
+        outlook_summary = {
+          peak_year: peak.season,
+          peak_score: peak.score,
+          peak_tier: peak.tier,
+          contender_window:
+            contenders.length > 0
+              ? {
+                  first: contenders[0].season,
+                  last: contenders[contenders.length - 1].season,
+                }
+              : null,
+        };
+      }
+    } catch (err) {
+      console.error("[scout:outlook]", league.league_id, err);
+    }
+  }
+
   // Composite: rostered value scaled by starter completeness PLUS the
   // raw value of owned future picks. Future picks don't fill starting
   // slots so they bypass the completeness multiplier; they're capital,
@@ -561,6 +612,7 @@ export async function scoreTeamForLeague(args: {
     future_picks,
     future_pick_value,
     prior_seasons,
+    outlook_summary,
   };
 }
 

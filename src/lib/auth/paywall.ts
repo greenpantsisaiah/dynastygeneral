@@ -28,6 +28,24 @@ export async function checkProGate(): Promise<ProGateResult> {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
   if (!supabaseConfigured) {
+    // In production we refuse to fall open. A misconfigured deploy
+    // missing Supabase env vars must NOT silently grant Pro to every
+    // visitor. Per security-auditor 2026-04-23 LOW finding.
+    if (
+      process.env.NODE_ENV === "production" ||
+      process.env.VERCEL_ENV === "production"
+    ) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          {
+            error: "service_unavailable",
+            message: "Auth is not configured. Try again shortly.",
+          },
+          { status: 503 },
+        ),
+      };
+    }
     return {
       ok: true,
       user: {

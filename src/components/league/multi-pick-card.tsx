@@ -61,7 +61,7 @@ export function MultiPickCard({
           </h2>
         </div>
         <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-          confidence drops past pick 4
+          confidence: high → medium → directional
         </div>
       </div>
 
@@ -101,6 +101,15 @@ export function MultiPickCard({
   );
 }
 
+const CONF_TONE: Record<
+  "high" | "medium" | "directional",
+  { label: string; color: string }
+> = {
+  high: { label: "High", color: "text-success" },
+  medium: { label: "Medium", color: "text-accent" },
+  directional: { label: "Directional", color: "text-muted-2" },
+};
+
 function PickRow({
   entry,
   index,
@@ -108,7 +117,7 @@ function PickRow({
   entry: MultiPickPlan["picks"][number];
   index: number;
 }) {
-  const confPct = Math.round(entry.confidence * 100);
+  const tone = CONF_TONE[entry.confidence];
   return (
     <div className="grid grid-cols-[3.5rem_1fr_auto] items-baseline gap-3 rounded-md border border-border-soft bg-surface-2 px-3 py-2 text-sm">
       <div>
@@ -146,7 +155,11 @@ function PickRow({
         <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
           conf
         </div>
-        <div className="font-mono text-xs text-foreground">{confPct}%</div>
+        <div
+          className={`font-mono text-[11px] uppercase tracking-[0.14em] ${tone.color}`}
+        >
+          {tone.label}
+        </div>
       </div>
     </div>
   );

@@ -41,6 +41,15 @@ export function PaywallModal({
 
   if (!reason) return null;
 
+  // Defense-in-depth: reject any nextPath that isn't a same-origin
+  // path. The login route enforces this server-side too (HIGH security
+  // finding 2026-04-23) but two layers is project standard.
+  const safeNext =
+    reason.nextPath &&
+    reason.nextPath.startsWith("/") &&
+    !reason.nextPath.startsWith("//")
+      ? reason.nextPath
+      : null;
   const isSignIn = reason.kind === "sign_in";
   const title = isSignIn ? "Sign in to use this feature" : "This is a Pro feature";
   const body = isSignIn
@@ -49,7 +58,7 @@ export function PaywallModal({
   const ctaLabel = isSignIn ? "Sign in" : "Start 14-day Pro trial";
   const ctaHref = isSignIn
     ? `${reason.loginUrl ?? "/login"}${
-        reason.nextPath ? `?next=${encodeURIComponent(reason.nextPath)}` : ""
+        safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""
       }`
     : reason.pricingUrl ?? "/pricing";
 
