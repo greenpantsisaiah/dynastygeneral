@@ -34,6 +34,30 @@ const MAX_PICKS_PROJECTED = 4;
 const HIGH_CONFIDENCE_PICKS = 1; // current pick gets 1 alt, mids get 2, late get 3
 const MAX_ALTS = 3;
 
+// Position-aware depletion (v1.5 per audit). Real dynasty drafters
+// don't drain a global rank; they drain by position based on roster
+// construction reality. RB and WR consume the bulk of early picks;
+// QB only matters in superflex; TE rarely. Used to bias which
+// candidates fall off the board between user picks instead of
+// blindly slicing from the top of dynasty_rank.
+//
+// Source: Athlon Sports positional-run primer + dynasty community
+// pick-distribution observation. Numbers are roughly the share of
+// early-round picks each position absorbs in dynasty rookie + startup
+// formats.
+const POSITION_DRAIN_WEIGHT_1QB: Record<string, number> = {
+  WR: 0.45,
+  RB: 0.35,
+  TE: 0.10,
+  QB: 0.10,
+};
+const POSITION_DRAIN_WEIGHT_SF: Record<string, number> = {
+  WR: 0.35,
+  RB: 0.30,
+  QB: 0.25, // SF demand bumps QB share substantially
+  TE: 0.10,
+};
+
 /**
  * Build the projected plan. Returns null when the user has fewer than
  * 2 remaining picks (no rollout to forecast) or the available pool is
@@ -48,8 +72,16 @@ export function buildMultiPickPlan(args: {
   if (schedule.length < 2) return null;
   if (available.length === 0) return null;
 
+  // Format-aware drain weights: SF inflates QB demand. Picked once
+  // per call; consumed by the depletion loop below.
+  const isSuperflex = snap.format === "superflex" || snap.format === "2qb";
+  const drainWeights = isSuperflex
+    ? POSITION_DRAIN_WEIGHT_SF
+    : POSITION_DRAIN_WEIGHT_1QB;
+
   // Sort once by dynasty rank (lower = better). The depletion loop
-  // walks this list and slices off the top entries between user picks.
+  // walks this list and removes a position-aware slice between user
+  // picks rather than blindly slicing the top.
   const sorted = [...available].sort(
     (a, b) => a.dynasty_rank - b.dynasty_rank,
   );
@@ -106,16 +138,39 @@ export function buildMultiPickPlan(args: {
       );
     }
 
-    // Deplete: remove the player we just "took" plus the gap_to_next
-    // top candidates the opponents will likely take. If this is the
-    // last user pick we model, no depletion needed.
+    // Deplete: remove the player we just "took" plus a position-aware
+    // slice the opponents will likely take. If this is the last user
+    // pick we model, no depletion needed.
     const next = schedule[i + 1];
     if (!next) break;
     const opponentPicksBetween = Math.max(0, slot.gap_to_next);
-    // 1 user pick + opponentPicksBetween from the pool head. Cap so
-    // we don't go negative.
-    const drop = Math.min(remainingPool.length, 1 + opponentPicksBetween);
-    remainingPool.splice(0, drop);
+
+    // Always remove the user's primary first.
+    remainingPool.shift();
+
+    // For each opponent pick, remove the top candidate of the
+    // position the drainWeights say is most likely to be drafted
+    // next. We track a running budget per position so the drain
+    // distribution converges to the weights over multiple picks.
+    const positionDrained: Record<string, number> = {};
+    for (let j = 0; j < opponentPicksBetween && remainingPool.length > 0; j++) {
+      const targetPos = pickDrainTarget(
+        drainWeights,
+        positionDrained,
+        j + 1,
+      );
+      const idx = targetPos
+        ? remainingPool.findIndex(
+            (p) => (p.position ?? "?").toUpperCase() === targetPos,
+          )
+        : -1;
+      // If the target position isn't in the pool (or no target), fall
+      // back to the top of the global pool. Keeps the model bounded.
+      const removeIndex = idx >= 0 ? idx : 0;
+      const removed = remainingPool.splice(removeIndex, 1)[0];
+      const pos = (removed?.position ?? "?").toUpperCase();
+      positionDrained[pos] = (positionDrained[pos] ?? 0) + 1;
+    }
   }
 
   return {
@@ -125,6 +180,34 @@ export function buildMultiPickPlan(args: {
       .map(([position, count]) => ({ position, count }))
       .sort((a, b) => b.count - a.count),
   };
+}
+
+/**
+ * Pick the position to drain next based on configured weights and
+ * what's already been drained. Returns the position whose
+ * weight-normalized share is most under-represented relative to its
+ * target, so the running drain converges on the weights as N grows.
+ *
+ * Returns null only if all weights are zero (degenerate config).
+ */
+function pickDrainTarget(
+  weights: Record<string, number>,
+  drained: Record<string, number>,
+  totalSoFar: number,
+): string | null {
+  let best: string | null = null;
+  let bestDeficit = -Infinity;
+  for (const [pos, weight] of Object.entries(weights)) {
+    if (weight <= 0) continue;
+    const expected = weight * totalSoFar;
+    const actual = drained[pos] ?? 0;
+    const deficit = expected - actual;
+    if (deficit > bestDeficit) {
+      bestDeficit = deficit;
+      best = pos;
+    }
+  }
+  return best;
 }
 
 function reasonFor(p: AvailablePlayer, pickIndex: number): string {

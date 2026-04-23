@@ -48,6 +48,29 @@ export async function POST(req: Request) {
     );
   }
 
+  // Idempotency: Stripe retries 5xx for up to 3 days. The webhook_events
+  // table records each event id we've seen so the handler runs at most
+  // once. ON CONFLICT DO NOTHING returns a row only on first insert; we
+  // skip processing on duplicate. Per security-auditor 2026-04-23 MEDIUM.
+  const admin = getAdminClient();
+  const insert = await admin
+    .from("webhook_events")
+    .insert({
+      event_id: event.id,
+      event_type: event.type,
+    })
+    .select("event_id")
+    .maybeSingle();
+  if (!insert.data) {
+    // Either we've already processed this event (unique conflict) or the
+    // insert failed for another reason. Return 200 so Stripe stops
+    // retrying; the original successful run already applied the change.
+    if (insert.error) {
+      console.warn("[stripe:webhook:dedup]", event.id, insert.error.message);
+    }
+    return NextResponse.json({ received: true, deduped: true });
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -62,6 +85,11 @@ export async function POST(req: Request) {
         break;
       // Other events ignored for v1.
     }
+    // Stamp processed_at so incident review can spot stuck events.
+    await admin
+      .from("webhook_events")
+      .update({ processed_at: new Date().toISOString() })
+      .eq("event_id", event.id);
   } catch (err) {
     console.error("[stripe:webhook]", event.type, err);
     return NextResponse.json(
