@@ -22,7 +22,8 @@ type BucketName =
   | "decisions"
   | "scout"
   | "decisions-strategy"
-  | "players-search";
+  | "players-search"
+  | "feedback";
 
 type LimitSpec = {
   // Requests allowed
@@ -51,6 +52,9 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // time. Per security-auditor 2026-04-23: each call holds the full
   // player pool in memory and CPU-scans it.
   "players-search": { requests: 60, window: "1 m" },
+  // In-app feedback. Tight cap so a bot can't flood the table; legit
+  // users send 1-2 submissions per session.
+  feedback: { requests: 5, window: "1 m" },
 };
 
 let redis: Redis | null = null;
