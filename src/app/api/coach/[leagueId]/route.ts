@@ -19,6 +19,7 @@ import { z } from "zod";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget, recordSpend } from "@/lib/budget";
 import { checkProGate } from "@/lib/auth/paywall";
+import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
   getLeagueUsers,
@@ -477,6 +478,34 @@ export async function POST(
     input_tokens: response.usage.input_tokens,
     output_tokens: response.usage.output_tokens,
   }).catch(() => {});
+
+  // Server-side chat history mirror. Pro-tier benefit: cross-device
+  // continuity. Best-effort; localStorage on the client is the
+  // canonical store for non-Pro users and the offline cache for Pro.
+  // The user is guaranteed Pro at this point because checkProGate
+  // gated the request earlier in the handler.
+  if (gate.user.id !== "anonymous-dev") {
+    try {
+      const supabase = await createClient();
+      await supabase.from("chat_history").insert([
+        {
+          user_id: gate.user.id,
+          league_id: leagueId,
+          role: "user",
+          content: message,
+        },
+        {
+          user_id: gate.user.id,
+          league_id: leagueId,
+          role: "assistant",
+          content: text || "(no response)",
+        },
+      ]);
+    } catch (err) {
+      // Persistence failure shouldn't fail the chat reply. Log + move on.
+      console.error("[coach:persist]", err);
+    }
+  }
 
   return NextResponse.json({
     reply: text || "(no response)",

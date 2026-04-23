@@ -141,6 +141,45 @@ export function CoachChat({
     if (el) el.scrollTop = el.scrollHeight;
   }, [history.length, pending]);
 
+  // Server-side history hydration. Pro users get cross-device chat
+  // continuity: on mount, fetch /api/coach/[leagueId]/history. If the
+  // server has more or different messages than localStorage, merge by
+  // timestamp (server is canonical when ts ties). Anonymous + free
+  // users see an empty server response and keep localStorage-only.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/coach/${leagueId}/history`);
+        if (!res.ok) return;
+        const { messages } = (await res.json()) as {
+          messages: Array<{ role: Role; content: string; ts: number }>;
+        };
+        if (cancelled || messages.length === 0) return;
+        const local = readHistory(leagueId);
+        // Merge by ts; dedup identical (role, content, ts).
+        const seen = new Set<string>();
+        const merged = [...messages, ...local]
+          .sort((a, b) => a.ts - b.ts)
+          .filter((m) => {
+            const key = `${m.role}:${m.ts}:${m.content.slice(0, 64)}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .slice(-MAX_HISTORY);
+        if (merged.length !== local.length) {
+          writeHistory(leagueId, merged);
+        }
+      } catch {
+        // Silent fallback; localStorage continues to work.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueId]);
+
   // Seed-question bridge. Hub panels dispatch `coach:seed` events with a
   // pre-filled prompt so tapping a Strategic Fork card drops "Compare
   // these candidates" into the input without the user typing. Only
