@@ -11,6 +11,7 @@
  * border treatment (caller passes isPinned).
  */
 
+import { useState } from "react";
 import type {
   Briefing,
   BriefingSeverity,
@@ -216,23 +217,63 @@ export function BriefingCard({
         </ul>
       )}
 
-      <footer className="mt-3 flex items-center justify-between border-t border-border-soft pt-2.5">
+      <footer className="mt-3 flex items-center justify-between gap-3 border-t border-border-soft pt-2.5">
         <span className="font-mono text-xs text-muted-2">
           {briefing.triggered_by}
         </span>
-        <button
-          type="button"
-          onClick={onTogglePin}
-          className={`font-mono text-xs uppercase tracking-[0.14em] ${
-            isPinned
-              ? "text-success hover:text-danger"
-              : "text-muted-2 hover:text-accent"
-          }`}
-        >
-          {isPinned ? "Unpin" : "Pin to War Room"}
-        </button>
+        <div className="flex items-center gap-3">
+          <CopyTakeButton briefing={briefing} />
+          <button
+            type="button"
+            onClick={onTogglePin}
+            className={`font-mono text-xs uppercase tracking-[0.14em] ${
+              isPinned
+                ? "text-success hover:text-danger"
+                : "text-muted-2 hover:text-accent"
+            }`}
+          >
+            {isPinned ? "Unpin" : "Pin to War Room"}
+          </button>
+        </div>
       </footer>
     </article>
+  );
+}
+
+/**
+ * Copy a briefing as readable plain text (headline + body + bulleted
+ * evidence). Lets a user paste an analyst take into Sleeper league
+ * chat or Slack with one tap. The take is the value Dynasty Copilot
+ * delivers; surfacing it for sharing is a respect signal and a
+ * growth lever.
+ */
+function CopyTakeButton({ briefing }: { briefing: Briefing }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation();
+        const lines: string[] = [briefing.headline, "", briefing.body];
+        if (briefing.evidence.length > 0) {
+          lines.push("");
+          for (const evt of briefing.evidence) {
+            lines.push(`· ${evt}`);
+          }
+        }
+        try {
+          await navigator.clipboard.writeText(lines.join("\n"));
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch {
+          // Clipboard unavailable; silently no-op rather than confuse.
+        }
+      }}
+      className="font-mono text-xs uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
+      title="Copy this take to clipboard"
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
   );
 }
 

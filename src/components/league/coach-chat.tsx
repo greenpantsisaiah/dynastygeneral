@@ -399,11 +399,16 @@ export function CoachChat({
                   className={
                     m.role === "user"
                       ? "max-w-[90%] rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-foreground"
-                      : "max-w-[95%] rounded-lg border border-border-soft bg-surface-2 px-3 py-2 text-sm leading-relaxed text-foreground"
+                      : "group max-w-[95%] rounded-lg border border-border-soft bg-surface-2 px-3 py-2 text-sm leading-relaxed text-foreground"
                   }
                 >
-                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                    {m.role === "user" ? displayName : "Coach"}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                      {m.role === "user" ? displayName : "Coach"}
+                    </div>
+                    {m.role === "assistant" && (
+                      <CopyButton text={m.content} />
+                    )}
                   </div>
                   <div className="mt-1 whitespace-pre-wrap">{m.content}</div>
                 </div>
@@ -507,5 +512,36 @@ export function seedCoachPrompt(prompt: string): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent("coach:seed", { detail: { prompt } }),
+  );
+}
+
+/**
+ * Inline copy-to-clipboard button on each assistant message. Lets a
+ * user paste a coach take into Sleeper league chat or Slack with one
+ * tap. The take itself is the value Dynasty Copilot delivers; making
+ * it shareable to leaguemates is a growth lever and a respect signal
+ * (the copilot serves the user, not a walled garden).
+ */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch {
+          // Clipboard API not available; do nothing rather than
+          // surface a confusing error.
+        }
+      }}
+      className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 transition hover:text-accent"
+      title="Copy this take"
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
   );
 }
