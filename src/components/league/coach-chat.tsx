@@ -25,6 +25,11 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import {
+  PaywallModal,
+  readPaywallReason,
+  type PaywallReason,
+} from "@/components/billing/paywall-modal";
 
 type Role = "user" | "assistant";
 type ChatMessage = { role: Role; content: string; ts: number };
@@ -127,6 +132,7 @@ export function CoachChat({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paywall, setPaywall] = useState<PaywallReason | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -190,6 +196,13 @@ export function CoachChat({
             message,
           }),
         });
+        const reason = await readPaywallReason(res);
+        if (reason) {
+          setPaywall({ ...reason, nextPath: window.location.pathname });
+          // Roll back the optimistic user message we just wrote
+          writeHistory(leagueId, history);
+          return;
+        }
         if (!res.ok) {
           const txt = await res.text().catch(() => res.statusText);
           throw new Error(`coach returned ${res.status}: ${txt.slice(0, 200)}`);
@@ -230,6 +243,7 @@ export function CoachChat({
           : "mt-6"
       }
     >
+      <PaywallModal reason={paywall} onClose={() => setPaywall(null)} />
       {/* Panel-only sticky header with context chip */}
       {isPanel && (
         <header className="flex items-baseline justify-between gap-2 border-b border-border-soft px-4 py-3">

@@ -47,6 +47,10 @@ import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forec
 import { synthesizeContenderOutlook } from "@/lib/strategy/contender-outlook/synthesize";
 import type { ContenderOutlook } from "@/lib/strategy/contender-outlook/types";
 import { getMyRoster } from "@/lib/strategy/league-state/snapshot";
+import { MultiPickCard } from "@/components/league/multi-pick-card";
+import { buildMultiPickPlan } from "@/lib/strategy/multi-pick/forecast";
+import type { MultiPickPlan } from "@/lib/strategy/multi-pick/types";
+import { getTier } from "@/lib/auth/session";
 import { PlaysFromHere } from "@/components/league/plays-from-here";
 import { DecisionCard } from "@/components/league/decision-card";
 import { DecisionQuadrant } from "@/components/league/decision-quadrant";
@@ -151,6 +155,7 @@ export default async function LeagueHubPage({
     | Awaited<ReturnType<typeof buildLeagueSnapshot>>
     | null = null;
   let contenderOutlook: ContenderOutlook | null = null;
+  let multiPickPlan: MultiPickPlan | null = null;
   if (draftState) {
     try {
       leagueSnapshot = await buildLeagueSnapshot({
@@ -225,6 +230,21 @@ export default async function LeagueHubPage({
         }));
       }
 
+      // Multi-pick rollout. Cheap (no LLM call), Pro-only at the UI
+      // tier. Computed whenever the draft is active and the user has
+      // at least 2 picks remaining; the card itself shows an upsell
+      // for free users.
+      if (draftActive && availablePlayers.length > 0) {
+        try {
+          multiPickPlan = buildMultiPickPlan({
+            snap: snapshot,
+            available: availablePlayers,
+          });
+        } catch (err) {
+          console.error("[hub:multi-pick]", err);
+        }
+      }
+
       // Decision Synthesis. Runs AFTER all enrichments so the
       // ranked archetypes carry top_candidates + phase, available
       // carries ADP + dynasty_rank, and windows carry the weighting.
@@ -287,6 +307,12 @@ export default async function LeagueHubPage({
   // Lean label for coach context chip. Derive from top-ranked archetype
   // when available, else leave undefined.
   const topLean = rankedArchetypes[0]?.archetype.name ?? null;
+
+  // Tier check for Pro-gated UI surfaces. Falls open in dev when
+  // Supabase isn't configured (getTier returns "free" + null user).
+  const tierState = await getTier();
+  const isPro = tierState.tier === "pro";
+  const userPickCount = leagueSnapshot?.draft.my_pick_schedule.length ?? 0;
 
   return (
     <>
@@ -380,6 +406,14 @@ export default async function LeagueHubPage({
               )}
 
               {decision && <DecisionCard decision={decision} />}
+
+              {draftActive && userPickCount >= 2 && (
+                <MultiPickCard
+                  plan={multiPickPlan}
+                  isPro={isPro}
+                  pickCount={userPickCount}
+                />
+              )}
 
               {decision && decision.quadrant_candidates.length > 0 && (
                 <DecisionQuadrant

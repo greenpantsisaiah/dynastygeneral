@@ -27,6 +27,11 @@ import {
   unpinBriefing,
 } from "@/lib/strategy/briefings/store";
 import { BriefingCard, type CurrentRosterCounts } from "./briefing-card";
+import {
+  PaywallModal,
+  readPaywallReason,
+  type PaywallReason,
+} from "@/components/billing/paywall-modal";
 
 // Stable empty references for SSR snapshots. useSyncExternalStore
 // requires server snapshots to return the SAME reference each call.
@@ -65,6 +70,7 @@ export function BriefingFeed({
 
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paywall, setPaywall] = useState<PaywallReason | null>(null);
 
   const pinnedSet = new Set(pinnedIds);
   const pinnedBriefings = feed.filter((b) => pinnedSet.has(b.id));
@@ -81,6 +87,11 @@ export function BriefingFeed({
       if (username) url.searchParams.set("username", username);
       url.searchParams.set("trigger", "user requested");
       const res = await fetch(url.toString(), { method: "POST" });
+      const reason = await readPaywallReason(res);
+      if (reason) {
+        setPaywall({ ...reason, nextPath: window.location.pathname });
+        return;
+      }
       if (!res.ok) {
         const text = await res.text().catch(() => res.statusText);
         throw new Error(`Analyst returned ${res.status}: ${text}`);
@@ -112,6 +123,7 @@ export function BriefingFeed({
 
   return (
     <section className="mt-8">
+      <PaywallModal reason={paywall} onClose={() => setPaywall(null)} />
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
