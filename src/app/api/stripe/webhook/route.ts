@@ -1,0 +1,159 @@
+/**
+ * POST /api/stripe/webhook
+ *
+ * Stripe → app event handler. Verifies the signature with
+ * STRIPE_WEBHOOK_SECRET, then mirrors subscription state into
+ * public.subscriptions via the admin (service-role) client.
+ *
+ * Events handled:
+ * - checkout.session.completed: customer + subscription created
+ * - customer.subscription.created / updated: tier/status sync
+ * - customer.subscription.deleted: revert to free
+ * - customer.subscription.trial_will_end: nothing today; could trigger email
+ *
+ * The service-role client bypasses RLS. Webhook signature is the only
+ * trust boundary. NEVER touch Supabase admin without verifying the sig.
+ */
+
+import { NextResponse } from "next/server";
+import type Stripe from "stripe";
+import { getStripe } from "@/lib/stripe/client";
+import { getAdminClient } from "@/lib/supabase/admin";
+
+export const runtime = "nodejs";
+// Stripe webhooks need raw body for signature verification.
+export const dynamic = "force-dynamic";
+
+export async function POST(req: Request) {
+  const sig = req.headers.get("stripe-signature");
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!sig || !webhookSecret) {
+    return NextResponse.json(
+      { error: "missing signature or webhook secret" },
+      { status: 400 },
+    );
+  }
+
+  const rawBody = await req.text();
+  const stripe = getStripe();
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+  } catch (err) {
+    console.error("[stripe:webhook:signature]", err);
+    return NextResponse.json(
+      { error: "invalid signature" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+        await syncSubscription(event.data.object as Stripe.Subscription);
+        break;
+      case "customer.subscription.deleted":
+        await revertToFree(event.data.object as Stripe.Subscription);
+        break;
+      // Other events ignored for v1.
+    }
+  } catch (err) {
+    console.error("[stripe:webhook]", event.type, err);
+    return NextResponse.json(
+      { error: "handler failed" },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ received: true });
+}
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  // client_reference_id is the Supabase user id we set when creating
+  // the checkout session. If missing, we can't link the customer.
+  const userId = session.client_reference_id;
+  if (!userId) {
+    console.error("[stripe:webhook] missing client_reference_id on checkout session");
+    return;
+  }
+  const customerId =
+    typeof session.customer === "string" ? session.customer : null;
+  const subscriptionId =
+    typeof session.subscription === "string" ? session.subscription : null;
+  if (!customerId || !subscriptionId) return;
+
+  // Pull the subscription so we can sync the full state in one place.
+  const stripe = getStripe();
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  await upsertSubscription(userId, customerId, subscription);
+}
+
+async function syncSubscription(subscription: Stripe.Subscription) {
+  // Subscription metadata.user_id was set at checkout-session creation.
+  const userId = subscription.metadata?.user_id;
+  if (!userId) {
+    console.error("[stripe:webhook] missing user_id in subscription metadata");
+    return;
+  }
+  const customerId =
+    typeof subscription.customer === "string" ? subscription.customer : null;
+  if (!customerId) return;
+  await upsertSubscription(userId, customerId, subscription);
+}
+
+async function revertToFree(subscription: Stripe.Subscription) {
+  const userId = subscription.metadata?.user_id;
+  if (!userId) return;
+  const admin = getAdminClient();
+  await admin
+    .from("subscriptions")
+    .update({
+      tier: "free",
+      status: "canceled",
+      stripe_subscription_id: null,
+      stripe_price_id: null,
+      trial_end: null,
+      current_period_end: null,
+      cancel_at_period_end: false,
+    })
+    .eq("user_id", userId);
+}
+
+async function upsertSubscription(
+  userId: string,
+  customerId: string,
+  subscription: Stripe.Subscription,
+) {
+  const admin = getAdminClient();
+  // The first item is the plan we're tracking. We only sell one item per
+  // subscription in v1 so this is unambiguous.
+  const item = subscription.items.data[0];
+  const priceId = item?.price.id ?? null;
+
+  // The Stripe types are loose on these; cast through unknown.
+  const sub = subscription as unknown as {
+    status: string;
+    trial_end: number | null;
+    current_period_end: number | null;
+    cancel_at_period_end: boolean;
+  };
+
+  await admin.from("subscriptions").upsert({
+    user_id: userId,
+    tier: "pro", // any active stripe sub for our product is Pro
+    status: sub.status,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: subscription.id,
+    stripe_price_id: priceId,
+    trial_end: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+    current_period_end: sub.current_period_end
+      ? new Date(sub.current_period_end * 1000).toISOString()
+      : null,
+    cancel_at_period_end: sub.cancel_at_period_end,
+  });
+}

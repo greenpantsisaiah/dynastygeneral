@@ -18,6 +18,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget, recordSpend } from "@/lib/budget";
+import { checkProGate } from "@/lib/auth/paywall";
 import {
   getLeague,
   getLeagueUsers,
@@ -173,6 +174,11 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ leagueId: string }> },
 ) {
+  // Pro tier required. Falls open in dev (no Supabase configured); in
+  // prod returns 401 (sign in) or 402 (upgrade).
+  const gate = await checkProGate();
+  if (!gate.ok) return gate.response;
+
   // Rate limit + daily budget check BEFORE any expensive work.
   const ip = clientIpFrom(req);
   const rate = await checkRateLimit("coach", ip);

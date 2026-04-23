@@ -22,11 +22,17 @@ import { buildOpponentReadout } from "@/lib/strategy/opponents/observe";
 import { generateBriefings } from "@/lib/strategy/briefings/analyst";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
+import { checkProGate } from "@/lib/auth/paywall";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ leagueId: string }> },
 ) {
+  // Briefing generation is a Pro feature. Free users can VIEW shared
+  // briefings (read-only) but not generate new ones.
+  const gate = await checkProGate();
+  if (!gate.ok) return gate.response;
+
   const ip = clientIpFrom(req);
   const rate = await checkRateLimit("briefings", ip);
   if (!rate.allowed) {
