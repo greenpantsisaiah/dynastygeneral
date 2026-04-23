@@ -43,7 +43,7 @@ OUTPUT
 Return ONLY a JSON object with three fields. No prose before or after.
 {
   "headline": "1-2 sentences. The take. If a claim is provided, confirm or contradict it explicitly with the leading evidence FROM THE USER'S OWN PORTFOLIO.",
-  "body": "Up to 4 sentences. One claim per sentence. Name leagues by name, players by name, position gaps, age skew. Reference scores using the confidence vocabulary (lock / lean / coin-flip / fade) rather than raw numbers. Verb-led sentences only.",
+  "body": "Up to 4 sentences. One claim per sentence. Name leagues by name, players by name, position gaps, age skew. Reference team strength using the pre-banded 'tier' field (Top tier / Strong / Mid / Weak / Pre-build) and the confidence vocabulary (lock / lean / coin-flip / fade). NEVER cite raw composite_score numbers. Verb-led sentences only.",
   "per_team": {
     "league_id_1": "one-line take, 12-18 words, names a player + the central tension",
     "league_id_2": "...",
@@ -77,6 +77,30 @@ function buildUserMessage(args: {
     if (b.build_phase === "empty" && a.build_phase !== "empty") return -1;
     return a.composite_score - b.composite_score;
   });
+
+  // Pre-band the composite scores so the verdict prompt cites tier
+  // labels instead of raw points. Stops the model from claiming
+  // "ranked 4th" with the same confidence as a KTC trade value when
+  // 4th and 5th are within model noise. Per assumption-auditor
+  // 2026-04-23 prompt-voice finding.
+  //
+  // Banding: among NON-EMPTY teams, sort high-to-low and split into
+  // quartiles. Top 25% = "Top tier"; next 25% = "Strong"; next 25% =
+  // "Mid"; bottom 25% = "Weak". Empty rosters get "Pre-build."
+  const composites = ranked
+    .filter((t) => t.build_phase !== "empty")
+    .map((t) => t.composite_score)
+    .sort((a, b) => b - a);
+  const tierLabel = (score: number, isEmpty: boolean): string => {
+    if (isEmpty || composites.length === 0) return "Pre-build";
+    const idx = composites.findIndex((c) => c <= score);
+    const rank = idx >= 0 ? idx : composites.length - 1;
+    const pct = rank / Math.max(1, composites.length - 1);
+    if (pct < 0.25) return "Top tier";
+    if (pct < 0.5) return "Strong";
+    if (pct < 0.75) return "Mid";
+    return "Weak";
+  };
   const teamSummaries = ranked.map((t, i) => ({
     rank_worst_to_best: i + 1,
     league_id: t.league_id,
@@ -85,6 +109,9 @@ function buildUserMessage(args: {
     season: t.season,
     status: t.status,
     build_phase: t.build_phase, // "empty" | "drafting" | "active"
+    // Pre-banded tier label. Use this in your prose. The raw composite
+    // score is included for ordering reference only.
+    tier: tierLabel(t.composite_score, t.build_phase === "empty"),
     composite_score: Math.round(t.composite_score),
     team_value: Math.round(t.team_value),
     starter_completeness: Number(t.starter_completeness.toFixed(2)),
