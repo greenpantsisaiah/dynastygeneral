@@ -61,7 +61,7 @@ export function MultiPickCard({
           </h2>
         </div>
         <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-          confidence: high → medium → directional
+          50-trial Monte Carlo · stochastic opponents
         </div>
       </div>
 

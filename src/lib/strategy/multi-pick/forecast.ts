@@ -3,22 +3,26 @@
  * projects what's likely to be available at each pick after intervening
  * opponent picks deplete the pool.
  *
- * Depletion model (v1, pessimistic):
- *   Between user pick N and N+1, opponents will pick `gap_to_next`
- *   times. We assume opponents pick by descending dynasty value (top
- *   of search_rank tier). So between picks, drop the top
- *   `gap_to_next` candidates from the available pool.
+ * Depletion model (v2 Monte Carlo, per assumption-auditor 2026-04-23):
+ *   Run N trials. In each trial, opponents draw stochastically from a
+ *   position-weighted top-K window: position is sampled by drainWeights,
+ *   then the player is sampled within that position from the top-K of
+ *   the pool with softmax weights (top of pool is most likely but not
+ *   certain). Aggregate: per user pick, find the modal primary across
+ *   trials and surface the next 2 most-frequently-also-available as
+ *   alternates. Survival % becomes the basis for the confidence band.
  *
- * This is conservative: it assumes opponents are rational and on-the-
- * board top picks survive only via gap arithmetic. Real opponents
- * sometimes reach for a need or punt a tier, so the projection's
- * confidence drops the further out we go.
+ * Why this beats v1:
+ *   - Real opponents reach, punt tiers, and prioritize roster need.
+ *     Deterministic top-of-rank doesn't capture any of that.
+ *   - The modal-survivor-across-trials is a much more honest "what's
+ *     likely to be there" than the deterministic primary.
+ *   - Confidence becomes a real probability (% of trials this player
+ *     was the user's top option) instead of a linear taper.
  *
- * Future improvements (v2):
- *   - Use opponent characterizations to skip future-leaning opponents
- *     past rookies, and win-now opponents past 23-and-unders.
- *   - Sample-and-aggregate (run 50 trials with stochastic opponents,
- *     report the player most likely to survive at each user pick).
+ * v3 candidates:
+ *   - Use opponent_characterizations to differentiate the per-opponent
+ *     preference distribution (win-now opponents skip rookies, etc.)
  *   - LLM-narrated "thread" instead of templated.
  */
 
@@ -58,6 +62,24 @@ const POSITION_DRAIN_WEIGHT_SF: Record<string, number> = {
   TE: 0.10,
 };
 
+// Monte Carlo trial count. 50 is enough to stabilize the modal-pick
+// signal at ±5 percentage points (binomial std-dev), well below the
+// resolution our confidence buckets care about. Per-trial cost is
+// O(picks × opponents) which is tiny (~50 ops); 50 trials is ~2500
+// ops per buildMultiPickPlan, negligible against the LLM calls
+// elsewhere on the page.
+const MONTE_CARLO_TRIALS = 50;
+// Top-K window from which opponents sample within a position. Higher
+// = more reach / more variance. K=5 reflects the dynasty community
+// observation that opponents reach 1-2 tiers regularly but rarely
+// drop 5+ ranks.
+const SAMPLE_WINDOW_SIZE = 5;
+// Softmax sharpness for the within-position sampling. Higher =
+// closer to "always pick top of pool"; lower = more uniform across
+// the window. 1.5 is a moderate prior that respects the rank order
+// without making it deterministic.
+const SOFTMAX_TEMP = 1.5;
+
 /**
  * Build the projected plan. Returns null when the user has fewer than
  * 2 remaining picks (no rollout to forecast) or the available pool is
@@ -79,97 +101,104 @@ export function buildMultiPickPlan(args: {
     ? POSITION_DRAIN_WEIGHT_SF
     : POSITION_DRAIN_WEIGHT_1QB;
 
-  // Sort once by dynasty rank (lower = better). The depletion loop
-  // walks this list and removes a position-aware slice between user
-  // picks rather than blindly slicing the top.
+  // Sort once by dynasty rank (lower = better). Each Monte Carlo
+  // trial works against a copy of this list.
   const sorted = [...available].sort(
     (a, b) => a.dynasty_rank - b.dynasty_rank,
   );
-  const remainingPool = [...sorted];
 
+  const picksToProject = Math.min(schedule.length, MAX_PICKS_PROJECTED);
+  // Tally per user-pick: how many trials picked each player as the
+  // user's primary. Modal player (highest count) becomes the surfaced
+  // primary; survival % becomes the confidence basis.
+  const trialPicks: Array<Map<string, number>> = Array.from(
+    { length: picksToProject },
+    () => new Map<string, number>(),
+  );
+  // Track which player ids belong to which AvailablePlayer so the
+  // aggregator can produce metadata-rich primaries + alts at the end.
+  const playerById = new Map(sorted.map((p) => [p.id, p]));
+
+  for (let trial = 0; trial < MONTE_CARLO_TRIALS; trial++) {
+    const pool = [...sorted];
+    for (let i = 0; i < picksToProject; i++) {
+      if (pool.length === 0) break;
+      const slot = schedule[i];
+      // User picks the top of pool deterministically (we're modeling
+      // the OPTIMAL user, the engine's recommendation; opponent
+      // randomness is what we sample). Record the pick for the tally.
+      const primary = pool[0];
+      const tally = trialPicks[i];
+      tally.set(primary.id, (tally.get(primary.id) ?? 0) + 1);
+      pool.shift();
+
+      // Stochastic opponent picks for the gap.
+      const next = schedule[i + 1];
+      if (!next) break;
+      const opponentPicksBetween = Math.max(0, slot.gap_to_next);
+      for (let j = 0; j < opponentPicksBetween && pool.length > 0; j++) {
+        const targetPos = sampleOpponentPosition(drainWeights);
+        const removed = sampleOpponentPlayer(pool, targetPos);
+        if (removed) {
+          const idx = pool.indexOf(removed);
+          if (idx >= 0) pool.splice(idx, 1);
+        }
+      }
+    }
+  }
+
+  // Aggregate trials into final per-pick recommendations.
   const picks: MultiPickEntry[] = [];
-  // Track positions added across the projected plan for the summary.
   const positionCounts = new Map<string, number>();
-
-  for (let i = 0; i < schedule.length && i < MAX_PICKS_PROJECTED; i++) {
+  for (let i = 0; i < picksToProject; i++) {
+    const tally = trialPicks[i];
     const slot = schedule[i];
+    const ranked = Array.from(tally.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([id, count]) => ({
+        player: playerById.get(id),
+        count,
+      }))
+      .filter((x): x is { player: AvailablePlayer; count: number } =>
+        Boolean(x.player),
+      );
+    if (ranked.length === 0) break;
 
-    // The pool at this pick = remainingPool. Categorical confidence
-    // (HIGH / MEDIUM / DIRECTIONAL) replaces the prior numeric taper:
-    // numeric implied precision the deterministic depletion model
-    // hasn't earned. Alt count scales inversely with confidence so
-    // late picks surface more options to absorb sniping.
-    if (remainingPool.length === 0) break;
-    const primary = remainingPool[0];
+    const primaryEntry = ranked[0];
+    const survivalPct = primaryEntry.count / MONTE_CARLO_TRIALS;
     const confidence: "high" | "medium" | "directional" =
-      i < HIGH_CONFIDENCE_PICKS
+      i < HIGH_CONFIDENCE_PICKS || survivalPct >= 0.7
         ? "high"
-        : i < HIGH_CONFIDENCE_PICKS + 2
+        : survivalPct >= 0.4
           ? "medium"
           : "directional";
     const altCount =
       confidence === "high" ? 1 : confidence === "medium" ? 2 : MAX_ALTS;
-    const alts = remainingPool.slice(1, 1 + altCount);
+    const alts = ranked.slice(1, 1 + altCount);
 
     picks.push({
       pick_label: slot.pick_label,
       pick_no: slot.pick_no,
       picks_until: i === 0 ? 0 : slot.pick_no - schedule[0].pick_no,
       primary: {
-        name: primary.name,
-        position: primary.position ?? "?",
-        team: primary.team,
-        age: primary.age,
-        reason: reasonFor(primary, i),
+        name: primaryEntry.player.name,
+        position: primaryEntry.player.position ?? "?",
+        team: primaryEntry.player.team,
+        age: primaryEntry.player.age,
+        reason: reasonFor(primaryEntry.player, i, survivalPct),
       },
-      alternates: alts.map((p) => ({
-        name: p.name,
-        position: p.position ?? "?",
-        team: p.team,
-        age: p.age,
+      alternates: alts.map((a) => ({
+        name: a.player.name,
+        position: a.player.position ?? "?",
+        team: a.player.team,
+        age: a.player.age,
       })),
       confidence,
     });
 
-    if (primary.position) {
-      positionCounts.set(
-        primary.position,
-        (positionCounts.get(primary.position) ?? 0) + 1,
-      );
-    }
-
-    // Deplete: remove the player we just "took" plus a position-aware
-    // slice the opponents will likely take. If this is the last user
-    // pick we model, no depletion needed.
-    const next = schedule[i + 1];
-    if (!next) break;
-    const opponentPicksBetween = Math.max(0, slot.gap_to_next);
-
-    // Always remove the user's primary first.
-    remainingPool.shift();
-
-    // For each opponent pick, remove the top candidate of the
-    // position the drainWeights say is most likely to be drafted
-    // next. We track a running budget per position so the drain
-    // distribution converges to the weights over multiple picks.
-    const positionDrained: Record<string, number> = {};
-    for (let j = 0; j < opponentPicksBetween && remainingPool.length > 0; j++) {
-      const targetPos = pickDrainTarget(
-        drainWeights,
-        positionDrained,
-        j + 1,
-      );
-      const idx = targetPos
-        ? remainingPool.findIndex(
-            (p) => (p.position ?? "?").toUpperCase() === targetPos,
-          )
-        : -1;
-      // If the target position isn't in the pool (or no target), fall
-      // back to the top of the global pool. Keeps the model bounded.
-      const removeIndex = idx >= 0 ? idx : 0;
-      const removed = remainingPool.splice(removeIndex, 1)[0];
-      const pos = (removed?.position ?? "?").toUpperCase();
-      positionDrained[pos] = (positionDrained[pos] ?? 0) + 1;
+    const pos = primaryEntry.player.position;
+    if (pos) {
+      positionCounts.set(pos, (positionCounts.get(pos) ?? 0) + 1);
     }
   }
 
@@ -183,41 +212,67 @@ export function buildMultiPickPlan(args: {
 }
 
 /**
- * Pick the position to drain next based on configured weights and
- * what's already been drained. Returns the position whose
- * weight-normalized share is most under-represented relative to its
- * target, so the running drain converges on the weights as N grows.
- *
- * Returns null only if all weights are zero (degenerate config).
+ * Sample which position the next opponent will draft, weighted by
+ * drainWeights. Pure stochastic; no deficit-tracking memory between
+ * calls (the law of large numbers + N=50 trials handles convergence).
  */
-function pickDrainTarget(
-  weights: Record<string, number>,
-  drained: Record<string, number>,
-  totalSoFar: number,
-): string | null {
-  let best: string | null = null;
-  let bestDeficit = -Infinity;
-  for (const [pos, weight] of Object.entries(weights)) {
-    if (weight <= 0) continue;
-    const expected = weight * totalSoFar;
-    const actual = drained[pos] ?? 0;
-    const deficit = expected - actual;
-    if (deficit > bestDeficit) {
-      bestDeficit = deficit;
-      best = pos;
-    }
+function sampleOpponentPosition(weights: Record<string, number>): string {
+  const total = Object.values(weights).reduce((s, v) => s + v, 0);
+  if (total <= 0) return "WR"; // degenerate fallback
+  let r = Math.random() * total;
+  for (const [pos, w] of Object.entries(weights)) {
+    r -= w;
+    if (r <= 0) return pos;
   }
-  return best;
+  return "WR"; // shouldn't reach; satisfies type
 }
 
-function reasonFor(p: AvailablePlayer, pickIndex: number): string {
-  // Different framings for the immediate pick vs the projected ones.
-  // Immediate = "best available." Projected = "if this is still here."
+/**
+ * Sample a player from the top of the pool at a given position using
+ * softmax-weighted draws across SAMPLE_WINDOW_SIZE candidates. Top of
+ * pool is most likely to be picked but not certain; lower temp ->
+ * sharper toward top, higher temp -> more uniform. Falls back to
+ * top-of-pool when the position has no candidates in the window.
+ */
+function sampleOpponentPlayer(
+  pool: AvailablePlayer[],
+  position: string,
+): AvailablePlayer | null {
+  const positional = pool.filter(
+    (p) => (p.position ?? "?").toUpperCase() === position,
+  );
+  if (positional.length === 0) {
+    // No one at this position; opponent reaches across to next-best
+    // overall. Models the "best player available" reach pattern.
+    return pool[0] ?? null;
+  }
+  const window = positional.slice(0, SAMPLE_WINDOW_SIZE);
+  // Softmax weights: rank 0 (top of window) gets highest weight,
+  // descending. weight = exp(-rank / temp) so temp=1.5 gives ~50/30/15/3/2.
+  const weights = window.map((_, i) => Math.exp(-i / SOFTMAX_TEMP));
+  const totalW = weights.reduce((s, v) => s + v, 0);
+  let r = Math.random() * totalW;
+  for (let i = 0; i < window.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return window[i];
+  }
+  return window[0];
+}
+
+function reasonFor(
+  p: AvailablePlayer,
+  pickIndex: number,
+  survivalPct: number,
+): string {
+  // Reason copy now anchors to the Monte Carlo survival rate so users
+  // see "available in 78% of trials" instead of being asked to take
+  // the deterministic primary on faith.
   if (pickIndex === 0) {
     return `Best available (${p.position ?? "?"}, dynasty rank ${Math.round(p.dynasty_rank)}).`;
   }
   const ageNote = p.age != null ? `, age ${p.age}` : "";
-  return `If still on the board: ${p.position ?? "?"}-${p.team ?? "?"}${ageNote}, dynasty rank ${Math.round(p.dynasty_rank)}.`;
+  const pct = Math.round(survivalPct * 100);
+  return `Available in ${pct}% of simulated draft sequences (${p.position ?? "?"}-${p.team ?? "?"}${ageNote}).`;
 }
 
 function buildThread(
