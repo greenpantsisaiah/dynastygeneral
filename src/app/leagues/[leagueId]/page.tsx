@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import {
+  declaredWindowCookieName,
+  parseDeclaredWindowId,
+} from "@/lib/strategy/declared-window";
 
 // Live-draft app. Never cache the route segment: a cached SSR response
 // can persist a half-round-stale snapshot for minutes, which makes the
@@ -10,9 +15,12 @@ import { Ticker } from "@/components/ui/ticker";
 import {
   getLeague,
   getLeagueUsers,
+  getLeaguesForUser,
   getNflState,
   getRosters,
   getUserByUsername,
+  isDynastyLeague,
+  type SleeperLeague,
 } from "@/lib/sleeper";
 import { resolveDraftState, type DraftStatus } from "@/lib/sleeper/draft-state";
 import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
@@ -24,6 +32,8 @@ import { enrichPlaysFromHere } from "@/lib/strategy/plays-from-here/enrich";
 import type { ResolvedPlayFromHere } from "@/lib/strategy/plays-from-here/types";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import type { PickApproach as PickApproachData } from "@/lib/strategy/pick-approach/types";
+import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
+import type { Decision } from "@/lib/strategy/decision-synthesis/types";
 import {
   enrichPickApproachWithCandidates,
   enrichRankedWithCandidates,
@@ -32,8 +42,14 @@ import {
 import { enrichArchetypeWithTargets } from "@/lib/strategy/player-suggestions/play-targets";
 import { WindowsBar } from "@/components/league/windows-bar";
 import { WindowWeightingPrompt } from "@/components/league/window-weighting-prompt";
+import { ContenderOutlookCard } from "@/components/league/contender-outlook-card";
+import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forecast";
+import { synthesizeContenderOutlook } from "@/lib/strategy/contender-outlook/synthesize";
+import type { ContenderOutlook } from "@/lib/strategy/contender-outlook/types";
+import { getMyRoster } from "@/lib/strategy/league-state/snapshot";
 import { PlaysFromHere } from "@/components/league/plays-from-here";
-import { PickApproach } from "@/components/league/pick-approach";
+import { DecisionCard } from "@/components/league/decision-card";
+import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
@@ -41,6 +57,10 @@ import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/charact
 import type { OpponentCharacterization } from "@/lib/strategy/opponents/characterize";
 import { BriefingFeed } from "@/components/league/briefing-feed";
 import { CoachChat } from "@/components/league/coach-chat";
+import {
+  LeagueSwitcher,
+  type LeagueSwitcherItem,
+} from "@/components/league/league-switcher";
 import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
@@ -54,6 +74,14 @@ export default async function LeagueHubPage({
 }: PageProps) {
   const { leagueId } = await params;
   const { username = "", season: seasonParam } = await searchParams;
+
+  // Declared window (mirror of the client localStorage key) lives in a
+  // cookie so the server can apply window constraints to the Decision
+  // card at render time. Null when user hasn't declared one yet.
+  const cookieStore = await cookies();
+  const declaredWindow = parseDeclaredWindowId(
+    cookieStore.get(declaredWindowCookieName(leagueId))?.value ?? null,
+  );
 
   const [league, rosters, users, nflState] = await Promise.all([
     getLeague(leagueId),
@@ -82,6 +110,21 @@ export default async function LeagueHubPage({
 
   const totalRosters = league.total_rosters ?? rosters.length;
 
+  // Pull the user's other leagues for the switcher dropdown. Best-
+  // effort: header falls back to a static title if the call fails or
+  // the user isn't identified.
+  let userLeagues: SleeperLeague[] = [];
+  if (sleeperUser) {
+    try {
+      userLeagues = await getLeaguesForUser(
+        sleeperUser.user_id,
+        seasonParam ?? league.season,
+      );
+    } catch (err) {
+      console.error("[hub:user-leagues]", err);
+    }
+  }
+
   // Draft state: tolerant of failure, banner is supplemental
   let draftState: Awaited<ReturnType<typeof resolveDraftState>> | null = null;
   try {
@@ -98,6 +141,7 @@ export default async function LeagueHubPage({
   let windows: WindowsResult | null = null;
   let playsFromHere: ResolvedPlayFromHere[] = [];
   let pickApproach: PickApproachData | null = null;
+  let decision: Decision | null = null;
   let opponentReadout: OpponentReadout | null = null;
   let opponentCharacterizations: OpponentCharacterization[] = [];
   let availablePlayers: Awaited<
@@ -106,6 +150,7 @@ export default async function LeagueHubPage({
   let leagueSnapshot:
     | Awaited<ReturnType<typeof buildLeagueSnapshot>>
     | null = null;
+  let contenderOutlook: ContenderOutlook | null = null;
   if (draftState) {
     try {
       leagueSnapshot = await buildLeagueSnapshot({
@@ -179,8 +224,48 @@ export default async function LeagueHubPage({
           ),
         }));
       }
+
+      // Decision Synthesis. Runs AFTER all enrichments so the
+      // ranked archetypes carry top_candidates + phase, available
+      // carries ADP + dynasty_rank, and windows carry the weighting.
+      // Only fires when draft is actively in progress; otherwise we'd
+      // tell users "you're on the clock" months before their rookie
+      // draft, with rank-#250+ rookie suggestions pulled from a pool
+      // that's only those names because every vet is rostered.
+      if (draftActive && windows && availablePlayers.length > 0) {
+        try {
+          decision = synthesizeDecision({
+            snap: snapshot,
+            ranked: rankedArchetypes,
+            available: availablePlayers,
+            windows,
+            picks_until_me: pickApproach?.picks_until_me ?? 0,
+            declared_window: declaredWindow,
+          });
+        } catch (err) {
+          console.error("[hub:decision-synthesis]", err);
+        }
+      }
     } catch (err) {
       console.error("[hub:strategy-rank]", err);
+    }
+  }
+
+  // Contender outlook. Multi-year forecast of where the user's current
+  // trajectory lands. Independent of draftActive; the answer to "am I
+  // setting up a contender window?" is just as relevant in-season as
+  // pre-draft. Best-effort; UI degrades gracefully if it fails.
+  if (leagueSnapshot) {
+    try {
+      const meSnap = getMyRoster(leagueSnapshot);
+      const years = await computeContenderForecast(leagueSnapshot, meSnap);
+      contenderOutlook = synthesizeContenderOutlook({
+        years,
+        snap: leagueSnapshot,
+        me: meSnap,
+      });
+    } catch (err) {
+      console.error("[hub:contender-outlook]", err);
     }
   }
 
@@ -215,9 +300,18 @@ export default async function LeagueHubPage({
           {/* Hub header with title + trade buttons */}
           <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                {league.name}
-              </h1>
+              {sleeperUser && userLeagues.length > 1 ? (
+                <LeagueSwitcher
+                  current={toSwitcherItem(league)}
+                  leagues={userLeagues.map(toSwitcherItem)}
+                  username={cleanedUsername}
+                  season={season}
+                />
+              ) : (
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                  {league.name}
+                </h1>
+              )}
               <div className="mt-2 text-sm text-muted">
                 {String(teamName)}
                 {standing && (
@@ -228,6 +322,19 @@ export default async function LeagueHubPage({
                       {standing.losses}
                       {standing.ties ? `-${standing.ties}` : ""}
                     </span>
+                  </>
+                )}
+                {cleanedUsername && (
+                  <>
+                    <span className="text-muted-2"> · </span>
+                    <Link
+                      href={`/scout/${encodeURIComponent(cleanedUsername)}${
+                        season ? `?season=${season}` : ""
+                      }`}
+                      className="text-accent hover:underline"
+                    >
+                      Scout my portfolio →
+                    </Link>
                   </>
                 )}
               </div>
@@ -268,25 +375,40 @@ export default async function LeagueHubPage({
                 <WindowsBar leagueId={leagueId} windows={windows} />
               )}
 
-              {pickApproach && <PickApproach approach={pickApproach} />}
+              {contenderOutlook && (
+                <ContenderOutlookCard outlook={contenderOutlook} />
+              )}
 
-              <StrategicForks
-                ranked={rankedArchetypes}
-                available={availablePlayers}
-                snapshot={leagueSnapshot}
-                myPickLabel={pickApproach?.my_pick_label ?? null}
-              />
+              {decision && <DecisionCard decision={decision} />}
 
-              {pickApproach && (
-                <div className="mt-3 text-right text-xs text-muted">
-                  Need deeper analysis with custom context for this pick?{" "}
-                  <Link
-                    href={onClockHref}
-                    className="text-accent hover:underline"
-                  >
-                    Open the on-clock form →
-                  </Link>
-                </div>
+              {decision && decision.quadrant_candidates.length > 0 && (
+                <DecisionQuadrant
+                  candidates={decision.quadrant_candidates}
+                  pickLabel={decision.pick_label}
+                />
+              )}
+
+              {draftActive && (
+                <>
+                  <StrategicForks
+                    ranked={rankedArchetypes}
+                    available={availablePlayers}
+                    snapshot={leagueSnapshot}
+                    myPickLabel={pickApproach?.my_pick_label ?? null}
+                  />
+
+                  {pickApproach && (
+                    <div className="mt-3 text-right text-xs text-muted">
+                      Need deeper analysis with custom context for this pick?{" "}
+                      <Link
+                        href={onClockHref}
+                        className="text-accent hover:underline"
+                      >
+                        Open the on-clock form →
+                      </Link>
+                    </div>
+                  )}
+                </>
               )}
 
               <PlaysFromHere plays={playsFromHere} />
@@ -303,7 +425,30 @@ export default async function LeagueHubPage({
               )}
 
               {sleeperUser && (
-                <BriefingFeed leagueId={leagueId} username={cleanedUsername} />
+                <BriefingFeed
+                  leagueId={leagueId}
+                  username={cleanedUsername}
+                  currentRosters={
+                    leagueSnapshot
+                      ? (() => {
+                          const out: Record<
+                            string,
+                            Record<string, number>
+                          > = {};
+                          for (const r of leagueSnapshot.rosters) {
+                            if (r.owner_name) {
+                              out[r.owner_name] = r.position_counts;
+                              if (r.is_me) out["you"] = r.position_counts;
+                            }
+                          }
+                          return out;
+                        })()
+                      : null
+                  }
+                  currentPickNo={
+                    leagueSnapshot?.draft.next_pick_no ?? null
+                  }
+                />
               )}
             </div>
 
@@ -359,18 +504,17 @@ function DraftBanner({
         </span>
         <span className="ml-3 text-foreground">
           {onClock
-            ? `You're on the clock · pick ${state.next_pick_label}`
+            ? `You're up · pick ${state.next_pick_label}`
             : state.next_pick_label && state.on_the_clock.owner_name
               ? `Pick ${state.next_pick_label} · ${state.on_the_clock.owner_name}`
               : "Draft live · waiting on the next pick"}
-          {!onClock &&
-            state.my_next_pick_label &&
-            state.picks_until_me != null && (
-              <span className="text-muted-2">
-                {" · "}your next: {state.my_next_pick_label} (
-                {state.picks_until_me} away)
-              </span>
-            )}
+          {state.my_next_pick_label && state.picks_until_me != null && (
+            <span className="text-muted-2">
+              {" · "}
+              {onClock ? "then" : "your next:"} {state.my_next_pick_label} (
+              {state.picks_until_me} away)
+            </span>
+          )}
         </span>
       </div>
       <span className="font-mono text-[11px] text-muted-2">
@@ -436,6 +580,17 @@ function calcStanding(
 
 function num(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+function toSwitcherItem(l: SleeperLeague): LeagueSwitcherItem {
+  return {
+    league_id: l.league_id,
+    name: l.name,
+    season: l.season,
+    total_rosters: l.total_rosters ?? null,
+    status: l.status ?? null,
+    is_dynasty: isDynastyLeague(l),
+  };
 }
 
 function qs(params: Record<string, string>): string {

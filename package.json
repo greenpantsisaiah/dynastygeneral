@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:em-dashes": "! grep -rIl --exclude-dir=node_modules --exclude-dir=.next --include='*.ts' --include='*.tsx' --include='*.md' --include='*.css' --include='*.json' $'\\u2014' src INVARIANTS.md AGENTS.md 2>/dev/null"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

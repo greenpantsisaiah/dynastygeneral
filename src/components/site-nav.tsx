@@ -13,10 +13,22 @@ export function SiteNav() {
         </Link>
         <nav className="flex items-center gap-6 text-sm">
           <Link
-            href="/#waitlist"
+            href="/how-it-works"
             className="hidden text-muted transition hover:text-foreground sm:inline"
           >
-            Private beta
+            How it works
+          </Link>
+          <Link
+            href="/built-by"
+            className="hidden text-muted transition hover:text-foreground sm:inline"
+          >
+            Built by
+          </Link>
+          <Link
+            href="/scout"
+            className="hidden text-muted transition hover:text-foreground sm:inline"
+          >
+            Scout
           </Link>
           <Link
             href="/connect"

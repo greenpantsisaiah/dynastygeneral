@@ -36,18 +36,35 @@ type FetchOptions = {
   signal?: AbortSignal;
 };
 
+// Default outbound timeout. Sleeper occasionally hangs; without this a
+// stuck connection ties up the Vercel function until maxDuration. Per
+// SECURITY.md "Standards · External-data routes" the project default is
+// 15 seconds. Callers can override by passing their own AbortSignal.
+const DEFAULT_TIMEOUT_MS = 15_000;
+
 async function sleeperGet<T>(
   path: string,
   schema: z.ZodType<T>,
   options: FetchOptions = {},
 ): Promise<T | null> {
-  const res = await fetch(`${BASE}${path}`, {
-    signal: options.signal,
-    ...(options.noStore
-      ? { cache: "no-store" as const }
-      : { next: { revalidate: options.revalidate ?? 300 } }),
-    headers: { Accept: "application/json" },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      signal: options.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+      ...(options.noStore
+        ? { cache: "no-store" as const }
+        : { next: { revalidate: options.revalidate ?? 300 } }),
+      headers: { Accept: "application/json" },
+    });
+  } catch (err) {
+    // Treat aborts (timeouts) like a 404 / null result so callers don't
+    // crash the request. Real outages should be observable in logs.
+    if (err instanceof Error && err.name === "AbortError") {
+      console.error(`[sleeper] ${path} timed out after ${DEFAULT_TIMEOUT_MS}ms`);
+      return null;
+    }
+    throw err;
+  }
 
   if (res.status === 404) return null;
   if (!res.ok) {

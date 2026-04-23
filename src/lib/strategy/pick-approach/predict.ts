@@ -385,11 +385,15 @@ function scorePositions(
 }
 
 function startersRequired(snap: LeagueSnapshot): Record<Position, number> {
-  // Use the format as a coarse proxy until we parse league.roster_positions
-  // in detail. Most dynasty leagues require: 1 QB (or 2 in superflex), 2 RB,
-  // 3 WR, 1 TE.
-  const qb = snap.format === "superflex" || snap.format === "2qb" ? 2 : 1;
-  return { QB: qb, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
+  // Read parsed hard slots from snapshot. Matches Sleeper's roster UI
+  // convention (FLEX is a separate need, not rolled into WR).
+  const hard = snap.starter_slots.hard;
+  const total = hard.QB + hard.RB + hard.WR + hard.TE + hard.K + hard.DST;
+  if (total === 0) {
+    const qb = snap.format === "superflex" || snap.format === "2qb" ? 2 : 1;
+    return { QB: qb, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
+  }
+  return { ...hard };
 }
 
 function confidenceFromScore(score: number): {

@@ -396,6 +396,9 @@ export type ArchetypeCandidate = {
   // Sleeper ADP for the league's format/scoring. null = no data.
   // Lower = drafted earlier across the Sleeper community.
   adp: number | null;
+  // Incoming rookie (years_exp === 0). UI tags as ROOKIE so the user
+  // knows landing spot may still be unknown pre-NFL-draft.
+  is_rookie?: boolean;
   reason: string; // one-line "why this player fits this path"
 };
 

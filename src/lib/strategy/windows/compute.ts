@@ -21,6 +21,12 @@ import {
   type RosterSnapshot,
 } from "../league-state/snapshot";
 import type { Position } from "../archetypes/schema";
+import {
+  SUPERFLEX_PICK_MULTIPLIER,
+  computeOwnedFuturePicks,
+  resolveRookieRounds,
+  totalFuturePickValue,
+} from "@/lib/players/future-picks";
 
 const SCORING_POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
 
@@ -87,12 +93,82 @@ function recordSignal(me: RosterSnapshot | null): number {
   return clamp01(me.wins / games);
 }
 
+function computeFuturePickCapital(
+  snap: LeagueSnapshot,
+  me: RosterSnapshot | null,
+): { value: number; blurb: string } {
+  if (!me) return { value: 0.5, blurb: "no roster identified" };
+  const rounds = resolveRookieRounds(snap.draft.rounds);
+  const isSuperflex = snap.format === "superflex" || snap.format === "2qb";
+  const formatMultiplier = isSuperflex ? SUPERFLEX_PICK_MULTIPLIER : 1.0;
+  const rosterIds = snap.rosters.map((r) => r.roster_id);
+  const tradedPicks = snap.draft.traded_picks;
+
+  // No traded-pick data: degrade gracefully to a neutral score so the
+  // window number doesn't lurch on data unavailability.
+  if (tradedPicks.length === 0 && snap.rosters.length === 0) {
+    return { value: 0.5, blurb: "future-pick data unavailable" };
+  }
+
+  const myPicks = computeOwnedFuturePicks({
+    rosterId: me.roster_id,
+    rosterIds,
+    tradedPicks,
+    leagueSeason: snap.season,
+    rounds,
+  });
+  const myValue = totalFuturePickValue(myPicks, snap.season, formatMultiplier);
+
+  // Score relative to the league average so this is self-calibrating.
+  // 1.0 at 2× league average, 0.5 at average, 0 when empty.
+  const allValues = snap.rosters.map((r) => {
+    const picks = computeOwnedFuturePicks({
+      rosterId: r.roster_id,
+      rosterIds,
+      tradedPicks,
+      leagueSeason: snap.season,
+      rounds,
+    });
+    return totalFuturePickValue(picks, snap.season, formatMultiplier);
+  });
+  const avg =
+    allValues.length > 0
+      ? allValues.reduce((s, v) => s + v, 0) / allValues.length
+      : 0;
+  const denom = Math.max(avg * 2, 1);
+  const value = clamp01(myValue / denom);
+
+  // Compact summary: "3× R1, 2× R2 across 2027-2029"
+  const totalCount = myPicks.reduce((s, p) => s + p.count, 0);
+  const r1 = myPicks
+    .filter((p) => p.round === 1)
+    .reduce((s, p) => s + p.count, 0);
+  const r2 = myPicks
+    .filter((p) => p.round === 2)
+    .reduce((s, p) => s + p.count, 0);
+  const blurb =
+    totalCount === 0
+      ? "no future picks owned"
+      : `${totalCount} picks (${r1}× R1, ${r2}× R2)`;
+
+  return { value, blurb };
+}
+
 // =====================================================================
 // Window scorers
 // =====================================================================
 
 function scoreWinNow(snap: LeagueSnapshot): WindowScore {
-  const me = getMyRoster(snap);
+  return scoreWinNowFor(snap, getMyRoster(snap));
+}
+
+// Internal: score win-now for ANY roster (or a synthetic projected
+// one). The contender-outlook forecast calls this directly with rosters
+// projected to a future year. Public callers use scoreWinNow(snap).
+export function scoreWinNowFor(
+  snap: LeagueSnapshot,
+  me: RosterSnapshot | null,
+): WindowScore {
   const targetDepth = Math.max(snap.draft.rounds || 12, 12);
 
   const components: WindowComponent[] = [
@@ -113,12 +189,6 @@ function scoreWinNow(snap: LeagueSnapshot): WindowScore {
         : "",
     },
     {
-      label: "Record",
-      value: recordSignal(me),
-      weight: 0.15,
-      blurb: me ? `${me.wins}-${me.losses}` : "",
-    },
-    {
       label: "Roster fullness",
       value: rosterDepth(me, targetDepth),
       weight: 0.2,
@@ -126,8 +196,25 @@ function scoreWinNow(snap: LeagueSnapshot): WindowScore {
     },
   ];
 
+  // Record only contributes signal once games are actually played. In
+  // pre-season, "0-0" at 50/100 (the neutral default) was noise the
+  // user could read as a real component. Append the Record row only
+  // when there's a real W/L, then normalize so weights always sum to 1
+  // (otherwise removing the row understates the score).
+  const gamesPlayed = me ? me.wins + me.losses + me.ties : 0;
+  if (gamesPlayed > 0 && me) {
+    components.push({
+      label: "Record",
+      value: recordSignal(me),
+      weight: 0.15,
+      blurb: `${me.wins}-${me.losses}`,
+    });
+  }
+
+  const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
   const score = Math.round(
-    components.reduce((sum, c) => sum + c.value * c.weight, 0) * 100,
+    (components.reduce((sum, c) => sum + c.value * c.weight, 0) / totalWeight) *
+      100,
   );
   return { score, components };
 }
@@ -135,6 +222,12 @@ function scoreWinNow(snap: LeagueSnapshot): WindowScore {
 function scoreFutureValue(snap: LeagueSnapshot): WindowScore {
   const me = getMyRoster(snap);
   const targetDepth = Math.max(snap.draft.rounds || 12, 12);
+
+  // Future-pick capital component, scored relative to the league's own
+  // average. Above-average pick stacks score high (1.0 at 2x avg);
+  // empty stacks score 0; default holdings score 0.5. Self-calibrating
+  // so we don't have to pick a fixed denominator.
+  const fpc = computeFuturePickCapital(snap, me);
 
   const components: WindowComponent[] = [
     {
@@ -153,9 +246,9 @@ function scoreFutureValue(snap: LeagueSnapshot): WindowScore {
     },
     {
       label: "Future picks held",
-      value: 0.5, // not yet wired. neutral placeholder
+      value: fpc.value,
       weight: 0.2,
-      blurb: "future-pick tracking not yet wired",
+      blurb: fpc.blurb,
     },
   ];
 

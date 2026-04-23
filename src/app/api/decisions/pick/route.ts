@@ -76,14 +76,14 @@ export async function POST(req: Request) {
     });
     return Response.json({ ok: true, ...result });
   } catch (err) {
+    // Log full error server-side; return generic to client. Per
+    // SECURITY.md: never include raw err in client responses (leaks
+    // internal schema field names and tool architecture).
     console.error("[decisions:pick]", err);
     return Response.json(
       {
         ok: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Engine didn't return. Retry in a moment.",
+        error: "Engine didn't return. Retry in a moment.",
       },
       { status: 500 },
     );

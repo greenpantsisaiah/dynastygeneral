@@ -1,0 +1,142 @@
+# Dynasty General · Deployment
+
+Pre-deploy checklist, deploy procedure, post-deploy verification, rollback. Loaded by Claude before any deploy-related task.
+
+## Where this app runs
+
+- **Hosting**: Vercel (Next.js native target).
+- **Domain**: dynastygeneral.app (production), `*.vercel.app` preview URLs (per-PR).
+- **Region**: Vercel default (serverless functions in user-region; iad1 baseline).
+- **Runtime**: Next.js 16.2.4 with Turbopack. Node 20+ required.
+
+## Required environment variables
+
+Set in Vercel project settings AND in `.env.local` for local dev:
+
+| Variable | Required | Purpose | Where read |
+|---|---|---|---|
+| `ANTHROPIC_API_KEY` | YES | LLM calls (verdict, coach, briefings) | `/api/*` and `/lib/*` server modules |
+| `NEXT_PUBLIC_SITE_URL` | for production | absolute URLs in OG tags + emails | client + server |
+| `KV_*` (Vercel KV) | recommended | persistent rate-limit + budget state | `lib/ratelimit.ts`, `lib/budget.ts` |
+
+If `KV_*` is unset, rate limits and budget caps run in-memory (process-local). That works for a single Vercel function instance but breaks under concurrent traffic. Production: provision Vercel KV before launch.
+
+If `ANTHROPIC_API_KEY` is unset, the verdict + coach return graceful stubs (`Set ANTHROPIC_API_KEY to enable verdicts`). The app still runs; LLM features just degrade.
+
+## Pre-deploy checklist
+
+Run all of these before promoting to production. The `dynasty-security-auditor` and `dynasty-cost-watcher` subagents automate the heavy lifts.
+
+### Build + types
+
+- [ ] `npm run build` from `web/` returns clean (zero warnings).
+- [ ] `npx tsc --noEmit` returns clean.
+- [ ] `npm run check:em-dashes` (or whatever the script is named) returns clean.
+- [ ] `git status` shows no uncommitted files.
+
+### Security
+
+- [ ] Run `dynasty-security-auditor` (`audit:full-sweep`). Address all CRITICAL and HIGH findings.
+- [ ] Verify `.env*` files NOT committed (`git ls-files | grep .env` is empty).
+- [ ] Verify no `console.log` of secrets, request bodies, or env values in production-bound paths.
+
+### Cost
+
+- [ ] Run `dynasty-cost-watcher` (`audit:full-sweep`). Confirm aggregate worst-case daily spend is below your budget cap with margin.
+- [ ] Verify `lib/budget.ts` daily cap is set to a value you can afford to lose if the worst-case fires.
+- [ ] Verify rate limits in `lib/ratelimit.ts` are tight enough that one IP can't burn the budget.
+
+### Privacy / legal
+
+- [ ] Run `dynasty-legal-privacy-checker` (`audit:full-sweep`). Address all CRITICAL findings.
+- [ ] Privacy policy is published and linked from every page.
+- [ ] Terms of service is published if monetizing.
+- [ ] Contact email for data subject requests is published.
+
+### Functional
+
+- [ ] Smoke test against a real Sleeper league: scout works, league hub loads, coach responds, briefings render.
+- [ ] Smoke test against a league with a completed draft (post-draft state should NOT show "you're on the clock").
+- [ ] Smoke test against a league with active draft (should show Decision card + Strategic Forks).
+- [ ] Smoke test against a username with multiple dynasty leagues (scout portfolio renders all teams).
+
+### Operational
+
+- [ ] Vercel KV provisioned and `KV_*` env vars set.
+- [ ] Sentry (or equivalent) DSN configured if using error tracking.
+- [ ] Vercel Analytics enabled if you want traffic visibility.
+
+## Deploy procedure
+
+### First-time deploy (preview)
+
+1. Connect the repo to Vercel via the dashboard.
+2. Set environment variables in Vercel project settings.
+3. Push to a feature branch. Vercel builds a preview at `https://<branch>-<project>.vercel.app`.
+4. Run the post-deploy verification (below) against the preview URL.
+5. Merge to main only after preview passes.
+
+### Production deploy
+
+1. Confirm the pre-deploy checklist is complete.
+2. Merge to `main`. Vercel auto-deploys.
+3. Watch the deploy log for the first 5 minutes. Build failures here are loud.
+4. Run post-deploy verification against the production URL.
+
+### Domain setup (production)
+
+1. In Vercel project settings, add the production domain.
+2. Configure DNS at the registrar:
+   - A record: `76.76.21.21` (Vercel's anycast IP)
+   - or CNAME for subdomain to `cname.vercel-dns.com`
+3. Wait for SSL provisioning (typically <5 min via Let's Encrypt automation).
+4. Verify HTTPS works and redirects HTTP.
+
+## Post-deploy verification
+
+Run within 15 minutes of any production deploy:
+
+- [ ] Production URL loads (200 OK on `/`).
+- [ ] `/leagues/<known-good-league-id>` loads with expected hub content.
+- [ ] `/scout/<known-good-username>` loads, verdict streams in.
+- [ ] Coach endpoint accepts a chat turn and returns a response.
+- [ ] Server logs show no unhandled errors in the first 5 minutes.
+- [ ] Rate-limit headers present on `/api/*` responses.
+- [ ] Vercel KV is being read/written (check the KV dashboard for activity).
+
+## Rollback
+
+If something is on fire:
+
+1. **Vercel dashboard → Deployments → previous good deploy → Promote to Production.** Takes ~30 seconds.
+2. Communicate (status page, Twitter/X, customer email) if customers were affected.
+3. File a post-incident entry in `SECURITY.md` (if security-relevant) or here under "Past incidents".
+
+## Past incidents
+
+(none yet)
+
+## Cost monitoring
+
+Day-to-day:
+
+- Anthropic Console (https://console.anthropic.com/): daily spend by model.
+- Vercel dashboard: function invocations + bandwidth.
+- Vercel KV: budget state (the running daily total per `lib/budget.ts`).
+
+Set Anthropic spend alerts at 50% and 80% of your monthly budget cap.
+
+## Scaling notes (when traffic grows)
+
+- Vercel KV is rate-limited at the free tier (3000 ops/day). Above that, upgrade.
+- Anthropic has per-org rate limits; if you hit them, request an increase or upgrade.
+- Sleeper API is unauthenticated and has soft rate limits; if heavy traffic, cache more aggressively (current caching is per-route in `lib/sleeper/client.ts`).
+- Consider edge functions for read-heavy routes (`/leagues/*` is read-only; could move to edge runtime).
+
+## What this doc does NOT cover
+
+- CI/CD beyond Vercel's auto-deploy on push.
+- Multi-environment promotion (we're single-environment until that becomes a problem).
+- Database migrations (no database yet).
+- Customer support workflows.
+- Stripe / billing setup (when monetizing, expand here).

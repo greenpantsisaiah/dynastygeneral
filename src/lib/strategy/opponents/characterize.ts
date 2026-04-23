@@ -57,6 +57,10 @@ export type OpponentCharacterization = {
   // Raw EV total for tooltips. Same scale across the league so
   // teams are comparable.
   ev_raw?: number | null;
+  // True for the user's own team. Renderers highlight this row + dot
+  // distinctly (accent color, "you" badge) so the user sees where
+  // they stand alongside the room.
+  is_me?: boolean;
 };
 
 const SCORING_POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
@@ -304,10 +308,25 @@ async function computeEvByRoster(
     }
     raws.set(r.roster_id, total);
   }
-  // Normalize 0..1 across the league. If everyone has 0 EV, leave as 0.
-  const max = Math.max(0, ...raws.values());
+  // Min-max normalize 0..1 across the league. The previous "raw / max"
+  // scaling clustered every dot in the upper half because typical
+  // dynasty portfolios all sit between ~70-100% of the leader's raw
+  // EV. Min-max stretches the actual range across the full Y axis so
+  // weak teams visibly sit lower than strong teams. When the spread is
+  // tiny (less than 5% of max) we fall back to the old shape so the
+  // chart doesn't artificially exaggerate near-identical portfolios.
+  const values = [...raws.values()];
+  const max = Math.max(0, ...values);
+  const min = Math.min(...values, max);
+  const range = max - min;
+  const useMinMax = max > 0 && range >= max * 0.05;
   for (const [rid, raw] of raws) {
-    out.set(rid, { raw, norm: max > 0 ? raw / max : 0 });
+    const norm = useMinMax
+      ? (raw - min) / range
+      : max > 0
+        ? raw / max
+        : 0;
+    out.set(rid, { raw, norm });
   }
   return out;
 }
@@ -321,7 +340,10 @@ export async function buildOpponentCharacterizations(
   const evByRoster = await computeEvByRoster(snap);
   const out: OpponentCharacterization[] = [];
   for (const roster of snap.rosters) {
-    if (me && roster.roster_id === me.roster_id) continue;
+    // Include the user's own team. The user wants to see where they
+    // stand on the spectrum and have a characterization tile of their
+    // own alongside the opponents. The is_me flag drives the renderer
+    // to color/badge that row distinctly.
     const base = characterizeOpponent(
       roster,
       snap.draft.picks_made,
@@ -333,6 +355,7 @@ export async function buildOpponentCharacterizations(
       ...base,
       ev: ev?.norm ?? null,
       ev_raw: ev?.raw ?? null,
+      is_me: !!me && roster.roster_id === me.roster_id,
     });
   }
   // Sort: punted first (stark signal), then win-now → win-future.

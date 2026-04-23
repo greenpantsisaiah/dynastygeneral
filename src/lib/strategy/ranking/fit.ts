@@ -62,7 +62,17 @@ function signalScore(
   switch (signal.kind) {
     case "user_owns_top_n_at_position": {
       if (!me) return 0;
-      const have = me.position_counts[signal.position];
+      // When `rank_threshold` is set, count only players whose
+      // search_rank meets the threshold ("top 12 at position"). Without
+      // a threshold, every roster entry at this position counts. The
+      // rank-aware path makes signals like "2+ TOP-12 QBs" actually
+      // tighter than "2+ QBs at all," which they were not before.
+      const have =
+        signal.rank_threshold != null
+          ? me.position_ranks[signal.position].filter(
+              (r) => r <= (signal.rank_threshold ?? Infinity),
+            ).length
+          : me.position_counts[signal.position];
       return partialPositionScore(have, signal.min, signal.max);
     }
     case "user_position_count": {

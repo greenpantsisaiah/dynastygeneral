@@ -15,6 +15,7 @@ import type {
   Archetype,
   CompletionCheck,
   EvaluatedRequiredMove,
+  Position,
   RankedArchetype,
 } from "../archetypes/schema";
 import { getMyRoster, type LeagueSnapshot } from "../league-state/snapshot";
@@ -55,10 +56,49 @@ function evaluateMoves(
   }));
 }
 
+function primaryPositionForArchetype(a: Archetype): Position | null {
+  if (a.id.startsWith("qb-") || a.category === "Positional Leverage")
+    return "QB";
+  if (a.id.startsWith("wr-") || a.category === "WR Strategy") return "WR";
+  if (a.id.startsWith("rb-") || a.category === "RB Strategy") return "RB";
+  if (a.id.startsWith("te-") || a.category === "TE Strategy") return "TE";
+  return null;
+}
+
+// A path is considered POSITION-SATURATED when the user already owns
+// enough players at the path's primary position that taking another
+// doesn't advance the strategy. Threshold: starter_need + 1. One
+// backup beyond starter need is enough unless the strategy explicitly
+// hoards (and even then, diminishing returns). For superflex QB:
+// starter_need = hard.QB + superflex (usually 2), so saturation at 3.
+function isPositionSaturated(
+  archetype: Archetype,
+  snap: LeagueSnapshot,
+): boolean {
+  const pos = primaryPositionForArchetype(archetype);
+  if (!pos) return false;
+  const me = getMyRoster(snap);
+  if (!me) return false;
+  const hard = snap.starter_slots.hard;
+  const baseNeed = hard[pos];
+  if (baseNeed <= 0) return false;
+  // QB in superflex gets the superflex slot rolled in, since SF is
+  // commonly filled by QB in dynasty.
+  const need =
+    pos === "QB" ? baseNeed + snap.starter_slots.superflex : baseNeed;
+  return me.position_counts[pos] >= need + 1;
+}
+
 function derivePhase(
   drift_score: number,
   evaluated_moves: EvaluatedRequiredMove[],
+  archetype: Archetype,
+  snap: LeagueSnapshot,
 ): "acquisition" | "executing" {
+  // Position saturation is the strongest executing signal. If the user
+  // already has starter + 1 at the path's position, more picks at that
+  // position don't advance strategy regardless of drift.
+  if (isPositionSaturated(archetype, snap)) return "executing";
   if (drift_score < EXECUTING_DRIFT_THRESHOLD) return "acquisition";
   // Auto-checkable moves only. A move with no completion_check can't
   // be auto-judged complete (e.g. "don't sell into the first offer"),
@@ -82,7 +122,7 @@ export function rankArchetypes(snap: LeagueSnapshot): RankedArchetype[] {
     const likelihoods = enrichArchetypeLikelihoods(a, snap);
     const trajectory = computeTrajectory(a, snap);
     const evaluated_moves = evaluateMoves(a, snap);
-    const phase = derivePhase(fit.drift_score, evaluated_moves);
+    const phase = derivePhase(fit.drift_score, evaluated_moves, a, snap);
     ranked.push({
       archetype: a,
       drift_score: fit.drift_score,

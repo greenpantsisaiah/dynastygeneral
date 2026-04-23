@@ -198,7 +198,7 @@ function buildTradeAngles(
   picks: DraftPickRecord[],
   ages: number[],
   myShortages: Position[],
-  format: LeagueSnapshot["format"],
+  snap: LeagueSnapshot,
 ): TradeAngle[] {
   const out: TradeAngle[] = [];
   if (picks.length < 2) return out;
@@ -209,7 +209,7 @@ function buildTradeAngles(
     counts[p.position] = (counts[p.position] ?? 0) + 1;
   }
   const total = picks.length;
-  const isSuperflex = format === "superflex" || format === "2qb";
+  const startersFromSnap = snap.starter_slots.hard;
 
   // Saturated position → likely sells excess, especially if I need it.
   for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
@@ -229,17 +229,11 @@ function buildTradeAngles(
   }
 
   // Position deficit. "Below starter need" = the team is fragile and
-  // would likely overpay to fill the gap. Threshold is starter-need
-  // per position: QB=2 in superflex (else 1), RB=2, WR=3, TE=1.
+  // would likely overpay to fill the gap. Source of truth is the
+  // league's parsed hard slots (snapshot.starter_slots.hard), so a
+  // league that doesn't roster K/DST never flags them as deficits.
   if (total >= 3) {
-    const starterNeeds: Record<Position, number> = {
-      QB: isSuperflex ? 2 : 1,
-      RB: 2,
-      WR: 3,
-      TE: 1,
-      K: 0,
-      DST: 0,
-    };
+    const starterNeeds = startersFromSnap;
     for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
       const have = counts[pos] ?? 0;
       const need = starterNeeds[pos];
@@ -310,16 +304,11 @@ export function buildOpponentReadout(
   // takes into "approach them, your needs match their surplus."
   const myShortages: Position[] = [];
   if (me) {
-    const reqs: Record<Position, number> = {
-      QB: snap.format === "superflex" || snap.format === "2qb" ? 2 : 1,
-      RB: 2,
-      WR: 3,
-      TE: 1,
-      K: 0,
-      DST: 0,
-    };
+    const reqs = snap.starter_slots.hard;
     for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
-      if (me.position_counts[pos] < reqs[pos]) myShortages.push(pos);
+      if (reqs[pos] > 0 && me.position_counts[pos] < reqs[pos]) {
+        myShortages.push(pos);
+      }
     }
   }
 
@@ -357,7 +346,7 @@ export function buildOpponentReadout(
       approach: 1,
       extract: 2,
     };
-    const tradeAngles = buildTradeAngles(picks, ages, myShortages, snap.format)
+    const tradeAngles = buildTradeAngles(picks, ages, myShortages, snap)
       .sort((a, b) => STANCE_PRIORITY[a.stance] - STANCE_PRIORITY[b.stance])
       .slice(0, 3);
 

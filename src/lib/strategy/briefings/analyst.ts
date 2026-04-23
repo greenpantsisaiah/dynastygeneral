@@ -28,8 +28,12 @@ import type { OpponentReadout } from "../opponents/observe";
 import type {
   Briefing,
   BriefingKind,
+  BriefingPrecondition,
   BriefingSeverity,
 } from "./types";
+import type { Position } from "../archetypes/schema";
+
+const POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -51,6 +55,13 @@ const BRIEFING_KINDS: BriefingKind[] = [
 ];
 const SEVERITIES: BriefingSeverity[] = ["info", "notable", "critical"];
 
+const preconditionSchema = z.object({
+  kind: z.literal("position_count_eq"),
+  owner_name: z.string().min(1),
+  position: z.enum(POSITIONS as [Position, ...Position[]]),
+  value: z.number().int().min(0),
+});
+
 const briefingItemSchema = z.object({
   id: z.string().min(1),
   kind: z.enum(BRIEFING_KINDS as [BriefingKind, ...BriefingKind[]]),
@@ -60,6 +71,7 @@ const briefingItemSchema = z.object({
   evidence: z.array(z.string()).default([]),
   topic_tags: z.array(z.string()).default([]),
   data: z.unknown(),
+  preconditions: z.array(preconditionSchema).optional(),
 });
 
 const analystOutputSchema = z.object({
@@ -126,6 +138,21 @@ const analystToolInputSchema = {
             type: "object",
             description:
               "Kind-specific payload. See per-kind schema in the user message. Always object, never null.",
+          },
+          preconditions: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["kind", "owner_name", "position", "value"],
+              properties: {
+                kind: { type: "string", enum: ["position_count_eq"] },
+                owner_name: { type: "string" },
+                position: { type: "string", enum: POSITIONS },
+                value: { type: "integer", minimum: 0 },
+              },
+            },
+            description:
+              "OPTIONAL but REQUIRED whenever the briefing's TAKE depends on a SPECIFIC position count for a NAMED owner. Example: a 'zero TEs' or 'no QBs' briefing for owner X must emit { kind: 'position_count_eq', owner_name: 'X', position: 'TE', value: 0 }. The system uses these to suppress your take when the user catches up to it. Omit when the briefing has no count-based claim.",
           },
         },
       },
@@ -254,6 +281,9 @@ function buildUserMessage(args: {
     picks_made: snap.draft.picks_made.length,
     format: snap.format,
     scoring: snap.scoring,
+    // Which positions this league actually rosters as starters. Any
+    // position with hard=0 is NOT a roster gap; do not flag as deficit.
+    starter_slots: snap.starter_slots,
   };
 
   return `You are producing 3-5 intelligence briefings on the current league state. Your role is the analyst team for the user (the general). Each briefing is one structured take on what's happening RIGHT NOW.
@@ -299,6 +329,14 @@ ${JSON.stringify(opponentsSummary, null, 2)}
 archetype catalog (your analytical vocabulary; all available archetype names + categories + horizons; reference these by id when relevant):
 ${JSON.stringify(catalogSummary, null, 2)}
 
+POSITION GATING (non-negotiable)
+Only flag positional deficits at positions this league actually rosters. Check draft.starter_slots.hard: any position with a value of 0 is NOT rostered as a starter; NEVER flag a user or opponent for "zero K" or "zero DST" or similar when that position is not in the format. Same goes for IDP positions not listed in starter_slots.
+
+PRECONDITIONS (required when your TAKE is count-anchored)
+Briefings live in a chronological feed. The user keeps drafting. A briefing whose TAKE depends on a specific count ("you have 0 TEs," "messmn225 has 3 QBs") becomes wrong the moment that count changes. To prevent stale takes from showing as live facts, emit a 'preconditions' array on EVERY briefing whose body or headline cites a specific position count for a named owner.
+Example: headline "You have zero TEs in a TE-premium format" must include { kind: 'position_count_eq', owner_name: '<the user's owner_name from me.owner>', position: 'TE', value: 0 }. The system re-checks these on render and suppresses your take once the user reaches the value you said was at zero.
+Briefings about general trends, room reads, opponent strategy, or pure prose without specific count claims do not need preconditions.
+
 YOUR TASK
 Produce 3-5 briefings via the analyst_briefings tool. Choose kinds based on what the data wants to say. At least one briefing should reference opponents by name. At least one should call the user's drift trajectory. Vary severity (info/notable/critical) based on actionability.
 
@@ -338,17 +376,33 @@ export async function generateBriefings(args: {
     outputSchema: analystOutputSchema,
     userMessage,
     model: "sonnet",
+    // 4000 fits a multi-briefing run: each briefing emits a structured
+    // tool call (kind + headline + body + evidence + per-kind data
+    // blocks). Below 4000 the model truncates the second or third
+    // briefing in the batch.
     maxTokens: 4000,
     temperature: 0.6,
   });
 
-  // Normalize: add generated_at + triggered_by, cast data to the
-  // discriminated type. The LLM emitted the kind + data but didn't
-  // know the timestamp or trigger source.
+  // Stamp the pick-no this briefing was generated AT. The renderer
+  // uses it to compute pick-age ("as of pick 81, 8 picks ago") so
+  // outdated takes can be visibly aged even when their preconditions
+  // technically still hold. picks_made.length is the count BEFORE the
+  // current pick number, so it equals the most recent completed pick.
+  const generated_at_pick_no =
+    args.snap.draft.picks_made.length > 0
+      ? args.snap.draft.picks_made.length
+      : null;
+
+  // Normalize: add generated_at + triggered_by + pick anchor, cast data
+  // to the discriminated type. The LLM emitted kind/data/preconditions
+  // but didn't know the timestamp, pick number, or trigger source.
   return result.output.briefings.map((b) => ({
     ...b,
     data: b.data as Record<string, unknown>,
     generated_at,
+    generated_at_pick_no,
     triggered_by: trigger,
+    preconditions: b.preconditions as BriefingPrecondition[] | undefined,
   })) as Briefing[];
 }

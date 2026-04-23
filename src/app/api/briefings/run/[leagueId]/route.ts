@@ -55,8 +55,23 @@ export async function POST(
   }
 
   const { leagueId } = await params;
+  const { isValidLeagueId, isValidUsername } = await import(
+    "@/lib/sleeper/validate"
+  );
+  if (!isValidLeagueId(leagueId)) {
+    return NextResponse.json(
+      { error: "invalid league id" },
+      { status: 400 },
+    );
+  }
   const url = new URL(req.url);
   const username = url.searchParams.get("username")?.trim().replace(/^@/, "") ?? "";
+  if (username && !isValidUsername(username)) {
+    return NextResponse.json(
+      { error: "invalid username" },
+      { status: 400 },
+    );
+  }
   const trigger = url.searchParams.get("trigger") ?? "user requested";
 
   const [league, rosters, users] = await Promise.all([

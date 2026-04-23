@@ -24,6 +24,11 @@ import {
   pickAdpFromVariants,
   type AdpFormatKey,
 } from "./projections";
+import {
+  ageFactor,
+  positionFactor,
+  positionAgeCutoff,
+} from "./age-curve";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 
 const DYNASTY_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
@@ -41,6 +46,10 @@ export type AvailablePlayer = HumanPlayer & {
   // Which ADP variant we resolved to (e.g., "dynasty_2qb" for superflex).
   // Useful for the UI to label "ADP (dynasty SF)" vs just "ADP."
   adp_variant: string;
+  // True when the player is an incoming rookie (years_exp === 0). UI
+  // surfaces a ROOKIE tag; coach knows to acknowledge unknown landing
+  // spot + speculative dynasty value for pre-NFL-draft rookies.
+  is_rookie: boolean;
 };
 
 function adpFormatFromSnapshot(snap: LeagueSnapshot): AdpFormatKey {
@@ -52,31 +61,20 @@ function adpFormatFromSnapshot(snap: LeagueSnapshot): AdpFormatKey {
   };
 }
 
-function ageFactor(age: number | null): number {
-  if (age == null) return 1.2; // unknown age treated as mildly negative
-  if (age <= 23) return 0.7;
-  if (age <= 26) return 1.0;
-  if (age <= 29) return 1.3;
-  return 1.7;
-}
-
-function positionFactor(
-  position: string | null,
-  isSuperflex: boolean,
-): number {
-  if (!position) return 1.0;
-  // QB in superflex is genuinely scarcer; demote it less aggressively.
-  if (position === "QB" && isSuperflex) return 0.9;
-  return 1.0;
-}
-
 function computeDynastyRank(
   searchRank: number,
   age: number | null,
   position: string | null,
   isSuperflex: boolean,
 ): number {
-  return searchRank * ageFactor(age) * positionFactor(position, isSuperflex);
+  // Position-specific age curve + tier-aware SF QB premium live in
+  // `./age-curve.ts` (single source of truth across scout + available
+  // surfaces). See that module for citations.
+  return (
+    searchRank *
+    ageFactor(position, age) *
+    positionFactor(position, isSuperflex, searchRank)
+  );
 }
 
 export async function getAvailablePlayers(
@@ -84,9 +82,17 @@ export async function getAvailablePlayers(
   opts: { limit?: number } = {},
 ): Promise<AvailablePlayer[]> {
   const limit = opts.limit ?? 200;
-  const drafted = new Set(
-    snap.draft.picks_made.map((p) => p.player_id).filter(Boolean),
-  );
+  // "Unavailable" = drafted in this league's current draft OR already
+  // sitting on someone's active roster. Without the roster union, every
+  // veteran in an established post-draft league surfaces as "available"
+  // (Bijan Robinson appearing as draftable in a year-old league).
+  const drafted = new Set<string>();
+  for (const pick of snap.draft.picks_made) {
+    if (pick.player_id) drafted.add(pick.player_id);
+  }
+  for (const r of snap.rosters) {
+    for (const id of r.player_ids) drafted.add(id);
+  }
   const all = await __dumpAllPlayers();
   const ranked = all
     .filter((p) => !drafted.has(p.player_id))
@@ -95,24 +101,31 @@ export async function getAvailablePlayers(
       return DYNASTY_POSITIONS.has(pos);
     })
     .filter((p) => typeof p.search_rank === "number" && p.search_rank > 0)
-    // Filter to plausibly-current NFL players. Sleeper's player dump
-    // is dirty: it lists retired veterans (Brady, Brees, Roethlisberger)
-    // and stale young players (Henry Ruggs) with `status: Active` and
-    // old search_rank. Two-layer filter:
-    //   1. Hard age cap: ≤35. kills Brady (45), Brees (42), Big Ben (39).
-    //      Misses tiny edge cases (older starting QB, ageing TE) but
-    //      those rarely show up in dynasty draft suggestions anyway.
-    //   2. Roster check: must have a team UNLESS clearly a fresh rookie
-    //      (age ≤ 23 AND years_exp ≤ 1). Cuts Ruggs (22, 2 yrs, no team).
+    // Filter to plausibly-current NFL players. Layered rules:
+    //   1. Declared rookies (years_exp === 0) ALWAYS pass. Even with
+    //      no team assigned yet (pre-NFL-draft), no age, no ADP. Their
+    //      existence in Sleeper's DB means they're drafted-for-dynasty
+    //      targets. Cards tag them ROOKIE so the UI is honest about
+    //      the speculative value.
+    //   2. Position-specific age cap (RB 32, WR 33, TE 34, QB 38). Kills
+    //      retirees (Brady, Brees, Roethlisberger) with stale active
+    //      status while preserving legitimate aging-vet picks at QB
+    //      (Rodgers, Stafford). The prior flat ≤35 cutoff amputated
+    //      those entirely. See `age-curve.ts` for cutoff sources.
+    //   3. Team required UNLESS sophomore (age ≤ 23, years_exp ≤ 1).
+    //      Cuts Ruggs (22, 2 yrs, no team) while keeping 2nd-year
+    //      unsigned prospects.
     .filter((p) => {
-      if (typeof p.age !== "number" || p.age > 35) return false;
+      if (p.years_exp === 0) return true;
+      if (typeof p.age !== "number") return false;
+      if (p.age > positionAgeCutoff(p.position ?? null)) return false;
       const team = (p.team ?? "").trim();
       if (team) return true;
-      const isFreshRookie =
+      const isSophomorePlus =
         p.age <= 23 &&
         typeof p.years_exp === "number" &&
         p.years_exp <= 1;
-      return isFreshRookie;
+      return isSophomorePlus;
     })
     .sort((a, b) => (a.search_rank ?? 9999) - (b.search_rank ?? 9999))
     // Pull a wider window before dynasty re-sort. The dynasty heuristic
@@ -137,10 +150,11 @@ export async function getAvailablePlayers(
   const enriched: AvailablePlayer[] = ranked.map((p) => {
     const search_rank = p.search_rank ?? 9999;
     const human = humanize(p);
+    const is_rookie = p.years_exp === 0;
     const adpRaw = projections?.byPlayerId.get(p.player_id);
     const { value: adp, variant: adp_variant } = pickAdpFromVariants(
       adpRaw,
-      fmtKey,
+      { ...fmtKey, isRookie: is_rookie },
     );
     return {
       ...human,
@@ -153,6 +167,7 @@ export async function getAvailablePlayers(
       ),
       adp,
       adp_variant,
+      is_rookie,
     };
   });
 

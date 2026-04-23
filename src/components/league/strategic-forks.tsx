@@ -75,9 +75,20 @@ type EarnedValueFork = {
 
 type Fork = StarterNeedFork | PathFork | DepthFork | EarnedValueFork;
 
-function starterNeeds(format: LeagueSnapshot["format"]): Record<Position, number> {
-  const isSuperflex = format === "superflex" || format === "2qb";
-  return { QB: isSuperflex ? 2 : 1, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
+function starterNeeds(snap: LeagueSnapshot): Record<Position, number> {
+  // Use HARD slots only for the fill-starter-hole threshold. Flex and
+  // superflex slots are strategic needs (fill them how you want) rather
+  // than position-specific holes, so we don't roll them in here.
+  // Rationale: the user's league has 2 WR hard + 3 FLEX; Sleeper shows
+  // WR 2/2 not 2/3. Matching that convention avoids phantom holes.
+  const hard = snap.starter_slots.hard;
+  const total = hard.QB + hard.RB + hard.WR + hard.TE + hard.K + hard.DST;
+  if (total === 0) {
+    // Fallback only for unparseable roster_positions. Conventional defaults.
+    const isSuperflex = snap.format === "superflex" || snap.format === "2qb";
+    return { QB: isSuperflex ? 2 : 1, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
+  }
+  return { ...hard };
 }
 
 function inferPrimaryPosition(r: RankedArchetype): Position | null {
@@ -107,7 +118,7 @@ export function StrategicForks({
   myPickLabel: string | null;
 }) {
   const me = snapshot?.rosters.find((r) => r.is_me) ?? null;
-  const reqs = snapshot ? starterNeeds(snapshot.format) : null;
+  const reqs = snapshot ? starterNeeds(snapshot) : null;
   const positionState = (pos: Position): { have: number; need: number } => {
     const have = me?.position_counts[pos] ?? 0;
     const need = reqs?.[pos] ?? 0;
@@ -279,6 +290,20 @@ function fmtAdp(adp: number | null | undefined): string {
   return Math.round(adp).toString();
 }
 
+// Compact ROOKIE chip. Speculative-asset signal: pre-NFL-draft rookies
+// often have no team / no age / no ADP, and dynasty value is volatile
+// based on landing spot. The general should know.
+function RookieChip() {
+  return (
+    <span
+      className="ml-1.5 rounded-sm border border-accent/60 bg-accent/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-accent"
+      title="Incoming rookie. Pre-NFL-draft value is speculative pending landing spot."
+    >
+      Rookie
+    </span>
+  );
+}
+
 // Divergence between Sleeper ADP rank and our dynasty heuristic rank.
 // Both scales are "lower = better." A meaningful gap (>= 50 positions)
 // is editorial. Either we like a player the market doesn't, or vice
@@ -414,6 +439,7 @@ function ForkCard({ fork }: { fork: Fork }) {
         <div className="mt-0.5 flex items-baseline justify-between gap-2">
           <span className="text-sm font-semibold text-foreground">
             {primary.name}
+            {primary.is_rookie && <RookieChip />}
           </span>
           {primary.adp != null && (
             <span
@@ -455,6 +481,7 @@ function ForkCard({ fork }: { fork: Fork }) {
                       <span className="font-medium text-foreground">
                         {b.name}
                       </span>
+                      {b.is_rookie && <RookieChip />}
                       <span className="text-muted-2">
                         {" "}
                         · {b.position}

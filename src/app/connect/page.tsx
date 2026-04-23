@@ -92,15 +92,27 @@ export default async function ConnectPage({ searchParams }: PageProps) {
           {sleeperUser && !errorMessage && (
             <div className="mt-10 space-y-8">
               <div className="rounded-lg border border-border-soft bg-surface px-5 py-4 text-sm">
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-                  Identified
-                </div>
-                <div className="mt-1 text-foreground">
-                  <span className="font-semibold">
-                    {sleeperUser.display_name ?? sleeperUser.username ?? "–"}
-                  </span>
-                  <span className="text-muted"> · {sleeperUser.user_id}</span>
-                  <span className="text-muted"> · season {resolvedSeason}</span>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
+                      Identified
+                    </div>
+                    <div className="mt-1 text-foreground">
+                      <span className="font-semibold">
+                        {sleeperUser.display_name ?? sleeperUser.username ?? "–"}
+                      </span>
+                      <span className="text-muted"> · {sleeperUser.user_id}</span>
+                      <span className="text-muted"> · season {resolvedSeason}</span>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/scout/${encodeURIComponent(cleaned)}${
+                      resolvedSeason ? `?season=${resolvedSeason}` : ""
+                    }`}
+                    className="inline-flex h-8 items-center rounded-md border border-border-strong bg-surface px-3 font-mono text-[11px] uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 hover:text-accent"
+                  >
+                    Scout report →
+                  </Link>
                 </div>
               </div>
 

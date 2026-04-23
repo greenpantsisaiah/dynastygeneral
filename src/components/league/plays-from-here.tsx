@@ -69,6 +69,14 @@ function PlayCard({ play }: { play: ResolvedPlayFromHere }) {
                 <span className="font-semibold text-foreground">
                   {t.name}
                 </span>
+                {t.is_rookie && (
+                  <span
+                    className="ml-1.5 rounded-sm border border-accent/60 bg-accent/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-accent"
+                    title="Incoming rookie. Pre-NFL-draft value is speculative pending landing spot."
+                  >
+                    Rookie
+                  </span>
+                )}
                 <span className="text-muted-2">
                   {" "}
                   · {t.position}

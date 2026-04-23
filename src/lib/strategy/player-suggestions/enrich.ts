@@ -102,6 +102,7 @@ export function enrichRankedWithCandidates(
       age: p.age,
       search_rank: p.search_rank,
       adp: p.adp,
+      is_rookie: p.is_rookie,
       reason: reasonForArchetype(p, r.archetype),
     }));
     return { ...r, top_candidates };
@@ -193,6 +194,7 @@ export function enrichPickApproachWithCandidates(
             age: p.age,
             search_rank: p.search_rank,
             adp: p.adp,
+            is_rookie: p.is_rookie,
           }));
         return { ...c, likely_players };
       }),
@@ -203,16 +205,14 @@ export function enrichPickApproachWithCandidates(
   const me = snap.rosters.find((r) => r.is_me);
   const myShortages: Position[] = [];
   if (me) {
-    const reqs: Record<Position, number> = {
-      QB: snap.format === "superflex" || snap.format === "2qb" ? 2 : 1,
-      RB: 2,
-      WR: 3,
-      TE: 1,
-      K: 0,
-      DST: 0,
-    };
+    // Source of truth: snapshot.starter_slots.hard (parsed from the
+    // league's roster_positions). Kills the "WR 2/3 phantom need"
+    // bug in formats that use hard WR=2 + FLEX slots.
+    const reqs = snap.starter_slots.hard;
     for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
-      if (me.position_counts[pos] < reqs[pos]) myShortages.push(pos);
+      if (reqs[pos] > 0 && me.position_counts[pos] < reqs[pos]) {
+        myShortages.push(pos);
+      }
     }
   }
   // Working-toward horizon: leading ranked archetype is the best proxy
@@ -238,6 +238,7 @@ export function enrichPickApproachWithCandidates(
       age: p.age,
       search_rank: p.search_rank,
       adp: p.adp,
+      is_rookie: p.is_rookie,
       reason: suggestionReason({
         player: p,
         myShortages,

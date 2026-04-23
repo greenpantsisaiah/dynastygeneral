@@ -164,6 +164,35 @@ export function LiveStrategyBoard({
     [workingTowardId],
   );
 
+  // Divergence check: the user's declared "Working toward" choice can
+  // go stale as the roster changes. If their declared archetype scores
+  // notably worse than the top-fit archetype in the SAME category, they
+  // should be nudged to revisit. Embarrassing precedent: a user with
+  // Gibbs/Taylor/Barkley/Henry was still "Working toward: RB Committee"
+  // because they clicked it months ago and the UI never said anything.
+  const declaredFit = useMemo(() => {
+    if (!workingTowardId) return null;
+    const declared = ranked.find((r) => r.archetype.id === workingTowardId);
+    if (!declared) return null;
+    const declaredCategory = declared.archetype.category;
+    const topInCategory = ranked.find(
+      (r) => r.archetype.category === declaredCategory,
+    );
+    if (!topInCategory || topInCategory.archetype.id === workingTowardId) {
+      return { status: "ok" as const };
+    }
+    const gap = topInCategory.drift_score - declared.drift_score;
+    if (gap >= 0.4) {
+      return {
+        status: "divergent" as const,
+        suggestion: topInCategory.archetype,
+        declaredDrift: declared.drift_score,
+        topDrift: topInCategory.drift_score,
+      };
+    }
+    return { status: "ok" as const };
+  }, [ranked, workingTowardId]);
+
   function setWorkingToward(id: string) {
     writeDeclaredArchetype(leagueId, id);
     if (typeof window !== "undefined") {
@@ -216,6 +245,28 @@ export function LiveStrategyBoard({
             {!workingTowardArchetype &&
               " Mark one as your primary direction. soft commitment, change anytime."}
           </p>
+          {declaredFit?.status === "divergent" && (
+            <div className="mt-2 rounded-md border border-danger/50 bg-danger/5 px-3 py-2 text-sm">
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-danger">
+                Roster has shifted ·{" "}
+              </span>
+              <span className="text-foreground">
+                Your declared path drifts at{" "}
+                {Math.round(declaredFit.declaredDrift * 100)}%, but{" "}
+                <span className="font-semibold">
+                  {declaredFit.suggestion.name}
+                </span>{" "}
+                fits at {Math.round(declaredFit.topDrift * 100)}%.
+              </span>
+              <button
+                type="button"
+                onClick={() => setWorkingToward(declaredFit.suggestion.id)}
+                className="ml-2 font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:text-success"
+              >
+                Switch to {declaredFit.suggestion.name} →
+              </button>
+            </div>
+          )}
           <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-2">
             Horizon score: -100 rebuild ↔ 0 balanced ↔ +100 max contender
           </p>
@@ -341,6 +392,14 @@ function ArchetypeCard({
               <span className="font-semibold text-foreground">
                 {ranked.top_candidates[0].name}
               </span>
+              {ranked.top_candidates[0].is_rookie && (
+                <span
+                  className="ml-1.5 rounded-sm border border-accent/60 bg-accent/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-accent"
+                  title="Incoming rookie. Pre-NFL-draft value is speculative pending landing spot."
+                >
+                  Rookie
+                </span>
+              )}
               <span className="text-muted-2">
                 {" "}
                 · {ranked.top_candidates[0].position}
@@ -355,6 +414,14 @@ function ArchetypeCard({
                 <span className="text-muted-2">
                   {" "}
                   · then {ranked.top_candidates[1].name}
+                  {ranked.top_candidates[1].is_rookie && (
+                    <span
+                      className="ml-1 rounded-sm border border-accent/60 bg-accent/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-accent"
+                      title="Incoming rookie. Pre-NFL-draft value is speculative pending landing spot."
+                    >
+                      Rookie
+                    </span>
+                  )}
                 </span>
               )}
             </div>
@@ -517,6 +584,14 @@ function ArchetypeCard({
                     </span>
                     <span className="text-foreground">
                       <span className="font-medium">{c.name}</span>
+                      {c.is_rookie && (
+                        <span
+                          className="ml-1.5 rounded-sm border border-accent/60 bg-accent/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-accent"
+                          title="Incoming rookie. Pre-NFL-draft value is speculative pending landing spot."
+                        >
+                          Rookie
+                        </span>
+                      )}
                       <span className="text-muted-2">
                         {" "}
                         · {c.position}

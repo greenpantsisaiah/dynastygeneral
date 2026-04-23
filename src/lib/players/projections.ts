@@ -146,6 +146,10 @@ export type AdpFormatKey = {
   isPpr: boolean;
   isHalfPpr: boolean;
   isTePremium: boolean;
+  // Rookies (years_exp === 0) get adp_rookie preference. Sleeper's
+  // dynasty variants are sparse for unsigned rookies pre-NFL-draft;
+  // adp_rookie is the only field consistently populated for them.
+  isRookie?: boolean;
 };
 
 export function pickAdpFromVariants(
@@ -157,6 +161,12 @@ export function pickAdpFromVariants(
   // Preference order: most specific dynasty variant matching format,
   // then any dynasty variant, then redraft as last resort.
   const candidates: Array<[number | null, string]> = [];
+
+  // Rookies: prefer rookie-draft ADP first. It's the most informative
+  // signal for someone yet to play an NFL snap.
+  if (fmt.isRookie) {
+    candidates.push([adp.adp_rookie, "rookie"]);
+  }
 
   if (fmt.isSuperflex) {
     candidates.push([adp.adp_dynasty_2qb, "dynasty_2qb"]);

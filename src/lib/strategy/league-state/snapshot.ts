@@ -15,6 +15,7 @@ import type {
   SleeperLeagueUser,
 } from "@/lib/sleeper/schemas";
 import { resolvePlayers } from "@/lib/players/cache";
+import { pickNoForSlot } from "@/lib/sleeper/snake";
 import type {
   LeagueFormat,
   LeagueScoring,
@@ -29,6 +30,14 @@ export type RosterSnapshot = {
   owner_name: string | null;
   is_me: boolean;
   position_counts: Record<Position, number>;
+  // Per-position list of Sleeper search_rank values for this roster's
+  // players, sorted ascending (best ranks first). Used by the
+  // archetype evaluator's `rank_threshold` signal so "I own 2+ TOP-12
+  // QBs" is a tighter signal than "I own 2+ QBs at all." Players with
+  // missing search_rank are excluded from these lists. search_rank is
+  // a proxy for dynasty value; refining to a true dynasty rank is a
+  // future quality lift.
+  position_ranks: Record<Position, number[]>;
   player_ids: string[];
   avg_age: number | null;
   wins: number;
@@ -49,12 +58,59 @@ export type DraftPickRecord = {
   years_exp: number | null;
 };
 
+// Density classification of a single pick in the user's schedule. Used
+// as a CONTEXT MODIFIER on recommendations, not its own panel:
+//   wraparound: back-to-back snake-turn picks (gap_to_prev or _next ≤ 1).
+//               Take the SCARCER asset first; the next pick refills.
+//   cluster:    multiple picks within ~half a round. Catch-up window;
+//               OK to swing or punt this pick because more picks follow.
+//   isolated:   long wait (more than a full round) on both sides.
+//               Defensive: grab fragile tier now, no refill window.
+//   normal:     middle ground. Standard scarcity math applies.
+export type PickDensityKind =
+  | "wraparound"
+  | "cluster"
+  | "isolated"
+  | "normal";
+
+export type PickScheduleEntry = {
+  pick_no: number; // overall pick number across the draft
+  round: number;
+  pick_label: string; // e.g. "9.10"
+  // Picks BETWEEN this user pick and the previous/next user pick (not
+  // counting the user picks themselves). 0 = back-to-back wraparound.
+  // Infinity if no previous (this is your first remaining pick) or no
+  // next (this is your last pick).
+  gap_to_prev: number;
+  gap_to_next: number;
+  density_kind: PickDensityKind;
+};
+
+// Parsed starter slots from league.roster_positions. Single source of
+// truth for "does this league even roster position X?" and "how many
+// starters at X are required?" Consumers should use `hard` for the
+// fill-starter-hole badge math; flex counts are separate roster needs.
+export type StarterSlots = {
+  // Hard position slots. A player in this slot must match the position
+  // exactly. Includes K/DST only if the league actually rosters them.
+  hard: Record<Position, number>;
+  // Generic FLEX slots (RB/WR/TE eligible).
+  flex: number;
+  // Superflex slots (QB/RB/WR/TE eligible).
+  superflex: number;
+  // WR/TE-only flex (rare, e.g. TE-premium reward formats).
+  rec_flex: number;
+  // Total bench slots.
+  bench: number;
+};
+
 export type LeagueSnapshot = {
   league_id: string;
   season: string;
   total_teams: number;
   format: LeagueFormat;
   scoring: LeagueScoring[];
+  starter_slots: StarterSlots;
   rosters: RosterSnapshot[];
   my_roster_id: number | null;
   // Draft state at moment of snapshot. May be no_draft.
@@ -70,6 +126,10 @@ export type LeagueSnapshot = {
     // All league traded picks (current + future seasons). Used for
     // characterization signals like "punted this season for futures."
     traded_picks: TradedPick[];
+    // The user's remaining pick schedule with density classifications.
+    // First entry is the user's NEXT pick (or current pick if on the
+    // clock). Empty when no draft is active or the user is unowned.
+    my_pick_schedule: PickScheduleEntry[];
   };
   // Pre-computed convenience aggregates for likelihood modifiers + openings
   agg: {
@@ -89,6 +149,148 @@ function detectFormat(league: SleeperLeague): LeagueFormat {
   return "1qb";
 }
 
+function classifyDensity(
+  gapToPrev: number,
+  gapToNext: number,
+  totalTeams: number,
+): PickDensityKind {
+  // Wraparound: 0 or 1 picks between yours. Snake-turn back-to-back.
+  if (gapToPrev <= 1 || gapToNext <= 1) return "wraparound";
+  // Cluster: tight grouping (within ~half a round). Catch-up window
+  // means you don't need to grab everything at this pick.
+  const clusterThreshold = Math.max(6, Math.floor(totalTeams / 2));
+  if (gapToPrev <= clusterThreshold || gapToNext <= clusterThreshold) {
+    return "cluster";
+  }
+  // Isolated: long wait both directions. No refill window. Defensive
+  // play: grab whatever's fragile now before the long wait.
+  if (gapToPrev > totalTeams && gapToNext > totalTeams) return "isolated";
+  return "normal";
+}
+
+function pickLabel(pickNo: number, totalTeams: number): string {
+  const round = Math.ceil(pickNo / totalTeams);
+  const within = ((pickNo - 1) % totalTeams) + 1;
+  return `${round}.${within}`;
+}
+
+// Enumerate the user's REMAINING picks across the full draft, accounting
+// for traded picks (in or out). Returns sorted by pick_no with gap +
+// density classification baked in. Empty when no draft, no slot, or
+// nothing left to pick.
+function buildMyPickSchedule(
+  draftState: DraftState,
+  season: string,
+): PickScheduleEntry[] {
+  if (
+    draftState.status === "no_draft" ||
+    draftState.my_roster_id == null ||
+    draftState.next_pick_no == null ||
+    draftState.rounds <= 0 ||
+    draftState.total_teams <= 0
+  ) {
+    return [];
+  }
+  const myRosterId = draftState.my_roster_id;
+  const totalTeams = draftState.total_teams;
+  const rounds = draftState.rounds;
+  const reversalRound = draftState.reversal_round;
+  const draftType = draftState.type;
+  const nextPickNo = draftState.next_pick_no;
+
+  // roster_id → original draft slot
+  const rosterToSlot = new Map<number, number>();
+  for (const [slotStr, rid] of Object.entries(
+    draftState.slot_to_roster_id,
+  )) {
+    rosterToSlot.set(rid, Number(slotStr));
+  }
+
+  // Trade overrides keyed by (round, original_owner_roster_id) for
+  // THIS season only. Future-season traded picks are handled elsewhere.
+  const ownerOverride = new Map<string, number>();
+  for (const tp of draftState.traded_picks) {
+    if (tp.season !== season) continue;
+    ownerOverride.set(`${tp.round}:${tp.original_owner}`, tp.current_owner);
+  }
+
+  const picks: PickScheduleEntry[] = [];
+  for (let round = 1; round <= rounds; round++) {
+    for (let rosterId = 1; rosterId <= totalTeams; rosterId++) {
+      const originalSlot = rosterToSlot.get(rosterId);
+      if (originalSlot == null) continue;
+      const overrideKey = `${round}:${rosterId}`;
+      const currentOwner = ownerOverride.get(overrideKey) ?? rosterId;
+      if (currentOwner !== myRosterId) continue;
+      const pickNo = pickNoForSlot(originalSlot, round, totalTeams, {
+        type: draftType,
+        reversalRound,
+      });
+      if (pickNo < nextPickNo) continue;
+      picks.push({
+        pick_no: pickNo,
+        round,
+        pick_label: pickLabel(pickNo, totalTeams),
+        gap_to_prev: Infinity,
+        gap_to_next: Infinity,
+        density_kind: "normal",
+      });
+    }
+  }
+
+  picks.sort((a, b) => a.pick_no - b.pick_no);
+
+  for (let i = 0; i < picks.length; i++) {
+    const prev = i > 0 ? picks[i - 1] : null;
+    const next = i < picks.length - 1 ? picks[i + 1] : null;
+    const gapPrev = prev
+      ? picks[i].pick_no - prev.pick_no - 1
+      : Infinity;
+    const gapNext = next
+      ? next.pick_no - picks[i].pick_no - 1
+      : Infinity;
+    picks[i].gap_to_prev = gapPrev;
+    picks[i].gap_to_next = gapNext;
+    picks[i].density_kind = classifyDensity(gapPrev, gapNext, totalTeams);
+  }
+
+  return picks;
+}
+
+// Parse league.roster_positions into structured starter-slot counts.
+// Every downstream "how many starters at X does this league need?"
+// consumer should read this rather than hardcode a default.
+function parseStarterSlots(league: SleeperLeague): StarterSlots {
+  const positions = league.roster_positions ?? [];
+  const hard: Record<Position, number> = {
+    QB: 0,
+    RB: 0,
+    WR: 0,
+    TE: 0,
+    K: 0,
+    DST: 0,
+  };
+  let flex = 0;
+  let superflex = 0;
+  let rec_flex = 0;
+  let bench = 0;
+  for (const raw of positions) {
+    const p = raw.toUpperCase();
+    if (p === "QB") hard.QB++;
+    else if (p === "RB") hard.RB++;
+    else if (p === "WR") hard.WR++;
+    else if (p === "TE") hard.TE++;
+    else if (p === "K") hard.K++;
+    else if (p === "DEF" || p === "DST") hard.DST++;
+    else if (p === "FLEX" || p === "WRRB_FLEX" || p === "RB_WR") flex++;
+    else if (p === "SUPER_FLEX" || p === "SUPERFLEX" || p === "SF") superflex++;
+    else if (p === "REC_FLEX" || p === "WRTE_FLEX") rec_flex++;
+    else if (p === "BN") bench++;
+    // Skip IR, TAXI, and IDP slots (DL/LB/DB/IDP_FLEX etc). Not modeled.
+  }
+  return { hard, flex, superflex, rec_flex, bench };
+}
+
 function detectScoring(league: SleeperLeague): LeagueScoring[] {
   const out: LeagueScoring[] = [];
   const s = league.scoring_settings ?? {};
@@ -103,6 +305,10 @@ function detectScoring(league: SleeperLeague): LeagueScoring[] {
 
 function emptyPositionCounts(): Record<Position, number> {
   return { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
+}
+
+function emptyPositionRanks(): Record<Position, number[]> {
+  return { QB: [], RB: [], WR: [], TE: [], K: [], DST: [] };
 }
 
 function asNumber(v: unknown): number {
@@ -162,6 +368,7 @@ export async function buildLeagueSnapshot(args: {
   // Per-roster snapshots
   const rosterSnapshots: RosterSnapshot[] = rosters.map((r) => {
     const counts = emptyPositionCounts();
+    const ranks = emptyPositionRanks();
     const ages: number[] = [];
     const merged = new Set<string>([
       ...(r.players ?? []),
@@ -171,7 +378,23 @@ export async function buildLeagueSnapshot(args: {
       const p = playerMap.get(id);
       const pos = normalizePosition(p?.position ?? null);
       if (pos) counts[pos] += 1;
+      // search_rank is Sleeper's positional/global ranking. Treat
+      // missing or non-positive as "no rank known" and skip; only real
+      // ranks contribute to rank_threshold signals.
+      if (
+        pos &&
+        p &&
+        typeof p.search_rank === "number" &&
+        p.search_rank > 0
+      ) {
+        ranks[pos].push(p.search_rank);
+      }
       if (p && typeof p.age === "number") ages.push(p.age);
+    }
+    // Sort each position's rank list ascending so the cheapest "top-N
+    // count" check is `arr.filter(r => r <= N).length`.
+    for (const pos of FANTASY_POSITIONS) {
+      ranks[pos].sort((a, b) => a - b);
     }
     const avg_age =
       ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : null;
@@ -182,6 +405,7 @@ export async function buildLeagueSnapshot(args: {
       owner_name: r.owner_id ? userById.get(r.owner_id) ?? null : null,
       is_me: !!mySleeperUserId && r.owner_id === mySleeperUserId,
       position_counts: counts,
+      position_ranks: ranks,
       player_ids: [...merged],
       avg_age,
       wins: asNumber(settings.wins),
@@ -248,6 +472,7 @@ export async function buildLeagueSnapshot(args: {
     total_teams: totalTeams,
     format: detectFormat(league),
     scoring: detectScoring(league),
+    starter_slots: parseStarterSlots(league),
     rosters: rosterSnapshots,
     my_roster_id: myRosterId,
     draft: {
@@ -260,6 +485,7 @@ export async function buildLeagueSnapshot(args: {
       next_pick_no: draftState.next_pick_no,
       picks_made: picksMade,
       traded_picks: draftState.traded_picks,
+      my_pick_schedule: buildMyPickSchedule(draftState, league.season),
     },
     agg: {
       teams_without_position_after_round,

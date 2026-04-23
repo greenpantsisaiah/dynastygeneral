@@ -7,12 +7,22 @@
 
 import type { Archetype } from "./schema";
 import { QB_ARCHETYPES } from "./catalog/qb";
+import { RB_ARCHETYPES } from "./catalog/rb";
 import { WR_ARCHETYPES } from "./catalog/wr";
+import { TE_ARCHETYPES } from "./catalog/te";
+import { CONSTRUCTION_ARCHETYPES } from "./catalog/construction";
 import { MACRO_ARCHETYPES } from "./catalog/macro";
 
+// Catalog ordering matters: stable-sort breaks ties in favor of
+// earlier entries. Position-driven archetypes go first (most specific
+// to roster shape), then construction (shape-based), then macro
+// (record/age-based). Within each group, broadest fit to narrowest.
 export const ARCHETYPES: Archetype[] = [
   ...QB_ARCHETYPES,
+  ...RB_ARCHETYPES,
   ...WR_ARCHETYPES,
+  ...TE_ARCHETYPES,
+  ...CONSTRUCTION_ARCHETYPES,
   ...MACRO_ARCHETYPES,
 ];
 

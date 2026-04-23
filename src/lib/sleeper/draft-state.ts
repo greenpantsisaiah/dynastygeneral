@@ -179,14 +179,39 @@ export async function resolveDraftState(
   const maxPicks = rounds > 0 ? rounds * totalTeams : Infinity;
   const inProgress = nextPickNo <= maxPicks && status !== "complete";
 
+  // Trade override map for THIS season's picks. Keyed by
+  // `round:original_owner_roster_id` → current_owner_roster_id. Lets
+  // us correctly attribute the on-the-clock owner and the user's next
+  // pick when picks have been traded away or acquired. Without this,
+  // the draft banner shows the original slot holder ("MacCheese13") for
+  // a pick the user actually owns via trade.
+  const draftSeason = league?.season ?? null;
+  const tradeOverrideMap = new Map<string, number>();
+  for (const t of tradedPicks) {
+    if (draftSeason && t.season !== draftSeason) continue;
+    tradeOverrideMap.set(`${t.round}:${t.original_owner}`, t.current_owner);
+  }
+
+  // Resolve the EFFECTIVE roster_id for a pick: original slot owner
+  // unless that pick has been traded, in which case the current owner.
+  // Capture draft in a non-null local so the closure narrows properly.
+  const draftCopy = draft;
+  function effectiveRosterIdForPickNo(pickNo: number): number | null {
+    const slotCalc = snakeSlotShared(pickNo, totalTeams, {
+      type: draftCopy.type,
+      reversalRound,
+    });
+    const originalRoster = rosterIdForSlot(draftCopy, slotCalc.slot);
+    if (originalRoster == null) return null;
+    const round = Math.ceil(pickNo / totalTeams);
+    const overridden = tradeOverrideMap.get(`${round}:${originalRoster}`);
+    return overridden ?? originalRoster;
+  }
+
   // On the clock
   let onClockRosterId: number | null = null;
   if (inProgress) {
-    const slotCalc = snakeSlotShared(nextPickNo, totalTeams, {
-      type: draft.type,
-      reversalRound,
-    });
-    onClockRosterId = rosterIdForSlot(draft, slotCalc.slot);
+    onClockRosterId = effectiveRosterIdForPickNo(nextPickNo);
   }
 
   // Resolve owner names
@@ -222,16 +247,18 @@ export async function resolveDraftState(
     }
   }
 
-  // My next pick: walk forward from nextPickNo, find the next pick slot that belongs to me
+  // My next pick: walk forward from nextPickNo, find the next pick
+  // slot that EFFECTIVELY belongs to me (after applying trade
+  // overrides). When the user is currently on the clock, skip the
+  // current pick so my_next_pick refers to the FOLLOWING user pick
+  // (e.g. on the clock at 10.9, my_next is 11.12, not 10.9 itself).
+  // This way "you're up at 10.9, then 11.12 (15 away)" framing works.
   let myNextPickNo: number | null = null;
   let picksUntilMe: number | null = null;
   if (inProgress && myRosterId != null) {
-    for (let n = nextPickNo; n <= Math.min(maxPicks, nextPickNo + totalTeams * 3); n++) {
-      const s = snakeSlotShared(n, totalTeams, {
-        type: draft.type,
-        reversalRound,
-      });
-      if (rosterIdForSlot(draft, s.slot) === myRosterId) {
+    const startFrom = onClockRosterId === myRosterId ? nextPickNo + 1 : nextPickNo;
+    for (let n = startFrom; n <= Math.min(maxPicks, startFrom + totalTeams * 3); n++) {
+      if (effectiveRosterIdForPickNo(n) === myRosterId) {
         myNextPickNo = n;
         picksUntilMe = n - nextPickNo;
         break;

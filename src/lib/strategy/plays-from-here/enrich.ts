@@ -29,9 +29,14 @@ const POSITION_LABEL: Record<Position, string> = {
 };
 
 function starterNeeds(snap: LeagueSnapshot): Record<Position, number> {
-  const isSuperflex =
-    snap.format === "superflex" || snap.format === "2qb";
-  return { QB: isSuperflex ? 2 : 1, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
+  const hard = snap.starter_slots.hard;
+  const total = hard.QB + hard.RB + hard.WR + hard.TE + hard.K + hard.DST;
+  if (total === 0) {
+    const isSuperflex =
+      snap.format === "superflex" || snap.format === "2qb";
+    return { QB: isSuperflex ? 2 : 1, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
+  }
+  return { ...hard };
 }
 
 type NeedKind =
@@ -197,6 +202,7 @@ export function enrichPlaysFromHere(
         age: player.age,
         search_rank: player.search_rank,
         adp: player.adp,
+        is_rookie: player.is_rookie,
         reason: reasonForTarget(player, position!, snap),
       })),
     };

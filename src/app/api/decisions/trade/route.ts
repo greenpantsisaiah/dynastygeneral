@@ -127,10 +127,7 @@ export async function POST(req: Request) {
     return Response.json(
       {
         ok: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Engine didn't return. Retry in a moment.",
+        error: "Engine didn't return. Retry in a moment.",
       },
       { status: 500 },
     );

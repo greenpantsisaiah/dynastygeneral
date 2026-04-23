@@ -15,7 +15,14 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const rate = await checkRateLimit("decisions", clientIpFrom(req));
+  // Strategy uses Opus (5x cost vs Sonnet) and gets its own bucket so a
+  // bot can't burn the full decisions allowance on the most expensive
+  // endpoint. Per cost-watcher 2026-04-22: shared bucket = $1,008/day
+  // single-IP exposure on this route alone.
+  const rate = await checkRateLimit(
+    "decisions-strategy",
+    clientIpFrom(req),
+  );
   if (!rate.allowed) {
     return Response.json(
       {
@@ -71,10 +78,7 @@ export async function POST(req: Request) {
     return Response.json(
       {
         ok: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Engine didn't return. Retry in a moment.",
+        error: "Engine didn't return. Retry in a moment.",
       },
       { status: 500 },
     );

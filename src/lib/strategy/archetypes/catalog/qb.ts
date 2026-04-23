@@ -85,12 +85,22 @@ const qbCartelAnchor: Archetype = {
     },
   ],
 
+  // QB Cartel = "I corner the QB market with starter-grade depth," not
+  // "I stashed 3 random QBs." Two signals tighten the gate:
+  //   1. 3+ TOTAL QBs (the depth posture).
+  //   2. 2+ TOP-24 QBs (the cornering posture; needs viable assets).
+  // A roster with 3 deep streamers fails signal 2 and scores ~0.5,
+  // letting other archetypes (RB Bellcow, Locked Contender, WR Anchor)
+  // win when they're the real defining feature. A true Cartel hits
+  // both and pegs at 1.0 honestly.
   fit_signals: [
-    { kind: "user_owns_top_n_at_position", position: "QB", min: 2, weight: 1.0 },
+    { kind: "user_owns_top_n_at_position", position: "QB", min: 3, weight: 1.0 },
     {
-      kind: "league_format",
-      format: ["1qb", "superflex"],
-      weight: 0.5,
+      kind: "user_owns_top_n_at_position",
+      position: "QB",
+      min: 2,
+      rank_threshold: 24,
+      weight: 1.0,
     },
   ],
 
@@ -384,8 +394,17 @@ const qbVolumeReplacement: Archetype = {
     },
   ],
 
+  // QB Volume Replacement is an IN-SEASON injury-response posture, not
+  // a draft-time strategy. Gate on user_record requiring games_min=4
+  // so it can't classify pre-draft / drafting / pre-season teams. Off
+  // games_min the user_record signal returns 0.5 (neutral); pre-season
+  // it scores 0.5, which combined with the QB-count signal at 1.0
+  // produces drift = (1.0×0.5 + 0.5×0.4)/0.9 ~= 0.77, still meaningful
+  // mid-season but below the "I have 2 QBs" floor that previously made
+  // it indistinguishable from QB Cartel during drafts.
   fit_signals: [
     { kind: "user_owns_top_n_at_position", position: "QB", min: 2, weight: 0.5 },
+    { kind: "user_record", games_min: 4, weight: 0.4 },
   ],
 
   required_moves: [

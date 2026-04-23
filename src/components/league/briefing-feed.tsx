@@ -19,13 +19,14 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 import type { Briefing } from "@/lib/strategy/briefings/types";
 import {
   appendBriefings,
+  clearFeed,
   pinBriefing,
   readFeed,
   readPinned,
   subscribeBriefings,
   unpinBriefing,
 } from "@/lib/strategy/briefings/store";
-import { BriefingCard } from "./briefing-card";
+import { BriefingCard, type CurrentRosterCounts } from "./briefing-card";
 
 // Stable empty references for SSR snapshots. useSyncExternalStore
 // requires server snapshots to return the SAME reference each call.
@@ -35,9 +36,17 @@ const SSR_EMPTY_PINNED: string[] = [];
 export function BriefingFeed({
   leagueId,
   username,
+  currentRosters,
+  currentPickNo,
 }: {
   leagueId: string;
   username: string;
+  // Per-owner position counts and current pick number, captured server
+  // side from the latest snapshot. Threaded into BriefingCard so
+  // count-anchored briefings can be re-evaluated against current
+  // state and marked resolved/outdated when the user has moved on.
+  currentRosters?: CurrentRosterCounts | null;
+  currentPickNo?: number | null;
 }) {
   const subscribe = useCallback(
     (cb: () => void) => subscribeBriefings(leagueId, cb),
@@ -90,6 +99,17 @@ export function BriefingFeed({
     else pinBriefing(leagueId, id);
   }
 
+  function handleClear() {
+    if (running) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm("Clear the briefing feed? Pinned items in the War Room are not affected.")
+    ) {
+      return;
+    }
+    clearFeed(leagueId);
+  }
+
   return (
     <section className="mt-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -102,18 +122,31 @@ export function BriefingFeed({
             rest stay in the feed.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={runAnalysis}
-          disabled={running}
-          className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition ${
-            running
-              ? "border-border-soft text-muted-2"
-              : "border-accent/60 bg-surface text-accent hover:bg-accent hover:text-black"
-          }`}
-        >
-          {running ? "Running..." : "Run new analysis"}
-        </button>
+        <div className="flex items-center gap-2">
+          {feed.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={running}
+              className="inline-flex h-9 items-center rounded-md border border-border-soft bg-surface px-3 font-mono text-[11px] uppercase tracking-[0.14em] text-muted hover:border-danger/60 hover:text-danger"
+              title="Clear the chronological feed. Pinned items in the War Room are kept."
+            >
+              Clear feed
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={runAnalysis}
+            disabled={running}
+            className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition ${
+              running
+                ? "border-border-soft text-muted-2"
+                : "border-accent/60 bg-surface text-accent hover:bg-accent hover:text-black"
+            }`}
+          >
+            {running ? "Running..." : "Run new analysis"}
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -140,6 +173,8 @@ export function BriefingFeed({
                 briefing={b}
                 isPinned
                 onTogglePin={() => togglePin(b.id)}
+                currentRosters={currentRosters}
+                currentPickNo={currentPickNo}
               />
             ))}
           </div>
@@ -170,6 +205,8 @@ export function BriefingFeed({
                 briefing={b}
                 isPinned={pinnedSet.has(b.id)}
                 onTogglePin={() => togglePin(b.id)}
+                currentRosters={currentRosters}
+                currentPickNo={currentPickNo}
               />
             ))}
           </div>

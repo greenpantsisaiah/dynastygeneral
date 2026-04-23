@@ -24,6 +24,22 @@ export type BriefingKind =
 
 export type BriefingSeverity = "info" | "notable" | "critical";
 
+// Machine-checkable precondition. The renderer re-evaluates these
+// against the current snapshot on every page load so a briefing whose
+// claim no longer holds (e.g. "you have 0 TEs" but you've since drafted
+// 2) gets marked as resolved/invalidated instead of shown as a fact.
+//
+// Only one kind today: position_count_eq (the user said zero, you now
+// have N). Add more kinds (position_count_gte, has_top_n_at_position)
+// as new bug shapes surface. Keep it small + machine-checkable; do
+// not let the analyst freelance arbitrary predicates here.
+export type BriefingPrecondition = {
+  kind: "position_count_eq";
+  owner_name: string;
+  position: Position;
+  value: number;
+};
+
 // Common shape on every briefing
 export type BriefingMeta = {
   id: string; // stable per-briefing ID
@@ -34,7 +50,16 @@ export type BriefingMeta = {
   evidence: string[]; // bullets citing observable signals
   topic_tags: string[]; // e.g. ["qb-cartel", "trade-lane", "messmn225"]
   generated_at: string; // ISO timestamp
+  // Pick number the briefing was generated AT. Lets the renderer show
+  // "as of pick N, M picks ago" when the world has moved on. Null
+  // when the briefing was generated outside a draft context.
+  generated_at_pick_no?: number | null;
   triggered_by: string; // human-readable trigger ("user requested" | "after pick 4.7" | "auto on snapshot delta")
+  // Optional. The analyst emits these for any TAKE that depends on a
+  // specific count/state. Renderer suppresses or annotates the
+  // briefing when ANY precondition no longer holds against the
+  // current snapshot.
+  preconditions?: BriefingPrecondition[];
 };
 
 // Per-kind data payloads

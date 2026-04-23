@@ -22,6 +22,7 @@ export type LikelyPlayer = {
   age: number | null;
   search_rank: number;
   adp: number | null;
+  is_rookie?: boolean;
 };
 
 export type PickerPostureLean = "young" | "veteran" | "balanced";
@@ -80,6 +81,7 @@ export type PlayerSuggestion = {
   age: number | null;
   search_rank: number;
   adp: number | null;
+  is_rookie?: boolean;
   // One-line "why this player at your pick": roster need, archetype
   // fit, age skew, position scarcity. Always cites a concrete reason.
   reason: string;

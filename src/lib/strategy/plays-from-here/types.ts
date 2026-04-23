@@ -92,6 +92,7 @@ export type ResolvedPlayFromHere = PlayFromHere & {
     age: number | null;
     search_rank: number;
     adp: number | null;
+    is_rookie?: boolean;
     reason: string;
   }>;
 };

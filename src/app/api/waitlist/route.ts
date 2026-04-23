@@ -41,7 +41,11 @@ export async function POST(req: Request) {
     !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!hasSupabase) {
-    console.info("[waitlist:no-db]", payload);
+    // Never log full payload (PII). Only metadata for debug.
+    const emailDomain = payload.email.split("@")[1] ?? "unknown";
+    console.info("[waitlist:no-db] received submission", {
+      email_domain: emailDomain,
+    });
     return Response.json({ ok: true, persisted: false });
   }
 

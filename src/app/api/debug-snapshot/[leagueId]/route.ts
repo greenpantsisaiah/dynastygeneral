@@ -17,9 +17,30 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ leagueId: string }> },
 ) {
+  // Production-disable. Both audits (security + legal, 2026-04-22) flagged
+  // this endpoint as publicly reachable in prod with no auth + full
+  // snapshot disclosure. It exists for local triage; never serve it live.
+  if (process.env.VERCEL_ENV === "production") {
+    return new NextResponse(null, { status: 404 });
+  }
   const { leagueId } = await params;
+  const { isValidLeagueId, isValidUsername } = await import(
+    "@/lib/sleeper/validate"
+  );
+  if (!isValidLeagueId(leagueId)) {
+    return NextResponse.json(
+      { error: "invalid league id" },
+      { status: 400 },
+    );
+  }
   const url = new URL(req.url);
   const username = url.searchParams.get("username")?.trim().replace(/^@/, "") ?? "";
+  if (username && !isValidUsername(username)) {
+    return NextResponse.json(
+      { error: "invalid username" },
+      { status: 400 },
+    );
+  }
   const [league, rosters, users] = await Promise.all([
     getLeague(leagueId),
     getRosters(leagueId),

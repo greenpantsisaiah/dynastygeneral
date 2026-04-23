@@ -1,0 +1,155 @@
+/**
+ * Decision Synthesis output types.
+ *
+ * One Decision = one answer to "what do I do at this pick?" It
+ * integrates across snapshot (roster holes, pick density), windows
+ * (win-now vs future), ranked archetypes (path drift), and available
+ * pool (scarcity math). Supersedes PickApproach as the primary
+ * recommendation surface when the user is ≤5 picks away.
+ *
+ * Design ethos (see feedback_synthesis_over_panels memory):
+ *   - ONE call, with the reasoning intact. Not 5 panels that disagree.
+ *   - Tradeoff is shown. What you're SKIPPING is as important as what
+ *     you're taking, because that's what the user is actually deciding.
+ *   - Multi-pick plan is inline. Drafters plan picks-as-a-sequence.
+ *   - Density is a context modifier. "7.12 then 8.1 back-to-back"
+ *     reframes the current call.
+ */
+
+import type { Position } from "../archetypes/schema";
+import type { PickDensityKind } from "../league-state/snapshot";
+
+// The rule that ultimately broke the tie and produced the recommendation.
+// Used by the UI to choose framing (red-urgent vs green-value vs
+// orange-path-push) and by the coach so it can cite the same logic.
+export type DecisionRule =
+  | "fill_starter_urgent" // starter hole AND top option unlikely to survive
+  | "fill_starter" // starter hole, no urgency
+  | "push_path" // advance a ranked archetype the user is in acquisition phase on
+  | "window_direction" // window is significantly below target, pick skews that way
+  | "earned_value"; // best dynasty-value available, no stronger signal
+
+export type DecisionCandidate = {
+  player_id: string;
+  name: string;
+  position: string | null;
+  team: string | null;
+  age: number | null;
+  search_rank: number;
+  adp: number | null;
+  is_rookie?: boolean;
+};
+
+// A single line item in the next-picks-plan view. Target is the
+// recommended position + named player(s) likely to be there.
+export type NextPickPlanItem = {
+  pick_label: string;
+  pick_no: number;
+  density: PickDensityKind;
+  target_position: Position | "any";
+  // Usually 1-2 named players. "Stroud or Tuten (whichever survives)".
+  target_names: string[];
+  reason: string;
+};
+
+export type DecisionTradeoff = {
+  // What the user GAINS by taking the recommended player.
+  gains: string[];
+  // What the user LOSES by not taking the runner-up candidates. Each
+  // entry names the player + why skipping is OK (or what pivots if
+  // they're still here next pick).
+  losses: string[];
+};
+
+export type EmergencyTradeUp = {
+  // Why the scarcity is critical enough to surface the nuclear option.
+  reasoning: string;
+  // Suggested target pick(s) to trade up to, in pick-number order.
+  target_picks: string[];
+};
+
+// Window constraint summary surfaced in the Decision card header.
+// Mirrors the WindowConstraint shape but only the user-visible bits.
+export type DecisionWindowFrame = {
+  direction: "win_now" | "future" | "balanced";
+  strength: "heavy" | "moderate" | "none";
+  label: string;
+  sentence: string;
+};
+
+// One row in the top-3 candidates view. The recommendation is always
+// `top_candidates[0]` (the lean). The other 1-2 are real alternatives
+// the user should see, each with its own one-line take and the rule
+// that surfaced it (so diverse lanes are visible: a "push_path" pick
+// next to an "earned_value" pick lets the user pick the lane they want).
+export type DecisionTopCandidate = DecisionCandidate & {
+  primary_reason: string;
+  rule: DecisionRule;
+  // True for the leading pick (same as decision.recommendation). The
+  // card highlights this one as "MY LEAN".
+  is_lean: boolean;
+  // Survival hint relative to the user's NEXT pick. Lets the card show
+  // "still here next pick" or "probably gone" alongside each candidate.
+  // Null when ADP is unknown.
+  survives_to_next_pick: boolean | null;
+  // Window-constraint penalty note when applicable (e.g. "Violates
+  // win-now window: age 33 (ideal 24-28)"). Null when no penalty.
+  constraint_note: string | null;
+};
+
+// One dot in the Decision Quadrant. Each candidate is plotted at
+// (horizon_pct, confidence_pct) so the user can see at a glance which
+// picks pull which direction and which the system is most decisive
+// about. Replaces or augments the strategic forks card grid.
+//   horizon_pct:    -100 (full win-now) ... 0 (balanced) ... +100 (full future)
+//                   Derived from age + is_rookie. A 21yo rookie pegs +100;
+//                   a 33yo vet pegs -100.
+//   confidence_pct: 0 (low confidence) ... 100 (high confidence).
+//                   Derived from the rule + synthesized score after the
+//                   window constraint penalty applies. The lean is the
+//                   highest-confidence dot.
+export type DecisionQuadrantCandidate = DecisionTopCandidate & {
+  horizon_pct: number;
+  confidence_pct: number;
+};
+
+export type Decision = {
+  // Pick label + countdown. "7.12" and 2 picks away.
+  pick_label: string;
+  pick_no: number;
+  picks_until_me: number;
+  density: PickDensityKind;
+  // Windows frame for this pick. The header shows the label + sentence
+  // so the user sees the constraint that shaped the recommendation.
+  window_frame: DecisionWindowFrame;
+  // Always present, even in "watch" mode (>5 picks away). UI decides
+  // whether to surface urgency framing based on picks_until_me.
+  recommendation: DecisionCandidate & {
+    // One-line primary reason. The take.
+    primary_reason: string;
+    // The rule that chose this player. Drives UI color/framing.
+    rule: DecisionRule;
+  };
+  // Top 3 candidates side-by-side. Element 0 is the lean (same player
+  // as `recommendation`). Always 1-3 entries. Replaces the older
+  // tradeoff-driven "what you're skipping" framing in the UI: the user
+  // sees real alternatives directly instead of the loss framing only.
+  top_candidates: DecisionTopCandidate[];
+  // Wider candidate set for the Decision Quadrant viz. Up to 12 dots,
+  // each plotted at (horizon_pct, confidence_pct). Includes the top_3
+  // PLUS additional viable candidates so the user can see the full
+  // landscape of options pulling in different directions.
+  quadrant_candidates: DecisionQuadrantCandidate[];
+  // Supporting evidence. 2-4 bullets.
+  why: string[];
+  // Kept on the type so the coach context can still cite gains/losses.
+  // The card no longer renders this section; top_candidates does the job.
+  tradeoff: DecisionTradeoff;
+  // Next 2-3 user picks with projected targets. Empty when no draft.
+  next_picks_plan: NextPickPlanItem[];
+  // "If you skip X here, next viable is ~N picks away via Y/Z." Null
+  // when no meaningful scarcity gap.
+  scarcity_callout: string | null;
+  // Nuclear option: trade up when scarcity math is genuinely broken.
+  emergency_trade_up: EmergencyTradeUp | null;
+};

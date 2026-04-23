@@ -241,6 +241,14 @@ export function Waitlist() {
                 <span className="text-sm text-danger">{error}</span>
               )}
             </div>
+            <p className="text-xs text-muted-2">
+              By requesting access you agree to our{" "}
+              <a href="/privacy" className="text-accent hover:underline">
+                Privacy Policy
+              </a>{" "}
+              and to receive email about beta access. Unsubscribe in any
+              reply.
+            </p>
           </form>
         )}
       </div>

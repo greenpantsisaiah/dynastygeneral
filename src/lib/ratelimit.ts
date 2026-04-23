@@ -16,7 +16,12 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-type BucketName = "coach" | "briefings" | "decisions";
+type BucketName =
+  | "coach"
+  | "briefings"
+  | "decisions"
+  | "scout"
+  | "decisions-strategy";
 
 type LimitSpec = {
   // Requests allowed
@@ -28,17 +33,40 @@ type LimitSpec = {
 const LIMITS: Record<BucketName, LimitSpec> = {
   coach: { requests: 10, window: "5 m" }, // 10 coach chats per 5 min per IP
   briefings: { requests: 5, window: "10 m" }, // 5 briefings runs per 10 min per IP
-  decisions: { requests: 20, window: "5 m" }, // 20 decision form submits per 5 min per IP
+  decisions: { requests: 20, window: "5 m" }, // pick + trade decisions
+  // Strategy uses Opus (5x cost). Split into its own bucket so a bot can't
+  // burn the full decisions allowance on the most expensive endpoint. Per
+  // cost-watcher audit 2026-04-22: shared bucket = $1,008/day single-IP exposure.
+  "decisions-strategy": { requests: 5, window: "1 h" },
+  // Scout is a public, force-dynamic page that calls Sonnet with 4000 max
+  // output tokens. Pre-audit it had no rate limit at all (single biggest
+  // exposure: $1,558-$7,793/day from a single bot per cost-watcher audit
+  // 2026-04-22). Tight bucket appropriate; legitimate users only need a
+  // handful of scout views per session.
+  scout: { requests: 3, window: "10 m" },
 };
 
 let redis: Redis | null = null;
 const limiters = new Map<BucketName, Ratelimit>();
 
+let warnedMissingUpstash = false;
+
 function getRedis(): Redis | null {
   if (redis) return redis;
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
+  if (!url || !token) {
+    // Production deploys without Upstash silently lose rate limiting AND
+    // budget enforcement. Make it loud once per process so misconfiguration
+    // is visible in Vercel function logs.
+    if (!warnedMissingUpstash && process.env.NODE_ENV === "production") {
+      console.error(
+        "[ratelimit] UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN missing in production. Rate limiting AND budget cap are DISABLED. Provision Upstash before serving real traffic.",
+      );
+      warnedMissingUpstash = true;
+    }
+    return null;
+  }
   redis = new Redis({ url, token });
   return redis;
 }
@@ -109,13 +137,20 @@ export async function checkRateLimit(
  * `x-forwarded-for` (which Vercel populates with the real client IP).
  */
 export function clientIpFrom(req: Request): string | null {
-  const xff = req.headers.get("x-forwarded-for");
+  return clientIpFromHeaders(req.headers);
+}
+
+/**
+ * Server-component variant. Use with `headers()` from `next/headers`.
+ * Server components don't receive a Request directly.
+ */
+export function clientIpFromHeaders(hdrs: Headers): string | null {
+  const xff = hdrs.get("x-forwarded-for");
   if (xff) {
-    // XFF may contain a comma-separated chain; first entry is the origin client.
     const first = xff.split(",")[0]?.trim();
     if (first) return first;
   }
-  const real = req.headers.get("x-real-ip");
+  const real = hdrs.get("x-real-ip");
   if (real) return real.trim();
   return null;
 }
