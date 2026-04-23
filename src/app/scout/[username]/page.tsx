@@ -21,6 +21,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
 import { Ticker } from "@/components/ui/ticker";
+import { ShareButton } from "@/components/share/share-button";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
 import {
@@ -360,11 +361,17 @@ function ScoutShell({
             <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
               Scouting @{displayName ?? username}
             </h1>
-            {season && (
-              <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
-                Season {season}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {season && (
+                <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
+                  Season {season}
+                </span>
+              )}
+              <ShareButton
+                title={`Scout report on @${displayName ?? username}`}
+                text={`Dynasty Copilot just scouted @${displayName ?? username}'s portfolio. Take a look:`}
+              />
+            </div>
           </div>
           {children}
         </div>

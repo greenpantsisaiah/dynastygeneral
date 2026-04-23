@@ -286,12 +286,30 @@ function buildUserMessage(args: {
     starter_slots: snap.starter_slots,
   };
 
-  return `You are producing 3-5 intelligence briefings on the current league state. Your role is the analyst team for the user (the general). Each briefing is one structured take on what's happening RIGHT NOW.
+  return `You are producing 2-3 intelligence briefings on the current league state. Your role is the analyst team for the user (the general). Each briefing is one structured take on what's happening RIGHT NOW.
+
+A feed of mediocre briefings is worse than two strong ones. Emit a fourth ONLY if it's genuinely additive (new evidence, not a rephrasing). Do not pad to hit a count.
 
 VOICE
 - Terse 3-sentence body per briefing. Hit the take, name the evidence, give the implication. No preamble. No hedging.
 - Confident, specific, named (cite team owner names, pick labels, position counts).
+- Verb-led headlines and body sentences. Forbidden openers: "A", "The", "There", "It", "While", "Although". "Bain runs hard inside" beats "The thing about Bain is he runs hard inside."
+- Confidence vocabulary: lock / lean / coin-flip / fade. Not "this is a strong recommendation"; just "lock."
 - Ban: em dashes (Unicode U+2014). Use periods, colons, commas, semicolons, parentheses, or rewrite. This is absolute.
+
+PER-KIND TONE
+- narrative: editorial. Lead with a named team, scarcity, or drift. Avoid meta ("the room is positioning").
+- tier: ranked-bullet. Each item is a verb-led one-liner.
+- quadrant: surgical. Each cell is a label + members; the note explains the lever.
+- graph: structural. Edges name a real trade lane or relationship.
+- comparison: head-to-head, surgical. Rows that the user can act on.
+- timeline: speculative. "If X by Wk5" framing with explicit confidence.
+
+SEVERITY CALIBRATION (non-negotiable, prevents inflation)
+- info: default. Use this unless the user should change behavior.
+- notable: promote here when the user should act THIS WEEK.
+- critical: promote here when the user should act TODAY.
+A feed where every briefing is "notable" is noise. Default low; promote on actionability.
 
 KIND SELECTION
 Pick the shape that best fits the analytical insight. You can use the same kind multiple times across the 3-5 briefings IF the analytical insights genuinely call for it. Otherwise vary.
@@ -338,7 +356,7 @@ Example: headline "You have zero TEs in a TE-premium format" must include { kind
 Briefings about general trends, room reads, opponent strategy, or pure prose without specific count claims do not need preconditions.
 
 YOUR TASK
-Produce 3-5 briefings via the analyst_briefings tool. Choose kinds based on what the data wants to say. At least one briefing should reference opponents by name. At least one should call the user's drift trajectory. Vary severity (info/notable/critical) based on actionability.
+Produce 2-3 briefings via the analyst_briefings tool (4 if a fourth is genuinely additive). Choose kinds based on what the data wants to say. At least one briefing should reference opponents by name. At least one should call the user's drift trajectory. Default severity to 'info'; promote to 'notable' / 'critical' per the calibration rules above.
 
 Remember: no em dashes. Use periods, colons, commas, semicolons, parens.`;
 }
@@ -371,7 +389,7 @@ export async function generateBriefings(args: {
   const result = await runStructured({
     toolName: "analyst_briefings",
     toolDescription:
-      "Emit 3-5 intelligence briefings on the current league state. Each briefing is one structured analytical take with a kind-specific data payload.",
+      "Emit 2-3 intelligence briefings (4 only if genuinely additive) on the current league state. Each briefing is one structured analytical take with a kind-specific data payload.",
     inputJsonSchema: analystToolInputSchema as unknown as Record<string, unknown>,
     outputSchema: analystOutputSchema,
     userMessage,
