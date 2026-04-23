@@ -262,13 +262,21 @@ export function CoachChat({
     [history, leagueId, pending, username],
   );
 
-  function clearChat() {
+  async function clearChat() {
     if (
-      window.confirm(
-        "Clear the conversation history for this league? Cannot be undone.",
+      !window.confirm(
+        "Clear the conversation history for this league? Pro users: this also wipes the server copy syncing across your devices. Cannot be undone.",
       )
     ) {
-      writeHistory(leagueId, []);
+      return;
+    }
+    writeHistory(leagueId, []);
+    // Pro users have a server-side mirror; wipe it too. Free /
+    // anonymous users get a 401 we silently ignore.
+    try {
+      await fetch(`/api/coach/${leagueId}/history`, { method: "DELETE" });
+    } catch {
+      // Best-effort. Local clear already happened.
     }
   }
 

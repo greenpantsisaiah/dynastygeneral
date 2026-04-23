@@ -33,6 +33,14 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
   },
+  // Cross-Origin-Opener-Policy: stronger isolation against cross-window
+  // attacks. "same-origin-allow-popups" keeps Stripe Checkout's popup
+  // flow working while denying opener access to other origins.
+  // Per security-auditor 2026-04-23 LOW.
+  {
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin-allow-popups",
+  },
 ];
 
 const nextConfig: NextConfig = {

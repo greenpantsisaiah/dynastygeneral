@@ -62,12 +62,25 @@ export async function POST(req: Request) {
     .select("event_id")
     .maybeSingle();
   if (!insert.data) {
-    // Either we've already processed this event (unique conflict) or the
-    // insert failed for another reason. Return 200 so Stripe stops
-    // retrying; the original successful run already applied the change.
-    if (insert.error) {
-      console.warn("[stripe:webhook:dedup]", event.id, insert.error.message);
+    // Distinguish a genuine duplicate (Postgres unique_violation 23505,
+    // safe to 200 because we already processed this event) from a
+    // transient Supabase outage (any other error code). For outages we
+    // return 500 so Stripe retries; otherwise a Supabase blip during a
+    // checkout silently drops a paying customer's tier upgrade.
+    // Per security-auditor 2026-04-23 LOW.
+    const code = (insert.error as { code?: string } | null)?.code;
+    if (code === "23505") {
+      return NextResponse.json({ received: true, deduped: true });
     }
+    if (insert.error) {
+      console.error("[stripe:webhook:dedup]", event.id, insert.error.message);
+      return NextResponse.json(
+        { error: "dedup_check_failed" },
+        { status: 500 },
+      );
+    }
+    // No data + no error shouldn't happen; treat as a soft duplicate
+    // rather than failing closed against Stripe.
     return NextResponse.json({ received: true, deduped: true });
   }
 

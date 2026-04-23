@@ -22,7 +22,18 @@ export const runtime = "nodejs";
 const bodySchema = z.object({
   rating: z.number().int().min(1).max(5).nullable().optional(),
   message: z.string().min(1).max(4000),
-  page_url: z.string().url().optional().nullable(),
+  // Restrict to http/https URLs only. Default Zod .url() accepts
+  // javascript: and data: schemes, which would become a stored-XSS
+  // landmine the moment any admin UI renders this as a clickable link.
+  // Per security-auditor 2026-04-23 MEDIUM.
+  page_url: z
+    .string()
+    .url()
+    .refine((u) => /^https?:\/\//i.test(u), {
+      message: "page_url must be http(s)",
+    })
+    .optional()
+    .nullable(),
   contact_email: z
     .string()
     .email()
@@ -55,6 +66,12 @@ export async function POST(req: Request) {
   // Best-effort user attribution. Anonymous OK; authenticated requests
   // get their user_id attached. We use the admin client so anonymous
   // inserts work despite the RLS policy requiring auth.uid() = user_id.
+  //
+  // Honor the empty contact_email: if a signed-in user leaves email
+  // blank they expect "anonymous" (relative to follow-up). The user_id
+  // link is sufficient for us to identify them via the auth admin
+  // panel; we do NOT silently fall back to user.email.
+  // Per security-auditor 2026-04-23 MEDIUM.
   const user = await getOptionalUser();
   try {
     const admin = getAdminClient();
@@ -63,9 +80,7 @@ export async function POST(req: Request) {
       rating: parsed.data.rating ?? null,
       message: parsed.data.message,
       page_url: parsed.data.page_url ?? null,
-      contact_email:
-        parsed.data.contact_email ??
-        (user?.email ? user.email : null),
+      contact_email: parsed.data.contact_email ?? null,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
