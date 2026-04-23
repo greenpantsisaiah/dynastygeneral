@@ -42,6 +42,10 @@ import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import type { DraftState } from "@/lib/sleeper/draft-state";
+import {
+  walkLeagueHistory,
+  type PriorSeasonSummary,
+} from "@/lib/sleeper/history";
 
 export type ScoutPlayerSummary = {
   id: string;
@@ -149,6 +153,11 @@ export type ScoutTeamScore = {
   // composite_score so a future-stash team isn't scored last just
   // because their roster is light.
   future_pick_value: number;
+  // Prior-season summaries from walking previous_league_id. Most
+  // recent first, up to 3 seasons back. Empty when this league has no
+  // prior chain (new startup) or fetch failed. Lets the verdict cite
+  // history: "you won 2024, finished 6-7 in 2025."
+  prior_seasons: PriorSeasonSummary[];
 };
 
 const DYNASTY_VALUE_CEILING = 250;
@@ -469,6 +478,19 @@ export async function scoreTeamForLeague(args: {
     formatMultiplier,
   );
 
+  // Prior-season walk. Best-effort; an error here shouldn't fail the
+  // whole scout for the team. Cached aggressively per league via the
+  // Sleeper client's revalidate setting.
+  let prior_seasons: PriorSeasonSummary[] = [];
+  try {
+    prior_seasons = await walkLeagueHistory({
+      currentLeagueId: league.league_id,
+      mySleeperUserId,
+    });
+  } catch (err) {
+    console.error("[scout:history]", league.league_id, err);
+  }
+
   // Composite: rostered value scaled by starter completeness PLUS the
   // raw value of owned future picks. Future picks don't fill starting
   // slots so they bypass the completeness multiplier; they're capital,
@@ -538,6 +560,7 @@ export async function scoreTeamForLeague(args: {
     superlative: null, // filled in by computeSuperlatives() post-pass
     future_picks,
     future_pick_value,
+    prior_seasons,
   };
 }
 

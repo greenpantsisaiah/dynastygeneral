@@ -548,6 +548,24 @@ function ScoutCard({ rank, team }: { rank: number; team: ScoutTeamScore }) {
             </div>
           </div>
         )}
+        {team.prior_seasons.length > 0 && (
+          <div className="col-span-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              History
+            </span>
+            <div className="text-foreground">
+              {team.prior_seasons
+                .map((p) => {
+                  const rec = p.record
+                    ? `${p.record.wins}-${p.record.losses}${p.record.ties ? `-${p.record.ties}` : ""}`
+                    : "-";
+                  const rank = p.final_rank ? ` · #${p.final_rank}` : "";
+                  return `${p.season}: ${rec}${rank}`;
+                })
+                .join(" · ")}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

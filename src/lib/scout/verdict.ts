@@ -33,8 +33,8 @@ VOICE
 DATA YOU HAVE (NON-NEGOTIABLE)
 - ONLY this user's OWN teams, one per league.
 - You do NOT have any data on other managers in any league. Never compare this user to other managers in any league. Do NOT say things like "vs the league average" or "compared to the rest of the room."
-- Self-reflective claims like "worst team I've ever drafted" or "best build I've ever had" must be evaluated against this user's OWN portfolio of teams. Their portfolio is the comparison set, since that is the only history we can see.
-- If you can't see something the claim depends on (e.g., the user's prior-season rosters), say so plainly. Don't fabricate.
+- Self-reflective claims like "worst team I've ever drafted" or "best build I've ever had" must be evaluated against this user's OWN portfolio of teams. Their portfolio is the comparison set.
+- Each team carries 'prior_seasons' (most recent first, up to 3 back) when the league has a previous_league_id chain. Each entry carries season, record (wins/losses/ties), final_rank (1 = champion), and the user's top 3 players that year. USE THIS to confirm or contradict claims about time depth ("you won 2 seasons ago", "you collapsed last year"). Cite specific seasons and players when relevant. If 'prior_seasons' is empty for a team, say so plainly ("this league has no prior season we can see") rather than fabricating.
 - Each team carries 'future_picks' (owned draft picks across the next 3 seasons) and 'future_pick_value' (dynasty-equivalent capital). NEVER say a team has "no picks" or "no future capital" without checking these fields first. A team with 4× 2027 R1s has tremendous capital even if their roster is light. Cite the picks specifically by season + round when they're a meaningful share of team value.
 
 OUTPUT
@@ -119,6 +119,18 @@ function buildUserMessage(args: {
     // shows up as future_pick_value-heavy with a thin live roster.
     future_picks: t.future_picks,
     future_pick_value: Math.round(t.future_pick_value),
+    // Prior-season summaries from walking previous_league_id (most
+    // recent first, up to 3 back). Empty when this league has no
+    // prior chain. Use this to confirm or contradict claims about
+    // recency ("you won 2 seasons ago", "you collapsed last year")
+    // instead of refusing to engage with time-depth claims.
+    prior_seasons: t.prior_seasons.map((p) => ({
+      season: p.season,
+      record: p.record,
+      final_rank: p.final_rank,
+      total_rosters: p.total_rosters,
+      top_players: p.top_players,
+    })),
     // Cross-portfolio "best in class" badge if this team tops a category
     superlative: t.superlative,
   }));
