@@ -76,7 +76,7 @@ export function PaywallModal({
         aria-labelledby="paywall-title"
       >
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          {isSignIn ? "Sign in" : "Pro feature"}
+          {isSignIn ? "Sign in" : "Support Dynasty Copilot"}
         </div>
         <h2
           id="paywall-title"
