@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Strategy Lab card. Shows the user which strategic paths are still
  * open at the current draft moment, with named anchors and counter-
@@ -14,9 +16,26 @@
  * The "you're at pick 5 and everyone went win-now; thread the future
  * needle" insight from the founder lives in the counter-position note
  * on each path, plus the league-pulse headline at the top.
+ *
+ * Live transition badges (client-side): on each visit we capture a
+ * snapshot of (archetype_id → state, viability) into localStorage. On
+ * the next visit we diff the current state against the snapshot and
+ * surface "JUST CLOSED · QB Cartel" badges so the user feels paths
+ * slamming shut between page loads. Snapshots older than 6h are
+ * suppressed (a refresh after a day shouldn't fire drama badges).
  */
 
-import type { StrategyLabPath, StrategyLabState } from "@/lib/strategy/strategy-lab/types";
+import { useEffect, useState } from "react";
+import type {
+  StrategyLabPath,
+  StrategyLabState,
+} from "@/lib/strategy/strategy-lab/types";
+import {
+  computeTransition,
+  readPreviousSnapshot,
+  writeSnapshot,
+  type Transition,
+} from "@/lib/strategy/strategy-lab/transitions";
 
 const STATE_TONE: Record<
   StrategyLabPath["state"],
@@ -48,16 +67,74 @@ const STATE_TONE: Record<
   },
 };
 
-export function StrategyLab({ lab }: { lab: StrategyLabState }) {
+const TRANSITION_TONE: Record<
+  Transition["kind"],
+  { bg: string; text: string; label: string }
+> = {
+  just_closed: {
+    bg: "bg-danger/15 border-danger/60",
+    text: "text-danger",
+    label: "JUST CLOSED",
+  },
+  tightened: {
+    bg: "bg-warning/15 border-warning/60",
+    text: "text-warning",
+    label: "TIGHTENED",
+  },
+  just_opened: {
+    bg: "bg-success/15 border-success/60",
+    text: "text-success",
+    label: "JUST OPENED",
+  },
+  loosened: {
+    bg: "bg-success/10 border-success/40",
+    text: "text-success",
+    label: "LOOSENED",
+  },
+};
+
+export function StrategyLab({
+  lab,
+  leagueId,
+}: {
+  lab: StrategyLabState;
+  leagueId: string;
+}) {
+  // Per-path transition badges, keyed by archetype_id. Populated
+  // post-mount from the localStorage snapshot of the previous visit.
+  // Empty on first ever visit; saving the snapshot now means the
+  // NEXT visit will see badges if anything moved.
+  const [transitions, setTransitions] = useState<
+    Record<string, Transition>
+  >({});
+
+  useEffect(() => {
+    const prev = readPreviousSnapshot(leagueId);
+    if (prev) {
+      const next: Record<string, Transition> = {};
+      for (const p of lab.paths) {
+        const t = computeTransition(p, prev.paths[p.archetype_id], prev.ts);
+        if (t) next[p.archetype_id] = t;
+      }
+      setTransitions(next);
+    }
+    writeSnapshot(leagueId, lab.paths);
+  }, [leagueId, lab.paths]);
+
   if (lab.paths.length === 0) return null;
 
-  // In context mode we hide closed paths; the user has already seen
-  // them go and surfacing them again is noise. In prominent mode we
-  // show closed too, with strikethrough, so the user understands
-  // what's already off the table.
+  // In context mode we hide closed paths UNLESS they just closed
+  // (the user should see the drama before it's tucked away). In
+  // prominent mode we show closed too, with strikethrough.
   const visiblePaths = lab.prominent
     ? lab.paths
-    : lab.paths.filter((p) => p.state !== "closed").slice(0, 4);
+    : lab.paths
+        .filter(
+          (p) =>
+            p.state !== "closed" ||
+            transitions[p.archetype_id]?.kind === "just_closed",
+        )
+        .slice(0, 5);
 
   if (visiblePaths.length === 0) return null;
 
@@ -73,9 +150,7 @@ export function StrategyLab({ lab }: { lab: StrategyLabState }) {
             Strategy Lab · {visiblePaths.length} paths
           </div>
           <h2 className="mt-1 text-xl font-semibold text-foreground">
-            {lab.prominent
-              ? "What's still open for you"
-              : "Path watch"}
+            {lab.prominent ? "What's still open for you" : "Path watch"}
           </h2>
           {lab.prominence_reason && (
             <p className="mt-1 text-xs text-muted">{lab.prominence_reason}</p>
@@ -97,7 +172,12 @@ export function StrategyLab({ lab }: { lab: StrategyLabState }) {
 
       <div className="mt-4 space-y-3">
         {visiblePaths.map((p) => (
-          <PathRow key={p.archetype_id} path={p} prominent={lab.prominent} />
+          <PathRow
+            key={p.archetype_id}
+            path={p}
+            prominent={lab.prominent}
+            transition={transitions[p.archetype_id] ?? null}
+          />
         ))}
       </div>
     </section>
@@ -107,12 +187,15 @@ export function StrategyLab({ lab }: { lab: StrategyLabState }) {
 function PathRow({
   path,
   prominent,
+  transition,
 }: {
   path: StrategyLabPath;
   prominent: boolean;
+  transition: Transition | null;
 }) {
   const tone = STATE_TONE[path.state];
   const isClosed = path.state === "closed";
+  const tBadge = transition ? TRANSITION_TONE[transition.kind] : null;
   return (
     <div
       className={`rounded-md border ${tone.border} ${
@@ -120,7 +203,7 @@ function PathRow({
       } px-4 py-3`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="flex items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-2">
           <span
             className={`font-mono text-[10px] uppercase tracking-[0.14em] ${tone.chip}`}
           >
@@ -133,6 +216,19 @@ function PathRow({
           >
             {path.archetype_name}
           </span>
+          {tBadge && transition && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-sm border ${tBadge.bg} px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${tBadge.text}`}
+              title={`Was ${transition.prev_state} (${
+                transition.viability_delta > 0 ? "+" : ""
+              }${transition.viability_delta} viability since last visit)`}
+            >
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${tBadge.text} bg-current`}
+              />
+              {tBadge.label}
+            </span>
+          )}
         </div>
         <span className="font-mono text-[11px] text-muted-2">
           {path.viability}/100

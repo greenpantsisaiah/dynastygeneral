@@ -442,7 +442,7 @@ export default async function LeagueHubPage({
                   Lab itself decides whether to render in prominent or
                   context mode based on user pick count. */}
               {strategyLab && strategyLab.prominent && (
-                <StrategyLab lab={strategyLab} />
+                <StrategyLab lab={strategyLab} leagueId={leagueId} />
               )}
 
               {windows && sleeperUser && (
@@ -459,7 +459,7 @@ export default async function LeagueHubPage({
                   the Decision card so the user can see what they're
                   cutting off as they commit to picks. */}
               {strategyLab && !strategyLab.prominent && (
-                <StrategyLab lab={strategyLab} />
+                <StrategyLab lab={strategyLab} leagueId={leagueId} />
               )}
 
               {draftActive && userPickCount >= 2 && (
