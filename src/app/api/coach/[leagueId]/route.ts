@@ -176,8 +176,10 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ leagueId: string }> },
 ) {
-  // Pro tier required. Falls open in dev (no Supabase configured); in
-  // prod returns 401 (sign in) or 402 (upgrade).
+  // Auth required. In beta-open mode any signed-in user passes; the
+  // daily Anthropic budget cap is the actual cost ceiling. Falls open
+  // in dev (no Supabase configured). In prod returns 401 (sign in)
+  // or 402 (when beta mode is off and user is non-Pro).
   const gate = await checkProGate();
   if (!gate.ok) return gate.response;
 
