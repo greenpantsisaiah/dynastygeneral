@@ -18,10 +18,35 @@ Set in Vercel project settings AND in `.env.local` for local dev:
 | `ANTHROPIC_API_KEY` | YES | LLM calls (verdict, coach, briefings) | `/api/*` and `/lib/*` server modules |
 | `NEXT_PUBLIC_SITE_URL` | for production | absolute URLs in OG tags + emails | client + server |
 | `KV_*` (Vercel KV) | recommended | persistent rate-limit + budget state | `lib/ratelimit.ts`, `lib/budget.ts` |
+| `BETA_OPEN_MODE` | optional, default `true` | when `true`, every signed-in user gets Coach + Briefings + Multi-pick + Contender Outlook regardless of tier; flip to `false` to enforce Pro gating | `lib/billing/beta-mode.ts` |
+| `ADMIN_EMAILS` | optional | comma-separated allow-list for admin endpoints (e.g. `/api/admin/refresh-players`); empty = no one is admin | `lib/auth/admin.ts` |
+| `NFL_DRAFT_WINDOW_START` | optional | ISO date `YYYY-MM-DD` (UTC). Both START + END must be set for draft-live mode to activate | `lib/draft-window/active.ts` |
+| `NFL_DRAFT_WINDOW_END` | optional | ISO date `YYYY-MM-DD` (UTC). Inclusive end; window is closed by default | `lib/draft-window/active.ts` |
+| `PLAYERS_CACHE_TTL_MINUTES` | optional, default `60` | TTL for the in-memory Sleeper /players/nfl cache. Lower during NFL Draft week if needed; admin can also force-refresh via POST /api/admin/refresh-players | `lib/players/cache.ts` |
 
 If `KV_*` is unset, rate limits and budget caps run in-memory (process-local). That works for a single Vercel function instance but breaks under concurrent traffic. Production: provision Vercel KV before launch.
 
 If `ANTHROPIC_API_KEY` is unset, the verdict + coach return graceful stubs (`Set ANTHROPIC_API_KEY to enable verdicts`). The app still runs; LLM features just degrade.
+
+### NFL Draft window activation
+
+When `NFL_DRAFT_WINDOW_START` + `NFL_DRAFT_WINDOW_END` are set and the current UTC date falls inside that window:
+- League hub ticker shows "🔴 NFL Draft live · refresh between picks"
+- Coach prompt receives a "## NFL Draft is LIVE" addendum so it reads each rookie's team field individually instead of assuming a static pre-draft world
+- Pair with `ADMIN_EMAILS` so the admin can hit `POST /api/admin/refresh-players` between rounds and bypass the players-cache TTL
+
+Example (2026 draft):
+```
+NFL_DRAFT_WINDOW_START=2026-04-23
+NFL_DRAFT_WINDOW_END=2026-04-26
+ADMIN_EMAILS=isaiah@nextupleader.com
+```
+
+### Beta mode posture
+
+`BETA_OPEN_MODE=true` (the default) ships every killer feature to every signed-in user during alpha/beta. Pro-only persistence (cross-device chat history mirror, War Room server-side mirror, GDPR data export) stays Pro regardless. The daily Anthropic budget cap is the actual cost ceiling, not the per-feature gates.
+
+When ready to enforce paid tiers, set `BETA_OPEN_MODE=false` in Vercel env. No code change required.
 
 ## Pre-deploy checklist
 
