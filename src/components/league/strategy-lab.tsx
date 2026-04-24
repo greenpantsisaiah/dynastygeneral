@@ -236,6 +236,24 @@ export function StrategyLab({
         />
       )}
 
+      {/* Optionality reminder in prominent mode. Without this, the
+          "Lean this way" CTAs feel like commitment when really they
+          are soft signals. The user explicitly flagged this: at
+          pick 1.x with one pick made, the right mental model is
+          OPTIONALITY, not commitment. Lean creates a tracked
+          commitment server-side but is reversible any time. */}
+      {lab.prominent && !commitment && (
+        <p className="mt-4 rounded-md border border-border-soft bg-surface-2/60 px-4 py-3 text-xs leading-relaxed text-muted">
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground">
+            Lean, don't lock ·
+          </span>{" "}
+          You don't have to commit yet. Lean is a soft signal we'll
+          track across picks; you can switch any time as the board
+          unfolds. For the full branch projection of your next picks,
+          scroll to the multi-pick rollout below.
+        </p>
+      )}
+
       {lab.league_pulse.headline && (
         <div className="mt-4 rounded-md border border-accent/30 bg-accent/5 px-4 py-3 text-sm leading-relaxed text-foreground">
           <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
@@ -490,15 +508,26 @@ function PathRow({
               onClick={onCommit}
               disabled={committing}
               className="inline-flex h-8 items-center rounded-md border border-success/60 bg-success/10 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-success transition hover:bg-success hover:text-black disabled:opacity-60"
+              title={
+                prominent
+                  ? "Soft lean. Track this path's viability across picks. Switch any time."
+                  : "Commit to this path. Track its viability and chronicle changes."
+              }
             >
-              {committing ? "Committing..." : "Commit to this path →"}
+              {committing
+                ? "Setting lean..."
+                : prominent
+                  ? "Lean this way →"
+                  : "Commit to this path →"}
             </button>
           ) : (
             <Link
               href={`/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/")}`}
               className="inline-flex h-8 items-center rounded-md border border-accent/60 bg-accent/10 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-accent transition hover:bg-accent hover:text-black"
             >
-              Sign in to track this path →
+              {prominent
+                ? "Sign in to lean here →"
+                : "Sign in to track this path →"}
             </Link>
           )}
         </div>
