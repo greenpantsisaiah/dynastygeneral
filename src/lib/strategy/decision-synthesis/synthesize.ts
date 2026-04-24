@@ -177,12 +177,16 @@ function buildCandidates(
     const have = me.position_counts[pos];
     const need = reqs[pos];
     if (survives === false) {
+      // Branch fires when ADP says this player is GONE before the user's
+      // NEXT pick. Old copy ("likely to survive to your next pick") read
+      // as the opposite of the truth and contradicted the surrounding
+      // urgency framing. Per dynasty-bug-investigator 2026-04-23.
       push({
         player: top,
         position: pos,
         rule: "fill_starter_urgent",
         score: 100,
-        primary_reason: `Last starter-grade ${POSITION_LABEL[pos]} likely to survive to your next pick (${top.name}, ADP ${top.adp ?? "?"}). You're ${have}/${need}.`,
+        primary_reason: `${top.name} (ADP ${top.adp ?? "?"}) is the best ${POSITION_LABEL[pos]} on the board and goes before your next pick. Take him now or you get nothing here. You're ${have}/${need}.`,
       });
     } else {
       push({
@@ -382,10 +386,32 @@ function buildEmergencyTradeUp(
   if (winner.rule !== "fill_starter_urgent") return null;
   if (picksUntilMe <= 0) return null;
   if (winner.player.adp == null) return null;
-  const runnerUpGap = current.pick_no - winner.player.adp;
-  if (runnerUpGap < 3) return null;
+  // Slots between the player's ADP and the user's CURRENT pick. Positive
+  // means ADP is BEFORE the user's pick (player goes earlier than user
+  // picks); negative means ADP is AFTER the user's pick (player would
+  // still be there if everyone behaved normally).
+  const slotsAhead = current.pick_no - winner.player.adp;
+  // Trade-up is only realistic in a NARROW window. Outside this window:
+  //   slotsAhead <= 0  → player is at or after user's slot. No trade-up
+  //                      needed; just take him.
+  //   slotsAhead 1-5   → small swap up could lock him. Banner fires.
+  //   slotsAhead > 5   → player is "buy a top-N pick" away. Multi-pick
+  //                      capital required, which is a Coach-level
+  //                      negotiation, not a one-line banner. The fact
+  //                      that he's still in the available pool despite
+  //                      ADP suggests the league reached less than
+  //                      expected; he may simply still be there.
+  // Per dynasty-bug-investigator 2026-04-23 (was firing on 17-slot gaps
+  // with hardcoded "1-2 slots" copy that contradicted the Coach).
+  const TRADE_UP_MIN_SLOTS = 1;
+  const TRADE_UP_MAX_SLOTS = 5;
+  if (slotsAhead < TRADE_UP_MIN_SLOTS || slotsAhead > TRADE_UP_MAX_SLOTS) {
+    return null;
+  }
+  const slotsRounded = Math.max(1, Math.round(slotsAhead));
+  const slotWord = slotsRounded === 1 ? "1 slot" : `${slotsRounded} slots`;
   return {
-    reasoning: `${winner.player.name} (ADP ${Math.round(winner.player.adp)}) is ~${Math.round(runnerUpGap)} picks ahead of market. Real risk he's gone before ${current.pick_label}; trading up 1-2 slots locks him.`,
+    reasoning: `${winner.player.name} (ADP ${Math.round(winner.player.adp)}) goes ~${slotsRounded} pick${slotsRounded === 1 ? "" : "s"} before your ${current.pick_label}. Real risk he's gone; trading up ${slotWord} locks him.`,
     target_picks: [],
   };
 }
