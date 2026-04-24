@@ -54,7 +54,8 @@ export function StrategyRunner({
           setResult({ ok: false, error: "Too many requests. Wait a moment and try again." });
           return;
         }
-        setResult({ ok: false, error: "Something went wrong. Refresh and try again." });
+        const errBody = await res.json().catch(() => null);
+        setResult({ ok: false, error: errBody?.error ?? "Something went wrong. Refresh and try again." });
         return;
       }
       const json = (await res.json()) as ApiResponse;

@@ -62,6 +62,15 @@ export function TradeForm({
         ? buildIncoming(fd, leagueId, sleeperUsername)
         : buildOutbound(fd, leagueId, sleeperUsername);
 
+    if (mode === "incoming") {
+      const inc = body as { you_send: string[]; you_receive: string[] };
+      if (inc.you_send.length === 0 || inc.you_receive.length === 0) {
+        setResult({ ok: false, error: "Add at least one asset to both sides of the trade." });
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const res = await fetch("/api/decisions/trade", {
         method: "POST",
@@ -78,7 +87,8 @@ export function TradeForm({
           setResult({ ok: false, error: "Too many requests. Wait a moment and try again." });
           return;
         }
-        setResult({ ok: false, error: "Something went wrong. Refresh and try again." });
+        const errBody = await res.json().catch(() => null);
+        setResult({ ok: false, error: errBody?.error ?? "Something went wrong. Refresh and try again." });
         return;
       }
       const json = (await res.json()) as ApiResponse;
