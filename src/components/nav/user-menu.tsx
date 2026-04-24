@@ -79,9 +79,13 @@ export function UserMenu({ name, email, avatarUrl, tier }: Props) {
         <span className="hidden max-w-[120px] truncate sm:inline">
           {name ?? email?.split("@")[0] ?? "Account"}
         </span>
-        {tier === "pro" && (
-          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-success">
+        {tier === "pro" ? (
+          <span className="rounded-full bg-success/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-success">
             Pro
+          </span>
+        ) : (
+          <span className="rounded-full bg-muted/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
+            Free
           </span>
         )}
         <svg
@@ -125,9 +129,13 @@ export function UserMenu({ name, email, avatarUrl, tier }: Props) {
                 )}
               </div>
             </div>
-            {tier === "pro" && (
+            {tier === "pro" ? (
               <div className="mt-2 inline-flex items-center rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-success">
                 Pro plan
+              </div>
+            ) : (
+              <div className="mt-2 inline-flex items-center rounded-full border border-border-strong bg-surface px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                Free plan
               </div>
             )}
           </div>
