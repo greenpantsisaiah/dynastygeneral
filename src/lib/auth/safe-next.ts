@@ -1,8 +1,8 @@
 /**
- * Same-origin guard for `next` redirect params used in the magic-link
+ * Same-origin guard for `next` redirect params used in the auth
  * flow. Prevents open-redirect phishing where an attacker shares
  * `https://dynastygeneral.app/login?next=https://evil.example` and
- * the user lands on evil.example after a real magic-link sign-in.
+ * the user lands on evil.example after sign-in.
  *
  * Rule: accept ONLY paths starting with "/" and not "//" (which would
  * be protocol-relative and resolve to a different origin). Everything

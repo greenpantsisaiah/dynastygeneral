@@ -1,18 +1,18 @@
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { SiteNav } from "@/components/site-nav";
 import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
-import { createClient } from "@/lib/supabase/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { safeNextPath } from "@/lib/auth/safe-next";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in";
+import { EmailSignInForm } from "@/components/auth/email-sign-in";
 
 export const metadata = {
   title: "Sign in · Dynasty Copilot",
-  description: "Magic-link sign-in. No password to remember.",
+  description: "Sign in with Google or email to access your dynasty leagues.",
 };
 
-type SearchParams = Promise<{ sent?: string; error?: string; next?: string }>;
+type SearchParams = Promise<{ error?: string; next?: string }>;
 
 export default async function LoginPage({
   searchParams,
@@ -21,8 +21,6 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const user = await getOptionalUser();
-  // Same-origin gate on `next` to prevent open-redirect phishing
-  // (HIGH finding from security-auditor 2026-04-23).
   const safeNext = safeNextPath(params.next);
   if (user) redirect(safeNext);
 
@@ -31,46 +29,33 @@ export default async function LoginPage({
       <SiteNav />
       <main className="flex-1 bg-background">
         <section className="mx-auto max-w-md px-6 py-20">
-          <Ticker label="Sign in · magic link" />
+          <Ticker label="Sign in · one click" />
           <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">
             Welcome back.
           </h1>
           <p className="mt-3 text-sm text-muted">
-            Enter your email. We send a one-click sign-in link. No password
-            to remember, no marketing email by default.
+            Sign in with Google or email. No marketing email by default.
           </p>
 
-          {params.sent && (
-            <div className="mt-6 rounded-md border border-success/50 bg-success/10 px-4 py-3 text-sm text-foreground">
-              Check your email. The link signs you in instantly.
-            </div>
-          )}
           {params.error && (
             <div className="mt-6 rounded-md border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-foreground">
-              Couldn't send the link. {params.error}
+              {params.error}
             </div>
           )}
 
-          <form action={sendMagicLinkAction} className="mt-6 space-y-3">
-            <input type="hidden" name="next" value={safeNext} />
-            <label className="block">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-                Email
+          <div className="mt-6 space-y-4">
+            <GoogleSignInButton next={safeNext} />
+
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border-soft" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                or
               </span>
-              <input
-                type="email"
-                name="email"
-                required
-                placeholder="you@example.com"
-                className="mt-1 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-2 focus:border-accent focus:outline-none"
-              />
-            </label>
-            <button
-              type="submit"
-              className="inline-flex h-11 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
-            >
-              Email me a sign-in link
-            </button>
+              <div className="h-px flex-1 bg-border-soft" />
+            </div>
+
+            <EmailSignInForm next={safeNext} />
+
             <p className="text-xs text-muted-2">
               First time? We'll create your account on first sign-in. By
               continuing you agree to the{" "}
@@ -83,40 +68,10 @@ export default async function LoginPage({
               </a>
               .
             </p>
-          </form>
+          </div>
         </section>
       </main>
       <Footer />
     </>
   );
-}
-
-async function sendMagicLinkAction(formData: FormData) {
-  "use server";
-  const email = String(formData.get("email") ?? "").trim();
-  // Re-validate `next` server-side; never trust the form-supplied path.
-  const next = safeNextPath(String(formData.get("next") ?? ""));
-
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    redirect(`/login?error=Please+enter+a+valid+email`);
-  }
-
-  const supabase = await createClient();
-  const hdrs = await headers();
-  const host = hdrs.get("host") ?? "dynastygeneral.app";
-  const proto = hdrs.get("x-forwarded-proto") ?? "https";
-  const origin =
-    process.env.NEXT_PUBLIC_APP_URL ?? `${proto}://${host}`;
-
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
-    },
-  });
-
-  if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`);
-  }
-  redirect(`/login?sent=1`);
 }
