@@ -10,22 +10,38 @@
  * The user reloads the page after a successful POST. We don't return
  * the new HTML; the client just calls router.refresh() once we ack.
  *
- * Light rate limit so a stuck client doesn't spam revalidations.
+ * **Auth required.** Per the security-audit 2026-04-24 HIGH finding:
+ * the previous unauth, IP-keyed version let any signed-out visitor
+ * force cache busts on any league ID, pinning a popular league on a
+ * tight loop and hammering Sleeper through our origin. Now requires
+ * a signed-in user and rate-limits per-user.
  */
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { isValidLeagueId } from "@/lib/sleeper/validate";
-import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
+import { checkRateLimit } from "@/lib/ratelimit";
+import { getOptionalUser } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ leagueId: string }> },
 ) {
-  const rate = await checkRateLimit("feedback", clientIpFrom(req));
+  const user = await getOptionalUser();
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, error: "auth_required" },
+      { status: 401 },
+    );
+  }
+
+  // Per-user rate limit. Cap at 5 forced refreshes per minute per
+  // user (well above any honest user's flow during a live draft).
+  // Bucket key includes user.id so botnet IP rotation can't bypass.
+  const rate = await checkRateLimit("feedback", `user:${user.id}`);
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: "rate_limited" },

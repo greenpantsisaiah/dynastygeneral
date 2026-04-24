@@ -376,7 +376,11 @@ export default async function LeagueHubPage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <RefreshButton leagueId={leagueId} />
+              {/* Refresh requires auth (per security-audit 2026-04-24
+                  HIGH: previous unauth version let any anon force
+                  cache busts on any league). Hide for anonymous
+                  viewers rather than show a broken button. */}
+              {tierState.user && <RefreshButton leagueId={leagueId} />}
               {!cleanedUsername ? (
                 <UsernamePrompt leagueId={leagueId} season={season} />
               ) : (

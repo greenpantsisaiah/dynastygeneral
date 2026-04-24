@@ -18,16 +18,24 @@
  * is closed (default behavior off-season).
  */
 
+// Strict ISO calendar-date regex. Date.parse() accepts plenty of
+// loose forms ("yesterday", "04/23/2026") with locale-dependent
+// behavior across Node versions. Per security-audit 2026-04-24
+// MEDIUM: validate the shape ourselves before parsing.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 export function isNflDraftWindowActive(now: Date = new Date()): boolean {
   const start = process.env.NFL_DRAFT_WINDOW_START;
   const end = process.env.NFL_DRAFT_WINDOW_END;
   if (!start || !end) return false;
+  if (!ISO_DATE.test(start) || !ISO_DATE.test(end)) return false;
 
   const startMs = Date.parse(`${start}T00:00:00Z`);
   // End is INCLUSIVE: the user is allowed to refresh through the end
   // of that day in UTC. Convert to end-of-day for the upper bound.
   const endMs = Date.parse(`${end}T23:59:59Z`);
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return false;
+  if (endMs < startMs) return false;
 
   const t = now.getTime();
   return t >= startMs && t <= endMs;
