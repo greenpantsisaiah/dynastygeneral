@@ -217,6 +217,9 @@ export async function POST(
           cap_used: cap.used,
           cap_max: cap.cap,
           tier: gate.user.tier,
+          // Day Pass option for break-through. Inline action, never a
+          // modal. Client posts to /api/checkout with plan=day_pass.
+          day_pass_available: true,
         },
         { status: 429 },
       );

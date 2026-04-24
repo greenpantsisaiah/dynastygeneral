@@ -62,6 +62,7 @@ export async function POST(
           cap_used: cap.used,
           cap_max: cap.cap,
           tier: gate.user.tier,
+          day_pass_available: true,
         },
         { status: 429 },
       );

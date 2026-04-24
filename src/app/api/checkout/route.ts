@@ -12,7 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
-import { getStripe, isPlan, priceIdForPlan } from "@/lib/stripe/client";
+import { getStripe, isOneShotPlan, isPlan, priceIdForPlan } from "@/lib/stripe/client";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -57,18 +57,33 @@ export async function POST(req: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
+  // Day Pass = one-shot purchase (Stripe payment mode, no
+  // subscription, no trial). Pro plans = recurring subscription
+  // with 14-day trial. Webhook handler differentiates by event type.
+  const oneShot = isOneShotPlan(plan);
   const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
+    mode: oneShot ? "payment" : "subscription",
     line_items: [{ price: priceIdForPlan(plan), quantity: 1 }],
-    success_url: `${origin}/account?checkout=success`,
+    success_url: `${origin}/account?checkout=success&plan=${plan}`,
     cancel_url: `${origin}/pricing?checkout=canceled`,
     customer: sub?.stripe_customer_id ?? undefined,
     customer_email: sub?.stripe_customer_id ? undefined : user.email ?? undefined,
     client_reference_id: user.id,
-    subscription_data: {
-      trial_period_days: 14,
-      metadata: { user_id: user.id },
-    },
+    ...(oneShot
+      ? {
+          // One-shot purchases attach metadata directly to the
+          // payment intent (no subscription record exists). Webhook
+          // reads payment_intent.metadata to credit the day pass.
+          payment_intent_data: {
+            metadata: { user_id: user.id, plan },
+          },
+        }
+      : {
+          subscription_data: {
+            trial_period_days: 14,
+            metadata: { user_id: user.id },
+          },
+        }),
     allow_promotion_codes: true,
   });
 

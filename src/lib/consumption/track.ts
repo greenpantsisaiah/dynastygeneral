@@ -112,6 +112,40 @@ export type CapCheck = {
   observed_only: boolean;
 };
 
+function dayPassKey(userId: string): string {
+  return `day_pass:${userId}`;
+}
+
+/**
+ * Grant a 24-hour unlimited usage pass to the user. Called from the
+ * Stripe webhook on successful day_pass purchase. Idempotent (a
+ * second purchase same day extends the pass).
+ */
+export async function grantDayPass(userId: string): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  try {
+    await r.set(dayPassKey(userId), "1", { ex: 24 * 60 * 60 });
+  } catch (err) {
+    console.error("[consumption:day-pass:grant]", err);
+  }
+}
+
+/**
+ * True when the user has an active Day Pass. Checked by checkCap to
+ * skip enforcement. Quietly returns false on KV failure.
+ */
+export async function hasActiveDayPass(userId: string): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return false;
+  try {
+    const v = await r.get(dayPassKey(userId));
+    return v != null;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Pre-flight check: would this request exceed the user's daily cap?
  *
@@ -119,8 +153,11 @@ export type CapCheck = {
  * when the cap would have fired. Caller still proceeds; we just know
  * for analytics that this call would have been denied post-beta.
  *
- * Post-beta: returns allowed=false when used >= cap. Caller should
- * 429 with a structured response.
+ * Active Day Pass: returns allowed=true regardless of usage. Caller
+ * still records use for analytics.
+ *
+ * Post-beta + no Day Pass: returns allowed=false when used >= cap.
+ * Caller should 429 with a structured response.
  *
  * When Upstash is unavailable (KV not provisioned), returns allowed=true
  * unconditionally. The global Anthropic budget cap in lib/budget.ts is
@@ -136,10 +173,22 @@ export async function checkCap(
   if (!r) {
     return { allowed: true, used: 0, cap, observed_only: false };
   }
-  const usedRaw = await r.get<string | number>(key(userId, feature));
+  // Day Pass short-circuits the cap. Read in parallel with usage so
+  // the check doesn't add a serial round-trip.
+  const [usedRaw, passRaw] = await Promise.all([
+    r.get<string | number>(key(userId, feature)),
+    r.get(dayPassKey(userId)),
+  ]);
   const used = typeof usedRaw === "number" ? usedRaw : Number(usedRaw ?? 0);
   const wouldBlock = Number.isFinite(used) && used >= cap;
+  const dayPass = passRaw != null;
   const beta = isBetaOpenMode();
+  if (dayPass && wouldBlock) {
+    console.info(
+      `[consumption:day-pass-active] user=${userId} feature=${feature} used=${used} cap=${cap} (Day Pass active; not enforced)`,
+    );
+    return { allowed: true, used, cap, observed_only: false };
+  }
   if (wouldBlock && beta) {
     console.info(
       `[consumption:observe] user=${userId} feature=${feature} tier=${tier} used=${used} cap=${cap} (beta open; not enforced)`,

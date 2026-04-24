@@ -19,6 +19,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe/client";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { grantDayPass } from "@/lib/consumption/track";
 
 export const runtime = "nodejs";
 // Stripe webhooks need raw body for signature verification.
@@ -125,6 +126,16 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     // returning would orphan the subscription.
     throw new Error("missing client_reference_id");
   }
+
+  // Day Pass = mode "payment", no subscription. Grant 24h unlimited
+  // by setting a Redis key with TTL. Subscription branch below
+  // handles recurring Pro plans.
+  if (session.mode === "payment") {
+    await grantDayPass(userId);
+    console.info(`[stripe:webhook:day-pass] granted to user=${userId}`);
+    return;
+  }
+
   const customerId =
     typeof session.customer === "string" ? session.customer : null;
   const subscriptionId =

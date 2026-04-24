@@ -143,6 +143,11 @@ export function CoachChat({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [capHit, setCapHit] = useState<{
+    message: string;
+    used: number;
+    cap: number;
+  } | null>(null);
   const [paywall, setPaywall] = useState<PaywallReason | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -282,6 +287,20 @@ export function CoachChat({
         }
         if (!res.ok) {
           if (res.status === 429) {
+            // Daily cap (server returned structured body) vs short-
+            // window rate limit. The cap response includes used/max;
+            // surface the inline Day Pass option for break-through
+            // instead of a generic "try again" error.
+            const body = await res.json().catch(() => null);
+            if (body?.error === "daily_cap_reached") {
+              setCapHit({
+                message: body.message,
+                used: body.cap_used,
+                cap: body.cap_max,
+              });
+              writeHistory(leagueId, history);
+              return;
+            }
             throw new Error("Too many requests. Wait a moment and try again.");
           }
           throw new Error("Something went wrong. Refresh and try again.");
@@ -480,6 +499,49 @@ export function CoachChat({
           }
         >
           {error}
+        </div>
+      )}
+
+      {capHit && (
+        <div
+          className={
+            isPanel
+              ? "mx-3 mb-2 rounded-md border border-warning/60 bg-warning/10 px-3 py-2.5 text-xs text-foreground"
+              : "mt-3 rounded-md border border-warning/60 bg-warning/10 px-3 py-2.5 text-xs text-foreground"
+          }
+        >
+          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
+            Daily cap reached
+          </div>
+          <p className="mt-1">{capHit.message}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <form
+              action="/api/checkout"
+              method="POST"
+              className="contents"
+            >
+              <input type="hidden" name="plan" value="day_pass" />
+              <button
+                type="submit"
+                className="inline-flex h-8 items-center rounded-md bg-warning px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-black transition hover:brightness-110"
+              >
+                Day Pass · 24h unlimited
+              </button>
+            </form>
+            <a
+              href="/pricing"
+              className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
+            >
+              or see Pro →
+            </a>
+            <button
+              type="button"
+              onClick={() => setCapHit(null)}
+              className="ml-auto font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-foreground"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 

@@ -29,6 +29,7 @@ Set in Vercel project settings AND in `.env.local` for local dev:
 | `CAP_PRO_COACH_PER_DAY` | optional, default `200` | Protective cap for Pro against the 1% extreme user (5 leagues, hundreds of turns/draft). Median Pro never sees it. | `lib/consumption/track.ts` |
 | `CAP_PRO_BRIEFINGS_PER_DAY` | optional, default `100` | Protective Pro briefings cap. | `lib/consumption/track.ts` |
 | `CAP_PRO_MULTI_PICK_PER_DAY` | optional, default `50` | Protective Pro multi-pick cap. | `lib/consumption/track.ts` |
+| `STRIPE_PRICE_ID_DAY_PASS` | optional | Stripe one-time price ID (~$3-5) for the Day Pass: 24h unlimited usage. Surfaced inline when a user hits a cap. Without it, the Day Pass button shows but checkout errors. | `lib/stripe/client.ts` |
 
 If `KV_*` is unset, rate limits and budget caps run in-memory (process-local). That works for a single Vercel function instance but breaks under concurrent traffic. Production: provision Vercel KV before launch.
 

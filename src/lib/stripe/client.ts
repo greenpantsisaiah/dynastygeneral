@@ -24,12 +24,17 @@ export function getStripe(): Stripe {
   return cached;
 }
 
-export type Plan = "pro_monthly" | "pro_annual";
+export type Plan = "pro_monthly" | "pro_annual" | "day_pass";
 
 export function priceIdForPlan(plan: Plan): string {
   const map: Record<Plan, string | undefined> = {
     pro_monthly: process.env.STRIPE_PRICE_ID_PRO_MONTHLY,
     pro_annual: process.env.STRIPE_PRICE_ID_PRO_ANNUAL,
+    // Day Pass: 24-hour unlimited consumption. One-shot purchase
+    // matching dynasty's bursty draft-week usage pattern. Set
+    // STRIPE_PRICE_ID_DAY_PASS to a one-time price (~$3-5) in
+    // Stripe dashboard.
+    day_pass: process.env.STRIPE_PRICE_ID_DAY_PASS,
   };
   const id = map[plan];
   if (!id) {
@@ -41,5 +46,9 @@ export function priceIdForPlan(plan: Plan): string {
 }
 
 export function isPlan(value: unknown): value is Plan {
-  return value === "pro_monthly" || value === "pro_annual";
+  return value === "pro_monthly" || value === "pro_annual" || value === "day_pass";
+}
+
+export function isOneShotPlan(plan: Plan): boolean {
+  return plan === "day_pass";
 }
