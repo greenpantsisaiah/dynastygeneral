@@ -23,6 +23,12 @@ Set in Vercel project settings AND in `.env.local` for local dev:
 | `NFL_DRAFT_WINDOW_START` | optional | ISO date `YYYY-MM-DD` (UTC). Both START + END must be set for draft-live mode to activate | `lib/draft-window/active.ts` |
 | `NFL_DRAFT_WINDOW_END` | optional | ISO date `YYYY-MM-DD` (UTC). Inclusive end; window is closed by default | `lib/draft-window/active.ts` |
 | `PLAYERS_CACHE_TTL_MINUTES` | optional, default `60` | TTL for the in-memory Sleeper /players/nfl cache. Lower during NFL Draft week if needed; admin can also force-refresh via POST /api/admin/refresh-players | `lib/players/cache.ts` |
+| `CAP_FREE_COACH_PER_DAY` | optional, default `5` | Free-tier daily Coach turn cap. Beta observes only; post-beta enforces. | `lib/consumption/track.ts` |
+| `CAP_FREE_BRIEFINGS_PER_DAY` | optional, default `3` | Free-tier daily Briefings batch cap. | `lib/consumption/track.ts` |
+| `CAP_FREE_MULTI_PICK_PER_DAY` | optional, default `1` | Free-tier daily multi-pick rollout cap (currently not enforced). | `lib/consumption/track.ts` |
+| `CAP_PRO_COACH_PER_DAY` | optional, default `200` | Protective cap for Pro against the 1% extreme user (5 leagues, hundreds of turns/draft). Median Pro never sees it. | `lib/consumption/track.ts` |
+| `CAP_PRO_BRIEFINGS_PER_DAY` | optional, default `100` | Protective Pro briefings cap. | `lib/consumption/track.ts` |
+| `CAP_PRO_MULTI_PICK_PER_DAY` | optional, default `50` | Protective Pro multi-pick cap. | `lib/consumption/track.ts` |
 
 If `KV_*` is unset, rate limits and budget caps run in-memory (process-local). That works for a single Vercel function instance but breaks under concurrent traffic. Production: provision Vercel KV before launch.
 

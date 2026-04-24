@@ -23,6 +23,7 @@ import { generateBriefings } from "@/lib/strategy/briefings/analyst";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
 import { checkProGate } from "@/lib/auth/paywall";
+import { checkCap, recordUse } from "@/lib/consumption/track";
 
 export async function POST(
   req: Request,
@@ -49,6 +50,24 @@ export async function POST(
       },
     );
   }
+  // Per-user daily cap. Free: 3 batches/day, Pro: 100/day. Beta
+  // observes only; post-beta enforces. Tunable via env vars.
+  if (gate.user.id !== "anonymous-dev") {
+    const cap = await checkCap(gate.user.id, "briefing", gate.user.tier);
+    if (!cap.allowed) {
+      return NextResponse.json(
+        {
+          error: "daily_cap_reached",
+          message: `Daily Briefings cap reached (${cap.used}/${cap.cap}). Resets at midnight UTC.`,
+          cap_used: cap.used,
+          cap_max: cap.cap,
+          tier: gate.user.tier,
+        },
+        { status: 429 },
+      );
+    }
+  }
+
   const budget = await checkBudget();
   if (!budget.allowed) {
     return NextResponse.json(
@@ -123,6 +142,11 @@ export async function POST(
       observations,
       trigger,
     });
+    // Per-user daily counter. Records every successful briefings
+    // batch so analytics + post-beta enforcement work. Best-effort.
+    if (gate.user.id !== "anonymous-dev") {
+      await recordUse(gate.user.id, "briefing");
+    }
     return NextResponse.json({
       briefings,
       generated_at: new Date().toISOString(),

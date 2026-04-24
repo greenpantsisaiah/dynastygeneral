@@ -19,6 +19,7 @@ import { z } from "zod";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget, recordSpend } from "@/lib/budget";
 import { checkProGate } from "@/lib/auth/paywall";
+import { checkCap, recordUse } from "@/lib/consumption/track";
 import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
@@ -203,6 +204,25 @@ export async function POST(
       },
     );
   }
+  // Per-user daily cap. During beta this only OBSERVES; post-beta it
+  // enforces. Free: 5/day, Pro: 200/day (extreme protective ceiling).
+  // Caps tunable via env vars; see lib/consumption/track.ts.
+  if (gate.user.id !== "anonymous-dev") {
+    const cap = await checkCap(gate.user.id, "coach", gate.user.tier);
+    if (!cap.allowed) {
+      return NextResponse.json(
+        {
+          error: "daily_cap_reached",
+          message: `Daily Coach cap reached (${cap.used}/${cap.cap}). Resets at midnight UTC.`,
+          cap_used: cap.used,
+          cap_max: cap.cap,
+          tier: gate.user.tier,
+        },
+        { status: 429 },
+      );
+    }
+  }
+
   const budget = await checkBudget();
   if (!budget.allowed) {
     return NextResponse.json(
@@ -490,6 +510,12 @@ export async function POST(
     input_tokens: response.usage.input_tokens,
     output_tokens: response.usage.output_tokens,
   }).catch(() => {});
+
+  // Per-user daily counter. Records every successful Coach turn so
+  // analytics + post-beta enforcement work. Best-effort.
+  if (gate.user.id !== "anonymous-dev") {
+    await recordUse(gate.user.id, "coach");
+  }
 
   // Server-side chat history mirror. Pro-tier benefit: cross-device
   // continuity. Best-effort; localStorage on the client is the
