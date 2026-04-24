@@ -232,6 +232,15 @@ export default async function PricingPage() {
               right shape for this product. Annual is the recommended path
               if you're going to use it at all.
             </Faq>
+            <Faq q="What if I just need one heavy day during a draft?">
+              Day Pass: a one-shot purchase that removes daily caps for 24
+              hours. Surfaces inline when you hit a cap mid-draft so you
+              don't have to commit to a full subscription for a single
+              draft window. Best fit for a startup draft week or a
+              rookie-draft day where you want to stay in the engine
+              non-stop. Pro is still better long-term; Day Pass exists for
+              the bursty moments.
+            </Faq>
             {beta && (
               <Faq q="What changes when beta ends?">
                 The post-beta model is volume caps, not feature gates. Free

@@ -33,6 +33,7 @@ type UsageResponse = {
   authenticated: boolean;
   tier: "free" | "pro";
   features: FeatureUsage[];
+  day_pass_active: boolean;
 };
 
 const LABELS: Record<Feature, string> = {
@@ -63,6 +64,7 @@ async function fetchUsage(): Promise<UsageResponse | null> {
 export function UsageChip({ feature }: { feature: Feature }) {
   const [usage, setUsage] = useState<FeatureUsage | null>(null);
   const [authed, setAuthed] = useState(true);
+  const [dayPass, setDayPass] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +72,7 @@ export function UsageChip({ feature }: { feature: Feature }) {
       const data = await fetchUsage();
       if (cancelled || !data) return;
       setAuthed(data.authenticated);
+      setDayPass(data.day_pass_active);
       const f = data.features.find((x) => x.feature === feature);
       if (f) setUsage(f);
     }
@@ -83,6 +86,21 @@ export function UsageChip({ feature }: { feature: Feature }) {
 
   if (!authed) return null;
   if (!usage) return null;
+
+  // Day Pass active: chip flips to a celebratory accent, ignoring
+  // the cap entirely. The user paid for unlimited; the meter should
+  // confirm it instead of ticking down toward a wall they removed.
+  if (dayPass) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-sm border border-accent/60 bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-accent"
+        title="Day Pass active. 24h unlimited; cap is paused."
+      >
+        <span className="inline-block h-1 w-1 rounded-full bg-accent" />
+        Day Pass · unlimited
+      </span>
+    );
+  }
 
   const tone = usage.remaining === 0
     ? "border-danger/60 text-danger"
@@ -146,6 +164,16 @@ export function UsageDetail() {
         Generous daily caps so beta is meaningful for everyone. Hit a
         cap and want to keep going? Pro removes them.
       </p>
+
+      {data.day_pass_active && (
+        <div className="mt-3 rounded-md border border-accent/50 bg-accent/10 px-3 py-2 text-xs text-foreground">
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+            Day Pass active ·
+          </span>{" "}
+          Caps paused for the next 24 hours. Use everything as much as
+          you want.
+        </div>
+      )}
       <ul className="mt-4 space-y-3">
         {data.features.map((f) => (
           <li key={f.feature}>

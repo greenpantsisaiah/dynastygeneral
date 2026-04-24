@@ -15,7 +15,7 @@
 
 import { NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
-import { getUsageSummary } from "@/lib/consumption/track";
+import { getUsageSummary, hasActiveDayPass } from "@/lib/consumption/track";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,12 +27,17 @@ export async function GET() {
       authenticated: false,
       tier: "free",
       features: [],
+      day_pass_active: false,
     });
   }
-  const features = await getUsageSummary(user.id, user.tier);
+  const [features, dayPass] = await Promise.all([
+    getUsageSummary(user.id, user.tier),
+    hasActiveDayPass(user.id),
+  ]);
   return NextResponse.json({
     authenticated: true,
     tier: user.tier,
     features,
+    day_pass_active: dayPass,
   });
 }
