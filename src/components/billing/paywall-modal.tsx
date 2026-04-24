@@ -56,7 +56,7 @@ export function PaywallModal({
     : "Help keep Dynasty Copilot running";
   const body = isSignIn
     ? "Your league data is on the line; we don't let anonymous calls burn through the coach's budget. Sign in with Google or email and you're in."
-    : "Hosting and Anthropic API tokens cost real money. We're in beta, so the killer features are open to everyone. If Dynasty Copilot is making your decisions sharper, support us so the lights stay on.";
+    : "Hosting and our AI engine cost real money. We\u2019re in beta, so the killer features are open to everyone. If Dynasty Copilot is making your decisions sharper, support us so the lights stay on.";
   const ctaLabel = isSignIn ? "Sign in" : "Support the project";
   const ctaHref = isSignIn
     ? `${reason.loginUrl ?? "/login"}${

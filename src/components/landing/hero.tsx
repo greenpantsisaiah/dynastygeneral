@@ -38,8 +38,8 @@ export function Hero() {
               Beta is open ·
             </span>{" "}
             Coach, briefings, multi-pick rollout, and contender outlook are
-            free for every signed-in tester. Hosting and Anthropic API tokens
-            cost real money. Support the project on{" "}
+            free for every signed-in tester. Hosting and our AI engine cost
+            real money. Support the project on{" "}
             <Link href="/pricing" className="text-accent hover:underline">
               Pro
             </Link>{" "}

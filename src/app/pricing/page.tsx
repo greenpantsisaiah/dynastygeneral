@@ -33,7 +33,7 @@ export default async function PricingPage() {
             </h1>
             <p className="mt-6 mx-auto max-w-2xl text-lg leading-relaxed text-muted">
               {beta
-                ? "Every signed-in user gets the killer features (Coach, Briefings, Multi-pick rollout, Contender Outlook) during alpha/beta. Hosting and Anthropic API tokens cost real money. We bill so the lights stay on, not to lock features behind a wall. Pro tier exists for testers who want to support the project and lock in early-bird pricing before we tighten things up post-beta."
+                ? "Every signed-in user gets the killer features (Coach, Briefings, Multi-pick rollout, Contender Outlook) during alpha/beta. Hosting and our AI engine cost real money. We bill so the lights stay on, not to lock features behind a wall. Pro tier exists for testers who want to support the project and lock in early-bird pricing before we tighten things up post-beta."
                 : "14-day free trial of Pro. No card required to start. Cancel anytime in one click."}
             </p>
           </div>
@@ -99,7 +99,7 @@ export default async function PricingPage() {
               features={
                 beta
                   ? [
-                      "Help cover hosting + Anthropic API costs",
+                      "Help cover hosting + AI engine costs",
                       "Cross-device chat history sync",
                       "War Room: pinned briefings sync across devices",
                       "Lock in current pricing before post-beta tightening",
@@ -173,8 +173,8 @@ export default async function PricingPage() {
             </Faq>
             <Faq q="Why $14/month and not free forever?">
               {beta
-                ? "Beta is open: every signed-in user gets the killer features today. The product calls Anthropic's API many times per session (verdict, coach, briefings, decision synthesis), and tokens cost real money. We bill so the lights stay on, not to lock features behind a wall. Post-beta, free will tighten and Pro will be the killer-feature tier; supporting now locks in current pricing."
-                : "The product calls Anthropic's API many times per session (verdict, coach, briefings, decision synthesis). Free for one league is sustainable; unlimited free isn't. Pricing reflects actual cost plus the work of building this."}
+                ? "Beta is open: every signed-in user gets the killer features today. The product calls our AI engine many times per session (verdict, coach, briefings, decision synthesis), and tokens cost real money. We bill so the lights stay on, not to lock features behind a wall. Post-beta, free will tighten and Pro will be the killer-feature tier; supporting now locks in current pricing."
+                : "The product calls our AI engine many times per session (verdict, coach, briefings, decision synthesis). Free for one league is sustainable; unlimited free isn't. Pricing reflects actual cost plus the work of building this."}
             </Faq>
             {beta && (
               <Faq q="What changes when beta ends?">

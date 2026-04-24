@@ -125,19 +125,11 @@ export default function PrivacyPage() {
               <p className="mt-2">We rely on the following service providers:</p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 <li>
-                  <strong>Anthropic</strong> processes your chat messages
-                  and league context to generate AI responses. Subject to{" "}
-                  <a
-                    href="https://www.anthropic.com/legal/privacy"
-                    className="text-accent hover:underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Anthropic's Privacy Policy
-                  </a>
-                  . Anthropic may also perform live web searches when
-                  answering your questions, which may transmit query
-                  content to third-party search providers.
+                  <strong>AI provider</strong> — our AI engine processes
+                  your chat messages and league context to generate
+                  responses. The provider may also perform live web
+                  searches when answering your questions, which may
+                  transmit query content to third-party search providers.
                 </li>
                 <li>
                   <strong>Sleeper</strong> is the source of your league

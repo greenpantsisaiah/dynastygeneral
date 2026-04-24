@@ -93,7 +93,7 @@ export default async function AccountPage({
                   You already have full access to Coach, Briefings,
                   Multi-pick rollout, and Contender Outlook. The Pro upgrade
                   adds cross-device sync (chat history + War Room) and
-                  supports hosting + Anthropic API costs.
+                  supports hosting + AI engine costs.
                 </p>
               )}
 
