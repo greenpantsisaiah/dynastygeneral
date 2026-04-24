@@ -22,6 +22,10 @@ import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
 import { humanize, resolvePlayers } from "@/lib/players/cache";
+import {
+  SUPERFLEX_PICK_MULTIPLIER,
+  startupPickValue,
+} from "@/lib/players/future-picks";
 import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
@@ -382,6 +386,52 @@ export async function POST(
     }
   }
 
+  // Operational rules block. Per cross-panel framework + context-doctor
+  // diagnosis 2026-04-24: shipping descriptive counts only (e.g.
+  // starter_slots.hard.QB = 1) leaves the LLM to infer format
+  // implications, which it gets wrong (claimed "second QB doesn't
+  // start" in superflex). Ship the rule explicitly so the LLM has to
+  // contradict an explicit boolean to make the failing claim.
+  const isSF = snapshot.format === "superflex" || snapshot.format === "2qb";
+  const sfMult = isSF ? SUPERFLEX_PICK_MULTIPLIER : 1.0;
+  const ss = snapshot.starter_slots;
+  const qbStartersMax = ss.hard.QB + (ss.superflex ?? 0);
+  const teStartersMax = ss.hard.TE + (ss.flex ?? 0) + (ss.rec_flex ?? 0);
+  const rbStartersMax = ss.hard.RB + (ss.flex ?? 0);
+  const wrStartersMax = ss.hard.WR + (ss.flex ?? 0) + (ss.rec_flex ?? 0);
+  const formatRules = {
+    qb_starters_max: qbStartersMax,
+    rb_starters_max: rbStartersMax,
+    wr_starters_max: wrStartersMax,
+    te_starters_max: teStartersMax,
+    second_qb_starts: qbStartersMax >= 2,
+    flex_eligible: ["RB", "WR", "TE"] as const,
+    sf_eligible: isSF ? (["QB", "RB", "WR", "TE"] as const) : null,
+    te_premium: snapshot.scoring.includes("TE-premium"),
+    is_superflex: isSF,
+  };
+  const starterDemandRemaining = me
+    ? {
+        QB: Math.max(0, qbStartersMax - (me.position_counts.QB ?? 0)),
+        RB: Math.max(0, rbStartersMax - (me.position_counts.RB ?? 0)),
+        WR: Math.max(0, wrStartersMax - (me.position_counts.WR ?? 0)),
+        TE: Math.max(0, teStartersMax - (me.position_counts.TE ?? 0)),
+      }
+    : null;
+
+  // Pricing block. Approximates KTC-anchored startup-pick values so
+  // the LLM can reason about trade asks against a real scale instead
+  // of freelancing numbers. Format-multiplied for superflex (rookie
+  // QB scarcity premium).
+  const pricedSchedule = snapshot.draft.my_pick_schedule
+    .slice(0, 8)
+    .map((p) => ({
+      pick_label: p.pick_label,
+      pick_no: p.pick_no,
+      round: p.round,
+      ktc_value: Math.round(startupPickValue(p.pick_no) * sfMult),
+    }));
+
   const contextPayload = {
     league: {
       name: league.name,
@@ -392,11 +442,21 @@ export async function POST(
       // Starter-slot map. Positions with hard=0 are NOT rostered; do
       // not treat a 0 count there as a gap.
       starter_slots: snapshot.starter_slots,
+      // Operational rules derived from format + scoring + starter_slots.
+      // CHECK THIS before claiming "X doesn't start" or "Y is bench."
+      // In superflex (second_qb_starts === true), a second QB starts in
+      // the SF slot. Hard-coded contract; bypassing it = engine bug.
+      format_rules: formatRules,
     },
     me: me
       ? {
           owner: me.owner_name,
           position_counts: me.position_counts,
+          // Per-position deficit between starter requirement and
+          // current count. Use this for "do I need another QB" /
+          // "starter hole at TE" reasoning instead of inferring from
+          // position_counts + format guessing.
+          starter_demand_remaining: starterDemandRemaining,
           avg_age: me.avg_age,
           record: `${me.wins}-${me.losses}${me.ties ? `-${me.ties}` : ""}`,
           // Named roster. Use this to VERIFY before asserting any
@@ -405,6 +465,17 @@ export async function POST(
           players: myPlayersResolved,
         }
       : null,
+    // Trade pricing context. KTC-anchored 2026-04-22 startup-pick
+    // scale (0-100), format-multiplied for superflex. Use these
+    // values to bound any trade-ask reasoning. Receiving side MUST
+    // be within ±15% of sending side or the ask is fantasy.
+    pricing: {
+      scale_note:
+        "KTC-anchored startup-pick value scale 2026-04-22, 0-100 (format-multiplied for SF).",
+      pick_values: pricedSchedule,
+      fairness_band_pct: 15,
+      sf_pick_multiplier: sfMult,
+    },
     draft: {
       status: snapshot.draft.status,
       next_pick_no: snapshot.draft.next_pick_no,
@@ -494,6 +565,22 @@ export async function POST(
     : "";
   const system = `${SYSTEM_PROMPT}${COACH_CONTRACT}${draftLiveContext}`;
 
+  // Trade-question classifier. When the user asks about trades and we
+  // have NO pricing context to anchor against, structurally inject a
+  // GUARD line that bars the LLM from freelancing trade math. Per
+  // context-doctor 2026-04-24: the "6.2 for 4.3" failure happened
+  // because pricing was absent and the model fabricated numbers.
+  // Pricing is present whenever pricedSchedule has entries; the guard
+  // only fires on real-pricing-absent requests.
+  const TRADE_QUESTION_RE =
+    /\btrade|offer|swap|send him|package|target|pick.*for.*pick|player.*for.*pick|for his pick\b/i;
+  const looksLikeTradeQuestion = TRADE_QUESTION_RE.test(message);
+  const hasPricingContext = pricedSchedule.length > 0;
+  const tradeGuard =
+    looksLikeTradeQuestion && !hasPricingContext
+      ? `\n\n[GUARD] No trade-pricing context available this turn. Decline to propose specific trades; describe the archetype of an acceptable ask (round bands, position type, value direction) instead. Numeric trade math without pricing context is the regression class we just fixed; do not regress.\n`
+      : "";
+
   // Per-turn context injection. The fresh snapshot is wrapped with the
   // current user message so it lands AFTER any prior turns. This makes
   // it the most recent thing the model has seen and resolves the bug
@@ -501,7 +588,7 @@ export async function POST(
   // 7.12) overrode the current state (e.g. 9.12). The COACH_CONTRACT
   // tells the model that <current_state> is authoritative when prior
   // turns conflict.
-  const turnContent = `<current_state>\n${JSON.stringify(contextPayload, null, 2)}\n</current_state>\n\n${message}`;
+  const turnContent = `<current_state>\n${JSON.stringify(contextPayload, null, 2)}\n</current_state>${tradeGuard}\n\n${message}`;
   const messages: Anthropic.MessageParam[] = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
     { role: "user", content: turnContent },

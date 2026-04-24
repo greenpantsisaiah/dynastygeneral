@@ -56,6 +56,44 @@ export const CLASS_STRENGTH_MULTIPLIER: Record<string, number> = {
 // position-specific class adjustments.
 export const SUPERFLEX_PICK_MULTIPLIER = 1.20;
 
+/**
+ * Approximate STARTUP-draft pick value on a 0-100 scale, calibrated to
+ * the KTC startup pick chart (Apr 2026 snapshot). NOT for rookie/future
+ * picks (use `valueForFuturePick` for those).
+ *
+ * Why this exists: Coach was freelancing trade pricing for startup
+ * picks because no scale was plumbed. Result: "offer 6.2 for 4.3"
+ * confidently proposed as a fair ask when KTC says pick 39 ≈ 2x pick 62.
+ * Any pick value here, even rough, makes the LLM contradict the data
+ * on the table rather than make up numbers from nothing.
+ *
+ * Piecewise-linear interpolation between anchor points. Anchors derived
+ * from KTC startup-pick chart 2026-04-22:
+ *   pick 1   ≈ 100   (1.01)
+ *   pick 12  ≈ 83    (1.12)
+ *   pick 24  ≈ 62    (2.12)
+ *   pick 36  ≈ 45    (3.12)
+ *   pick 48  ≈ 34    (4.12)
+ *   pick 60  ≈ 25    (5.12)
+ *   pick 84  ≈ 15    (7.12)
+ *   pick 120 ≈ 8     (10.12)
+ *   pick 150+ ≈ 3-5  (13+)
+ *
+ * Re-anchor when the gap to KTC exceeds ±15% on representative picks.
+ * Don't shave decimals; the precision isn't there.
+ */
+export function startupPickValue(overallPick: number): number {
+  if (overallPick <= 1) return 100;
+  if (overallPick <= 12) return 100 - (overallPick - 1) * 1.55;
+  if (overallPick <= 24) return 83 - (overallPick - 12) * 1.75;
+  if (overallPick <= 36) return 62 - (overallPick - 24) * 1.42;
+  if (overallPick <= 48) return 45 - (overallPick - 36) * 0.92;
+  if (overallPick <= 60) return 34 - (overallPick - 48) * 0.75;
+  if (overallPick <= 84) return Math.max(15, 25 - (overallPick - 60) * 0.42);
+  if (overallPick <= 120) return Math.max(8, 15 - (overallPick - 84) * 0.20);
+  return Math.max(3, 8 - (overallPick - 120) * 0.04);
+}
+
 // Default Sleeper rookie-draft round count when we can't read it from
 // draft.settings.rounds. 4 is the modal dynasty league setup.
 export const DEFAULT_ROOKIE_ROUNDS = 4;
