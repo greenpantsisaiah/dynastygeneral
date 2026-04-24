@@ -5,9 +5,10 @@ import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 
 export const metadata = {
-  title: "How It Works · Dynasty Copilot",
+  title: "How It Works",
   description:
-    "How the engine reads your Sleeper league, ranks strategy paths, and produces one decision per pick. Walkthrough of the snapshot, windows, Decision card, Contender Outlook, and the coach.",
+    "How Dynasty Copilot reads your Sleeper league, ranks strategy paths, and produces one decision per pick. Walkthrough of the snapshot, windows, Decision card, Contender Outlook, and the coach.",
+  alternates: { canonical: "/how-it-works" },
 };
 
 export default function HowItWorksPage() {

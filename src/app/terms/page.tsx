@@ -2,9 +2,10 @@ import { SiteNav } from "@/components/site-nav";
 import { Footer } from "@/components/landing/footer";
 
 export const metadata = {
-  title: "Terms · Dynasty Copilot",
+  title: "Terms of Service",
   description:
-    "Terms of service. Plain language for a small dynasty fantasy product.",
+    "Dynasty Copilot terms of service. Usage rules, subscriptions, and acceptable use.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

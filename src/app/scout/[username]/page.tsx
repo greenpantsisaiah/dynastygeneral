@@ -15,6 +15,7 @@
  * is wrapped in Suspense and fills in when the LLM call returns.
  */
 
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -44,6 +45,20 @@ import { generateScoutVerdict } from "@/lib/scout/verdict";
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}): Promise<Metadata> {
+  const { username } = await params;
+  const name = decodeURIComponent(username).trim().replace(/^@/, "");
+  return {
+    title: `Scout: ${name}`,
+    description: `Dynasty scout report for Sleeper manager ${name}. Roster grades, team archetypes, championship windows, and AI verdict.`,
+    robots: { index: false, follow: false },
+  };
+}
 
 type PageProps = {
   params: Promise<{ username: string }>;

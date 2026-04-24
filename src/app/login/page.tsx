@@ -8,8 +8,9 @@ import { GoogleSignInButton } from "@/components/auth/google-sign-in";
 import { EmailSignInForm } from "@/components/auth/email-sign-in";
 
 export const metadata = {
-  title: "Sign in · Dynasty Copilot",
-  description: "Sign in with Google or email to access your dynasty leagues.",
+  title: "Sign In",
+  description: "Sign in to Dynasty Copilot with Google or email to access your dynasty leagues.",
+  alternates: { canonical: "/login" },
 };
 
 type SearchParams = Promise<{ error?: string; next?: string }>;

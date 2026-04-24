@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Coach Chat",
+  robots: { index: false, follow: false },
+};
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
 import { Ticker } from "@/components/ui/ticker";

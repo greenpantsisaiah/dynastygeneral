@@ -10,8 +10,9 @@ import { PLATFORMS } from "@/lib/leagues/types";
 import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 
 export const metadata = {
-  title: "Account · Dynasty Copilot",
-  description: "Subscription, billing, and connected leagues.",
+  title: "Account",
+  description: "Manage your Dynasty Copilot account, subscription, and connected leagues.",
+  robots: { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";

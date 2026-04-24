@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "League Hub",
+  robots: { index: false, follow: false },
+};
 import { cookies } from "next/headers";
 import {
   declaredWindowCookieName,

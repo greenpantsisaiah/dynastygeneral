@@ -7,7 +7,15 @@
  *   /scout/{username}?claim={url-encoded claim}
  */
 
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Scout Report",
+  description:
+    "Scout any Sleeper dynasty manager. Get AI-powered verdicts on their roster strength, team archetype, and championship windows.",
+  alternates: { canonical: "/scout" },
+};
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
 import { Ticker } from "@/components/ui/ticker";

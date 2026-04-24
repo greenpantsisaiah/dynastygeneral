@@ -4,9 +4,10 @@ import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 
 export const metadata = {
-  title: "Built By · Dynasty Copilot",
+  title: "Built By",
   description:
     "The story behind Dynasty Copilot. An intelligence-analyst's take on dynasty fantasy: you are the general; the product is the analyst team.",
+  alternates: { canonical: "/built-by" },
 };
 
 export default function BuiltByPage() {

@@ -2,9 +2,10 @@ import { SiteNav } from "@/components/site-nav";
 import { Footer } from "@/components/landing/footer";
 
 export const metadata = {
-  title: "Privacy · Dynasty Copilot",
+  title: "Privacy Policy",
   description:
-    "What we collect, how we use it, your rights. Plain language for a small dynasty fantasy product.",
+    "Dynasty Copilot privacy policy. What we collect, how we use it, and your rights.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

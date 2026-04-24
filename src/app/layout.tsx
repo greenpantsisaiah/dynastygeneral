@@ -38,6 +38,7 @@ export const metadata: Metadata = {
       "Win the decision in front of you. AI-powered dynasty fantasy football decision engine for Sleeper leagues.",
     type: "website",
     siteName: "Dynasty Copilot",
+    url: "/",
   },
   twitter: {
     card: "summary_large_image",

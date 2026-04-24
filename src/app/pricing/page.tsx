@@ -6,9 +6,10 @@ import { getOptionalUser } from "@/lib/auth/session";
 import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 
 export const metadata = {
-  title: "Pricing · Dynasty Copilot",
+  title: "Pricing",
   description:
-    "Beta is open: every signed-in user gets the coach, briefings, multi-pick rollout, and Contender Outlook. Hosting and API tokens cost real money; support the project so the lights stay on.",
+    "Dynasty Copilot pricing. AI-powered trade analysis, pick recommendations, strategy coaching, and scout reports for Sleeper dynasty leagues.",
+  alternates: { canonical: "/pricing" },
 };
 
 export default async function PricingPage() {

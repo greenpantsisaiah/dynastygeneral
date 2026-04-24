@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Strategy Audit",
+  robots: { index: false, follow: false },
+};
 import { SiteNav } from "@/components/site-nav";
 import { Ticker } from "@/components/ui/ticker";
 import { StrategyRunner } from "./strategy-runner";
