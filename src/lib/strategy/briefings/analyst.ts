@@ -273,6 +273,26 @@ function buildUserMessage(args: {
     })),
   }));
 
+  // Operational format rules. Same shape as Coach context contract;
+  // the SYSTEM_PROMPT hard rules ("never claim 'doesn't start' without
+  // checking format_rules") fire here too. Briefings authoring without
+  // this would risk the same superflex-blind framings the Coach used
+  // to produce.
+  const ss = snap.starter_slots;
+  const sfSlots = ss.superflex ?? 0;
+  const flexSlots = ss.flex ?? 0;
+  const recFlexSlots = ss.rec_flex ?? 0;
+  const formatRules = {
+    qb_starters_max: ss.hard.QB + sfSlots,
+    rb_starters_max: ss.hard.RB + flexSlots,
+    wr_starters_max: ss.hard.WR + flexSlots + recFlexSlots,
+    te_starters_max: ss.hard.TE + flexSlots + recFlexSlots,
+    second_qb_starts: (ss.hard.QB + sfSlots) >= 2,
+    te_premium: snap.scoring.includes("TE-premium"),
+    is_superflex:
+      snap.format === "superflex" || snap.format === "2qb",
+  };
+
   const draftSummary = {
     status: snap.draft.status,
     type: snap.draft.type,
@@ -284,6 +304,10 @@ function buildUserMessage(args: {
     // Which positions this league actually rosters as starters. Any
     // position with hard=0 is NOT a roster gap; do not flag as deficit.
     starter_slots: snap.starter_slots,
+    // Derived operational rules. CHECK before claiming "X doesn't
+    // start" or "Y is bench-only." second_qb_starts === true means a
+    // second QB STARTS in the SF slot.
+    format_rules: formatRules,
   };
 
   return `You are producing 2-3 intelligence briefings on the current league state. Your role is the analyst team for the user (the general). Each briefing is one structured take on what's happening RIGHT NOW.
