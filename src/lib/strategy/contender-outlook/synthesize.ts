@@ -25,7 +25,12 @@ import type {
   LeagueSnapshot,
   RosterSnapshot,
 } from "../league-state/snapshot";
-import type { ContenderOutlook, ContenderYear } from "./types";
+import type {
+  ConfidenceStage,
+  ContenderOutlook,
+  ContenderYear,
+} from "./types";
+import { deriveConfidenceStage } from "./types";
 
 type TrajectoryShape =
   | "all-rebuild"
@@ -61,7 +66,52 @@ function contenderRange(years: ContenderYear[]): {
   };
 }
 
-function buildTake(
+/**
+ * Stage-gated TAKE. Below "earned" confidence the conclusive
+ * trajectory framings (rising-to-peak, all-rebuild, declining) project
+ * false precision off too few anchors. Forming/trending stages
+ * surface honest "too early to read" copy and tell the user when the
+ * forecast actually earns its label.
+ *
+ * Per cross-panel framework 2026-04-24: this is the calibration fix
+ * for the "Rebuild after pick 3" failure mode where a user with
+ * Bijan + Nico + 1 was told their roster won't contend in the next
+ * 5 years. The math was technically right; the framing was wrong.
+ */
+function buildStagedTake(
+  shape: TrajectoryShape,
+  years: ContenderYear[],
+  picks: OwnedPick[],
+  me: RosterSnapshot | null,
+  stage: ConfidenceStage,
+  anchorCount: number,
+): string {
+  if (stage === "forming") {
+    const have =
+      anchorCount === 0
+        ? "no roster anchors yet"
+        : `${anchorCount} roster anchor${anchorCount === 1 ? "" : "s"}`;
+    return `Outlook is still forming. With ${have} the 5-year projection is dominated by variance, not signal. Come back after pick 5 for a directional read; pick 13+ earns a provisional tier; pick 25+ earns a conclusive call.`;
+  }
+  if (stage === "trending") {
+    return `Trending read only: with ${anchorCount} anchors the forecast captures the SHAPE of your trajectory but not the precise tier. ${trendingDirection(years)} Hold the framing loosely; the real call lands at pick 13+.`;
+  }
+  if (stage === "provisional") {
+    return `${buildEarnedTake(shape, years, picks, me)} Provisional read at ${anchorCount} anchors; the picks left in your draft can still shift this one tier in either direction.`;
+  }
+  return buildEarnedTake(shape, years, picks, me);
+}
+
+function trendingDirection(years: ContenderYear[]): string {
+  if (years.length === 0) return "";
+  const first = years[0].score;
+  const last = years[years.length - 1].score;
+  if (last - first >= 10) return "Trajectory points UP toward the back end of the horizon.";
+  if (first - last >= 10) return "Trajectory points DOWN; current strength fades over the horizon.";
+  return "Trajectory is roughly flat across the horizon.";
+}
+
+function buildEarnedTake(
   shape: TrajectoryShape,
   years: ContenderYear[],
   picks: OwnedPick[],
@@ -238,14 +288,29 @@ export function synthesizeContenderOutlook(args: {
     : [];
   const ownerNames = buildOwnerNameLookup(snap);
   const shape = classifyTrajectory(years);
-  const take = buildTake(shape, years, picks, me);
-  const protect_bullets = buildProtectBullets(
+  const anchor_count = me?.player_ids.length ?? 0;
+  const confidence_stage = deriveConfidenceStage(anchor_count);
+  const take = buildStagedTake(
     shape,
     years,
     picks,
-    ownerNames,
     me,
+    confidence_stage,
+    anchor_count,
   );
+  // Protect-bullets are only meaningful once the trajectory is at
+  // least trending. Forming-stage rosters have no shape to protect;
+  // surfacing protect-the-window copy implies certainty we don't have.
+  const protect_bullets =
+    confidence_stage === "forming"
+      ? []
+      : buildProtectBullets(shape, years, picks, ownerNames, me);
 
-  return { years, take, protect_bullets };
+  return {
+    years,
+    take,
+    protect_bullets,
+    confidence_stage,
+    anchor_count,
+  };
 }

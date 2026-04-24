@@ -17,6 +17,31 @@ export type ContenderYear = {
   tier: ContenderTier;
 };
 
+// Confidence stage of the outlook. Derived from how many roster anchors
+// the user actually has at render time (= player_ids.length on their
+// roster snapshot). The 5-year forecast is mathematically derived from
+// aged-roster contribution + materialized future picks; with too few
+// real anchors the variance dominates the signal and conclusive tier
+// labels (Rebuild/Bubble/Contender) project false precision.
+//
+// Per cross-panel decision framework (statistician + dynasty pro
+// derivation, 2026-04-24):
+//   forming      0-4 anchors    no conclusive tier; directional only
+//   trending     5-12 anchors   "trending [tier]" with confidence band
+//   provisional  13-24 anchors  "[tier] (provisional)" with pivot conditions
+//   earned       25+ anchors    conclusive tier earned
+//
+// Math: at n=3 anchors, forecast SD is ~±15-20 points, exceeding the
+// 15-point Rebuild/Bubble/Contender band widths. A point estimate of
+// "55/100 Rebuild" is statistically indistinguishable from "70/100
+// Bubble"; surfacing a hard label is dishonest. The thresholds map to
+// dynasty startup roster fractions: 5/33 ≈ 15%, 13/33 ≈ 40%, 25/33 ≈ 75%.
+export type ConfidenceStage =
+  | "forming"
+  | "trending"
+  | "provisional"
+  | "earned";
+
 export type ContenderOutlook = {
   years: ContenderYear[];
   // Synthesis. 2-3 sentences naming where the contender window is, where
@@ -26,7 +51,28 @@ export type ContenderOutlook = {
   // 2027 R1s from Sweat91, dbell0971, watticusgg"). Drawn from the
   // owned-pick map and the projected-roster shape.
   protect_bullets: string[];
+  // Calibration stage. UI uses this to decide whether to render
+  // conclusive labels (Rebuild/Contender) or softer framings
+  // ("Forming", "Trending Bubble"). Downstream branching that needs
+  // raw scores still uses years[i].score / .tier directly.
+  confidence_stage: ConfidenceStage;
+  // Number of named roster anchors the forecast is derived from.
+  // Surfaced in the UI so users can see the evidence base.
+  anchor_count: number;
 };
+
+export const CONFIDENCE_THRESHOLDS = {
+  forming_max: 4,
+  trending_max: 12,
+  provisional_max: 24,
+} as const;
+
+export function deriveConfidenceStage(anchorCount: number): ConfidenceStage {
+  if (anchorCount <= CONFIDENCE_THRESHOLDS.forming_max) return "forming";
+  if (anchorCount <= CONFIDENCE_THRESHOLDS.trending_max) return "trending";
+  if (anchorCount <= CONFIDENCE_THRESHOLDS.provisional_max) return "provisional";
+  return "earned";
+}
 
 export const TIER_THRESHOLD_CONTENDER = 75;
 export const TIER_THRESHOLD_BUBBLE = 60;
