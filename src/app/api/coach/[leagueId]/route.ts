@@ -39,6 +39,7 @@ import {
   parseDeclaredWindowId,
 } from "@/lib/strategy/declared-window";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
+import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -413,10 +414,18 @@ export async function POST(
       adp: p.adp,
       is_rookie: p.is_rookie,
     })),
+    nfl_draft_live: isNflDraftWindowActive(),
   };
 
   const client = new Anthropic({ apiKey });
-  const system = `${SYSTEM_PROMPT}${COACH_CONTRACT}`;
+  // During the NFL Draft window, append a short context line so the
+  // coach reasons about in-flight rookie state correctly. Otherwise
+  // the static prompt's "pre-NFL-draft rookies often have no team"
+  // framing becomes stale mid-draft.
+  const draftLiveContext = isNflDraftWindowActive()
+    ? `\n\n## NFL Draft is LIVE\n\nThe NFL Draft is happening right now. The available pool contains a mix of pre-draft rookies (team: null) and post-draft rookies (team assigned). Treat each rookie individually based on their current team field. Picks are landing every few minutes; the user's snapshot may already be 30-60s stale by the time you reply. If the user asks "where did X get drafted," check the team field in top_available; only reach for web_search if the rookie isn't in the snapshot or their team field looks ambiguous.`
+    : "";
+  const system = `${SYSTEM_PROMPT}${COACH_CONTRACT}${draftLiveContext}`;
 
   // Per-turn context injection. The fresh snapshot is wrapped with the
   // current user message so it lands AFTER any prior turns. This makes

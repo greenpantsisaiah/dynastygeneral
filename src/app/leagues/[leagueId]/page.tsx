@@ -67,6 +67,7 @@ import {
 } from "@/components/league/league-switcher";
 import { RefreshButton } from "@/components/league/refresh-button";
 import { isBetaOpenMode } from "@/lib/billing/beta-mode";
+import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
@@ -319,6 +320,7 @@ export default async function LeagueHubPage({
   // packaging, not safety; the daily Anthropic budget cap is the true
   // cost ceiling. Toggle via BETA_OPEN_MODE env var.
   const betaOpen = isBetaOpenMode();
+  const draftLive = isNflDraftWindowActive();
   const userPickCount = leagueSnapshot?.draft.my_pick_schedule.length ?? 0;
 
   return (
@@ -327,7 +329,7 @@ export default async function LeagueHubPage({
       <main className="flex-1 bg-grid">
         <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 sm:py-12">
           <Ticker
-            label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${betaOpen ? " · Beta · everything open" : ""}`}
+            label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${draftLive ? " · 🔴 NFL Draft live · refresh between picks" : ""}${betaOpen ? " · Beta · everything open" : ""}`}
           />
 
           {/* Hub header with title + trade buttons */}
