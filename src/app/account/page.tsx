@@ -7,6 +7,7 @@ import { PrivacyPanel } from "@/components/account/privacy-panel";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PLATFORMS } from "@/lib/leagues/types";
+import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 
 export const metadata = {
   title: "Account · Dynasty Copilot",
@@ -27,6 +28,7 @@ export default async function AccountPage({
   if (!user) redirect("/login?next=/account");
 
   const isPro = user.tier === "pro";
+  const beta = isBetaOpenMode();
   const trialDaysLeft =
     user.is_trialing && user.trial_end
       ? Math.max(
@@ -83,6 +85,18 @@ export default async function AccountPage({
                 )}
               </div>
 
+              {beta && !isPro && (
+                <p className="mt-3 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-xs leading-relaxed text-foreground">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+                    Beta is open ·
+                  </span>{" "}
+                  You already have full access to Coach, Briefings,
+                  Multi-pick rollout, and Contender Outlook. The Pro upgrade
+                  adds cross-device sync (chat history + War Room) and
+                  supports hosting + Anthropic API costs.
+                </p>
+              )}
+
               <div className="mt-5 flex flex-wrap gap-3">
                 {!isPro && (
                   <form action="/api/checkout" method="POST" className="contents">
@@ -95,7 +109,7 @@ export default async function AccountPage({
                       type="submit"
                       className="inline-flex h-10 items-center rounded-md bg-accent px-4 text-sm font-semibold text-black transition hover:brightness-110"
                     >
-                      Start 14-day Pro trial
+                      {beta ? "Support the project · 14-day trial" : "Start 14-day Pro trial"}
                     </button>
                   </form>
                 )}
