@@ -116,6 +116,11 @@ export async function __dumpAllPlayers(): Promise<SleeperPlayer[]> {
  * refresh endpoint during the NFL Draft window when rookies flip from
  * team:null to drafted state and we don't want to wait on TTL.
  *
+ * Reuses the `inflight` lock so two concurrent admin POSTs don't
+ * issue two concurrent ~5MB Sleeper pulls. Per security-audit
+ * 2026-04-24 LOW: moot with one admin email today, but harden now
+ * before the allow-list grows.
+ *
  * Returns the number of players in the new cache and the elapsed ms so
  * callers can surface the result to the admin.
  */
@@ -125,8 +130,20 @@ export async function forceRefreshPlayers(): Promise<{
   fetched_at: string;
 }> {
   const start = Date.now();
-  const entry = await fetchPlayers();
-  cache = entry;
+  // Piggyback on an already-running fetch if one is in flight; else
+  // start a fresh one and replace the cache atomically.
+  const promise =
+    inflight ??
+    fetchPlayers()
+      .then((entry) => {
+        cache = entry;
+        return entry;
+      })
+      .finally(() => {
+        inflight = null;
+      });
+  if (!inflight) inflight = promise;
+  const entry = await promise;
   return {
     count: entry.players.size,
     elapsed_ms: Date.now() - start,

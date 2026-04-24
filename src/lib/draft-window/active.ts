@@ -24,11 +24,34 @@
 // MEDIUM: validate the shape ourselves before parsing.
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Per-process flag so we warn at most once per cold start when the
+// founder partially configures the window (e.g. set START but forgot
+// END). Silent-fail-closed without a log was a real "why isn't the
+// banner showing?" papercut.
+let warnedPartialConfig = false;
+
 export function isNflDraftWindowActive(now: Date = new Date()): boolean {
   const start = process.env.NFL_DRAFT_WINDOW_START;
   const end = process.env.NFL_DRAFT_WINDOW_END;
-  if (!start || !end) return false;
-  if (!ISO_DATE.test(start) || !ISO_DATE.test(end)) return false;
+  if (!start && !end) return false;
+  if (!start || !end) {
+    if (!warnedPartialConfig) {
+      console.warn(
+        "[draft-window] only one of NFL_DRAFT_WINDOW_START/END is set; window stays closed",
+      );
+      warnedPartialConfig = true;
+    }
+    return false;
+  }
+  if (!ISO_DATE.test(start) || !ISO_DATE.test(end)) {
+    if (!warnedPartialConfig) {
+      console.warn(
+        `[draft-window] invalid date format (expected YYYY-MM-DD); got start=${start} end=${end}`,
+      );
+      warnedPartialConfig = true;
+    }
+    return false;
+  }
 
   const startMs = Date.parse(`${start}T00:00:00Z`);
   // End is INCLUSIVE: the user is allowed to refresh through the end
