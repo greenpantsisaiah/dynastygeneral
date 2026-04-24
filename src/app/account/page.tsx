@@ -4,10 +4,12 @@ import { SiteNav } from "@/components/site-nav";
 import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { PrivacyPanel } from "@/components/account/privacy-panel";
-import { getOptionalUser } from "@/lib/auth/session";
+import { getOptionalUser, type AuthUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { PLATFORMS } from "@/lib/leagues/types";
 import { isBetaOpenMode } from "@/lib/billing/beta-mode";
+import { getStripe } from "@/lib/stripe/client";
 
 export const metadata = {
   title: "Account",
@@ -25,8 +27,15 @@ export default async function AccountPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-  const user = await getOptionalUser();
+  let user = await getOptionalUser();
   if (!user) redirect("/login?next=/account");
+
+  // When returning from Stripe checkout, the webhook may not have fired
+  // yet. Pull the latest subscription state directly from Stripe and
+  // sync it to the database so the page renders Pro immediately.
+  if (params.checkout === "success" && user.tier !== "pro") {
+    user = await syncFromStripe(user) ?? user;
+  }
 
   const isPro = user.tier === "pro";
   const beta = isBetaOpenMode();
@@ -48,14 +57,20 @@ export default async function AccountPage({
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-3xl px-6 py-12">
             <Ticker label="Account · billing + leagues" />
-            <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">
+            {user.name && (
+              <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">
+                {user.name}
+              </h1>
+            )}
+            <p className={`${user.name ? "mt-1" : "mt-6"} text-lg text-muted`}>
               {user.email}
-            </h1>
+            </p>
 
             {params.checkout === "success" && (
               <div className="mt-4 rounded-md border border-success/50 bg-success/10 px-4 py-3 text-sm text-foreground">
-                You're on Pro. Your 14-day trial starts now. Add a payment
-                method anytime before it ends to keep going.
+                {isPro
+                  ? "You\u2019re on Pro! Your subscription is active. Manage billing below anytime."
+                  : "Payment received. Your account is being upgraded \u2014 refresh in a moment."}
               </div>
             )}
 
@@ -257,6 +272,81 @@ async function ConnectedLeagues({ userId }: { userId: string }) {
       )}
     </div>
   );
+}
+
+/**
+ * On checkout success, pull the user's latest subscription from Stripe
+ * and write it to the database. This covers the race where the user
+ * lands on /account?checkout=success before the webhook fires.
+ */
+async function syncFromStripe(user: AuthUser): Promise<AuthUser | null> {
+  try {
+    const stripe = getStripe();
+    const admin = getAdminClient();
+
+    // Find the customer by our user id (set as client_reference_id).
+    const sessions = await stripe.checkout.sessions.list({
+      limit: 1,
+      customer_details: { email: user.email! },
+    });
+    const session = sessions.data.find(
+      (s) => s.client_reference_id === user.id,
+    );
+    if (!session?.subscription) return null;
+
+    const subId =
+      typeof session.subscription === "string"
+        ? session.subscription
+        : session.subscription.id;
+    const rawSub = await stripe.subscriptions.retrieve(subId);
+    const item = rawSub.items.data[0];
+    const customerId =
+      typeof rawSub.customer === "string" ? rawSub.customer : null;
+
+    // Stripe types are loose on some fields; cast for access.
+    const sub = rawSub as unknown as {
+      id: string;
+      status: string;
+      trial_end: number | null;
+      current_period_end: number | null;
+      cancel_at_period_end: boolean;
+    };
+
+    const PRO_STATUSES = new Set(["trialing", "active"]);
+    const tier = PRO_STATUSES.has(sub.status) ? "pro" : "free";
+
+    await admin.from("subscriptions").upsert({
+      user_id: user.id,
+      tier,
+      status: sub.status,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: sub.id,
+      stripe_price_id: item?.price.id ?? null,
+      trial_end: sub.trial_end
+        ? new Date(sub.trial_end * 1000).toISOString()
+        : null,
+      current_period_end: sub.current_period_end
+        ? new Date(sub.current_period_end * 1000).toISOString()
+        : null,
+      cancel_at_period_end: sub.cancel_at_period_end,
+    });
+
+    return {
+      ...user,
+      tier,
+      is_trialing: sub.status === "trialing",
+      trial_end: sub.trial_end
+        ? new Date(sub.trial_end * 1000).toISOString()
+        : null,
+      current_period_end: sub.current_period_end
+        ? new Date(sub.current_period_end * 1000).toISOString()
+        : null,
+      cancel_at_period_end: sub.cancel_at_period_end,
+    };
+  } catch (err) {
+    console.error("[account:syncFromStripe]", err);
+    return null;
+  }
 }
 
 async function signOutAction() {
