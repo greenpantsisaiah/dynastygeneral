@@ -52,3 +52,19 @@ export function isPlan(value: unknown): value is Plan {
 export function isOneShotPlan(plan: Plan): boolean {
   return plan === "day_pass";
 }
+
+/**
+ * Whether a plan is currently purchasable (its price ID is
+ * configured). UI uses this to HIDE buttons that would otherwise
+ * lead to a broken checkout. Critical safety net for plans where
+ * the env var might not be set yet (e.g. Day Pass before the
+ * Stripe price is created).
+ */
+export function isPlanAvailable(plan: Plan): boolean {
+  const map: Record<Plan, string | undefined> = {
+    pro_monthly: process.env.STRIPE_PRICE_ID_PRO_MONTHLY,
+    pro_annual: process.env.STRIPE_PRICE_ID_PRO_ANNUAL,
+    day_pass: process.env.STRIPE_PRICE_ID_DAY_PASS,
+  };
+  return Boolean(map[plan]);
+}

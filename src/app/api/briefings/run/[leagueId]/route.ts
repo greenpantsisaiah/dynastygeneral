@@ -24,6 +24,7 @@ import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
 import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
+import { isPlanAvailable } from "@/lib/stripe/client";
 
 export async function POST(
   req: Request,
@@ -62,7 +63,7 @@ export async function POST(
           cap_used: cap.used,
           cap_max: cap.cap,
           tier: gate.user.tier,
-          day_pass_available: true,
+          day_pass_available: isPlanAvailable("day_pass"),
         },
         { status: 429 },
       );

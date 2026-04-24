@@ -20,6 +20,7 @@ import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget, recordSpend } from "@/lib/budget";
 import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
+import { isPlanAvailable } from "@/lib/stripe/client";
 import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
@@ -219,7 +220,9 @@ export async function POST(
           tier: gate.user.tier,
           // Day Pass option for break-through. Inline action, never a
           // modal. Client posts to /api/checkout with plan=day_pass.
-          day_pass_available: true,
+          // Reflect the actual configured availability so the UI
+          // doesn't show a button that leads to a broken checkout.
+          day_pass_available: isPlanAvailable("day_pass"),
         },
         { status: 429 },
       );

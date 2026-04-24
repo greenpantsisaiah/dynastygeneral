@@ -147,6 +147,7 @@ export function CoachChat({
     message: string;
     used: number;
     cap: number;
+    dayPassAvailable: boolean;
   } | null>(null);
   const [paywall, setPaywall] = useState<PaywallReason | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -297,6 +298,7 @@ export function CoachChat({
                 message: body.message,
                 used: body.cap_used,
                 cap: body.cap_max,
+                dayPassAvailable: Boolean(body.day_pass_available),
               });
               writeHistory(leagueId, history);
               return;
@@ -515,24 +517,26 @@ export function CoachChat({
           </div>
           <p className="mt-1">{capHit.message}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <form
-              action="/api/checkout"
-              method="POST"
-              className="contents"
-            >
-              <input type="hidden" name="plan" value="day_pass" />
-              <button
-                type="submit"
-                className="inline-flex h-8 items-center rounded-md bg-warning px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-black transition hover:brightness-110"
+            {capHit.dayPassAvailable && (
+              <form
+                action="/api/checkout"
+                method="POST"
+                className="contents"
               >
-                Day Pass · 24h unlimited
-              </button>
-            </form>
+                <input type="hidden" name="plan" value="day_pass" />
+                <button
+                  type="submit"
+                  className="inline-flex h-8 items-center rounded-md bg-warning px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-black transition hover:brightness-110"
+                >
+                  Day Pass · 24h unlimited
+                </button>
+              </form>
+            )}
             <a
               href="/pricing"
               className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
             >
-              or see Pro →
+              {capHit.dayPassAvailable ? "or see Pro →" : "See Pro →"}
             </a>
             <button
               type="button"

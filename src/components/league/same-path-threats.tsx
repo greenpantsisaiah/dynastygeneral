@@ -1,17 +1,32 @@
+"use client";
+
 /**
  * Same-Path Threats card. Shows the top 3 opponents most likely
  * competing for the user's path's primary position + posture.
  *
  * Free tier: names + structural reason ("already 2 RBs", "same
- * posture"). Future Pro hook: "Get intel on this opponent" button
- * that runs an LLM read of their roster + likely next moves.
+ * posture"). Each row has an "Ask Coach about [name]" button that
+ * dispatches the existing `coach:seed` window event, pre-filling
+ * the Coach input with a per-opponent question. Same pattern that
+ * Strategic Forks + Characterization cards use.
  *
  * Per founder note 2026-04-24: "I can get updates/intel on 1 of
- * them, or all of them." This is the v1 surface; per-opponent intel
- * is the natural next billing handle.
+ * them, or all of them." Per-opponent deeper intel via Coach is
+ * the natural next billing handle.
  */
 
 import type { SamePathThreats } from "@/lib/strategy/same-path-threats/build";
+
+function seedCoachIntel(opponentName: string, archetypeName: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("coach:seed", {
+      detail: {
+        prompt: `Give me intel on ${opponentName}'s roster. They're a same-path threat to my ${archetypeName} build. What's their next likely move and how do I stay ahead?`,
+      },
+    }),
+  );
+}
 
 const TIER_TONE = {
   primary: { border: "border-danger/60", chip: "text-danger", label: "PRIMARY THREAT" },
@@ -71,16 +86,18 @@ export function SamePathThreatsCard({
                   ))}
                 </ul>
               )}
+              <button
+                type="button"
+                onClick={() => seedCoachIntel(t.owner_name, threats.archetype_name)}
+                className="mt-2 inline-flex h-7 items-center rounded-md border border-border-strong bg-background px-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition hover:border-accent/60 hover:text-accent"
+                title={`Ask Coach for deeper intel on ${t.owner_name}`}
+              >
+                Ask Coach about {t.owner_name} →
+              </button>
             </div>
           );
         })}
       </div>
-
-      <p className="mt-4 text-[10px] uppercase tracking-[0.14em] font-mono text-muted-2">
-        Per-opponent deeper intel (next-pick prediction, trade lanes,
-        roster age) is coming next. Want it sooner? Use Coach: "give
-        me intel on {threats.threats[0]?.owner_name}'s roster."
-      </p>
     </section>
   );
 }
