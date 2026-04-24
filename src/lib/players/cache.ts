@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { sleeperPlayerSchema, type SleeperPlayer } from "@/lib/sleeper/schemas";
 
 /**
@@ -32,7 +31,6 @@ const TTL_MINUTES = (() => {
 })();
 const TTL_MS = TTL_MINUTES * 60 * 1000;
 const BASE = "https://api.sleeper.app/v1";
-const playersResponseSchema = z.record(z.string(), sleeperPlayerSchema);
 
 type CacheEntry = {
   players: Map<string, SleeperPlayer>;
@@ -41,6 +39,20 @@ type CacheEntry = {
 
 let cache: CacheEntry | null = null;
 let inflight: Promise<CacheEntry> | null = null;
+
+// Per-entry parse with skip-on-fail. The Sleeper /players/nfl payload
+// is ~5MB with 10k+ rows, and during the NFL Draft window rookies
+// flip state in real time (team:null → drafted, status churn, new
+// rows added). An all-or-nothing safeParse on the whole record was
+// rejecting the entire payload when any single row was non-conforming
+// (e.g. a new IDP entry missing player_id, an `age` arriving as a
+// string). That poisoned the cache for the full 60-min TTL and
+// silently emptied every downstream surface (snapshot, ranks,
+// windows, contender, opponents) on every league hub. Per INVARIANTS
+// rookie data is unstable mid-draft; we now log + drop bad rows
+// instead of failing the whole fetch. Cap the warn log at a small
+// number to avoid log floods if the schema needs a real update.
+const MAX_PARSE_WARNINGS = 5;
 
 async function fetchPlayers(): Promise<CacheEntry> {
   const res = await fetch(`${BASE}/players/nfl`, {
@@ -53,15 +65,32 @@ async function fetchPlayers(): Promise<CacheEntry> {
     throw new Error(`Sleeper /players/nfl failed: ${res.status}`);
   }
   const json = (await res.json()) as unknown;
-  const parsed = playersResponseSchema.safeParse(json);
-  if (!parsed.success) {
+  if (json === null || typeof json !== "object" || Array.isArray(json)) {
     throw new Error(
-      `Sleeper /players/nfl did not match schema: ${parsed.error.message}`,
+      "Sleeper /players/nfl returned non-object payload; cache fetch aborted",
     );
   }
   const players = new Map<string, SleeperPlayer>();
-  for (const [id, p] of Object.entries(parsed.data)) {
-    players.set(id, p);
+  let bad = 0;
+  let warned = 0;
+  for (const [id, raw] of Object.entries(json as Record<string, unknown>)) {
+    const r = sleeperPlayerSchema.safeParse(raw);
+    if (r.success) {
+      players.set(id, r.data);
+    } else {
+      bad++;
+      if (warned < MAX_PARSE_WARNINGS) {
+        warned++;
+        console.warn(
+          `[players:skip] ${id}: ${r.error.issues[0]?.message ?? "unknown"}`,
+        );
+      }
+    }
+  }
+  if (bad > 0) {
+    console.warn(
+      `[players:cache] skipped ${bad} non-conforming row(s) of ${players.size + bad} total`,
+    );
   }
   return { players, fetchedAt: Date.now() };
 }

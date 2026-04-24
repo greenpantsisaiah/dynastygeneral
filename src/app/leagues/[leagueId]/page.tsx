@@ -365,7 +365,17 @@ export default async function LeagueHubPage({
         }
       }
     } catch (err) {
-      console.error("[hub:strategy-rank]", err);
+      // The whole strategy-rank pipeline (snapshot, ranks, windows,
+      // opponents, decision) lives under this try. If it throws, every
+      // downstream panel silently empties out and the user sees a near-
+      // blank hub. Log the actual message + stack so the regression is
+      // diagnosable from production logs (silent catches were the
+      // culprit on the 2026-04-24 mid-NFL-draft outage).
+      console.error(
+        "[hub:strategy-rank]",
+        err instanceof Error ? err.message : err,
+        err instanceof Error ? err.stack : undefined,
+      );
     }
   }
 
