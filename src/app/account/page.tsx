@@ -288,21 +288,21 @@ async function syncFromStripe(user: AuthUser): Promise<AuthUser | null> {
     const stripe = getStripe();
     const admin = getAdminClient();
 
-    // Find the customer by our user id (set as client_reference_id).
-    const sessions = await stripe.checkout.sessions.list({
+    // Find the Stripe customer by email, then get their active subscription.
+    const customers = await stripe.customers.list({
+      email: user.email!,
       limit: 1,
-      customer_details: { email: user.email! },
     });
-    const session = sessions.data.find(
-      (s) => s.client_reference_id === user.id,
-    );
-    if (!session?.subscription) return null;
+    const customer = customers.data[0];
+    if (!customer) return null;
 
-    const subId =
-      typeof session.subscription === "string"
-        ? session.subscription
-        : session.subscription.id;
-    const rawSub = await stripe.subscriptions.retrieve(subId);
+    const subs = await stripe.subscriptions.list({
+      customer: customer.id,
+      status: "all",
+      limit: 1,
+    });
+    const rawSub = subs.data[0];
+    if (!rawSub) return null;
     const item = rawSub.items.data[0];
     const customerId =
       typeof rawSub.customer === "string" ? rawSub.customer : null;
@@ -319,21 +319,28 @@ async function syncFromStripe(user: AuthUser): Promise<AuthUser | null> {
     const PRO_STATUSES = new Set(["trialing", "active"]);
     const tier = PRO_STATUSES.has(sub.status) ? "pro" : "free";
 
-    await admin.from("subscriptions").upsert({
-      user_id: user.id,
-      tier,
-      status: sub.status,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: sub.id,
-      stripe_price_id: item?.price.id ?? null,
-      trial_end: sub.trial_end
-        ? new Date(sub.trial_end * 1000).toISOString()
-        : null,
-      current_period_end: sub.current_period_end
-        ? new Date(sub.current_period_end * 1000).toISOString()
-        : null,
-      cancel_at_period_end: sub.cancel_at_period_end,
-    });
+    const { error } = await admin.from("subscriptions").upsert(
+      {
+        user_id: user.id,
+        tier,
+        status: sub.status,
+        stripe_customer_id: customerId,
+        stripe_subscription_id: sub.id,
+        stripe_price_id: item?.price.id ?? null,
+        trial_end: sub.trial_end
+          ? new Date(sub.trial_end * 1000).toISOString()
+          : null,
+        current_period_end: sub.current_period_end
+          ? new Date(sub.current_period_end * 1000).toISOString()
+          : null,
+        cancel_at_period_end: sub.cancel_at_period_end,
+      },
+      { onConflict: "user_id" },
+    );
+    if (error) {
+      console.error("[account:syncFromStripe:upsert]", error.message);
+      return null;
+    }
 
     return {
       ...user,
