@@ -77,6 +77,11 @@ import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import { StrategyLab } from "@/components/league/strategy-lab";
 import { buildStrategyLab } from "@/lib/strategy/strategy-lab/build";
 import type { StrategyLabState } from "@/lib/strategy/strategy-lab/types";
+import {
+  getActiveCommitment,
+  syncCommitmentAgainstLab,
+} from "@/lib/strategy/path-commitment/service";
+import type { ActivePathCommitment } from "@/lib/strategy/path-commitment/types";
 import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
@@ -169,6 +174,13 @@ export default async function LeagueHubPage({
   let contenderOutlook: ContenderOutlook | null = null;
   let multiPickPlan: MultiPickPlan | null = null;
   let strategyLab: StrategyLabState | null = null;
+  let pathCommitment: ActivePathCommitment | null = null;
+
+  // Tier check moved earlier in the pipeline so the path-commitment
+  // sync (which needs tierState.user) can run inside the snapshot
+  // try-block. Used again later for UI gating; we declare once here.
+  const tierState = await getTier();
+  const isPro = tierState.tier === "pro";
   if (draftState) {
     try {
       leagueSnapshot = await buildLeagueSnapshot({
@@ -274,6 +286,33 @@ export default async function LeagueHubPage({
         }
       }
 
+      // Path commitment + chronicle. Only active for signed-in users.
+      // We fetch the active commitment for this user-league-season,
+      // then sync it against the live Strategy Lab so the chronicle
+      // catches up automatically (no client action needed for the
+      // server-recorded events).
+      if (tierState.user && strategyLab && strategyLab.paths.length > 0) {
+        try {
+          const fresh = await getActiveCommitment(
+            tierState.user.id,
+            leagueId,
+            league.season,
+          );
+          if (fresh) {
+            const livePath = strategyLab.paths.find(
+              (p) => p.archetype_id === fresh.commitment.archetype_id,
+            );
+            pathCommitment = await syncCommitmentAgainstLab(
+              fresh,
+              livePath ?? null,
+              snapshot.draft.next_pick_no ?? null,
+            );
+          }
+        } catch (err) {
+          console.error("[hub:path-commitment]", err);
+        }
+      }
+
       // Decision Synthesis. Runs AFTER all enrichments so the
       // ranked archetypes carry top_candidates + phase, available
       // carries ADP + dynasty_rank, and windows carry the weighting.
@@ -337,10 +376,8 @@ export default async function LeagueHubPage({
   // when available, else leave undefined.
   const topLean = rankedArchetypes[0]?.archetype.name ?? null;
 
-  // Tier check for Pro-gated UI surfaces. Falls open in dev when
-  // Supabase isn't configured (getTier returns "free" + null user).
-  const tierState = await getTier();
-  const isPro = tierState.tier === "pro";
+  // (tierState + isPro declared earlier in pipeline so the path-
+  // commitment sync inside the snapshot try-block can use them.)
   // Beta-mode flag opens the killer features to every signed-in user
   // (Coach, Briefings, Multi-pick rollout). Per-feature gates become
   // packaging, not safety; the daily Anthropic budget cap is the true
@@ -442,7 +479,13 @@ export default async function LeagueHubPage({
                   Lab itself decides whether to render in prominent or
                   context mode based on user pick count. */}
               {strategyLab && strategyLab.prominent && (
-                <StrategyLab lab={strategyLab} leagueId={leagueId} />
+                <StrategyLab
+                  lab={strategyLab}
+                  leagueId={leagueId}
+                  season={league.season}
+                  commitment={pathCommitment}
+                  signedIn={Boolean(tierState.user)}
+                />
               )}
 
               {windows && sleeperUser && (
@@ -459,7 +502,13 @@ export default async function LeagueHubPage({
                   the Decision card so the user can see what they're
                   cutting off as they commit to picks. */}
               {strategyLab && !strategyLab.prominent && (
-                <StrategyLab lab={strategyLab} leagueId={leagueId} />
+                <StrategyLab
+                  lab={strategyLab}
+                  leagueId={leagueId}
+                  season={league.season}
+                  commitment={pathCommitment}
+                  signedIn={Boolean(tierState.user)}
+                />
               )}
 
               {draftActive && userPickCount >= 2 && (
