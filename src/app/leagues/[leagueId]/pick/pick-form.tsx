@@ -4,6 +4,11 @@ import { useState } from "react";
 import { PickResult } from "@/components/decision/result-card";
 import type { PickOutput } from "@/lib/engine/schemas";
 import { readDeclared } from "@/lib/strategy/declared";
+import {
+  PaywallModal,
+  readPaywallReason,
+  type PaywallReason,
+} from "@/components/billing/paywall-modal";
 
 type ApiResponse =
   | {
@@ -33,6 +38,7 @@ export function PickForm({
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
+  const [paywall, setPaywall] = useState<PaywallReason | null>(null);
   const hasPrefill = defaultPlayers.length > 0;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -61,6 +67,19 @@ export function PickForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const reason = await readPaywallReason(res);
+      if (reason) {
+        setPaywall({ ...reason, nextPath: window.location.pathname });
+        return;
+      }
+      if (!res.ok) {
+        if (res.status === 429) {
+          setResult({ ok: false, error: "Too many requests. Wait a moment and try again." });
+          return;
+        }
+        setResult({ ok: false, error: "Something went wrong. Refresh and try again." });
+        return;
+      }
       const json = (await res.json()) as ApiResponse;
       setResult(json);
     } catch (err) {
@@ -78,6 +97,7 @@ export function PickForm({
 
   return (
     <div className="mt-10 space-y-8">
+      <PaywallModal reason={paywall} onClose={() => setPaywall(null)} />
       <form onSubmit={onSubmit} className="grid gap-4">
         <Field
           label={

@@ -243,8 +243,10 @@ export function CoachChat({
           return;
         }
         if (!res.ok) {
-          const txt = await res.text().catch(() => res.statusText);
-          throw new Error(`coach returned ${res.status}: ${txt.slice(0, 200)}`);
+          if (res.status === 429) {
+            throw new Error("Too many requests. Wait a moment and try again.");
+          }
+          throw new Error("Something went wrong. Refresh and try again.");
         }
         const data = (await res.json()) as { reply: string };
         const reply: ChatMessage = {

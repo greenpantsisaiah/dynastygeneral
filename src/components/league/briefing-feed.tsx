@@ -196,8 +196,10 @@ export function BriefingFeed({
         return;
       }
       if (!res.ok) {
-        const text = await res.text().catch(() => res.statusText);
-        throw new Error(`Analyst returned ${res.status}: ${text}`);
+        if (res.status === 429) {
+          throw new Error("Too many requests. Wait a moment and try again.");
+        }
+        throw new Error("Something went wrong. Refresh and try again.");
       }
       const data = (await res.json()) as { briefings: Briefing[] };
       appendBriefings(leagueId, data.briefings);

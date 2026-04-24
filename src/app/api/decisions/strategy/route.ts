@@ -2,6 +2,7 @@ import { z } from "zod";
 import { runStrategyClarify } from "@/lib/engine/decisions";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
+import { checkProGate } from "@/lib/auth/paywall";
 
 const bodySchema = z.object({
   league_id: z.string().min(1),
@@ -15,6 +16,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const gate = await checkProGate();
+  if (!gate.ok) return gate.response;
+
   // Strategy uses Opus (5x cost vs Sonnet) and gets its own bucket so a
   // bot can't burn the full decisions allowance on the most expensive
   // endpoint. Per cost-watcher 2026-04-22: shared bucket = $1,008/day

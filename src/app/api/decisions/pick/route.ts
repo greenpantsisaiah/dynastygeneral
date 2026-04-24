@@ -2,6 +2,7 @@ import { z } from "zod";
 import { runPickDecision } from "@/lib/engine/decisions";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
+import { checkProGate } from "@/lib/auth/paywall";
 
 const bodySchema = z.object({
   league_id: z.string().min(1),
@@ -21,6 +22,9 @@ export const runtime = "nodejs";
 export const maxDuration = 45;
 
 export async function POST(req: Request) {
+  const gate = await checkProGate();
+  if (!gate.ok) return gate.response;
+
   const rate = await checkRateLimit("decisions", clientIpFrom(req));
   if (!rate.allowed) {
     return Response.json(

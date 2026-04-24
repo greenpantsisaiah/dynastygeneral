@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
+import { checkProGate } from "@/lib/auth/paywall";
 import {
   runTradeIncoming,
   runTradeOutbound,
@@ -41,6 +42,9 @@ export const runtime = "nodejs";
 export const maxDuration = 45;
 
 export async function POST(req: Request) {
+  const gate = await checkProGate();
+  if (!gate.ok) return gate.response;
+
   const rate = await checkRateLimit("decisions", clientIpFrom(req));
   if (!rate.allowed) {
     return Response.json(

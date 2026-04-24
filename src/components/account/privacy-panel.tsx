@@ -27,7 +27,7 @@ export function PrivacyPanel() {
       const res = await fetch("/api/account/wipe-data", { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `wipe returned ${res.status}`);
+        throw new Error(body.error ?? "Something went wrong. Refresh and try again.");
       }
       setStatus("done");
       setTimeout(() => setStatus("idle"), 4000);

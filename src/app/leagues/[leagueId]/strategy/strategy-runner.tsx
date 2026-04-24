@@ -4,6 +4,11 @@ import { useState } from "react";
 import { StrategyResult } from "@/components/decision/result-card";
 import type { StrategyClarifyOutput } from "@/lib/engine/schemas";
 import { readDeclared } from "@/lib/strategy/declared";
+import {
+  PaywallModal,
+  readPaywallReason,
+  type PaywallReason,
+} from "@/components/billing/paywall-modal";
 
 type ApiResponse =
   | {
@@ -24,6 +29,7 @@ export function StrategyRunner({
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
+  const [paywall, setPaywall] = useState<PaywallReason | null>(null);
 
   async function run() {
     setLoading(true);
@@ -38,6 +44,19 @@ export function StrategyRunner({
           declared_strategy: readDeclared(leagueId),
         }),
       });
+      const reason = await readPaywallReason(res);
+      if (reason) {
+        setPaywall({ ...reason, nextPath: window.location.pathname });
+        return;
+      }
+      if (!res.ok) {
+        if (res.status === 429) {
+          setResult({ ok: false, error: "Too many requests. Wait a moment and try again." });
+          return;
+        }
+        setResult({ ok: false, error: "Something went wrong. Refresh and try again." });
+        return;
+      }
       const json = (await res.json()) as ApiResponse;
       setResult(json);
     } catch (err) {
@@ -55,6 +74,7 @@ export function StrategyRunner({
 
   return (
     <div className="mt-10 space-y-8">
+      <PaywallModal reason={paywall} onClose={() => setPaywall(null)} />
       <button
         type="button"
         onClick={run}

@@ -11,6 +11,11 @@ import type {
 } from "@/lib/engine/schemas";
 import { readDeclared } from "@/lib/strategy/declared";
 import { AssetTokenInput } from "@/components/league/asset-token-input";
+import {
+  PaywallModal,
+  readPaywallReason,
+  type PaywallReason,
+} from "@/components/billing/paywall-modal";
 
 type ApiResponse =
   | {
@@ -44,6 +49,7 @@ export function TradeForm({
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
+  const [paywall, setPaywall] = useState<PaywallReason | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -62,6 +68,19 @@ export function TradeForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const reason = await readPaywallReason(res);
+      if (reason) {
+        setPaywall({ ...reason, nextPath: window.location.pathname });
+        return;
+      }
+      if (!res.ok) {
+        if (res.status === 429) {
+          setResult({ ok: false, error: "Too many requests. Wait a moment and try again." });
+          return;
+        }
+        setResult({ ok: false, error: "Something went wrong. Refresh and try again." });
+        return;
+      }
       const json = (await res.json()) as ApiResponse;
       setResult(json);
     } catch (err) {
@@ -79,6 +98,7 @@ export function TradeForm({
 
   return (
     <div className="mt-10 space-y-8">
+      <PaywallModal reason={paywall} onClose={() => setPaywall(null)} />
       <form onSubmit={onSubmit} className="grid gap-4">
         {mode === "incoming" ? <IncomingFields /> : <OutboundFields />}
         <div>
