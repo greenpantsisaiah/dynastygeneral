@@ -70,7 +70,7 @@ export default async function AccountPage({
               <div className="mt-4 rounded-md border border-success/50 bg-success/10 px-4 py-3 text-sm text-foreground">
                 {isPro
                   ? "You\u2019re on Pro! Your subscription is active. Manage billing below anytime."
-                  : "Payment received. Your account is being upgraded \u2014 refresh in a moment."}
+                  : "Payment received. Your account is being upgraded; refresh in a moment."}
               </div>
             )}
 
