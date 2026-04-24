@@ -154,6 +154,65 @@ export async function checkCap(
   };
 }
 
+export type FeatureUsage = {
+  feature: Feature;
+  used: number;
+  cap: number;
+  remaining: number;
+  pct: number; // 0..1
+  // True when the user is at or above 80% of cap. UI surfaces a
+  // gentle warning chip color shift at this point.
+  near_cap: boolean;
+};
+
+/**
+ * Bulk read of the user's usage across all tracked features. One
+ * round-trip to Upstash. Powers the visible "X of Y today" meter
+ * on Coach + Account.
+ *
+ * Returns zero usage for every feature when Upstash isn't
+ * configured. Never throws; meter degrades to "0 of N" silently.
+ */
+export async function getUsageSummary(
+  userId: string,
+  tier: Tier,
+): Promise<FeatureUsage[]> {
+  const features: Feature[] = ["coach", "briefing", "multi_pick", "verdict"];
+  const r = getRedis();
+  if (!r) {
+    return features.map((feature) => {
+      const cap = capFor(tier, feature);
+      return {
+        feature,
+        used: 0,
+        cap,
+        remaining: cap,
+        pct: 0,
+        near_cap: false,
+      };
+    });
+  }
+  // mget batches the gets into one round-trip.
+  const keys = features.map((f) => key(userId, f));
+  const raw = await r.mget<Array<string | number | null>>(...keys);
+  return features.map((feature, i) => {
+    const cap = capFor(tier, feature);
+    const v = raw[i];
+    const used = typeof v === "number" ? v : Number(v ?? 0);
+    const safe = Number.isFinite(used) ? used : 0;
+    const remaining = Math.max(0, cap - safe);
+    const pct = cap > 0 ? Math.min(1, safe / cap) : 0;
+    return {
+      feature,
+      used: safe,
+      cap,
+      remaining,
+      pct,
+      near_cap: pct >= 0.8,
+    };
+  });
+}
+
 /**
  * Record one use. Atomic INCR with TTL on first set so the key
  * naturally expires at the end of the UTC day (with 2h buffer for

@@ -4,6 +4,7 @@ import { SiteNav } from "@/components/site-nav";
 import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { PrivacyPanel } from "@/components/account/privacy-panel";
+import { UsageDetail } from "@/components/billing/usage-meter";
 import { getOptionalUser, type AuthUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -166,6 +167,8 @@ export default async function AccountPage({
             <ConnectedPlatforms />
 
             <ConnectedLeagues userId={user.id} />
+
+            <UsageDetail />
 
             <PrivacyPanel />
 

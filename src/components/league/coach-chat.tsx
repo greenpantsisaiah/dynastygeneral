@@ -30,6 +30,7 @@ import {
   readPaywallReason,
   type PaywallReason,
 } from "@/components/billing/paywall-modal";
+import { UsageChip } from "@/components/billing/usage-meter";
 
 type Role = "user" | "assistant";
 type ChatMessage = { role: Role; content: string; ts: number };
@@ -334,8 +335,11 @@ export function CoachChat({
       {isPanel && (
         <header className="flex items-baseline justify-between gap-2 border-b border-border-soft px-4 py-3">
           <div>
-            <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
-              Coach
+            <div className="flex items-center gap-2">
+              <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
+                Coach
+              </div>
+              <UsageChip feature="coach" />
             </div>
             {context && (
               <div className="mt-0.5 text-[11px] text-muted-2">
