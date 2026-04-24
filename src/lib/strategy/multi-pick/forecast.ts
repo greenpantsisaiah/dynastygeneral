@@ -279,7 +279,7 @@ export function buildMultiPickPlan(args: {
 /**
  * Sample which position the next opponent will draft, weighted by
  * drainWeights. Pure stochastic; no deficit-tracking memory between
- * calls (the law of large numbers + N=50 trials handles convergence).
+ * calls (the law of large numbers + N=500 trials handles convergence).
  */
 function sampleOpponentPosition(
   weights: Record<string, number>,

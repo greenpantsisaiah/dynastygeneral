@@ -64,7 +64,7 @@ export function MultiPickCard({
           </h2>
         </div>
         <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-          50-trial Monte Carlo · stochastic opponents
+          500-trial Monte Carlo · stochastic opponents
         </div>
       </div>
 
