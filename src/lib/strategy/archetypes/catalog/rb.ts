@@ -247,6 +247,20 @@ const rbZeroRBRecovery: Archetype = {
   ],
 
   fit_signals: [
+    // Exclusion gate. If you own ANY top-24 RB, you didn't punt the
+    // position; you led or co-led with it. This signal carries the
+    // largest weight so a roster with Bijan/JT/Achane/etc fails out
+    // of Zero RB even when raw RB count is low. Without this the
+    // archetype was firing as "open" for a one-pick roster that took
+    // the top RB on the board, which is the opposite of "punted."
+    // Per founder report 2026-04-24.
+    {
+      kind: "user_owns_top_n_at_position",
+      position: "RB",
+      max: 0,
+      rank_threshold: 24,
+      weight: 2.0,
+    },
     { kind: "user_position_count", position: "RB", max: 3, weight: 1.0 },
     { kind: "user_position_count", position: "WR", min: 6, weight: 0.5 },
   ],
@@ -262,7 +276,7 @@ const rbZeroRBRecovery: Archetype = {
 
   pivots: [],
 
-  exemplar_profiles: ["≤3 RBs, 6+ WRs"],
+  exemplar_profiles: ["0 top-24 RBs, ≤3 RBs total, 6+ WRs"],
 };
 
 export const RB_ARCHETYPES: Archetype[] = [

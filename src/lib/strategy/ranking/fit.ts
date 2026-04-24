@@ -38,6 +38,13 @@ function clamp01(n: number): number {
  * For "max" signals (have ≤ max), full credit when at-or-below max,
  * scales DOWN as you exceed max (each extra player above max docks
  * 0.3 from the score).
+ *
+ * Exception: `max: 0` is treated as a HARD exclusion gate. The only
+ * honest read of "you must own zero of these" is binary; if you own
+ * any, the signal returns 0. Without this, "max: 0" capped credit
+ * at ~70% (after the 0.3 dock) which let archetypes like Zero RB
+ * Recovery fire as "open" for a roster with one top-tier RB. Per
+ * founder bug 2026-04-24.
  */
 function partialPositionScore(
   have: number,
@@ -49,7 +56,12 @@ function partialPositionScore(
     score = Math.min(score, have / min);
   }
   if (max != null && have > max) {
-    score = Math.min(score, Math.max(0, 1 - (have - max) * 0.3));
+    if (max === 0) {
+      // Hard exclusion: any > 0 fails the signal entirely.
+      score = 0;
+    } else {
+      score = Math.min(score, Math.max(0, 1 - (have - max) * 0.3));
+    }
   }
   return clamp01(score);
 }
