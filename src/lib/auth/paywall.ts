@@ -52,6 +52,8 @@ export async function checkProGate(): Promise<ProGateResult> {
       user: {
         id: "anonymous-dev",
         email: null,
+        name: null,
+        avatar_url: null,
         tier: "pro",
         is_trialing: false,
         trial_end: null,

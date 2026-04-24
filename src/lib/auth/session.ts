@@ -18,6 +18,8 @@ export type Tier = "free" | "pro";
 export type AuthUser = {
   id: string;
   email: string | null;
+  name: string | null;
+  avatar_url: string | null;
   // Tier read from public.subscriptions, defaults "free" if no row.
   tier: Tier;
   // Trial status (true while trialing on Pro).
@@ -67,9 +69,12 @@ export async function getOptionalUser(): Promise<AuthUser | null> {
       ? "pro"
       : "free";
 
+  const meta = data.user.user_metadata ?? {};
   return {
     id: data.user.id,
     email: data.user.email ?? null,
+    name: (meta.full_name as string) ?? (meta.name as string) ?? null,
+    avatar_url: (meta.avatar_url as string) ?? (meta.picture as string) ?? null,
     tier,
     is_trialing: subRow?.status === "trialing",
     trial_end: subRow?.trial_end ?? null,
@@ -106,6 +111,8 @@ export async function requireProTier(): Promise<AuthUser> {
     return {
       id: "anonymous",
       email: null,
+      name: null,
+      avatar_url: null,
       tier: "pro",
       is_trialing: false,
       trial_end: null,

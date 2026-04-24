@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export function Footer() {
   return (
@@ -6,7 +7,13 @@ export function Footer() {
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 text-xs text-muted-2">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-2 font-mono uppercase tracking-[0.18em]">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            <Image
+              src="/dynasty_copilot_logomark.png"
+              alt=""
+              width={24}
+              height={24}
+              className="h-6 w-6 brightness-0 invert"
+            />
             Dynasty Copilot
           </div>
           <div className="font-mono uppercase tracking-[0.18em]">

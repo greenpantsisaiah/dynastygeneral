@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getOptionalUser } from "@/lib/auth/session";
+import { UserMenu } from "@/components/nav/user-menu";
 
 export async function SiteNav() {
   const user = await getOptionalUser();
@@ -43,17 +44,12 @@ export async function SiteNav() {
             Scout
           </Link>
           {user ? (
-            <Link
-              href="/account"
-              className="inline-flex h-9 items-center rounded-md border border-border-strong bg-surface px-3 text-xs font-medium text-foreground transition hover:border-accent/60 hover:text-accent"
-            >
-              Account
-              {user.tier === "pro" && (
-                <span className="ml-2 font-mono text-[9px] uppercase tracking-[0.16em] text-success">
-                  Pro
-                </span>
-              )}
-            </Link>
+            <UserMenu
+              name={user.name}
+              email={user.email}
+              avatarUrl={user.avatar_url}
+              tier={user.tier}
+            />
           ) : (
             <>
               <Link
