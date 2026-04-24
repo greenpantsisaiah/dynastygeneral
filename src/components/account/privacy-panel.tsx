@@ -43,20 +43,28 @@ export function PrivacyPanel() {
         Privacy
       </div>
       <p className="mt-2 text-sm text-muted">
-        Wipes every server-stored coach chat and pinned briefing across all
-        your leagues. Local copies in this browser are not affected; clear
-        site data in your browser settings to remove those too. Cannot be
-        undone.
+        Export everything we have on you, or wipe every server-stored coach
+        chat and pinned briefing across all your leagues. Local copies in
+        this browser are not affected; clear site data in your browser
+        settings to remove those too. Wipes cannot be undone.
       </p>
 
       {status === "idle" && (
-        <button
-          type="button"
-          onClick={() => setStatus("confirming")}
-          className="mt-3 inline-flex h-9 items-center rounded-md border border-border-strong bg-background px-4 text-xs font-medium text-muted transition hover:border-danger hover:text-danger"
-        >
-          Wipe my server data
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a
+            href="/api/account/export-data"
+            className="inline-flex h-9 items-center rounded-md border border-border-strong bg-background px-4 text-xs font-medium text-foreground transition hover:border-accent/60 hover:text-accent"
+          >
+            Export my data (JSON)
+          </a>
+          <button
+            type="button"
+            onClick={() => setStatus("confirming")}
+            className="inline-flex h-9 items-center rounded-md border border-border-strong bg-background px-4 text-xs font-medium text-muted transition hover:border-danger hover:text-danger"
+          >
+            Wipe my server data
+          </button>
+        </div>
       )}
 
       {status === "confirming" && (
