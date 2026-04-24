@@ -47,6 +47,10 @@ function storageKey(leagueId: string): string {
   return `dc:coach-chat:${leagueId}`;
 }
 
+function draftKey(leagueId: string): string {
+  return `dc:coach-draft:${leagueId}`;
+}
+
 function readHistory(leagueId: string): ChatMessage[] {
   if (typeof window === "undefined") return [];
   try {
@@ -129,12 +133,45 @@ export function CoachChat({
     () => SSR_EMPTY,
   );
 
+  // In-progress draft. Persisted to localStorage on change so it
+  // survives a sign-in roundtrip, an accidental tab close, or any
+  // modal interruption (which post-paywall-lockdown shouldn't happen
+  // anyway, but defense in depth). Founder report 2026-04-24:
+  // "I just got failed... lost my long question." Question text is
+  // the user's WORK; never lose it.
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paywall, setPaywall] = useState<PaywallReason | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Restore any in-progress draft from a prior session on mount.
+  // Per-league key so questions don't bleed across leagues.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem(draftKey(leagueId));
+      if (saved && saved.length > 0) setDraft(saved);
+    } catch {
+      // ignore (private mode, quota, etc.)
+    }
+  }, [leagueId]);
+
+  // Save draft on change. setItem is cheap; debouncing isn't worth
+  // the complexity for textarea-keystroke rates.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (draft.length > 0) {
+        window.localStorage.setItem(draftKey(leagueId), draft);
+      } else {
+        window.localStorage.removeItem(draftKey(leagueId));
+      }
+    } catch {
+      // ignore
+    }
+  }, [draft, leagueId]);
 
   useEffect(() => {
     const el = scrollRef.current;
