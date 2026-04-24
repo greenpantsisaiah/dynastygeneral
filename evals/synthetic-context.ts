@@ -202,6 +202,16 @@ export function icemanContext(): DecisionContext {
       ],
       is_superflex: true,
       format_type: "dynasty",
+      format_rules: {
+        qb_starters_max: 2,
+        rb_starters_max: 5,
+        wr_starters_max: 5,
+        te_starters_max: 4,
+        second_qb_starts: true,
+        te_premium: true,
+        flex_eligible: ["RB", "WR", "TE"] as const,
+        sf_eligible: ["QB", "RB", "WR", "TE"] as const,
+      },
     },
     nfl: { season: "2026", week: 0, season_type: "pre" },
     me: {
@@ -235,6 +245,14 @@ export function icemanContext(): DecisionContext {
     },
     league_profile: profile,
     traded_picks_summary: "Balanced (no net movement).",
+    pricing: {
+      scale_note: "Synthetic pricing fixture (no real KTC fetch).",
+      fairness_band_pct: 15,
+      player_values_present: false,
+      player_value_count: 0,
+      player_values: {},
+      pick_values: [],
+    },
   };
 }
 
@@ -282,6 +300,16 @@ export function sparseContext(): DecisionContext {
       scoring_highlights: ["Full PPR"],
       is_superflex: true,
       format_type: "dynasty",
+      format_rules: {
+        qb_starters_max: 2,
+        rb_starters_max: 5,
+        wr_starters_max: 5,
+        te_starters_max: 4,
+        second_qb_starts: true,
+        te_premium: true,
+        flex_eligible: ["RB", "WR", "TE"] as const,
+        sf_eligible: ["QB", "RB", "WR", "TE"] as const,
+      },
     },
     nfl: null,
     me: {
@@ -303,5 +331,13 @@ export function sparseContext(): DecisionContext {
     },
     league_profile: { teams, dynamics: { trade_counterparties: [], non_buyers: [], tilted_buyers: [] } },
     traded_picks_summary: "No traded picks recorded.",
+    pricing: {
+      scale_note: "Synthetic pricing fixture (no real KTC fetch).",
+      fairness_band_pct: 15,
+      player_values_present: false,
+      player_value_count: 0,
+      player_values: {},
+      pick_values: [],
+    },
   };
 }
