@@ -74,6 +74,9 @@ import {
 import { RefreshButton } from "@/components/league/refresh-button";
 import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
+import { StrategyLab } from "@/components/league/strategy-lab";
+import { buildStrategyLab } from "@/lib/strategy/strategy-lab/build";
+import type { StrategyLabState } from "@/lib/strategy/strategy-lab/types";
 import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
@@ -165,6 +168,7 @@ export default async function LeagueHubPage({
     | null = null;
   let contenderOutlook: ContenderOutlook | null = null;
   let multiPickPlan: MultiPickPlan | null = null;
+  let strategyLab: StrategyLabState | null = null;
   if (draftState) {
     try {
       leagueSnapshot = await buildLeagueSnapshot({
@@ -251,6 +255,22 @@ export default async function LeagueHubPage({
           });
         } catch (err) {
           console.error("[hub:multi-pick]", err);
+        }
+      }
+
+      // Strategy Lab. Always-on during draft; flips between prominent
+      // (early picks, hero card above WindowsBar) and context (later,
+      // compact strip below DecisionCard). Cheap, no LLM call.
+      if (draftActive && rankedArchetypes.length > 0) {
+        try {
+          strategyLab = buildStrategyLab({
+            snap: snapshot,
+            ranked: rankedArchetypes,
+            available: availablePlayers,
+            opponentCharacterizations,
+          });
+        } catch (err) {
+          console.error("[hub:strategy-lab]", err);
         }
       }
 
@@ -417,6 +437,14 @@ export default async function LeagueHubPage({
 
               {sleeperUser && <WindowWeightingPrompt leagueId={leagueId} />}
 
+              {/* Strategy Lab: prominent placement (above WindowsBar)
+                  early in the draft when the user has few picks. The
+                  Lab itself decides whether to render in prominent or
+                  context mode based on user pick count. */}
+              {strategyLab && strategyLab.prominent && (
+                <StrategyLab lab={strategyLab} />
+              )}
+
               {windows && sleeperUser && (
                 <WindowsBar leagueId={leagueId} windows={windows} />
               )}
@@ -426,6 +454,13 @@ export default async function LeagueHubPage({
               )}
 
               {decision && <DecisionCard decision={decision} />}
+
+              {/* Strategy Lab in context mode: compact strip below
+                  the Decision card so the user can see what they're
+                  cutting off as they commit to picks. */}
+              {strategyLab && !strategyLab.prominent && (
+                <StrategyLab lab={strategyLab} />
+              )}
 
               {draftActive && userPickCount >= 2 && (
                 <MultiPickCard
