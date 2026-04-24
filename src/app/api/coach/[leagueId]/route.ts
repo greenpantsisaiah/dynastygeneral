@@ -21,6 +21,7 @@ import { checkBudget, recordSpend } from "@/lib/budget";
 import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
+import { humanize, resolvePlayers } from "@/lib/players/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
@@ -345,6 +346,42 @@ export async function POST(
   // (covers the realistic queue), all ranked archetypes, opponents +
   // their trade angles, windows.
   const me = snapshot.rosters.find((r) => r.is_me);
+
+  // Resolve the user's roster to NAMED players. Per architecture
+  // pillar (reference_invariants_doc.md): "The coach LLM must
+  // receive the user's NAMED roster (player name, position, team,
+  // age). IDs alone produce hallucinations like 'you need a TE'
+  // when the user already has Kincaid." Without this the prompt's
+  // "verify before assert" rule has nothing to verify against.
+  let myPlayersResolved: Array<{
+    name: string;
+    pos: string | null;
+    team: string | null;
+    age: number | null;
+    rank: number | null;
+  }> = [];
+  if (me && me.player_ids.length > 0) {
+    try {
+      const resolved = await resolvePlayers(me.player_ids);
+      myPlayersResolved = me.player_ids
+        .map((id) => resolved.get(id))
+        .filter((p): p is NonNullable<typeof p> => Boolean(p))
+        .map((p) => {
+          const human = humanize(p);
+          return {
+            name: human.name,
+            pos: human.position,
+            team: human.team,
+            age: human.age,
+            rank: typeof p.search_rank === "number" ? p.search_rank : null,
+          };
+        })
+        .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
+    } catch (err) {
+      console.error("[coach:resolve-roster]", err);
+    }
+  }
+
   const contextPayload = {
     league: {
       name: league.name,
@@ -362,6 +399,10 @@ export async function POST(
           position_counts: me.position_counts,
           avg_age: me.avg_age,
           record: `${me.wins}-${me.losses}${me.ties ? `-${me.ties}` : ""}`,
+          // Named roster. Use this to VERIFY before asserting any
+          // "you have no X" / "you punted Y" claim. position_counts
+          // is the count; this list is the truth about WHO.
+          players: myPlayersResolved,
         }
       : null,
     draft: {
