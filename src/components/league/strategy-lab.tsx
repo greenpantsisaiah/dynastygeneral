@@ -32,6 +32,7 @@ import type {
   StrategyLabPath,
   StrategyLabState,
 } from "@/lib/strategy/strategy-lab/types";
+import type { BranchPreview } from "@/lib/strategy/strategy-lab/branch-preview";
 import {
   computeTransition,
   readPreviousSnapshot,
@@ -171,7 +172,7 @@ export function StrategyLab({
     if (
       typeof window !== "undefined" &&
       !window.confirm(
-        `Abandon ${commitment.commitment.archetype_name}? The chronicle is preserved; you can commit to a different path.`,
+        `Switch from ${commitment.commitment.archetype_name}? The chronicle is preserved; you can lean a different path.`,
       )
     ) {
       return;
@@ -187,8 +188,6 @@ export function StrategyLab({
     if (res.ok) router.refresh();
   }
 
-  if (lab.paths.length === 0) return null;
-
   // In context mode we hide closed paths UNLESS they just closed
   // (the user should see the drama before it's tucked away). In
   // prominent mode we show closed too, with strikethrough.
@@ -202,7 +201,35 @@ export function StrategyLab({
         )
         .slice(0, 5);
 
-  if (visiblePaths.length === 0) return null;
+  // Empty state: no qualifying paths to show. This happens when the
+  // engine has no archetype data yet (pre-snapshot leagues) OR every
+  // path has closed and none "just closed" (context mode mid-draft
+  // after the user has crossed every fork). Both cases benefit from
+  // a clear explanation instead of a missing component the user
+  // can't account for.
+  if (visiblePaths.length === 0) {
+    const allClosed =
+      lab.paths.length > 0 && lab.paths.every((p) => p.state === "closed");
+    return (
+      <section className="mt-8 rounded-lg border border-border-strong bg-surface px-5 py-5">
+        <header className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
+              Strategy Lab
+            </div>
+            <h2 className="mt-1 text-xl font-semibold text-foreground">
+              {allClosed ? "Every fork already crossed" : "No paths to score yet"}
+            </h2>
+          </div>
+        </header>
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          {allClosed
+            ? "The strategic forks for this draft are behind you. The Decision card and multi-pick rollout are now the right tools; come back here next year when fresh archetypes are open."
+            : "We don't have enough roster or draft signal yet to score archetype paths. Add a pick or two, or come back once your league has a draft underway."}
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -307,9 +334,9 @@ function CommitmentHeader({
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-success">
-            Your path · committed{" "}
+            Your lean · since{" "}
             {c.committed_at_pick_no
-              ? `at pick ${c.committed_at_pick_no}`
+              ? `pick ${c.committed_at_pick_no}`
               : new Date(c.committed_at).toLocaleDateString()}
           </div>
           <div className="mt-1 text-base font-semibold text-foreground">
@@ -319,6 +346,10 @@ function CommitmentHeader({
             Viability {c.viability_at_commit} → {currentVia} ({sign}
             {delta}){c.current_state ? ` · ${c.current_state}` : ""}
           </div>
+          <p className="mt-1.5 text-[11px] leading-snug text-muted-2">
+            Soft lean. Switch any time as the board moves. Chronicle keeps
+            the history regardless.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -334,10 +365,10 @@ function CommitmentHeader({
           <button
             type="button"
             onClick={onAbandon}
-            className="inline-flex h-8 items-center rounded-md border border-border-strong bg-background px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:border-danger hover:text-danger"
-            title="Abandon this path. Chronicle is preserved."
+            className="inline-flex h-8 items-center rounded-md border border-border-strong bg-background px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:border-accent hover:text-accent"
+            title="Switch your lean. Chronicle is preserved; you can lean a different path."
           >
-            Abandon
+            Switch lean
           </button>
         </div>
       </div>
@@ -390,6 +421,11 @@ function PathRow({
   const tone = STATE_TONE[path.state];
   const isClosed = path.state === "closed";
   const tBadge = transition ? TRANSITION_TONE[transition.kind] : null;
+  const [branchOpen, setBranchOpen] = useState(false);
+  const hasBranch =
+    !isClosed &&
+    path.branch_preview != null &&
+    path.branch_preview.picks.length > 0;
   return (
     <div
       className={`rounded-md border ${
@@ -489,6 +525,24 @@ function PathRow({
         </p>
       )}
 
+      {/* Branch preview: deterministic projection of "if you commit
+          here, your next 3-4 picks look like this." Collapsed by
+          default to keep the row scannable; expands inline on click. */}
+      {hasBranch && path.branch_preview && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setBranchOpen((s) => !s)}
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 transition hover:text-accent"
+          >
+            {branchOpen ? "▼" : "▶"} Branch preview · next {path.branch_preview.picks.length} picks
+          </button>
+          {branchOpen && (
+            <BranchPreviewPanel preview={path.branch_preview} />
+          )}
+        </div>
+      )}
+
       {/* Commitment CTA. Anonymous users get a sign-in link
           framed as the conversion moment ("Sign in to track").
           Authed users with no commitment get a Commit button on
@@ -532,6 +586,63 @@ function PathRow({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function BranchPreviewPanel({ preview }: { preview: BranchPreview }) {
+  return (
+    <div className="mt-2 rounded-md border border-border-soft bg-surface px-3 py-3">
+      <p className="text-xs leading-snug text-foreground">{preview.thread}</p>
+      <ol className="mt-3 space-y-2 text-xs">
+        {preview.picks.map((p, i) => (
+          <li
+            key={`${p.pick_no}-${i}`}
+            className="flex items-baseline gap-2"
+          >
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 shrink-0">
+              {p.pick_label}
+            </span>
+            {p.player ? (
+              <span className="flex-1">
+                <span className="text-foreground">
+                  {p.player.name}
+                  {p.player.is_rookie && (
+                    <span className="ml-1 inline-flex items-center rounded-sm border border-accent/40 bg-accent/10 px-1 font-mono text-[9px] uppercase tracking-[0.12em] text-accent">
+                      rookie
+                    </span>
+                  )}
+                </span>{" "}
+                <span className="font-mono text-[10px] text-muted-2">
+                  {p.player.position ?? "?"}
+                  {p.player.team ? ` · ${p.player.team}` : ""}
+                  {p.player.age != null ? ` · age ${p.player.age}` : ""}
+                </span>
+                {p.source === "spillover" && (
+                  <span
+                    className="ml-1 inline-flex items-center rounded-sm border border-warning/40 bg-warning/10 px-1 font-mono text-[9px] uppercase tracking-[0.12em] text-warning"
+                    title="Primary position saturated; took best available."
+                  >
+                    spillover
+                  </span>
+                )}
+                {p.alternates.length > 0 && (
+                  <span className="ml-2 font-mono text-[10px] text-muted-2">
+                    or {p.alternates.map((a) => a.name).join(" / ")}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="font-mono text-[10px] italic text-muted-2">
+                pool exhausted at this slot
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+        Deterministic projection. Real picks will drift; this is the chain shape.
+      </p>
     </div>
   );
 }

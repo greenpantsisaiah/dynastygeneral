@@ -10,6 +10,7 @@ import { SiteNav } from "@/components/site-nav";
 import { Ticker } from "@/components/ui/ticker";
 import { getLeague, getUserByUsername } from "@/lib/sleeper";
 import { CoachChat } from "@/components/league/coach-chat";
+import { UsageChip } from "@/components/billing/usage-meter";
 
 export const dynamic = "force-dynamic";
 
@@ -44,9 +45,12 @@ export default async function CoachPage({
 
           <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                Talk it through
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                  Talk it through
+                </h1>
+                <UsageChip feature="coach" />
+              </div>
               <p className="mt-2 text-sm text-muted">
                 Debate picks, ask for advice, work a trade angle. Your
                 coach has the live league snapshot loaded each turn.

@@ -10,6 +10,8 @@
  * user can thread a different needle than the room.
  */
 
+import type { BranchPreview } from "./branch-preview";
+
 export type StrategyLabPathState =
   | "open" // viable; user can commit cleanly
   | "narrowing" // anchors are getting picked; window closing
@@ -50,6 +52,11 @@ export type StrategyLabPath = {
   // Optional: explicit counter-position note. Fires when the path is
   // open AND the league pulse is heavily on a different posture.
   counter_position_note: string | null;
+  // Optional: deterministic projection of "if you commit to this path,
+  // here's the chain across your next 3-4 picks." Null when no draft
+  // is active OR the user has no remaining picks. Renderable inline
+  // under the path row as an expandable preview.
+  branch_preview: BranchPreview | null;
 };
 
 export type StrategyLabLeaguePulse = {

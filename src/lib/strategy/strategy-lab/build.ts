@@ -27,6 +27,7 @@ import type {
   StrategyLabPathState,
   StrategyLabState,
 } from "./types";
+import { buildBranchPreview } from "./branch-preview";
 
 // Viability bands. Aligned with the Decision-card and Contender
 // thresholds so a "closing" Lab path doesn't read as a "lock" anywhere
@@ -68,7 +69,9 @@ export function buildStrategyLab(args: {
   // the extra two give the renderer slack for filtering closed ones.
   const paths: StrategyLabPath[] = ranked
     .slice(0, 6)
-    .map((r) => buildPath(r, availableById, userNextPickNo, pulse))
+    .map((r) =>
+      buildPath(r, availableById, available, snap, userNextPickNo, pulse),
+    )
     .sort((a, b) => b.viability - a.viability);
 
   const prominent = myPicksMade <= PROMINENT_PICK_THRESHOLD;
@@ -87,6 +90,8 @@ export function buildStrategyLab(args: {
 function buildPath(
   r: RankedArchetype,
   availableById: Map<string, AvailablePlayer>,
+  available: AvailablePlayer[],
+  snap: LeagueSnapshot,
   userNextPickNo: number,
   pulse: StrategyLabLeaguePulse,
 ): StrategyLabPath {
@@ -127,6 +132,18 @@ function buildPath(
   const closes_if = buildClosesIf(anchors, userNextPickNo);
   const counter_position_note = buildCounterPositionNote(r, pulse, state);
 
+  // Skip the projection on closed paths (no point projecting a chain
+  // for an archetype the user can't commit to). Cheap; pure server
+  // computation, no LLM call.
+  const branch_preview =
+    state === "closed"
+      ? null
+      : buildBranchPreview({
+          archetype: r.archetype,
+          snap,
+          available,
+        });
+
   return {
     archetype_id: r.archetype.id,
     archetype_name: r.archetype.name,
@@ -136,6 +153,7 @@ function buildPath(
     anchors,
     closes_if,
     counter_position_note,
+    branch_preview,
   };
 }
 
