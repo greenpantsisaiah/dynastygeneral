@@ -120,7 +120,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.client_reference_id;
   if (!userId) {
     console.error("[stripe:webhook] missing client_reference_id on checkout session");
-    return;
+    // Throw so the webhook returns 500 and Stripe retries. A missing
+    // client_reference_id means we can't link the customer; silently
+    // returning would orphan the subscription.
+    throw new Error("missing client_reference_id");
   }
   const customerId =
     typeof session.customer === "string" ? session.customer : null;
@@ -139,7 +142,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
   const userId = subscription.metadata?.user_id;
   if (!userId) {
     console.error("[stripe:webhook] missing user_id in subscription metadata");
-    return;
+    throw new Error("missing user_id in subscription metadata");
   }
   const customerId =
     typeof subscription.customer === "string" ? subscription.customer : null;
@@ -165,6 +168,23 @@ async function revertToFree(subscription: Stripe.Subscription) {
     .eq("user_id", userId);
 }
 
+// Statuses that grant Pro access. Everything else (incomplete,
+// incomplete_expired, past_due, unpaid, paused) keeps the user on free
+// until payment succeeds. Per security audit 2026-04-24: writing
+// tier="pro" unconditionally let incomplete/unpaid users access Pro.
+const PRO_STATUSES = new Set(["trialing", "active"]);
+
+// Known price IDs. Reject anything else so a compromised Stripe key
+// can't insert rogue prices into our billing records.
+function knownPriceId(id: string | null): string | null {
+  if (!id) return null;
+  const known = new Set([
+    process.env.STRIPE_PRICE_ID_PRO_MONTHLY,
+    process.env.STRIPE_PRICE_ID_PRO_ANNUAL,
+  ]);
+  return known.has(id) ? id : null;
+}
+
 async function upsertSubscription(
   userId: string,
   customerId: string,
@@ -174,7 +194,7 @@ async function upsertSubscription(
   // The first item is the plan we're tracking. We only sell one item per
   // subscription in v1 so this is unambiguous.
   const item = subscription.items.data[0];
-  const priceId = item?.price.id ?? null;
+  const priceId = knownPriceId(item?.price.id ?? null);
 
   // The Stripe types are loose on these; cast through unknown.
   const sub = subscription as unknown as {
@@ -184,9 +204,13 @@ async function upsertSubscription(
     cancel_at_period_end: boolean;
   };
 
+  // Only grant Pro for statuses that represent a valid, paid (or
+  // trialing) subscription. All other states fall to free.
+  const tier = PRO_STATUSES.has(sub.status) ? "pro" : "free";
+
   await admin.from("subscriptions").upsert({
     user_id: userId,
-    tier: "pro", // any active stripe sub for our product is Pro
+    tier,
     status: sub.status,
     stripe_customer_id: customerId,
     stripe_subscription_id: subscription.id,

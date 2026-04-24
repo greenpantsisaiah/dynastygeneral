@@ -245,7 +245,7 @@ export async function POST(
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.message },
+      { error: "Check your message. One or more fields didn't validate." },
       { status: 400 },
     );
   }

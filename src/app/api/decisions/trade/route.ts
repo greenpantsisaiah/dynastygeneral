@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     return Response.json(
       {
         ok: false,
-        error: `Trade form needs work: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+        error: "Check your trade form. One or more fields didn't validate.",
       },
       { status: 400 },
     );

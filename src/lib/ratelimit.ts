@@ -23,7 +23,10 @@ type BucketName =
   | "scout"
   | "decisions-strategy"
   | "players-search"
-  | "feedback";
+  | "feedback"
+  | "league-refresh"
+  | "waitlist"
+  | "account-action";
 
 type LimitSpec = {
   // Requests allowed
@@ -55,6 +58,12 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // In-app feedback. Tight cap so a bot can't flood the table; legit
   // users send 1-2 submissions per session.
   feedback: { requests: 5, window: "1 m" },
+  // League refresh: per-user, generous for live draft but caps abuse.
+  "league-refresh": { requests: 5, window: "1 m" },
+  // Waitlist: public form, tight to prevent spam.
+  waitlist: { requests: 3, window: "1 m" },
+  // Account export + wipe: auth-required, destructive or data-heavy.
+  "account-action": { requests: 5, window: "1 m" },
 };
 
 let redis: Redis | null = null;

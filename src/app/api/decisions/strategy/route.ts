@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     return Response.json(
       {
         ok: false,
-        error: `Strategy request needs work: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+        error: "Check your strategy request. One or more fields didn't validate.",
       },
       { status: 400 },
     );

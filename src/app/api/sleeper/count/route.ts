@@ -20,9 +20,9 @@ export async function GET(req: Request) {
     .get("username")
     ?.trim()
     .replace(/^@/, "");
-  if (!username) {
+  if (!username || username.length > 60 || !/^[a-zA-Z0-9_.-]+$/.test(username)) {
     return Response.json(
-      { ok: false, error: "Enter a Sleeper username." },
+      { ok: false, error: "Enter a valid Sleeper username." },
       { status: 400 },
     );
   }

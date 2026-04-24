@@ -69,7 +69,7 @@ export function FeedbackWidget({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `HTTP ${res.status}`);
+        throw new Error(body?.error ?? "Something went wrong.");
       }
       setStatus("sent");
       setTimeout(() => {

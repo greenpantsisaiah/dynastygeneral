@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createClient as createServerSupabase } from "@/lib/supabase/server";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 
 const bodySchema = z.object({
   name: z.string().min(1).max(120),
@@ -12,6 +13,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const rate = await checkRateLimit("waitlist", clientIpFrom(req));
+  if (!rate.allowed) {
+    return Response.json(
+      { ok: false, error: "Too many submissions. Wait a moment and try again." },
+      { status: 429, headers: { "retry-after": String(Math.ceil(rate.reset_ms / 1000)) } },
+    );
+  }
+
   let json: unknown;
   try {
     json = await req.json();

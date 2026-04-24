@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   // Tight rate limit: this is a destructive operation. Three attempts
   // per minute is plenty for a confirmed-via-prompt UI flow and keeps
   // a stolen-session attacker from using this as a denial vector.
-  const rate = await checkRateLimit("feedback", clientIpFrom(req));
+  const rate = await checkRateLimit("account-action", clientIpFrom(req));
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: "rate_limited" },
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
   if (errors.length > 0) {
     console.error("[account:wipe]", user.id, errors.join(" / "));
     return NextResponse.json(
-      { ok: false, error: "partial_failure", details: errors },
+      { ok: false, error: "Something went wrong. Try again in a moment." },
       { status: 500 },
     );
   }

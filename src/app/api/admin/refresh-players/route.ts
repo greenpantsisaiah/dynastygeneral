@@ -52,7 +52,6 @@ export async function POST() {
       {
         ok: false,
         error: "refresh_failed",
-        message: err instanceof Error ? err.message : String(err),
       },
       { status: 500 },
     );

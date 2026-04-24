@@ -41,7 +41,7 @@ export async function POST(
   // Per-user rate limit. Cap at 5 forced refreshes per minute per
   // user (well above any honest user's flow during a live draft).
   // Bucket key includes user.id so botnet IP rotation can't bypass.
-  const rate = await checkRateLimit("feedback", `user:${user.id}`);
+  const rate = await checkRateLimit("league-refresh", `user:${user.id}`);
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: "rate_limited" },

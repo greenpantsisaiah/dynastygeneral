@@ -39,7 +39,7 @@ export async function GET(req: Request) {
   // attacker spamming this on a stolen session would generate
   // disproportionate Supabase load. Five per minute is more than any
   // honest user needs.
-  const rate = await checkRateLimit("feedback", clientIpFrom(req));
+  const rate = await checkRateLimit("account-action", clientIpFrom(req));
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: "rate_limited" },

@@ -20,7 +20,12 @@ export async function GET(
   // Production-disable. Both audits (security + legal, 2026-04-22) flagged
   // this endpoint as publicly reachable in prod with no auth + full
   // snapshot disclosure. It exists for local triage; never serve it live.
-  if (process.env.VERCEL_ENV === "production") {
+  // Block in any non-dev environment. VERCEL_ENV may be unset on
+  // self-hosted production; NODE_ENV is always "production" when built.
+  if (
+    process.env.VERCEL_ENV === "production" ||
+    process.env.NODE_ENV === "production"
+  ) {
     return new NextResponse(null, { status: 404 });
   }
   const { leagueId } = await params;
