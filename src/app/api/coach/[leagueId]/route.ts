@@ -26,6 +26,7 @@ import {
   SUPERFLEX_PICK_MULTIPLIER,
   startupPickValue,
 } from "@/lib/players/future-picks";
+import { resolvePlayerValues } from "@/lib/players/values";
 import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
@@ -358,6 +359,7 @@ export async function POST(
   // when the user already has Kincaid." Without this the prompt's
   // "verify before assert" rule has nothing to verify against.
   let myPlayersResolved: Array<{
+    player_id: string;
     name: string;
     pos: string | null;
     team: string | null;
@@ -368,11 +370,18 @@ export async function POST(
     try {
       const resolved = await resolvePlayers(me.player_ids);
       myPlayersResolved = me.player_ids
-        .map((id) => resolved.get(id))
-        .filter((p): p is NonNullable<typeof p> => Boolean(p))
-        .map((p) => {
+        .map((id) => {
+          const p = resolved.get(id);
+          return p ? { id, p } : null;
+        })
+        .filter(
+          (entry): entry is { id: string; p: NonNullable<ReturnType<typeof resolved.get>> } =>
+            entry !== null,
+        )
+        .map(({ id, p }) => {
           const human = humanize(p);
           return {
+            player_id: id,
             name: human.name,
             pos: human.position,
             team: human.team,
@@ -432,6 +441,21 @@ export async function POST(
       ktc_value: Math.round(startupPickValue(p.pick_no) * sfMult),
     }));
 
+  // Player values (FantasyCalc, KTC-equivalent, normalized 0-100).
+  // Resolved for the union of user roster + top 30 available, format-
+  // aware. Per dynasty-trade-realism-tester audit 2026-04-24: ~80% of
+  // trade questions are player-for-player; without values plumbed,
+  // Coach freelances. Best-effort; non-fatal if FantasyCalc fails.
+  const valueIds = new Set<string>();
+  if (me) for (const id of me.player_ids) valueIds.add(id);
+  for (const p of available.slice(0, 30)) valueIds.add(p.id);
+  const playerValueMap = await resolvePlayerValues({
+    ids: [...valueIds],
+    isSuperflex: isSF,
+    isPpr: snapshot.scoring.includes("PPR"),
+    isHalfPpr: snapshot.scoring.includes("half-PPR"),
+  });
+
   const contextPayload = {
     league: {
       name: league.name,
@@ -459,10 +483,19 @@ export async function POST(
           starter_demand_remaining: starterDemandRemaining,
           avg_age: me.avg_age,
           record: `${me.wins}-${me.losses}${me.ties ? `-${me.ties}` : ""}`,
-          // Named roster. Use this to VERIFY before asserting any
-          // "you have no X" / "you punted Y" claim. position_counts
-          // is the count; this list is the truth about WHO.
-          players: myPlayersResolved,
+          // Named roster with KTC-equivalent values where available.
+          // Use this list (not position_counts) to VERIFY any claim
+          // about WHO is on the roster, AND use `value` to bound any
+          // player-side trade math.
+          players: myPlayersResolved.map((p) => {
+            const v = playerValueMap.get(p.player_id);
+            return {
+              ...p,
+              value: v ? v.value : null,
+              overall_rank: v ? v.overall_rank : null,
+              position_rank: v ? v.position_rank : null,
+            };
+          }),
         }
       : null,
     // Trade pricing context. KTC-anchored 2026-04-22 startup-pick
@@ -471,10 +504,14 @@ export async function POST(
     // be within ±15% of sending side or the ask is fantasy.
     pricing: {
       scale_note:
-        "KTC-anchored startup-pick value scale 2026-04-22, 0-100 (format-multiplied for SF).",
+        "KTC-anchored startup-pick value scale 2026-04-22, 0-100 (format-multiplied for SF). Player values from FantasyCalc 2026-04-24, normalized to same 0-100 scale so picks and players compose arithmetically.",
       pick_values: pricedSchedule,
       fairness_band_pct: 15,
       sf_pick_multiplier: sfMult,
+      // Whether player values were resolved this turn. When false the
+      // GUARD applies for player-side trade math too.
+      player_values_present: playerValueMap.size > 0,
+      player_value_count: playerValueMap.size,
     },
     draft: {
       status: snapshot.draft.status,
@@ -543,15 +580,23 @@ export async function POST(
         headline: a.headline,
       })),
     })),
-    top_available: available.slice(0, 30).map((p) => ({
-      name: p.name,
-      pos: p.position,
-      team: p.team,
-      age: p.age,
-      sleeper_rank: p.search_rank,
-      adp: p.adp,
-      is_rookie: p.is_rookie,
-    })),
+    top_available: available.slice(0, 30).map((p) => {
+      const v = playerValueMap.get(p.id);
+      return {
+        name: p.name,
+        pos: p.position,
+        team: p.team,
+        age: p.age,
+        sleeper_rank: p.search_rank,
+        adp: p.adp,
+        is_rookie: p.is_rookie,
+        // KTC-equivalent value (0-100). Bound trade asks using this
+        // for any player on this list. Null when FantasyCalc didn't
+        // ship a value for this player (rare; usually pre-NFL-draft
+        // rookie or recent waiver).
+        value: v ? v.value : null,
+      };
+    }),
     nfl_draft_live: isNflDraftWindowActive(),
   };
 
@@ -575,10 +620,22 @@ export async function POST(
   const TRADE_QUESTION_RE =
     /\btrade|offer|swap|send him|package|target|pick.*for.*pick|player.*for.*pick|for his pick\b/i;
   const looksLikeTradeQuestion = TRADE_QUESTION_RE.test(message);
-  const hasPricingContext = pricedSchedule.length > 0;
+  const hasPickPricing = pricedSchedule.length > 0;
+  const hasPlayerPricing = playerValueMap.size > 0;
+  // Guard fires when EITHER pricing axis is missing for the kind of
+  // trade math the user is asking about. Picks-only trades survive
+  // without player values; player-for-player needs both.
+  const tradeMentionsPlayer = /\bplayer|him\b|trade .* for /i.test(message);
+  const guardMissingPick = looksLikeTradeQuestion && !hasPickPricing;
+  const guardMissingPlayer =
+    looksLikeTradeQuestion && tradeMentionsPlayer && !hasPlayerPricing;
   const tradeGuard =
-    looksLikeTradeQuestion && !hasPricingContext
-      ? `\n\n[GUARD] No trade-pricing context available this turn. Decline to propose specific trades; describe the archetype of an acceptable ask (round bands, position type, value direction) instead. Numeric trade math without pricing context is the regression class we just fixed; do not regress.\n`
+    guardMissingPick || guardMissingPlayer
+      ? `\n\n[GUARD] Trade math requires pricing context. ${
+          guardMissingPick ? "Pick values are unavailable. " : ""
+        }${
+          guardMissingPlayer ? "Player values are unavailable. " : ""
+        }Decline to propose specific trades; describe the archetype of an acceptable ask (round bands, position type, value direction) instead. Numeric trade math without pricing context is the regression class we just fixed; do not regress.\n`
       : "";
 
   // Per-turn context injection. The fresh snapshot is wrapped with the
