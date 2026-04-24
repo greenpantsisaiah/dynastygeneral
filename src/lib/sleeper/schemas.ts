@@ -125,8 +125,15 @@ export const sleeperDraftSchema = z
     season_type: z.string().nullable().optional(),
     start_time: z.number().nullable().optional(),
     settings: z.record(z.string(), z.unknown()).nullable().optional(),
-    draft_order: z.record(z.string(), z.number()).nullable().optional(),
-    slot_to_roster_id: z.record(z.string(), z.number()).nullable().optional(),
+    // Sleeper returns null VALUES inside draft_order and slot_to_roster_id
+    // for unmapped slots. Observed in The Iceman 2026-04-24:
+    //   slot_to_roster_id: { "": null, "1": 4, "2": 7, ... }
+    // The empty-string key carrying null was rejecting the whole draft
+    // response, draftState went null, the entire hub pipeline collapsed.
+    // Allow null values; downstream consumers already handle null via
+    // typeof checks (see effectiveRosterIdForPickNo in draft-state.ts).
+    draft_order: z.record(z.string(), z.number().nullable()).nullable().optional(),
+    slot_to_roster_id: z.record(z.string(), z.number().nullable()).nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
   .passthrough();
