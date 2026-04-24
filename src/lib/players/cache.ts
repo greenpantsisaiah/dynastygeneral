@@ -8,11 +8,29 @@ import { sleeperPlayerSchema, type SleeperPlayer } from "@/lib/sleeper/schemas";
  * day (per Sleeper's guidance). This module fetches lazily on first use,
  * stores in memory, and refreshes after TTL.
  *
+ * TTL is configurable via the PLAYERS_CACHE_TTL_MINUTES env var. Default
+ * is 60 minutes (down from the original 24h) so the NFL Draft window
+ * (rookies flipping team:null -> drafted state hourly) doesn't show
+ * day-stale data. During a serverless cold start the cache is empty
+ * regardless, so the actual upstream call rate is bounded by warm-instance
+ * lifetime rather than TTL.
+ *
+ * For immediate refresh (e.g. between draft rounds), call
+ * `forceRefreshPlayers()` from the admin endpoint instead of waiting for
+ * TTL.
+ *
  * Never ship this map to the client. It is server-only. Use the lookup
  * helpers to resolve a small number of player_ids per request.
  */
 
-const TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_TTL_MINUTES = 60;
+const TTL_MINUTES = (() => {
+  const raw = process.env.PLAYERS_CACHE_TTL_MINUTES;
+  if (!raw) return DEFAULT_TTL_MINUTES;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_TTL_MINUTES;
+})();
+const TTL_MS = TTL_MINUTES * 60 * 1000;
 const BASE = "https://api.sleeper.app/v1";
 const playersResponseSchema = z.record(z.string(), sleeperPlayerSchema);
 
@@ -91,6 +109,47 @@ export async function resolvePlayer(
 export async function __dumpAllPlayers(): Promise<SleeperPlayer[]> {
   const { players } = await getCache();
   return [...players.values()];
+}
+
+/**
+ * Force a fresh pull from Sleeper, bypassing TTL. Used by the admin
+ * refresh endpoint during the NFL Draft window when rookies flip from
+ * team:null to drafted state and we don't want to wait on TTL.
+ *
+ * Returns the number of players in the new cache and the elapsed ms so
+ * callers can surface the result to the admin.
+ */
+export async function forceRefreshPlayers(): Promise<{
+  count: number;
+  elapsed_ms: number;
+  fetched_at: string;
+}> {
+  const start = Date.now();
+  const entry = await fetchPlayers();
+  cache = entry;
+  return {
+    count: entry.players.size,
+    elapsed_ms: Date.now() - start,
+    fetched_at: new Date(entry.fetchedAt).toISOString(),
+  };
+}
+
+/**
+ * Cache state for diagnostics. Returns null when nothing is cached yet.
+ */
+export function getCacheStatus(): {
+  player_count: number;
+  fetched_at: string;
+  age_ms: number;
+  ttl_minutes: number;
+} | null {
+  if (!cache) return null;
+  return {
+    player_count: cache.players.size,
+    fetched_at: new Date(cache.fetchedAt).toISOString(),
+    age_ms: Date.now() - cache.fetchedAt,
+    ttl_minutes: TTL_MINUTES,
+  };
 }
 
 export type HumanPlayer = {
