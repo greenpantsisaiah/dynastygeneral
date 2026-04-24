@@ -65,11 +65,14 @@ export function PaywallModal({
     ? "Your league data is on the line; we don't let anonymous calls burn through the coach's budget. Sign in with Google or email and you're in."
     : "Hosting and our AI engine cost real money. We\u2019re in beta, so the killer features are open to everyone. If Dynasty Copilot is making your decisions sharper, support us so the lights stay on.";
   const ctaLabel = isSignIn ? "Sign in" : "Support the project";
+  // After the pro_required short-circuit above, `reason` is narrowed
+  // to sign_in. Guarding with `isSignIn` lets the never-reached
+  // pro branch still typecheck.
   const ctaHref = isSignIn
     ? `${reason.loginUrl ?? "/login"}${
         safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""
       }`
-    : reason.pricingUrl ?? "/pricing";
+    : "/pricing";
 
   return (
     <div
