@@ -117,21 +117,28 @@ export default async function AccountPage({
                 </p>
               )}
 
-              <div className="mt-5 flex flex-wrap gap-3">
+              <div className="mt-5 flex flex-wrap items-center gap-3">
                 {!isPro && (
-                  <form action="/api/checkout" method="POST" className="contents">
-                    <input
-                      type="hidden"
-                      name="plan"
-                      value="pro_monthly"
-                    />
-                    <button
-                      type="submit"
-                      className="inline-flex h-10 items-center rounded-md bg-accent px-4 text-sm font-semibold text-black transition hover:brightness-110"
-                    >
-                      {beta ? "Support the project · 14-day trial" : "Start 14-day Pro trial"}
-                    </button>
-                  </form>
+                  <>
+                    <form action="/api/checkout" method="POST" className="contents">
+                      <input type="hidden" name="plan" value="pro_annual" />
+                      <button
+                        type="submit"
+                        className="inline-flex h-10 items-center rounded-md bg-accent px-4 text-sm font-semibold text-black transition hover:brightness-110"
+                      >
+                        {beta ? "Support annual · $99/yr" : "Get Pro · $99/yr"}
+                      </button>
+                    </form>
+                    <form action="/api/checkout" method="POST" className="contents">
+                      <input type="hidden" name="plan" value="pro_monthly" />
+                      <button
+                        type="submit"
+                        className="inline-flex h-10 items-center rounded-md border border-border-strong bg-background px-4 text-xs font-medium text-muted transition hover:border-accent/60 hover:text-foreground"
+                      >
+                        Or monthly · $14
+                      </button>
+                    </form>
+                  </>
                 )}
                 {isPro && (
                   <form
