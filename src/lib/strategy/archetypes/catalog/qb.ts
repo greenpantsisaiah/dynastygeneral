@@ -286,7 +286,18 @@ const qbLateStreamer: Archetype = {
   ],
 
   fit_signals: [
-    { kind: "user_owns_top_n_at_position", position: "QB", max: 1, weight: 1.0 },
+    // Exclusion gate. "Spend nothing on QB" means literally zero
+    // top-12 QBs on roster. Raw count max:1 was wrong: a roster
+    // with Allen alone fully satisfied it, even though Allen IS
+    // the QB you'd "spend on." Per archetype audit 2026-04-24.
+    {
+      kind: "user_owns_top_n_at_position",
+      position: "QB",
+      max: 0,
+      rank_threshold: 12,
+      weight: 1.5,
+    },
+    { kind: "user_position_count", position: "QB", max: 1, weight: 0.6 },
     { kind: "league_format", format: "1qb", weight: 0.6 },
   ],
 

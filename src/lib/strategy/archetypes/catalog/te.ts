@@ -91,12 +91,16 @@ const teTandem: Archetype = {
 
   fit_signals: [
     { kind: "user_position_count", position: "TE", min: 2, weight: 1.0 },
+    // Exclusion gate. "No elite TE" means literally zero top-6
+    // TEs. Bumped from weight 0.5 to 1.5 so a roster with Bowers
+    // (or any other top-6 TE) collapses out of TE Tandem instead
+    // of fitting at ~67%. Per archetype audit 2026-04-24.
     {
       kind: "user_owns_top_n_at_position",
       position: "TE",
       max: 0,
       rank_threshold: 6,
-      weight: 0.5,
+      weight: 1.5,
     },
   ],
 
@@ -139,6 +143,16 @@ const teStreamer: Archetype = {
 
   fit_signals: [
     { kind: "user_position_count", position: "TE", max: 1, weight: 1.0 },
+    // Exclusion gate. "The position barely matters" is wrong if
+    // you own a top-6 TE; that asset has structural value the
+    // tagline denies. Per archetype audit 2026-04-24.
+    {
+      kind: "user_owns_top_n_at_position",
+      position: "TE",
+      max: 0,
+      rank_threshold: 6,
+      weight: 1.0,
+    },
     { kind: "league_scoring", includes: ["PPR", "half-PPR", "standard"], weight: 0.4 },
   ],
 
