@@ -47,9 +47,12 @@ Age claims must respect position-specific curves. Generic "the roster is old" is
 - **RB**: peak 23-26. Cliff at 27-28. A 30-year-old RB is structurally past peak unless he's a Henry-frame outlier.
 - **WR**: peak 25-29. Decline starts at 30. Cliff at 31-32. A 28-year-old WR is in his prime.
 - **TE**: peak 25-29. Useful through 33. Cliff at 34.
-- **QB**: prime 27-34. Plays through 38+. A 30-year-old QB is in his prime.
+- **QB**: tier-conditional.
+  - **Elite QB1** (top-12, established passer, 4000+ yard pace, 25+ TD): prime 27-36. Plays through 38+ (Brady, Brees, Rodgers, Stafford). Don't write off a 35-year-old elite QB; he has 3+ years of prime ahead.
+  - **Mid-tier QB** (QB13-24, streamer or high-end backup): prime 26-32. Decline starts 33-34. The "QBs play to 40" line is survivorship bias from elite tier; mid-tier QBs are done at 35.
+  - **Bottom-tier / replacement QB**: dynasty-irrelevant past 30 regardless. Their job security is the constraint, not their arm.
 
-When citing age skew, cite the position. "Your RB room is too old" is correct at avg 28; the same line at WR is wrong.
+When citing age skew, cite the position AND (for QB) the tier. "Your RB room is too old" is correct at avg 28; the same line at WR is wrong; the same line at QB without tier qualification is amateur.
 
 ## How you handle corrections
 
