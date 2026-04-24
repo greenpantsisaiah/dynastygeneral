@@ -89,15 +89,42 @@ import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
   params: Promise<{ leagueId: string }>;
-  searchParams: Promise<{ username?: string; season?: string }>;
+  searchParams: Promise<{
+    username?: string;
+    season?: string;
+    diagnose?: string;
+  }>;
 };
+
+// Diagnostic capture. When the URL has ?diagnose=1, every silent catch
+// in the snapshot pipeline pushes onto this list and the page renders a
+// red error block at the top with the actual messages. Lets the user
+// (and us) diagnose blank-hub regressions without Vercel log access.
+type DiagnosticIssue = { stage: string; message: string; stack?: string };
+
+function captureError(
+  bag: DiagnosticIssue[] | null,
+  stage: string,
+  err: unknown,
+): void {
+  const message = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error ? err.stack : undefined;
+  console.error(`[${stage}]`, message, stack);
+  if (bag) bag.push({ stage, message, stack });
+}
 
 export default async function LeagueHubPage({
   params,
   searchParams,
 }: PageProps) {
   const { leagueId } = await params;
-  const { username = "", season: seasonParam } = await searchParams;
+  const {
+    username = "",
+    season: seasonParam,
+    diagnose: diagnoseParam,
+  } = await searchParams;
+  const diagnose = diagnoseParam === "1";
+  const issues: DiagnosticIssue[] | null = diagnose ? [] : null;
 
   // Declared window (mirror of the client localStorage key) lives in a
   // cookie so the server can apply window constraints to the Decision
@@ -160,11 +187,7 @@ export default async function LeagueHubPage({
   try {
     draftState = await resolveDraftState(leagueId, sleeperUser?.user_id ?? null);
   } catch (err) {
-    console.error(
-      "[hub:draft-state]",
-      err instanceof Error ? err.message : err,
-      err instanceof Error ? err.stack : undefined,
-    );
+    captureError(issues, "hub:draft-state", err);
   }
   const draftActive =
     draftState?.status === "drafting" || draftState?.status === "paused";
@@ -380,12 +403,9 @@ export default async function LeagueHubPage({
       // downstream panel silently empties out and the user sees a near-
       // blank hub. Log the actual message + stack so the regression is
       // diagnosable from production logs (silent catches were the
-      // culprit on the 2026-04-24 mid-NFL-draft outage).
-      console.error(
-        "[hub:strategy-rank]",
-        err instanceof Error ? err.message : err,
-        err instanceof Error ? err.stack : undefined,
-      );
+      // culprit on the 2026-04-24 mid-NFL-draft outage). Diagnostic
+      // bag also surfaces it inline when ?diagnose=1.
+      captureError(issues, "hub:strategy-rank", err);
     }
   }
 
@@ -514,6 +534,49 @@ export default async function LeagueHubPage({
               )}
             </div>
           </div>
+
+          {/* Diagnostic surface (?diagnose=1). When the user is debugging
+              a blank-hub regression we render captured silent-catch
+              errors inline so they don't have to chase Vercel logs. Only
+              renders when issues exist; harmless on healthy hubs. */}
+          {diagnose && issues && (
+            <div className="mt-4 rounded-lg border border-danger/60 bg-danger/5 p-4">
+              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-danger">
+                Diagnose · {issues.length} issue{issues.length === 1 ? "" : "s"} captured
+              </div>
+              {issues.length === 0 ? (
+                <p className="mt-2 text-xs text-muted">
+                  No silent catches fired. Snapshot pipeline is healthy;
+                  blank state is from a render gate, not a thrown error.
+                  Check that windows/decision/etc are gated behind the
+                  expected conditions (declared window, draft active,
+                  authed user).
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {issues.map((it, i) => (
+                    <li
+                      key={`${it.stage}-${i}`}
+                      className="border-t border-danger/30 pt-2 text-xs text-foreground"
+                    >
+                      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-danger">
+                        {it.stage}
+                      </div>
+                      <div className="mt-1 break-words">{it.message}</div>
+                      {it.stack && (
+                        <details className="mt-1 text-[10px] text-muted-2">
+                          <summary className="cursor-pointer">stack</summary>
+                          <pre className="mt-1 whitespace-pre-wrap font-mono">
+                            {it.stack.split("\n").slice(0, 8).join("\n")}
+                          </pre>
+                        </details>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Dual-column body. Hub left, coach right. Stacks on <lg. */}
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
