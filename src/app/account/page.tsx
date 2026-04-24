@@ -19,7 +19,7 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{ checkout?: string }>;
+type SearchParams = Promise<{ checkout?: string; upgraded?: string }>;
 
 export default async function AccountPage({
   searchParams,
@@ -32,9 +32,13 @@ export default async function AccountPage({
 
   // When returning from Stripe checkout, the webhook may not have fired
   // yet. Pull the latest subscription state directly from Stripe and
-  // sync it to the database so the page renders Pro immediately.
+  // sync it to the database, then redirect to /account (without the
+  // query param) so SiteNav and all components read the updated tier.
   if (params.checkout === "success" && user.tier !== "pro") {
-    user = await syncFromStripe(user) ?? user;
+    const synced = await syncFromStripe(user);
+    if (synced && synced.tier === "pro") {
+      redirect("/account?upgraded=1");
+    }
   }
 
   const isPro = user.tier === "pro";
@@ -66,7 +70,7 @@ export default async function AccountPage({
               {user.email}
             </p>
 
-            {params.checkout === "success" && (
+            {(params.checkout === "success" || params.upgraded === "1") && (
               <div className="mt-4 rounded-md border border-success/50 bg-success/10 px-4 py-3 text-sm text-foreground">
                 {isPro
                   ? "You\u2019re on Pro! Your subscription is active. Manage billing below anytime."
