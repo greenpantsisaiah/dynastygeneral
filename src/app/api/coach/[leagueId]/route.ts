@@ -483,9 +483,12 @@ export async function POST(
   // Server-side chat history mirror. Pro-tier benefit: cross-device
   // continuity. Best-effort; localStorage on the client is the
   // canonical store for non-Pro users and the offline cache for Pro.
-  // The user is guaranteed Pro at this point because checkProGate
-  // gated the request earlier in the handler.
-  if (gate.user.id !== "anonymous-dev") {
+  //
+  // In beta-open mode checkProGate lets non-Pro users through, so we
+  // re-check tier here: persistence is the Pro perk, not the Coach
+  // itself. Free users in beta still use Coach freely; their chats
+  // stay in localStorage only.
+  if (gate.user.id !== "anonymous-dev" && gate.user.tier === "pro") {
     try {
       const supabase = await createClient();
       await supabase.from("chat_history").insert([

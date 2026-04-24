@@ -2,9 +2,9 @@
  * Multi-pick draft rollout card. Renders the projected chain of user
  * picks, each with primary recommendation + alternates + confidence.
  *
- * Pro feature. Free users see an upsell variant pointing to /pricing.
- * The forecast is server-side and cheap (no LLM call); the upsell is a
- * UI-tier choice, not a cost-control choice.
+ * Open during beta to every signed-in user. The page-level
+ * `betaOpen` flag short-circuits the per-tier gate. Post-beta the
+ * upsell variant returns for free users.
  */
 
 import Link from "next/link";
@@ -14,15 +14,18 @@ export function MultiPickCard({
   plan,
   isPro,
   pickCount,
+  betaOpen = false,
 }: {
   plan: MultiPickPlan | null;
   isPro: boolean;
   pickCount: number;
+  betaOpen?: boolean;
 }) {
   // Always-visible upsell for free users when there's enough schedule
   // to justify a rollout. Free users never see the projected names;
   // the screenshot-style preview below is intentionally generic.
-  if (!isPro) {
+  // Beta mode short-circuits this gate so testers see the rollout.
+  if (!isPro && !betaOpen) {
     if (pickCount < 2) return null;
     return (
       <section className="mt-8 rounded-lg border-2 border-accent/40 bg-accent/5 px-5 py-5">

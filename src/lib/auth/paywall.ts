@@ -11,6 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { getOptionalUser, type AuthUser } from "./session";
+import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 
 export type ProGateResult =
   | { ok: true; user: AuthUser }
@@ -74,6 +75,12 @@ export async function checkProGate(): Promise<ProGateResult> {
         { status: 401 },
       ),
     };
+  }
+  // Beta mode: every signed-in user passes. Daily Anthropic budget cap
+  // is the true cost ceiling; per-feature tier gates are about
+  // packaging, not safety. See web/src/lib/billing/beta-mode.ts.
+  if (isBetaOpenMode()) {
+    return { ok: true, user };
   }
   if (user.tier !== "pro") {
     return {

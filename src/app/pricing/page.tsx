@@ -3,17 +3,19 @@ import { SiteNav } from "@/components/site-nav";
 import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { getOptionalUser } from "@/lib/auth/session";
+import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 
 export const metadata = {
   title: "Pricing · Dynasty Copilot",
   description:
-    "Free tier covers one league. Pro unlocks unlimited leagues, the coach, briefings, and the Contender Outlook. 14-day free trial, no card required.",
+    "Beta is open: every signed-in user gets the coach, briefings, multi-pick rollout, and Contender Outlook. Hosting and API tokens cost real money; support the project so the lights stay on.",
 };
 
 export default async function PricingPage() {
   const user = await getOptionalUser();
   const isAuthed = Boolean(user);
   const isPro = user?.tier === "pro";
+  const beta = isBetaOpenMode();
 
   return (
     <>
@@ -21,13 +23,18 @@ export default async function PricingPage() {
       <main className="flex-1 bg-background">
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24 sm:pb-16 text-center">
-            <Ticker label="Pricing · clear" />
+            <Ticker
+              label={beta ? "Beta · everything's open" : "Pricing · clear"}
+            />
             <h1 className="mt-6 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              Free for one league. Pro for everything else.
+              {beta
+                ? "Beta is open. Support us if you can."
+                : "Free for one league. Pro for everything else."}
             </h1>
             <p className="mt-6 mx-auto max-w-2xl text-lg leading-relaxed text-muted">
-              14-day free trial of Pro. No card required to start. Cancel
-              anytime in one click.
+              {beta
+                ? "Every signed-in user gets the killer features (Coach, Briefings, Multi-pick rollout, Contender Outlook) during alpha/beta. Hosting and Anthropic API tokens cost real money. We bill so the lights stay on, not to lock features behind a wall. Pro tier exists for testers who want to support the project and lock in early-bird pricing before we tighten things up post-beta."
+                : "14-day free trial of Pro. No card required to start. Cancel anytime in one click."}
             </p>
           </div>
         </section>
@@ -35,17 +42,32 @@ export default async function PricingPage() {
         <section className="border-b border-border-soft">
           <div className="mx-auto grid max-w-5xl gap-6 px-6 py-12 lg:grid-cols-2">
             <PlanCard
-              tier="Free"
+              tier={beta ? "Free · beta" : "Free"}
               price="$0"
-              cadence="forever"
-              tagline="One league. Real verdict. Real scout."
-              features={[
-                "1 dynasty league with full hub view",
-                "Scout report on any Sleeper username",
-                "Verdict synthesis on your portfolio",
-                "League Spectrum + opponent characterizations",
-                "Read-only briefings (others' shared takes)",
-              ]}
+              cadence={beta ? "with you on the journey" : "forever"}
+              tagline={
+                beta
+                  ? "During beta: every killer feature open. Sign in, use the whole app."
+                  : "One league. Real verdict. Real scout."
+              }
+              features={
+                beta
+                  ? [
+                      "Coach chat with full league context + web search",
+                      "Intelligence briefings on demand",
+                      "5-year Contender Outlook + Decision Quadrant",
+                      "Multi-pick draft rollout (Monte Carlo with 500 trials)",
+                      "Scout report on any Sleeper username",
+                      "Connect multiple leagues",
+                    ]
+                  : [
+                      "1 dynasty league with full hub view",
+                      "Scout report on any Sleeper username",
+                      "Verdict synthesis on your portfolio",
+                      "League Spectrum + opponent characterizations",
+                      "Read-only briefings (others' shared takes)",
+                    ]
+              }
               cta={
                 isAuthed ? (
                   <Link
@@ -65,21 +87,36 @@ export default async function PricingPage() {
               }
             />
             <PlanCard
-              tier="Pro"
+              tier={beta ? "Pro · early support" : "Pro"}
               price="$14"
               cadence="per month, or $99/year (save 41%)"
-              tagline="Everything. Built for serious dynasty managers."
+              tagline={
+                beta
+                  ? "Same engine as Free during beta. The Pro extras are the persistence + early-bird lock-in."
+                  : "Everything. Built for serious dynasty managers."
+              }
               accent
-              features={[
-                "Unlimited dynasty leagues",
-                "AI Coach chat with full league context + web search",
-                "Generate intelligence briefings on demand",
-                "5-year Contender Outlook with protect-the-window plays",
-                "Decision Quadrant with named candidates per pick",
-                "Multi-pick draft rollout (your full pick schedule synthesized)",
-                "Cross-device chat history",
-                "Pin unlimited briefings to your war room",
-              ]}
+              features={
+                beta
+                  ? [
+                      "Help cover hosting + Anthropic API costs",
+                      "Cross-device chat history sync",
+                      "War Room: pinned briefings sync across devices",
+                      "Lock in current pricing before post-beta tightening",
+                      "Direct line on feedback (your account email is on every report)",
+                      "Same daily budget cap as Free during beta",
+                    ]
+                  : [
+                      "Unlimited dynasty leagues",
+                      "AI Coach chat with full league context + web search",
+                      "Generate intelligence briefings on demand",
+                      "5-year Contender Outlook with protect-the-window plays",
+                      "Decision Quadrant with named candidates per pick",
+                      "Multi-pick draft rollout (your full pick schedule synthesized)",
+                      "Cross-device chat history",
+                      "Pin unlimited briefings to your war room",
+                    ]
+              }
               cta={
                 isPro ? (
                   <Link
@@ -99,7 +136,7 @@ export default async function PricingPage() {
                       type="submit"
                       className="inline-flex h-11 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
                     >
-                      Start 14-day Pro trial
+                      {beta ? "Support the project · 14-day trial" : "Start 14-day Pro trial"}
                     </button>
                   </form>
                 ) : (
@@ -107,7 +144,7 @@ export default async function PricingPage() {
                     href="/login?next=/pricing"
                     className="inline-flex h-11 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
                   >
-                    Sign in to start trial
+                    {beta ? "Sign in to support" : "Sign in to start trial"}
                   </Link>
                 )
               }
@@ -135,11 +172,20 @@ export default async function PricingPage() {
               portal so you cancel without having to email us.
             </Faq>
             <Faq q="Why $14/month and not free forever?">
-              The product calls Anthropic's API many times per session
-              (verdict, coach, briefings, decision synthesis). Free for one
-              league is sustainable; unlimited free isn't. Pricing reflects
-              actual cost plus the work of building this.
+              {beta
+                ? "Beta is open: every signed-in user gets the killer features today. The product calls Anthropic's API many times per session (verdict, coach, briefings, decision synthesis), and tokens cost real money. We bill so the lights stay on, not to lock features behind a wall. Post-beta, free will tighten and Pro will be the killer-feature tier; supporting now locks in current pricing."
+                : "The product calls Anthropic's API many times per session (verdict, coach, briefings, decision synthesis). Free for one league is sustainable; unlimited free isn't. Pricing reflects actual cost plus the work of building this."}
             </Faq>
+            {beta && (
+              <Faq q="What changes when beta ends?">
+                The killer features (Coach, Briefings, Multi-pick, Contender
+                Outlook, Decision Quadrant) move back behind the Pro tier.
+                Free will keep the scout report, verdict, and one league.
+                Anyone who's on Pro at that point keeps current pricing
+                indefinitely; if you sign up today and stay subscribed, you
+                lock that in.
+              </Faq>
+            )}
             <Faq q="Annual discount?">
               $99/year (works out to $8.25/month, 41% off). Cancel anytime;
               we don't refund partial years but you keep Pro until the year

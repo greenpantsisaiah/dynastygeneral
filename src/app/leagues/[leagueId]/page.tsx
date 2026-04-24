@@ -66,6 +66,7 @@ import {
   type LeagueSwitcherItem,
 } from "@/components/league/league-switcher";
 import { RefreshButton } from "@/components/league/refresh-button";
+import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
@@ -313,6 +314,11 @@ export default async function LeagueHubPage({
   // Supabase isn't configured (getTier returns "free" + null user).
   const tierState = await getTier();
   const isPro = tierState.tier === "pro";
+  // Beta-mode flag opens the killer features to every signed-in user
+  // (Coach, Briefings, Multi-pick rollout). Per-feature gates become
+  // packaging, not safety; the daily Anthropic budget cap is the true
+  // cost ceiling. Toggle via BETA_OPEN_MODE env var.
+  const betaOpen = isBetaOpenMode();
   const userPickCount = leagueSnapshot?.draft.my_pick_schedule.length ?? 0;
 
   return (
@@ -321,7 +327,7 @@ export default async function LeagueHubPage({
       <main className="flex-1 bg-grid">
         <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 sm:py-12">
           <Ticker
-            label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}`}
+            label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${betaOpen ? " · Beta · everything open" : ""}`}
           />
 
           {/* Hub header with title + trade buttons */}
@@ -414,6 +420,7 @@ export default async function LeagueHubPage({
                   plan={multiPickPlan}
                   isPro={isPro}
                   pickCount={userPickCount}
+                  betaOpen={betaOpen}
                 />
               )}
 

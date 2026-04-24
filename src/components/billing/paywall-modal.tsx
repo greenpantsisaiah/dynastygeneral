@@ -51,11 +51,13 @@ export function PaywallModal({
       ? reason.nextPath
       : null;
   const isSignIn = reason.kind === "sign_in";
-  const title = isSignIn ? "Sign in to use this feature" : "This is a Pro feature";
+  const title = isSignIn
+    ? "Sign in to use this feature"
+    : "Help keep Dynasty Copilot running";
   const body = isSignIn
     ? "Your league data is on the line; we don't let anonymous calls burn through the coach's budget. Sign in (magic link, 5 seconds) and you're in."
-    : "Coach chat, intelligence briefings, the Contender Outlook, and unlimited leagues are Pro. 14-day free trial, no card required to start.";
-  const ctaLabel = isSignIn ? "Sign in" : "Start 14-day Pro trial";
+    : "Hosting and Anthropic API tokens cost real money. We're in beta, so the killer features are open to everyone. If Dynasty Copilot is making your decisions sharper, support us so the lights stay on.";
+  const ctaLabel = isSignIn ? "Sign in" : "Support the project";
   const ctaHref = isSignIn
     ? `${reason.loginUrl ?? "/login"}${
         safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""
@@ -101,8 +103,8 @@ export function PaywallModal({
         </div>
         {!isSignIn && (
           <p className="mt-3 text-[11px] text-muted-2">
-            14 days free, no card. Cancel anytime in one click. See full
-            terms on the pricing page.
+            14 days free, no card. Cancel anytime in one click. Optional
+            during beta; everything's open either way.
           </p>
         )}
       </div>
