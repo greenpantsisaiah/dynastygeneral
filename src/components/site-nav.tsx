@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getOptionalUser } from "@/lib/auth/session";
 
 export async function SiteNav() {
@@ -9,10 +10,18 @@ export async function SiteNav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link
           href="/"
-          className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em] text-foreground"
+          className="flex items-center gap-2"
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)]" />
-          Dynasty Copilot
+          <Image
+            src="/dynasty_copilot_logomark.png"
+            alt=""
+            width={28}
+            height={28}
+            className="h-7 w-7 brightness-0 invert"
+          />
+          <span className="font-mono text-xs uppercase tracking-[0.18em] text-foreground">
+            Dynasty Copilot
+          </span>
         </Link>
         <nav className="flex items-center gap-6 text-sm">
           <Link

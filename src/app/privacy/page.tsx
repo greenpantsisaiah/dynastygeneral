@@ -17,7 +17,7 @@ export default function PrivacyPage() {
             Privacy Policy
           </h1>
           <p className="mt-2 font-mono text-xs uppercase tracking-[0.18em] text-muted-2">
-            Last updated 2026-04-22
+            Last updated 2026-04-24
           </p>
 
           <div className="mt-8 space-y-6 text-sm leading-relaxed text-muted sm:text-base">
@@ -30,18 +30,33 @@ export default function PrivacyPage() {
 
             <Section title="What we collect">
               <p className="mt-2">
-                <strong>When you visit our site without signing up:</strong>
+                <strong>When you visit our site without signing in:</strong>
               </p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 <li>
-                  A functional preference cookie (`dw_&lt;leagueId&gt;`)
-                  storing your declared draft window. Not used for tracking
-                  or advertising.
+                  A functional preference cookie storing your declared
+                  draft window. Not used for tracking or advertising.
                 </li>
                 <li>
                   Standard server logs (IP address, request path, user
                   agent) retained by our hosting provider Vercel for
                   operational and security purposes.
+                </li>
+              </ul>
+              <p className="mt-4">
+                <strong>When you create an account:</strong>
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  If you sign in with Google: your name, email address, and
+                  profile picture as provided by Google. We do not receive
+                  or store your Google password.
+                </li>
+                <li>
+                  If you sign in with email and password: your email
+                  address and a securely hashed password managed by our
+                  auth provider (Supabase Auth). We never store your
+                  password in plain text.
                 </li>
               </ul>
               <p className="mt-4">
@@ -51,7 +66,7 @@ export default function PrivacyPage() {
                 <li>
                   Name, email address, Sleeper username (optional), number
                   of dynasty leagues, area of focus, creator flag, and your
-                  free-text "biggest pain point" submission.
+                  free-text submission.
                 </li>
               </ul>
               <p className="mt-4">
@@ -70,9 +85,24 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                   Your declared strategy choices and chat messages with the
-                  coach. These are stored ONLY in your browser's
-                  localStorage (not on our servers). Each chat turn is
-                  sent to our AI provider as described below.
+                  coach. Free-tier chats are stored in your browser's
+                  localStorage only. Pro-tier chats are also stored
+                  server-side for cross-device continuity. Each chat turn
+                  is sent to our AI provider as described below.
+                </li>
+                <li>
+                  Pinned briefings (Pro tier) are stored server-side so
+                  they persist across devices.
+                </li>
+              </ul>
+              <p className="mt-4">
+                <strong>When you subscribe (Pro tier):</strong>
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  Payment is processed by Stripe. We receive your Stripe
+                  customer ID, subscription status, and plan details. We
+                  never see or store your full card number.
                 </li>
               </ul>
             </Section>
@@ -115,7 +145,35 @@ export default function PrivacyPage() {
                   governed by your agreement with Sleeper.
                 </li>
                 <li>
-                  <strong>Supabase</strong> hosts our waitlist database.
+                  <strong>Supabase</strong> hosts our database and manages
+                  authentication (including Google OAuth and email/password
+                  sign-in).
+                </li>
+                <li>
+                  <strong>Stripe</strong> processes payments for Pro
+                  subscriptions. Subject to{" "}
+                  <a
+                    href="https://stripe.com/privacy"
+                    className="text-accent hover:underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Stripe's Privacy Policy
+                  </a>
+                  .
+                </li>
+                <li>
+                  <strong>Google</strong> provides OAuth sign-in. Subject
+                  to{" "}
+                  <a
+                    href="https://policies.google.com/privacy"
+                    className="text-accent hover:underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Google's Privacy Policy
+                  </a>
+                  .
                 </li>
                 <li>
                   <strong>Vercel</strong> hosts the application and serves
@@ -136,15 +194,31 @@ export default function PrivacyPage() {
                 </li>
                 <li>League data: not retained server-side.</li>
                 <li>
-                  Chat history: stored in your browser's localStorage
-                  indefinitely until you clear it. To clear, open browser
-                  settings and remove site data for dynastygeneral.app.
+                  Chat history (free tier): stored in your browser's
+                  localStorage until you clear it.
+                </li>
+                <li>
+                  Chat history and pinned briefings (Pro tier): stored
+                  server-side until you delete them via Account settings
+                  or use the "Wipe my data" feature.
                 </li>
                 <li>
                   Server logs: retained per Vercel's defaults (typically
                   30 days).
                 </li>
               </ul>
+            </Section>
+
+            <Section title="Data export and deletion">
+              <p className="mt-2">
+                You can export all data we hold about you or wipe your
+                server-side product data (chat history, pinned briefings)
+                at any time from your Account page. No need to contact us.
+              </p>
+              <p className="mt-2">
+                To delete your account entirely, email us at the address
+                below.
+              </p>
             </Section>
 
             <Section title="Your rights">

@@ -17,7 +17,7 @@ export default function TermsPage() {
             Terms of Service
           </h1>
           <p className="mt-2 font-mono text-xs uppercase tracking-[0.18em] text-muted-2">
-            Last updated 2026-04-22
+            Last updated 2026-04-24
           </p>
 
           <div className="mt-8 space-y-6 text-sm leading-relaxed text-muted sm:text-base">
@@ -60,15 +60,29 @@ export default function TermsPage() {
 
             <Section n={4} title="Your account and content">
               <p>
-                You may submit a Sleeper username, declared strategy
-                choices, and chat messages with the AI coach. You retain
-                ownership of any content you submit. By submitting, you
-                grant us a limited license to process that content solely
-                to operate the Service.
+                You may create an account using Google sign-in or email
+                and password. You are responsible for keeping your
+                credentials secure. You may submit a Sleeper username,
+                declared strategy choices, and chat messages with the AI
+                coach. You retain ownership of any content you submit. By
+                submitting, you grant us a limited license to process that
+                content solely to operate the Service.
               </p>
             </Section>
 
-            <Section n={5} title="Acceptable use">
+            <Section n={5} title="Subscriptions and billing">
+              <p>
+                Certain features require a paid Pro subscription.
+                Subscriptions are billed monthly or annually via Stripe.
+                New subscriptions include a 14-day free trial. You may
+                cancel at any time from your Account page; access
+                continues until the end of the current billing period. We
+                do not offer refunds for partial billing periods. Prices
+                may change with 30 days' notice.
+              </p>
+            </Section>
+
+            <Section n={6} title="Acceptable use">
               <p>You may not:</p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 <li>Use the Service to build a competing product.</li>
@@ -84,7 +98,7 @@ export default function TermsPage() {
               </ul>
             </Section>
 
-            <Section n={6} title="Intellectual property">
+            <Section n={7} title="Intellectual property">
               <p>
                 We own the Service, its code, copy, and design. Player
                 names, team names, and statistics are factual public
@@ -96,7 +110,7 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section n={7} title="Disclaimer of warranties">
+            <Section n={8} title="Disclaimer of warranties">
               <p className="uppercase">
                 The Service is provided "as is" without warranties of any
                 kind, express or implied, including warranties of
@@ -105,7 +119,7 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section n={8} title="Limitation of liability">
+            <Section n={9} title="Limitation of liability">
               <p className="uppercase">
                 To the maximum extent permitted by law, Dynasty Copilot
                 and its operators shall not be liable for any indirect,
@@ -118,14 +132,14 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section n={9} title="Termination">
+            <Section n={10} title="Termination">
               <p>
                 We may suspend or terminate access at any time for any
                 reason, including violation of these Terms.
               </p>
             </Section>
 
-            <Section n={10} title="Governing law">
+            <Section n={11} title="Governing law">
               <p>
                 These Terms are governed by the laws of the United States
                 and the founder's state of residence, without regard to
@@ -134,14 +148,14 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section n={11} title="Changes">
+            <Section n={12} title="Changes">
               <p>
                 We may update these Terms. Continued use after a change
                 constitutes acceptance.
               </p>
             </Section>
 
-            <Section n={12} title="Contact">
+            <Section n={13} title="Contact">
               <p>
                 <a
                   href="mailto:isaiah@nextupleader.com"

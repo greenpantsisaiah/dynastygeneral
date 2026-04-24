@@ -15,17 +15,39 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dynasty Copilot: Win the decision in front of you.",
+  title: {
+    default: "Dynasty Copilot: Win the decision in front of you.",
+    template: "%s · Dynasty Copilot",
+  },
   description:
-    "A dynasty decision copilot. Sleeper today, MyFantasyLeague next. Remembers your strategy, detects leverage, and helps you act with conviction on picks, trades, and counters.",
+    "AI-powered dynasty fantasy football decision engine. Pick recommendations, trade analysis, and strategy coaching for Sleeper leagues.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://dynastygeneral.app",
   ),
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-icon.png",
+  },
+  manifest: "/manifest.json",
   openGraph: {
     title: "Dynasty Copilot",
     description:
-      "Win the decision in front of you. A dynasty copilot for serious dynasty managers. Sleeper today, MyFantasyLeague next.",
+      "Win the decision in front of you. AI-powered dynasty fantasy football decision engine for Sleeper leagues.",
     type: "website",
+    siteName: "Dynasty Copilot",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Dynasty Copilot",
+    description:
+      "AI-powered dynasty fantasy football decision engine. Pick recommendations, trade analysis, and strategy coaching.",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
