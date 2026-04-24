@@ -40,6 +40,13 @@ export function PaywallModal({
   }, [reason, onClose]);
 
   if (!reason) return null;
+  // EMERGENCY LOCKDOWN (founder note 2026-04-24): real users hit
+  // the pro_required variant mid-Coach-question and lost their
+  // drafts. Until the upsell flow is properly designed, this
+  // variant is suppressed entirely. Sign-in variant still fires
+  // (anonymous users hitting auth-required endpoints; that's a
+  // legitimate sign-in prompt, not a money ask).
+  if (reason.kind === "pro_required") return null;
 
   // Defense-in-depth: reject any nextPath that isn't a same-origin
   // path. The login route enforces this server-side too (HIGH security
