@@ -189,6 +189,25 @@ export function DecisionCard({ decision }: { decision: Decision }) {
         </div>
       )}
 
+      {decision.counter_view && (
+        <div className="mt-4 rounded-md border border-warning/60 bg-warning/10 px-3 py-3 text-xs text-foreground">
+          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-warning">
+            Counter-view · the case against this lean
+          </div>
+          <div className="mt-1.5 font-medium">
+            {decision.counter_view.headline}
+          </div>
+          <div className="mt-1 text-muted">
+            {decision.counter_view.detail}
+          </div>
+          {decision.counter_view.suggested_player && (
+            <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-warning">
+              Counter pick · {decision.counter_view.suggested_player}
+            </div>
+          )}
+        </div>
+      )}
+
       {decision.next_picks_plan.length > 0 && (
         <div className="mt-4">
           <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2">

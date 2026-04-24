@@ -83,8 +83,8 @@ import {
 } from "@/lib/strategy/path-commitment/service";
 import type { ActivePathCommitment } from "@/lib/strategy/path-commitment/types";
 import { SamePathThreatsCard } from "@/components/league/same-path-threats";
-import { buildSamePathThreats } from "@/lib/strategy/same-path-threats/build";
-import type { SamePathThreats } from "@/lib/strategy/same-path-threats/build";
+import { buildPathCompetition } from "@/lib/strategy/same-path-threats/build";
+import type { PathCompetition } from "@/lib/strategy/same-path-threats/build";
 import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
@@ -211,7 +211,7 @@ export default async function LeagueHubPage({
   let multiPickPlan: MultiPickPlan | null = null;
   let strategyLab: StrategyLabState | null = null;
   let pathCommitment: ActivePathCommitment | null = null;
-  let samePathThreats: SamePathThreats | null = null;
+  let pathCompetition: PathCompetition | null = null;
 
   // Tier check moved earlier in the pipeline so the path-commitment
   // sync (which needs tierState.user) can run inside the snapshot
@@ -350,29 +350,25 @@ export default async function LeagueHubPage({
         }
       }
 
-      // Same-Path Threats. Computed against the user's committed
-      // archetype if they have one, else their top lean. Cheap (no
-      // LLM); just position-overlap + horizon-alignment. Skipped
-      // when no archetype anchor (anonymous, no draft, no leans).
+      // Path competition. Per cross-panel framework 2026-04-24: track
+      // threats across the user's TOP VIABLE PATHS, not just their
+      // committed/first-clicked one. Real managers shop pre-commit;
+      // single-path view only modeled the post-commit defending state.
+      // The committed path (if any) gets sort priority; other viable
+      // paths surface alongside until viability gap dominates.
       if (
         opponentCharacterizations.length > 0 &&
         rankedArchetypes.length > 0
       ) {
         try {
-          const anchorArchetype = pathCommitment
-            ? rankedArchetypes.find(
-                (r) => r.archetype.id === pathCommitment!.commitment.archetype_id,
-              )?.archetype
-            : rankedArchetypes[0]?.archetype;
-          if (anchorArchetype) {
-            samePathThreats = buildSamePathThreats({
-              snap: snapshot,
-              archetype: anchorArchetype,
-              opponentCharacterizations,
-            });
-          }
+          pathCompetition = buildPathCompetition({
+            snap: snapshot,
+            ranked: rankedArchetypes,
+            opponentCharacterizations,
+            commitment: pathCommitment,
+          });
         } catch (err) {
-          console.error("[hub:same-path-threats]", err);
+          console.error("[hub:path-competition]", err);
         }
       }
 
@@ -624,8 +620,8 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {samePathThreats && (
-                <SamePathThreatsCard threats={samePathThreats} />
+              {pathCompetition && (
+                <SamePathThreatsCard competition={pathCompetition} />
               )}
 
               {draftActive && userPickCount >= 2 && (

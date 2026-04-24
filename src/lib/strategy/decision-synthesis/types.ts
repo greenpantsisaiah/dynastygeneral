@@ -152,4 +152,20 @@ export type Decision = {
   scarcity_callout: string | null;
   // Nuclear option: trade up when scarcity math is genuinely broken.
   emergency_trade_up: EmergencyTradeUp | null;
+  // Counter-view: a named dissenting frame the engine surfaces inline
+  // on the Decision card so the user sees BOTH the lean and the
+  // strongest argument against it. Per cross-panel decision framework
+  // 2026-04-24 (auditor derivation): hiding dissent makes panels feel
+  // like competing advisors; surfacing it as a one-line counter makes
+  // them feel like multiple perspectives that have wrestled. Initial
+  // detector: positional tier-cliff at a starter-required position
+  // the user has 0 of, when the lean is at a different position.
+  // Future detectors (Coach scarcity, StrategyLab path violation) can
+  // emit additional kinds. Null when no counter-view earns the line.
+  counter_view: {
+    kind: "tier_cliff" | "path_violation" | "coach_dissent";
+    headline: string; // "QB cliff: 3 QB1s left, +20 picks until next slot"
+    detail: string; // longer reasoning, 1-2 sentences
+    suggested_player: string | null; // e.g. "Trevor Lawrence" if specific
+  } | null;
 };

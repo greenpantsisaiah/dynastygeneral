@@ -357,6 +357,77 @@ function buildNextPicksPlan(
   return items;
 }
 
+/**
+ * Counter-view detector: tier-cliff at OTHER positions the lean ignored.
+ *
+ * Per cross-panel decision framework (gambler + dynasty pro voices,
+ * 2026-04-24): positional scarcity overrides starter-fill cluster math
+ * when the next-tier-down player at a starter-required position is
+ * unlikely to survive to the user's next slot. The pure starter-fill
+ * winner (Pickens at 4.2 in The Final Countdown) ignored a parallel
+ * QB cliff (only 3 QB1s left, 20 picks to user's next slot). The
+ * Coach raised this; Decision Card should surface it BEFORE Coach is
+ * asked.
+ *
+ * v1 detector (deterministic, no Monte Carlo yet):
+ *   - Position P is a starter requirement in the league format
+ *   - User has 0 of P on roster (named anchors confirm this)
+ *   - <= COUNTER_TIER_CAP players of P remain with ADP < user's next pick
+ *   - Winner is NOT P (otherwise the lean is already P)
+ *
+ * Format-specific tier sizes from auditor framework:
+ *   1QB startup: QB1 tier ≈ top-12; cliff at QB6-QB13
+ *   Superflex:   QB1 cliff at picks 12-24, QB2 by 60-72
+ *
+ * v2 wires the Monte Carlo P(available) from MultiPickCard. v1 ships
+ * the detector with deterministic ADP-survival counting; sufficient
+ * to catch the Pickens/Mendoza failure pattern.
+ */
+const COUNTER_TIER_CAP = 4;
+
+function buildCounterView(
+  winner: ScoredCandidate,
+  available: AvailablePlayer[],
+  snap: LeagueSnapshot,
+  nextUserPickNo: number,
+): Decision["counter_view"] {
+  const me = snap.rosters.find((r) => r.is_me);
+  if (!me) return null;
+  const isSuperflex = snap.format === "superflex" || snap.format === "2qb";
+  const winnerPos = normalizePos(winner.player.position);
+  // Starter-required positions worth checking. K and DST are excluded
+  // (rarely cliff-shaped in dynasty; format gating handled elsewhere).
+  const candidates: Position[] = isSuperflex
+    ? ["QB", "RB", "WR", "TE"]
+    : ["RB", "WR", "QB", "TE"];
+  for (const pos of candidates) {
+    if (pos === winnerPos) continue;
+    const have = me.position_counts[pos] ?? 0;
+    if (have > 0) continue; // user already has one; not a cliff for THIS pick
+    const surviving = available.filter((p) => {
+      if (normalizePos(p.position) !== pos) return false;
+      if (p.adp == null) return false;
+      return p.adp < nextUserPickNo;
+    });
+    if (surviving.length === 0) continue;
+    if (surviving.length > COUNTER_TIER_CAP) continue;
+    surviving.sort((a, b) => (a.adp ?? 999) - (b.adp ?? 999));
+    const top = surviving[0];
+    const headline = `${POSITION_LABEL[pos]} cliff: ${surviving.length} starter-grade ${pos} expected gone before your next pick.`;
+    const detail =
+      `${top.name} (ADP ${Math.round(top.adp ?? 0)}) is the best of the surviving ${pos} group. ` +
+      `If you take ${winner.player.name} here, every viable ${pos} starter is projected gone by pick ${nextUserPickNo}; ` +
+      `you'll be the last one needing the position.`;
+    return {
+      kind: "tier_cliff",
+      headline,
+      detail,
+      suggested_player: top.name,
+    };
+  }
+  return null;
+}
+
 function buildScarcityCallout(
   winner: ScoredCandidate,
   available: AvailablePlayer[],
@@ -609,6 +680,15 @@ export function synthesizeDecision(args: {
     current,
     picks_until_me,
   );
+  // Counter-view: surfaces the strongest dissenting frame inline so
+  // the user doesn't have to ask Coach to discover the parallel
+  // argument the lean ignored. Per cross-panel decision framework.
+  const counter_view = buildCounterView(
+    winner,
+    available,
+    snap,
+    nextUserPickNo,
+  );
 
   return {
     pick_label: current.pick_label,
@@ -633,5 +713,6 @@ export function synthesizeDecision(args: {
     next_picks_plan,
     scarcity_callout,
     emergency_trade_up,
+    counter_view,
   };
 }
