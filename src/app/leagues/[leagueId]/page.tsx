@@ -149,12 +149,22 @@ export default async function LeagueHubPage({
     }
   }
 
-  // Draft state: tolerant of failure, banner is supplemental
+  // Draft state: tolerant of failure, banner is supplemental.
+  // CRITICAL: if this throws and draftState stays null, the entire
+  // `if (draftState)` snapshot pipeline below is skipped, which empties
+  // every downstream surface (windows, ranks, opponents, decision,
+  // contender). Log the actual error message + stack so the next
+  // regression of this class is one log lookup, not 30 minutes of
+  // bisecting.
   let draftState: Awaited<ReturnType<typeof resolveDraftState>> | null = null;
   try {
     draftState = await resolveDraftState(leagueId, sleeperUser?.user_id ?? null);
   } catch (err) {
-    console.error("[hub:draft-state]", err);
+    console.error(
+      "[hub:draft-state]",
+      err instanceof Error ? err.message : err,
+      err instanceof Error ? err.stack : undefined,
+    );
   }
   const draftActive =
     draftState?.status === "drafting" || draftState?.status === "paused";

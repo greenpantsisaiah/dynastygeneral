@@ -206,12 +206,42 @@ export async function getDraftPicks(
 ): Promise<SleeperDraftPick[]> {
   // Live-draft critical path. Caching here causes the "13 picks away"
   // bug where the snapshot lags reality by half a round.
-  const data = await sleeperGet(
-    `/draft/${encodeURIComponent(draftId)}/picks`,
-    z.array(sleeperDraftPickSchema),
-    { noStore: true },
-  );
-  return data ?? [];
+  //
+  // Per-row parse instead of array-level safeParse. One non-conforming
+  // row used to throw the whole array, propagate out of resolveDraftState,
+  // get caught silently in the page route, and empty every downstream
+  // hub panel (the 2026-04-24 Iceman outage). We now drop bad rows,
+  // log a small number of warnings, and let the rest of the picks
+  // build the snapshot. The schema is also relaxed (round/pick_no
+  // nullable), so this loop is the second line of defense.
+  const path = `/draft/${encodeURIComponent(draftId)}/picks`;
+  const data = await sleeperGet(path, z.array(z.unknown()), {
+    noStore: true,
+  });
+  if (!data) return [];
+  const out: SleeperDraftPick[] = [];
+  let bad = 0;
+  let warned = 0;
+  for (const raw of data) {
+    const r = sleeperDraftPickSchema.safeParse(raw);
+    if (r.success) {
+      out.push(r.data);
+    } else {
+      bad++;
+      if (warned < 3) {
+        warned++;
+        console.warn(
+          `[draft-picks:skip] ${path}: ${r.error.issues[0]?.message ?? "unknown"}`,
+        );
+      }
+    }
+  }
+  if (bad > 0) {
+    console.warn(
+      `[draft-picks] skipped ${bad} non-conforming row(s) of ${out.length + bad} total`,
+    );
+  }
+  return out;
 }
 
 /**

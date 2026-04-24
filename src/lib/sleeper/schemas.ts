@@ -134,8 +134,16 @@ export type SleeperDraft = z.infer<typeof sleeperDraftSchema>;
 
 export const sleeperDraftPickSchema = z
   .object({
-    round: z.number(),
-    pick_no: z.number(),
+    // Sleeper has been observed to return null round/pick_no for some
+    // sentinel rows (auction edges, keeper-pre-assignment shapes,
+    // post-completion residual rows). Strict z.number() rejected the
+    // whole array via the all-or-nothing safeParse in client.ts and
+    // poisoned every downstream surface (the 2026-04-24 Iceman outage:
+    // draftState went null, the whole if(draftState) hub block skipped).
+    // Relax to nullable + optional. Downstream consumers already handle
+    // missing values via Math.ceil(... ?? 0) fallbacks and per-row filters.
+    round: z.number().nullable().optional(),
+    pick_no: z.number().nullable().optional(),
     roster_id: z.number().nullable(),
     player_id: z.string().nullable(),
     picked_by: z.string().nullable(),
