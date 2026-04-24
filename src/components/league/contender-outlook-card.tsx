@@ -8,7 +8,10 @@ import type {
   ContenderOutlook,
   ContenderTier,
 } from "@/lib/strategy/contender-outlook/types";
-import { tierLabel } from "@/lib/strategy/contender-outlook/types";
+import {
+  tierLabel,
+  tierLabelFuzzy,
+} from "@/lib/strategy/contender-outlook/types";
 
 const TIER_TONE: Record<
   ContenderTier,
@@ -66,7 +69,8 @@ export function ContenderOutlookCard({
             Contender outlook · {outlook.years.length} years
           </div>
           <h2 className="mt-1 text-xl font-semibold text-foreground">
-            Peak {peak.season} · {tierLabel(peak.tier)} ({peak.score}/100)
+            Peak {peak.season} · {tierLabelFuzzy(peak.tier, peak.score)} (
+            {peak.score}/100)
           </h2>
         </div>
         <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
@@ -91,6 +95,7 @@ export function ContenderOutlookCard({
               </span>
               <span
                 className={`text-right font-mono text-[10px] uppercase tracking-[0.14em] ${tone.chip}`}
+                title={tierLabelFuzzy(y.tier, y.score)}
               >
                 {tierLabel(y.tier)}
                 {y.tier === "contender" ? " ✓" : ""}

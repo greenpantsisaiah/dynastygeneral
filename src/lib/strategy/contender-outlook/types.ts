@@ -30,6 +30,14 @@ export type ContenderOutlook = {
 
 export const TIER_THRESHOLD_CONTENDER = 75;
 export const TIER_THRESHOLD_BUBBLE = 60;
+// Fuzz band around each threshold. Per audit 2026-04-23 MEDIUM #5:
+// hard cutoffs at 60/75 produce label flicker (74.8 reads "Bubble"
+// while 75.1 reads "Contender" despite an identical underlying
+// signal). The base tier is unchanged for downstream logic; this
+// only widens the *display label* when a score is within FUZZ of a
+// boundary. Mirrors the soft-band approach already used in
+// projectRosterForYear's age-factor interpolation.
+export const TIER_FUZZ = 4;
 
 export function tierForScore(score: number): ContenderTier {
   if (score >= TIER_THRESHOLD_CONTENDER) return "contender";
@@ -46,4 +54,30 @@ export function tierLabel(tier: ContenderTier): string {
     case "rebuild":
       return "Rebuild";
   }
+}
+
+/**
+ * Display-only label that adds "near Contender" / "near Bubble"
+ * suffixes when the score sits within TIER_FUZZ of a boundary. Use
+ * for visible UI strings; use tierLabel(tier) directly for
+ * downstream branching logic that must stay categorical.
+ */
+export function tierLabelFuzzy(tier: ContenderTier, score: number): string {
+  const base = tierLabel(tier);
+  if (
+    tier === "bubble" &&
+    score >= TIER_THRESHOLD_CONTENDER - TIER_FUZZ
+  ) {
+    return `${base}, near Contender`;
+  }
+  if (tier === "rebuild" && score >= TIER_THRESHOLD_BUBBLE - TIER_FUZZ) {
+    return `${base}, near Bubble`;
+  }
+  if (
+    tier === "contender" &&
+    score < TIER_THRESHOLD_CONTENDER + TIER_FUZZ
+  ) {
+    return `${base}, low end`;
+  }
+  return base;
 }

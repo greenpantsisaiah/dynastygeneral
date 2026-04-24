@@ -62,23 +62,74 @@ const POSITION_DRAIN_WEIGHT_SF: Record<string, number> = {
   TE: 0.10,
 };
 
-// Monte Carlo trial count. 50 is enough to stabilize the modal-pick
-// signal at ±5 percentage points (binomial std-dev), well below the
-// resolution our confidence buckets care about. Per-trial cost is
-// O(picks × opponents) which is tiny (~50 ops); 50 trials is ~2500
-// ops per buildMultiPickPlan, negligible against the LLM calls
-// elsewhere on the page.
-const MONTE_CARLO_TRIALS = 50;
-// Top-K window from which opponents sample within a position. Higher
-// = more reach / more variance. K=5 reflects the dynasty community
-// observation that opponents reach 1-2 tiers regularly but rarely
-// drop 5+ ranks.
+// Monte Carlo trial count. Per assumption-auditor 2026-04-23 HIGH:
+// 50 trials gave a binomial SE of ~6-7pp at p≈0.5, which is wider
+// than the survival-pct buckets we care about and let two refreshes
+// flip the modal primary. Bumped to 500 (SE ~2pp at p=0.5; ~1.5pp
+// at p=0.78). Per-trial cost is O(picks × opponents), so 500 trials
+// is ~25k ops per buildMultiPickPlan, still negligible against the
+// LLM calls elsewhere on the page.
+const MONTE_CARLO_TRIALS = 500;
+// Top-K window from which opponents sample within a position.
+// DIRECTIONAL PRIOR: K=5 reflects the dynasty community observation
+// that opponents reach 1-2 tiers regularly but rarely drop 5+ ranks.
+// Not measured against held-out mock data; revisit when calibration
+// data is available (per audit MEDIUM #4).
 const SAMPLE_WINDOW_SIZE = 5;
 // Softmax sharpness for the within-position sampling. Higher =
 // closer to "always pick top of pool"; lower = more uniform across
-// the window. 1.5 is a moderate prior that respects the rank order
-// without making it deterministic.
+// the window. DIRECTIONAL PRIOR: 1.5 is a moderate prior that
+// respects the rank order without making it deterministic. Not
+// fitted to data.
 const SOFTMAX_TEMP = 1.5;
+
+/**
+ * Mulberry32 PRNG. We seed deterministically from the input snapshot
+ * so two refreshes of the same draft state produce the same modal
+ * primary, instead of nondeterministically flipping (per audit
+ * 2026-04-23 HIGH).
+ */
+function createRng(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hashString(s: string): number {
+  // FNV-1a 32-bit; collision-tolerant since we only need stability,
+  // not cryptographic uniqueness.
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/**
+ * Confidence band buckets for the survival % displayed to users. The
+ * raw point estimate (e.g. 78%) carries false precision against ~3
+ * layers of unmeasured prior; bucketing aligns the forecast voice
+ * with the system-prompt confidence vocabulary (lock / lean /
+ * coin-flip / fade) and prevents users from over-reading deciles.
+ * Per audit 2026-04-23 HIGH.
+ */
+function survivalBucket(pct: number): {
+  label: string;
+  hint: string;
+} {
+  if (pct >= 0.85) return { label: "lock", hint: "very likely available" };
+  if (pct >= 0.65) return { label: "lean", hint: "likely available" };
+  if (pct >= 0.45) return { label: "coin-flip", hint: "roughly even odds" };
+  if (pct >= 0.25)
+    return { label: "fade", hint: "more often gone than not" };
+  return { label: "fade", hint: "usually gone by your pick" };
+}
 
 /**
  * Build the projected plan. Returns null when the user has fewer than
@@ -106,6 +157,20 @@ export function buildMultiPickPlan(args: {
   const sorted = [...available].sort(
     (a, b) => a.dynasty_rank - b.dynasty_rank,
   );
+
+  // Seeded PRNG keyed by the draft state. Same input -> same modal
+  // primary across hot reloads. Per audit 2026-04-23 HIGH.
+  const seedKey = [
+    snap.league_id,
+    String(snap.draft.next_pick_no ?? 0),
+    String(snap.draft.picks_made.length),
+    schedule.map((s) => `${s.round}.${s.pick_no}`).join(","),
+    sorted
+      .slice(0, 40)
+      .map((p) => p.id)
+      .join(","),
+  ].join("|");
+  const rng = createRng(hashString(seedKey));
 
   const picksToProject = Math.min(schedule.length, MAX_PICKS_PROJECTED);
   // Tally per user-pick: how many trials picked each player as the
@@ -137,8 +202,8 @@ export function buildMultiPickPlan(args: {
       if (!next) break;
       const opponentPicksBetween = Math.max(0, slot.gap_to_next);
       for (let j = 0; j < opponentPicksBetween && pool.length > 0; j++) {
-        const targetPos = sampleOpponentPosition(drainWeights);
-        const removed = sampleOpponentPlayer(pool, targetPos);
+        const targetPos = sampleOpponentPosition(drainWeights, rng);
+        const removed = sampleOpponentPlayer(pool, targetPos, rng);
         if (removed) {
           const idx = pool.indexOf(removed);
           if (idx >= 0) pool.splice(idx, 1);
@@ -216,10 +281,13 @@ export function buildMultiPickPlan(args: {
  * drainWeights. Pure stochastic; no deficit-tracking memory between
  * calls (the law of large numbers + N=50 trials handles convergence).
  */
-function sampleOpponentPosition(weights: Record<string, number>): string {
+function sampleOpponentPosition(
+  weights: Record<string, number>,
+  rng: () => number,
+): string {
   const total = Object.values(weights).reduce((s, v) => s + v, 0);
   if (total <= 0) return "WR"; // degenerate fallback
-  let r = Math.random() * total;
+  let r = rng() * total;
   for (const [pos, w] of Object.entries(weights)) {
     r -= w;
     if (r <= 0) return pos;
@@ -237,6 +305,7 @@ function sampleOpponentPosition(weights: Record<string, number>): string {
 function sampleOpponentPlayer(
   pool: AvailablePlayer[],
   position: string,
+  rng: () => number,
 ): AvailablePlayer | null {
   const positional = pool.filter(
     (p) => (p.position ?? "?").toUpperCase() === position,
@@ -251,7 +320,7 @@ function sampleOpponentPlayer(
   // descending. weight = exp(-rank / temp) so temp=1.5 gives ~50/30/15/3/2.
   const weights = window.map((_, i) => Math.exp(-i / SOFTMAX_TEMP));
   const totalW = weights.reduce((s, v) => s + v, 0);
-  let r = Math.random() * totalW;
+  let r = rng() * totalW;
   for (let i = 0; i < window.length; i++) {
     r -= weights[i];
     if (r <= 0) return window[i];
@@ -264,15 +333,20 @@ function reasonFor(
   pickIndex: number,
   survivalPct: number,
 ): string {
-  // Reason copy now anchors to the Monte Carlo survival rate so users
-  // see "available in 78% of trials" instead of being asked to take
-  // the deterministic primary on faith.
+  // Reason copy uses confidence buckets (lock / lean / coin-flip /
+  // fade) instead of raw percentages. Per audit 2026-04-23 HIGH:
+  // raw deciles overstate model precision against unmeasured priors,
+  // and brand vocabulary in system-prompt.ts mandates these buckets.
   if (pickIndex === 0) {
     return `Best available (${p.position ?? "?"}, dynasty rank ${Math.round(p.dynasty_rank)}).`;
   }
   const ageNote = p.age != null ? `, age ${p.age}` : "";
-  const pct = Math.round(survivalPct * 100);
-  return `Available in ${pct}% of simulated draft sequences (${p.position ?? "?"}-${p.team ?? "?"}${ageNote}).`;
+  const bucket = survivalBucket(survivalPct);
+  return `${capitalize(bucket.label)}: ${bucket.hint} at this slot (${p.position ?? "?"}-${p.team ?? "?"}${ageNote}).`;
+}
+
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
 }
 
 function buildThread(
