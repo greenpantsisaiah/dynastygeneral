@@ -65,6 +65,7 @@ import {
   LeagueSwitcher,
   type LeagueSwitcherItem,
 } from "@/components/league/league-switcher";
+import { RefreshButton } from "@/components/league/refresh-button";
 import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
@@ -367,6 +368,7 @@ export default async function LeagueHubPage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <RefreshButton leagueId={leagueId} />
               {!cleanedUsername ? (
                 <UsernamePrompt leagueId={leagueId} season={season} />
               ) : (
