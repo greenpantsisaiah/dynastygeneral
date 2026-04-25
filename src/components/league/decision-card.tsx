@@ -39,9 +39,13 @@ const RULE_TONE: Record<
   { border: string; bg: string; accent: string }
 > = {
   fill_starter_urgent: {
-    border: "border-danger/60",
-    bg: "bg-danger/5",
-    accent: "text-danger",
+    // Warning tone, not danger. Per user feedback 2026-04-24: red on
+    // the most-common rule washes out the meaning of red. Reserved
+    // danger-red for genuine alarm states (constraint violation +
+    // best pick still violates, no viable starter at the position).
+    border: "border-warning/60",
+    bg: "bg-warning/5",
+    accent: "text-warning",
   },
   fill_starter: {
     border: "border-accent/60",

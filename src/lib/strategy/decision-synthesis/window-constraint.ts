@@ -75,14 +75,23 @@ export function buildWindowConstraint(
   else if (target <= 35) direction = "future";
   else direction = "balanced";
 
-  // Age bands. Win-now emphasizes proven production (24-28 is peak).
-  // Future emphasizes youth/upside (<= 24). Balanced is permissive.
+  // Age bands. Strength-aware so a "lean win-now" target (65/35)
+  // doesn't penalize a 29-year-old elite RB the same way "all-in
+  // this year" (90/10) would. Per user feedback 2026-04-24:
+  // Saquon at 29 violating the band read as "engine doesn't think
+  // he's a top-10 RB," which is wrong; a proven elite at 29 is the
+  // EXACT player you want for win-now leans short of full punt.
+  //
+  // Heavy win-now (90/10 or 80/20): peak-only. Past 28 = depreciating.
+  // Lean win-now (65/35): widen to 30. Year 29 is still prime for
+  // most positions; year 30 is acceptable for proven starters.
+  // Heavy future / lean future: youth-first (<= 24).
   let ideal_age_min = 0;
   let ideal_age_max = 99;
   let exclude_rookies = false;
   if (direction === "win_now") {
     ideal_age_min = 24;
-    ideal_age_max = 28;
+    ideal_age_max = strength === "heavy" ? 28 : 30;
     exclude_rookies = strength === "heavy";
   } else if (direction === "future") {
     ideal_age_min = 0;
@@ -167,15 +176,24 @@ export function penalizeForConstraint(
     notes.push("rookie");
   }
 
+  // Track magnitude so the surfaced copy can graduate from "slightly
+  // past ideal" (1yr off) through "past ideal" (2-3yr) up to the
+  // strict "violates window" framing (4yr+). Per user feedback
+  // 2026-04-24: a 29-year-old RB labeled "violates win-now window"
+  // read as alarmist for a 1-year overage; the penalty math (6 pts
+  // heavy, 3 pts moderate) is small but the copy was screaming.
+  let maxAgeGap = 0;
   if (typeof p.age === "number") {
     if (p.age < c.ideal_age_min) {
       const gap = c.ideal_age_min - p.age;
+      maxAgeGap = Math.max(maxAgeGap, gap);
       penalty += c.strength === "heavy" ? gap * 6 : gap * 3;
-      notes.push(`age ${p.age} (ideal ${c.ideal_age_min}-${c.ideal_age_max})`);
+      notes.push(`age ${p.age} (window favors ${c.ideal_age_min}-${c.ideal_age_max})`);
     } else if (p.age > c.ideal_age_max) {
       const gap = p.age - c.ideal_age_max;
+      maxAgeGap = Math.max(maxAgeGap, gap);
       penalty += c.strength === "heavy" ? gap * 6 : gap * 3;
-      notes.push(`age ${p.age} (ideal ${c.ideal_age_min}-${c.ideal_age_max})`);
+      notes.push(`age ${p.age} (window favors ${c.ideal_age_min}-${c.ideal_age_max})`);
     }
   }
 
@@ -186,8 +204,17 @@ export function penalizeForConstraint(
       : c.direction === "future"
         ? "future"
         : "balanced";
+  // Magnitude-graduated framing. "Violates" is strong language;
+  // reserve it for >=4 years off ideal. Closer overages get softer
+  // framing that matches their actual penalty weight.
+  const severity =
+    maxAgeGap >= 4
+      ? "Violates"
+      : maxAgeGap >= 2
+        ? "Past ideal for"
+        : "Slightly past ideal for";
   return {
     penalty,
-    note: `Violates ${directionLabel} window: ${notes.join(", ")}.`,
+    note: `${severity} ${directionLabel} window: ${notes.join(", ")}.`,
   };
 }

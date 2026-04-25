@@ -178,15 +178,27 @@ function buildCandidates(
     const need = reqs[pos];
     if (survives === false) {
       // Branch fires when ADP says this player is GONE before the user's
-      // NEXT pick. Old copy ("likely to survive to your next pick") read
-      // as the opposite of the truth and contradicted the surrounding
-      // urgency framing. Per dynasty-bug-investigator 2026-04-23.
+      // NEXT pick. Old copy ("Take him now or you get nothing here") was
+      // deterministic for a probabilistic outcome (ADP is a central
+      // tendency, not a wall); per user feedback 2026-04-24 it read as
+      // alarmist. Probabilistic phrasing graduated by ADP gap below.
+      const adp = top.adp;
+      const gap =
+        typeof adp === "number" ? Math.round(nextUserPickNo - adp) : null;
+      const survival =
+        gap == null
+          ? "ADP unavailable; treat as fragile until you see him on the board."
+          : gap <= 3
+            ? `ADP ${Math.round(adp!)} says he goes ~${gap} pick${gap === 1 ? "" : "s"} before your next slot. Real chance he survives, but skipping is a luck bet.`
+            : gap <= 15
+              ? `ADP ${Math.round(adp!)} puts him ~${gap} picks before your next slot. Likely gone if you pass; if you skip, expect this tier to be empty when you're back.`
+              : `ADP ${Math.round(adp!)} is well past your next slot (~${gap} picks ahead). He'd have to fall hard to survive; treat as gone if you pass.`;
       push({
         player: top,
         position: pos,
         rule: "fill_starter_urgent",
         score: 100,
-        primary_reason: `${top.name} (ADP ${top.adp ?? "?"}) is the best ${POSITION_LABEL[pos]} on the board and goes before your next pick. Take him now or you get nothing here. You're ${have}/${need}.`,
+        primary_reason: `${top.name} is the best ${POSITION_LABEL[pos]} on the board and you're ${have}/${need} on starters. ${survival}`,
       });
     } else {
       push({
