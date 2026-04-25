@@ -84,11 +84,24 @@ export default function TermsPage() {
               <p>
                 Certain features require a paid Pro subscription.
                 Subscriptions are billed monthly or annually via Stripe.
-                New subscriptions include a 14-day free trial. You may
-                cancel at any time from your Account page; access
-                continues until the end of the current billing period. We
-                do not offer refunds for partial billing periods. Prices
-                may change with 30 days' notice.
+                New subscriptions include a 14-day free trial. The
+                trial converts to a paid subscription at the end of
+                the 14-day period at the price shown at checkout,
+                unless you cancel before then.
+              </p>
+              <p className="mt-3">
+                <strong>Auto-renewal disclosure.</strong> Subscriptions
+                automatically renew at the then-current price at the
+                end of each billing period (monthly or annual) until
+                you cancel. You may cancel any time from your Account
+                page; cancellation stops future renewals and access
+                continues through the end of the paid period. For
+                annual subscriptions, we send a renewal reminder by
+                email 7 days before the renewal date. We do not offer
+                refunds for partial billing periods. Prices may change
+                with 30 days' notice. California, New York, Oregon,
+                and Illinois subscribers may have additional rights
+                under state auto-renewal laws.
               </p>
             </Section>
 

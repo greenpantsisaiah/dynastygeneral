@@ -189,6 +189,20 @@ export default function PrivacyPage() {
               </ul>
             </Section>
 
+            <Section title="International transfers">
+              <p className="mt-2">
+                Dynasty Copilot is operated in the United States. If you
+                access the Service from outside the U.S., your data
+                will be transferred to and processed in the U.S. by us
+                and our sub-processors. We rely on the EU-U.S. Data
+                Privacy Framework, the UK Extension, and Standard
+                Contractual Clauses where applicable for transfers from
+                the EU and UK. Stripe, Google, Anthropic, Vercel,
+                Supabase, and Upstash are all certified or
+                contractually compliant with these frameworks.
+              </p>
+            </Section>
+
             <Section title="Data retention">
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 <li>
@@ -237,6 +251,14 @@ export default function PrivacyPage() {
                 <li>Request correction or deletion of your data.</li>
                 <li>Object to processing.</li>
                 <li>Withdraw consent.</li>
+                <li>
+                  California (CCPA/CPRA): opt out of the sale or
+                  sharing of personal information for cross-context
+                  behavioral advertising. We do not sell or share for
+                  this purpose. Limit the use of sensitive personal
+                  information. We do not discriminate against users
+                  who exercise their rights.
+                </li>
               </ul>
               <p className="mt-4">
                 Email{" "}
@@ -259,9 +281,19 @@ export default function PrivacyPage() {
             <Section title="Cookies">
               <p className="mt-2">
                 We set one cookie: `dw_&lt;leagueId&gt;`, a 180-day
-                functional preference cookie storing your declared draft
-                window. We do not set advertising, analytics, or tracking
-                cookies. We do not use third-party trackers.
+                functional preference cookie that stores your declared
+                draft window for a specific league. The cookie is set
+                only when you take the explicit action of declaring a
+                window in the Windows Bar (your declaration is your
+                consent). You can decline by not declaring a window;
+                the rest of the app functions normally. We do not set
+                advertising, analytics, or tracking cookies, and we do
+                not use third-party trackers.
+              </p>
+              <p className="mt-3">
+                You can clear the cookie at any time by clearing site
+                data in your browser, or it will expire automatically
+                after 180 days.
               </p>
             </Section>
 
