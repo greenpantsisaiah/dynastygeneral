@@ -164,10 +164,12 @@ export default function TermsPage() {
 
             <Section n={11} title="Governing law">
               <p>
-                These Terms are governed by the laws of the United States
-                and the founder's state of residence, without regard to
-                conflict-of-laws rules. Disputes shall be resolved in the
-                courts of that jurisdiction.
+                These Terms are governed by the laws of the State of
+                Texas, United States, without regard to conflict-of-laws
+                rules. Any dispute arising from these Terms or the
+                Service shall be brought exclusively in the state or
+                federal courts located in Texas, and you consent to
+                personal jurisdiction there.
               </p>
             </Section>
 
