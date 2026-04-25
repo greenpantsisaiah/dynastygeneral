@@ -214,15 +214,19 @@ export default async function LeagueHubPage({
   // (24h FantasyCalc fetch). Best-effort; non-fatal if it fails.
   let playerValuesByIdJson: Record<string, number> = {};
 
-  // Engine integrity backstop: top-100 consensus players who are
-  // silently missing from `availablePlayers`. Populated after the
-  // sanity check runs. ALWAYS rendered as a danger banner when
-  // non-empty, regardless of the diagnose flag, because a partial
-  // pool poisons every downstream call (Decision lean, Counter-view,
-  // Coach context, Next Picks Plan). Better to scare the user with
-  // a visible alarm than to silently mislead. Per LaPorta incident
-  // 2026-04-25.
-  let missingPlayerIssues: import("@/lib/players/sanity").MissingPlayerIssue[] = [];
+  // Engine integrity backstop. Suite of pure-function checks
+  // covering pool completeness, drafted-in-pool, roster identification,
+  // position normalization, format detection, cache freshness,
+  // starter-reqs drift, availability coherence, and cross-source
+  // position. Severe results render an unconditional danger banner;
+  // warnings show in ?diagnose=1. Per "100% perfection on expected
+  // behavior" directive 2026-04-25 and the LaPorta incident.
+  let integrityReport: import("@/lib/players/integrity").IntegrityReport = {
+    severity: "ok",
+    issues: [],
+    severe_count: 0,
+    warning_count: 0,
+  };
 
   // Tier check moved earlier in the pipeline so the path-commitment
   // sync (which needs tierState.user) can run inside the snapshot
@@ -293,14 +297,14 @@ export default async function LeagueHubPage({
       // so ?diagnose=1 surfaces them inline. Per user feedback
       // 2026-04-24: a single seriously mis-ranked elite breaks trust;
       // backstop the rerank cascade with explicit verification.
+      // Ordering sanity check stays here. Validates engine `available`
+      // ordering against FantasyCalc's overallRank consensus. The
+      // unified integrity suite runs LATER (after synthesizeDecision
+      // is built so the availability-coherence check can read it).
       if (valueMap && valueMap.size > 0 && availablePlayers.length > 0) {
         try {
-          const {
-            runRankingSanityChecks,
-            summarizeSanityIssues,
-            runCompletenessSanityChecks,
-            summarizeCompletenessIssues,
-          } = await import("@/lib/players/sanity");
+          const { runRankingSanityChecks, summarizeSanityIssues } =
+            await import("@/lib/players/sanity");
           const sanityIssues = runRankingSanityChecks({
             available: availablePlayers,
             playerValues: valueMap,
@@ -315,46 +319,11 @@ export default async function LeagueHubPage({
                 summarizeSanityIssues(sanityIssues),
               );
             }
-            // Push notable+severe into the diagnose bag so they show
-            // inline when ?diagnose=1 fires. Minor issues are noise
-            // and stay filtered (already dropped by the checker).
             if (issues) {
               for (const it of sanityIssues.slice(0, 8)) {
                 issues.push({
                   stage: `ranking-sanity:${it.severity}`,
                   message: `${it.name} (${it.position}) is engine #${it.engine_position} but consensus #${it.consensus_rank} (delta ${it.delta >= 0 ? "+" : ""}${it.delta})`,
-                });
-              }
-            }
-          }
-
-          // Completeness backstop. Walks the consensus baseline (top
-          // 100 by FantasyCalc rank) and flags any player who's
-          // neither in our available pool nor in the drafted set.
-          // A non-empty result is severe by definition (the engine
-          // is silently missing a real, undrafted, top-tier player)
-          // and is rendered as a danger banner on the hub regardless
-          // of the diagnose flag.
-          const draftedIds = new Set<string>();
-          for (const p of snapshot.draft.picks_made) {
-            if (p.player_id) draftedIds.add(p.player_id);
-          }
-          const missing = runCompletenessSanityChecks({
-            available: availablePlayers,
-            playerValues: valueMap,
-            draftedIds,
-          });
-          if (missing.length > 0) {
-            console.error(
-              "[hub:completeness-sanity]",
-              summarizeCompletenessIssues(missing),
-            );
-            missingPlayerIssues = missing;
-            if (issues) {
-              for (const it of missing.slice(0, 12)) {
-                issues.push({
-                  stage: "completeness-sanity:severe",
-                  message: `${it.name} (${it.position}, consensus #${it.consensus_rank}) is silently missing from the available pool`,
                 });
               }
             }
@@ -496,6 +465,52 @@ export default async function LeagueHubPage({
           });
         } catch (err) {
           console.error("[hub:decision-synthesis]", err);
+        }
+      }
+
+      // Engine integrity suite. Runs after `decision` is built so the
+      // availability-coherence check can read it. Severe results
+      // render an unconditional danger banner; warnings show in
+      // ?diagnose=1. See web/src/lib/players/integrity.ts for the
+      // full check list.
+      if (valueMap) {
+        try {
+          const { runEngineIntegrityChecks, summarizeIntegrityReport } =
+            await import("@/lib/players/integrity");
+          const { getCacheStatus } = await import("@/lib/players/cache");
+          const cacheStatus = getCacheStatus();
+          const fetchedAtMs =
+            cacheStatus && cacheStatus.fetched_at
+              ? Date.parse(cacheStatus.fetched_at) || null
+              : null;
+          integrityReport = runEngineIntegrityChecks({
+            snap: snapshot,
+            available: availablePlayers,
+            playerValues: valueMap,
+            decision,
+            rosterPositionsRaw: league.roster_positions ?? [],
+            playersFetchedAt: fetchedAtMs,
+          });
+          if (integrityReport.severity !== "ok") {
+            const logger =
+              integrityReport.severity === "severe"
+                ? console.error
+                : console.warn;
+            logger(
+              "[hub:integrity]",
+              summarizeIntegrityReport(integrityReport),
+            );
+            if (issues) {
+              for (const it of integrityReport.issues.slice(0, 16)) {
+                issues.push({
+                  stage: `integrity:${it.severity}:${it.kind}`,
+                  message: `${it.headline} · ${it.evidence}`,
+                });
+              }
+            }
+          }
+        } catch (err) {
+          captureError(issues, "hub:integrity", err);
         }
       }
     } catch (err) {
@@ -679,37 +694,50 @@ export default async function LeagueHubPage({
           )}
 
           {/* Engine integrity banner. Renders ALWAYS (not gated by
-              diagnose=1) when the completeness check finds top-100
-              consensus players silently missing from the available
-              pool. A partial pool poisons every downstream call;
-              better to scare the user with a visible alarm than to
-              silently mislead. Per LaPorta incident 2026-04-25. */}
-          {missingPlayerIssues.length > 0 && (
+              diagnose=1) when the integrity suite finds severe issues.
+              The full check list lives in players/integrity.ts and
+              covers pool completeness, drafted-in-pool, roster
+              identification, position normalization, format
+              detection, cache freshness, starter-reqs drift,
+              availability coherence, and cross-source position. Better
+              to scare the user with a visible alarm than to silently
+              mislead. */}
+          {integrityReport.severity === "severe" && (
             <section className="mt-6 rounded-md border-2 border-danger/60 bg-danger/10 px-4 py-3">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-danger">
-                ⚠ Engine integrity issue · {missingPlayerIssues.length} top-100 player{missingPlayerIssues.length === 1 ? "" : "s"} missing from pool
+                ⚠ Engine integrity issue · {integrityReport.severe_count} severe
+                {integrityReport.warning_count > 0
+                  ? ` + ${integrityReport.warning_count} warning${integrityReport.warning_count === 1 ? "" : "s"}`
+                  : ""}
               </div>
               <p className="mt-1.5 text-sm text-foreground leading-relaxed">
-                The engine is missing real, undrafted players the consensus baseline says should be on the board. Recommendations on this page may be incomplete until this is resolved.
+                The engine detected one or more data-correctness issues
+                that may make recommendations on this page incomplete
+                or wrong. We surface this banner instead of silently
+                serving you a partial answer.
               </p>
-              <ul className="mt-2 space-y-0.5 text-xs text-muted">
-                {missingPlayerIssues.slice(0, 5).map((m) => (
-                  <li key={m.player_id}>
-                    <span className="font-medium text-foreground">{m.name}</span>
-                    <span className="text-muted-2">
-                      {" "}
-                      · {m.position ?? "?"} · consensus #{m.consensus_rank}
-                    </span>
-                  </li>
-                ))}
-                {missingPlayerIssues.length > 5 && (
+              <ul className="mt-2 space-y-1 text-xs text-muted">
+                {integrityReport.issues
+                  .filter((i) => i.severity === "severe")
+                  .slice(0, 6)
+                  .map((it, idx) => (
+                    <li key={`${it.kind}-${idx}`}>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-danger">
+                        {it.kind.replace(/_/g, " ")}
+                      </span>
+                      <span className="ml-2 text-foreground">{it.headline}</span>
+                    </li>
+                  ))}
+                {integrityReport.severe_count > 6 && (
                   <li className="text-muted-2">
-                    + {missingPlayerIssues.length - 5} more
+                    + {integrityReport.severe_count - 6} more severe
                   </li>
                 )}
               </ul>
               <p className="mt-2 text-[11px] text-muted-2">
-                Append <code className="font-mono">?diagnose=1</code> to the URL for the full list. This banner also fires a server-log alarm so we catch regressions.
+                Append <code className="font-mono">?diagnose=1</code> to
+                the URL for full evidence. A server-log alarm fires too,
+                so regressions show up in production logs.
               </p>
             </section>
           )}

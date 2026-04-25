@@ -59,7 +59,7 @@ const POSITION_LABEL: Record<Position, string> = {
 // the Coach's format_rules reports 1/2, and the user gets a Decision
 // card lean that ignores the second QB hole. Per dynasty-bug-
 // investigator + ultrathink diagnosis 2026-04-24.
-function effectiveStarterReqs(snap: LeagueSnapshot): Record<Position, number> {
+export function effectiveStarterReqs(snap: LeagueSnapshot): Record<Position, number> {
   const ss = snap.starter_slots;
   return {
     QB: ss.hard.QB + ss.superflex,

@@ -141,9 +141,22 @@ export type LeagueSnapshot = {
   };
 };
 
+// Superflex slot variants. Sleeper sometimes returns "SUPERFLEX",
+// "SF", or "Q_FLEX" instead of the canonical "SUPER_FLEX". Keep
+// this list in sync with the parser in `parseStarterSlots`. A drift
+// here silently mis-formats the league (the SF QB starter bug class).
+const SUPERFLEX_SLOT_VARIANTS = new Set([
+  "SUPER_FLEX",
+  "SUPERFLEX",
+  "SF",
+  "Q_FLEX",
+]);
+
 function detectFormat(league: SleeperLeague): LeagueFormat {
   const positions = league.roster_positions ?? [];
-  if (positions.includes("SUPER_FLEX")) return "superflex";
+  if (positions.some((p) => SUPERFLEX_SLOT_VARIANTS.has(p.toUpperCase()))) {
+    return "superflex";
+  }
   const qbCount = positions.filter((p) => p === "QB").length;
   if (qbCount >= 2) return "2qb";
   return "1qb";
