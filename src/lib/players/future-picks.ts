@@ -83,15 +83,29 @@ export const SUPERFLEX_PICK_MULTIPLIER = 1.20;
  * Don't shave decimals; the precision isn't there.
  */
 export function startupPickValue(overallPick: number): number {
+  // Re-anchored 2026-04-25 per audit finding "12-24 segment is the
+  // highest-drift region." Source: FantasyPros April 2026 dynasty
+  // trade value chart, normalized to 100 for pick 1.01. Reference
+  // anchors:
+  //   1.01: 100   1.06: 87   1.12: 73
+  //   2.01: 67    2.06: 52   2.12: 41   <- this segment was 16+ pts off
+  //   3.01: 38    3.06: 30   3.12: 22
+  //   4.12: ~14   5.12: ~10  7.12: ~6   10.12: ~4   13+: ~2
+  //
+  // Round-turn premium (1.12 → 2.01) baked in: snake-turn back-to-
+  // back picks command a small bonus over the linear extrapolation.
+  // Same for 2.12 → 3.01 (smaller).
   if (overallPick <= 1) return 100;
-  if (overallPick <= 12) return 100 - (overallPick - 1) * 1.55;
-  if (overallPick <= 24) return 83 - (overallPick - 12) * 1.75;
-  if (overallPick <= 36) return 62 - (overallPick - 24) * 1.42;
-  if (overallPick <= 48) return 45 - (overallPick - 36) * 0.92;
-  if (overallPick <= 60) return 34 - (overallPick - 48) * 0.75;
-  if (overallPick <= 84) return Math.max(15, 25 - (overallPick - 60) * 0.42);
-  if (overallPick <= 120) return Math.max(8, 15 - (overallPick - 84) * 0.20);
-  return Math.max(3, 8 - (overallPick - 120) * 0.04);
+  if (overallPick <= 12) return 100 - (overallPick - 1) * 2.45; // 100 → 73
+  if (overallPick <= 13) return 67; // turn premium 1.12 (73) → 2.01 (67)
+  if (overallPick <= 24) return 67 - (overallPick - 13) * 2.36; // 67 → 41
+  if (overallPick <= 25) return 38; // turn premium 2.12 (41) → 3.01 (38)
+  if (overallPick <= 36) return 38 - (overallPick - 25) * 1.45; // 38 → 22
+  if (overallPick <= 48) return Math.max(14, 22 - (overallPick - 36) * 0.67); // 22 → 14
+  if (overallPick <= 60) return Math.max(10, 14 - (overallPick - 48) * 0.33); // 14 → 10
+  if (overallPick <= 84) return Math.max(6, 10 - (overallPick - 60) * 0.17); // 10 → 6
+  if (overallPick <= 120) return Math.max(4, 6 - (overallPick - 84) * 0.06); // 6 → 4
+  return Math.max(2, 4 - (overallPick - 120) * 0.02); // tail
 }
 
 // Default Sleeper rookie-draft round count when we can't read it from

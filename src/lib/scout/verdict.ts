@@ -106,6 +106,19 @@ function buildUserMessage(args: {
     league_id: t.league_id,
     league_name: t.league_name,
     league_format: t.league_format,
+    // format_rules per team. Per cross-endpoint LLM-contract pillar
+    // in INVARIANTS.md: every endpoint that uses an LLM prompt must
+    // ship format_rules so the SYSTEM_PROMPT format-aware rule has
+    // data to bind on. Verdict already has position_adequacy doing
+    // most of the work, but the bool flags below let the LLM
+    // categorically refuse to misframe a SF league as "1QB" or a
+    // TE-premium league as standard.
+    format_rules: {
+      is_superflex:
+        t.league_format === "superflex" || t.league_format === "2qb",
+      second_qb_starts:
+        t.league_format === "superflex" || t.league_format === "2qb",
+    },
     season: t.season,
     status: t.status,
     build_phase: t.build_phase, // "empty" | "drafting" | "active"
