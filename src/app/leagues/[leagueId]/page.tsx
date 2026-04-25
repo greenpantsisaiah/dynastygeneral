@@ -287,6 +287,25 @@ export default async function LeagueHubPage({
         const out: Record<string, number> = {};
         for (const [id, v] of valueMap.entries()) out[id] = v.value;
         playerValuesByIdJson = out;
+
+        // Harmonize the available-pool ordering by the consensus
+        // cascade (KTC value > ADP > heuristic dynasty_rank). Per
+        // 2026-04-25 audit: previously the pool was sorted by
+        // dynasty_rank only, while Strategic Forks re-sorted with
+        // KTC-first internally. Different surfaces saw different
+        // orderings of the same pool, which produced LaPorta
+        // (KTC-top TE) ranking #4 by dynasty_rank in the Decision
+        // card while showing as a top steal in Strategic Forks.
+        // Single canonical ordering now; every downstream surface
+        // uses the same `availablePlayers` array.
+        try {
+          const { rerankByConsensus } = await import(
+            "@/lib/players/rerank"
+          );
+          availablePlayers = rerankByConsensus(availablePlayers, out);
+        } catch (err) {
+          console.error("[hub:rerank-available]", err);
+        }
       } catch (err) {
         console.error("[hub:player-values]", err);
       }

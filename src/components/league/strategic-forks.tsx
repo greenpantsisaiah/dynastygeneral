@@ -35,6 +35,7 @@ import type {
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { startupPickValue } from "@/lib/players/future-picks";
+import { rerankByConsensus } from "@/lib/players/rerank";
 import type { PathCompetition } from "@/lib/strategy/same-path-threats/build";
 import { AskCoachButton } from "./ask-coach-button";
 
@@ -229,22 +230,12 @@ export function StrategicForks({
       ev_delta: cls.delta,
     };
   };
-  // Three-tier preference cascade for re-ranking candidates:
-  //   1. KTC value (descending): market + expert + statistical synthesis
-  //      via FantasyCalc. Most authoritative dynasty signal.
-  //   2. ADP (ascending): pure market consensus from Sleeper. Wider
-  //      coverage than KTC; saves us when FantasyCalc lacks the player.
-  //   3. Original dynasty_rank order (Sleeper search_rank x age x
-  //      position factor): heuristic fallback for the long tail.
-  //
-  // Per user feedback 2026-04-24: Sleeper's `search_rank` (from the
-  // /players/nfl blob, what dynasty_rank is built on) is a SEPARATE
-  // field from the draft-board "RK" column the user sees, which is
-  // ADP-derived. They can disagree by 10+ spots, which surfaced as
-  // Pitts (search_rank low) ranking above LaPorta (ADP 69, lower)
-  // despite the user's draft board showing LaPorta first. Using ADP
-  // as the second-tier signal aligns the engine ordering with the
-  // market view the user is reading on Sleeper.
+  // Three-tier preference cascade lives in lib/players/rerank.ts so
+  // the same cascade is used by available.ts (hub-page harmonization)
+  // and Strategic Forks. Per audit 2026-04-25: previously the cascade
+  // was duplicated, so the available pool ordering and Strategic
+  // Forks' internal ordering could disagree on the same player. Now
+  // there's one canonical source.
   function rerank<
     T extends {
       player_id?: string;
@@ -252,28 +243,7 @@ export function StrategicForks({
       adp?: number | null;
     },
   >(items: T[]): T[] {
-    const idOf = (x: T): string =>
-      ("player_id" in x && x.player_id) ||
-      ("id" in x && x.id) ||
-      "";
-    type Tagged = { x: T; tier: 1 | 2 | 3; key: number };
-    const tagged: Tagged[] = items.map((x) => {
-      const v = valueOf(idOf(x));
-      if (v != null) return { x, tier: 1, key: -v }; // higher = better, negate for asc
-      const adp = x.adp;
-      if (typeof adp === "number" && Number.isFinite(adp)) {
-        return { x, tier: 2, key: adp }; // lower = better
-      }
-      return { x, tier: 3, key: 0 }; // preserve relative order via stable sort
-    });
-    // Sort: tier ascending (KTC first, then ADP, then rest), then
-    // by key within tier. Array.prototype.sort is stable in modern
-    // engines, so tier-3 items retain their original relative order.
-    tagged.sort((a, b) => {
-      if (a.tier !== b.tier) return a.tier - b.tier;
-      return a.key - b.key;
-    });
-    return tagged.map((t) => t.x);
+    return rerankByConsensus(items, valuesById);
   }
   // Per-archetype competitor count from PathCompetition. Keyed by
   // archetype_id; empty when path competition wasn't computed for this

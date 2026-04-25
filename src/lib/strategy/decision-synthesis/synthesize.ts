@@ -453,11 +453,39 @@ function buildCandidates(
 
   // Rule 1: Fill-starter-hole, weighted by urgency.
   // Format-aware: super_flex counts as a QB hole in superflex.
+  //
+  // Window-aware selection (per audit 2026-04-25): with the
+  // harmonized available ordering (KTC > ADP > heuristic), the top
+  // player at a position may be a rookie whose KTC value is high
+  // but who fits the user's declared window poorly. Without window
+  // awareness, Rule 1 would push the top-by-KTC rookie at full
+  // urgent score (100), the constraint penalty (40 for win-now)
+  // would knock him to 60, and a vet who could have been the right
+  // fill at score 100 (no penalty) wouldn't get a chance because
+  // Rule 1 only pushes ONE candidate per position-hole.
+  //
+  // Fix: among the top 5 at position, pick the player whose POST-
+  // PENALTY score is highest. In win-now, the penalty-free vet wins.
+  // In future-build, the high-KTC rookie wins (low or zero penalty
+  // under that window). Same code, window-correct outcome.
   const reqs = effectiveStarterReqs(snap);
   for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
     if (reqs[pos] <= 0) continue;
     if (me.position_counts[pos] >= reqs[pos]) continue;
-    const top = topAtPos(available, pos, 1)[0];
+    const fillCandidates = topAtPos(available, pos, 5);
+    if (fillCandidates.length === 0) continue;
+    let top: AvailablePlayer | null = null;
+    let bestNetScore = -Infinity;
+    for (const c of fillCandidates) {
+      const cAvail = availabilityAt(c, nextUserPickNo);
+      const baseScore = cAvail !== "likely_here" ? 100 : 60;
+      const { penalty } = penalizeForConstraint(c, windowConstraint);
+      const net = baseScore - penalty;
+      if (net > bestNetScore) {
+        bestNetScore = net;
+        top = c;
+      }
+    }
     if (!top) continue;
     const availability = availabilityAt(top, nextUserPickNo);
     const have = me.position_counts[pos];
@@ -538,30 +566,32 @@ function buildCandidates(
   // Sits below fill_starter_urgent (100) so a real starter hole still
   // wins as the lean, but above push_path drift candidates so a steal
   // beats archetype-curated alternatives in the Top 3 ordering.
-  // Rank by ADP ASC (market's order, not our internal dynasty_rank
-  // which can drift from consensus per our own re-rank cascade).
-  // Top-3 by ADP captures the market's idea of "best at position";
-  // when one of those is available 10+ picks past their ADP, that's
-  // the value-falling steal.
+  // Rank by the harmonized `available` order (KTC > ADP > heuristic
+  // dynasty_rank, applied at the hub-page layer). Top-3 at position
+  // by harmonized ordering captures "best N at position by community
+  // consensus." When one of those is available STEAL_GAP_PICKS past
+  // their ADP, that's a value-falling steal worth surfacing.
   //
-  // Why ADP not dynasty_rank: per debug 2026-04-25, Sam LaPorta's
-  // engine search_rank is 79 (Sleeper's positional ranking has
-  // drifted from the original 68), which pushed him to the 4th TE
-  // by dynasty_rank and out of a slice(0, 3) window. ADP is the
-  // market's consensus and doesn't drift the same way; using it as
-  // the position-rank source for the steal rule keeps "top N at
-  // position" aligned with how dynasty pros actually think.
+  // Threshold rationale: 10 picks ≈ 2 standard deviations of typical
+  // mid-round ADP variance (~3-5 picks SD). At 2 SD a player past
+  // their ADP is materially past consensus, not just normal noise.
+  // Tunable via env later; not a knob users care about today.
+  //
+  // Score: 80 / 75 / 70 by position-rank. Sits below
+  // fill_starter_urgent (100) so a real starter hole still wins as
+  // the lean, but above push_path drift candidates so a value-
+  // falling steal beats archetype-curated picks for #2 in Top 3.
   const STEAL_GAP_PICKS = 10;
   for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
     if (reqs[pos] <= 0) continue;
-    const allAtPos = available
+    // `available` is already harmonized at the hub-page layer
+    // (KTC-first cascade), so slice(0, 3) of the position filter is
+    // top-3 at position by community consensus.
+    const top3 = available
       .filter((q) => normalizePos(q.position) === pos)
-      .filter((q) => q.adp != null);
-    const top3ByAdp = [...allAtPos]
-      .sort((a, b) => (a.adp ?? 0) - (b.adp ?? 0))
       .slice(0, 3);
-    for (let i = 0; i < top3ByAdp.length; i++) {
-      const p = top3ByAdp[i];
+    for (let i = 0; i < top3.length; i++) {
+      const p = top3[i];
       if (seenIds.has(p.id)) continue;
       if (p.adp == null) continue;
       const gap = currentPickNo - p.adp;
@@ -578,7 +608,7 @@ function buildCandidates(
         position: pos,
         rule: "position_steal",
         score: 85 - positionRank * 5,
-        primary_reason: `${p.name} is the ${positionLabelOrdinal} ${POSITION_LABEL[pos]} on the board by ADP (#${p.search_rank} overall, ADP ${Math.round(p.adp)}). He fell ${Math.round(gap)} picks past consensus, so the market reached past him; rare to grab this profile this late.`,
+        primary_reason: `${p.name} is the ${positionLabelOrdinal} ${POSITION_LABEL[pos]} on the board (ADP ${Math.round(p.adp)}). He fell ${Math.round(gap)} picks past consensus, so the market reached past him; rare to grab this profile this late.`,
       });
     }
   }

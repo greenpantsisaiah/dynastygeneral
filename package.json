@@ -11,7 +11,8 @@
     "test:integrity": "tsx --tsconfig tsconfig.json evals/integrity.test.ts",
     "test:draft-math": "tsx --tsconfig tsconfig.json evals/draft-math.test.ts",
     "test:anti-patterns": "tsx --tsconfig tsconfig.json evals/anti-patterns.test.ts",
-    "test": "npm run test:integrity && npm run test:draft-math && npm run test:anti-patterns && npm run check:em-dashes"
+    "test:rerank": "tsx --tsconfig tsconfig.json evals/rerank.test.ts",
+    "test": "npm run test:integrity && npm run test:draft-math && npm run test:anti-patterns && npm run test:rerank && npm run check:em-dashes"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
