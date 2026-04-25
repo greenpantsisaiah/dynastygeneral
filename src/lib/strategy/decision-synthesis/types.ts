@@ -27,7 +27,50 @@ export type DecisionRule =
   | "fill_starter" // starter hole, no urgency
   | "push_path" // advance a ranked archetype the user is in acquisition phase on
   | "window_direction" // window is significantly below target, pick skews that way
-  | "earned_value"; // best dynasty-value available, no stronger signal
+  | "earned_value" // best dynasty-value available, no stronger signal
+  | "position_steal"; // top-N at position fell significantly past ADP
+
+// Game-theory layer over ADP-based survival. Per user 2026-04-25:
+// the gap-filling opponent's roster needs change the survival math
+// for any given player. A WR at an opponent who has 3 WRs already is
+// safer than ADP says; a TE at an opponent who has 0 TEs is at more
+// risk. These shapes carry the per-opponent roster + demand model
+// computed in `analyzeOpponentsInGap`.
+
+export type OpponentInGap = {
+  roster_id: number;
+  owner_name: string | null;
+  // Pick numbers this opponent owns in the gap. >1 entry = wrap-
+  // around or multiple traded picks; doubles their effective demand.
+  pick_nos: number[];
+  position_counts: Record<Position, number>;
+  // Per-position likelihood (0-1) the opponent picks this position
+  // on a given pick, normalized so the four skill positions sum to
+  // 1.0. Heuristic: shortfall = 0.5 raw, depth = 0.15, surplus = 0.05.
+  position_demand: Record<Position, number>;
+};
+
+export type OpponentGapAnalysis = {
+  opponents: OpponentInGap[];
+  // Aggregate demand per position summed across all gap opponents,
+  // weighted by pick count. Higher = more competitive demand.
+  total_demand_by_position: Record<Position, number>;
+  // The single most-impactful opponent for the at-a-glance line at
+  // the top of the Decision card. Picked by most picks owned.
+  primary_opponent: OpponentInGap | null;
+};
+
+// Per-candidate signal derived from the gap analysis. Three states
+// for the visual indicator + an optional human-readable note.
+export type CandidateOpponentSignal = {
+  direction: "fades" | "neutral" | "amplifies";
+  // Short note for the candidate card. Null when the signal is
+  // neutral (no need to display).
+  note: string | null;
+  // Normalized per-pick demand for the candidate's position across
+  // gap opponents. 0-1, but typical values 0-0.5.
+  per_pick_demand: number;
+};
 
 export type DecisionCandidate = {
   player_id: string;
@@ -129,6 +172,15 @@ export type DecisionTopCandidate = DecisionCandidate & {
   // Null when ADP is unknown. Drives the survival badge on each
   // candidate card.
   availability_next_pick: DecisionAvailability | null;
+  // Approximate survival probability (5-95) for the visual indicator.
+  // Computed from availability_next_pick with a small nudge from the
+  // opponent signal. Imperfect but communicates the intuition.
+  survival_pct: number | null;
+  // Game-theory signal layered over ADP-based availability. When the
+  // gap-filling opponents have low demand for this player's position,
+  // signal "fades" the risk; high demand "amplifies" it. Null when
+  // we don't have enough data (no opponents in gap, no ADP).
+  opponent_signal: CandidateOpponentSignal | null;
   // Window-constraint penalty note when applicable (e.g. "Violates
   // win-now window: age 33 (ideal 24-28)"). Null when no penalty.
   constraint_note: string | null;
@@ -182,6 +234,11 @@ export type Decision = {
   // Kept on the type so the coach context can still cite gains/losses.
   // The card no longer renders this section; top_candidates does the job.
   tradeoff: DecisionTradeoff;
+  // Game-theory layer: who picks between you and your next slot,
+  // what they need, what they likely target. Drives the OPPONENT
+  // BETWEEN PICKS line at the top of the card. Null when no draft
+  // is active (no gap to analyze).
+  opponent_between_picks: OpponentGapAnalysis | null;
   // Next 2-3 user picks with projected targets. Empty when no draft.
   next_picks_plan: NextPickPlanItem[];
   // "If you skip X here, next viable is ~N picks away via Y/Z." Null

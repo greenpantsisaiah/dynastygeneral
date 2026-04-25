@@ -32,6 +32,7 @@ const RULE_LABEL: Record<DecisionRule, string> = {
   push_path: "Push path",
   window_direction: "Window direction",
   earned_value: "Earned value",
+  position_steal: "Steal · value falling",
 };
 
 const RULE_TONE: Record<
@@ -66,6 +67,15 @@ const RULE_TONE: Record<
     border: "border-success/50",
     bg: "bg-success/5",
     accent: "text-success",
+  },
+  // Steal sits in its own register: not urgent like fill_starter, not
+  // path-driven like push_path, not safe like earned_value. Use the
+  // accent (orange) tone since it's a value-falling event the user
+  // should pay attention to but isn't a starter hole.
+  position_steal: {
+    border: "border-accent/60",
+    bg: "bg-accent/5",
+    accent: "text-accent",
   },
 };
 
@@ -155,6 +165,13 @@ export function DecisionCard({ decision }: { decision: Decision }) {
           <span className="text-muted"> · {decision.window_frame.sentence}</span>
         </div>
       )}
+
+      {decision.opponent_between_picks &&
+        decision.opponent_between_picks.primary_opponent && (
+          <OpponentBetweenPicksBar
+            gap={decision.opponent_between_picks}
+          />
+        )}
 
       {decision.top_candidates.length > 0 && (
         <div className="mt-4">
@@ -311,6 +328,7 @@ const RULE_SHORT: Record<DecisionRule, string> = {
   push_path: "Push path",
   window_direction: "Window",
   earned_value: "Earned value",
+  position_steal: "Steal",
 };
 
 function CandidateCard({
@@ -379,10 +397,44 @@ function CandidateCard({
       <p className="mt-1.5 text-xs text-foreground leading-snug">
         {c.primary_reason}
       </p>
-      {(survivalLabel || c.constraint_note) && (
-        <div className="mt-1.5 flex flex-col gap-0.5 font-mono text-[10px] uppercase tracking-[0.14em]">
-          {survivalLabel && (
-            <span className={survivalTone}>{survivalLabel}</span>
+      {(survivalLabel || c.constraint_note || c.opponent_signal?.note) && (
+        <div className="mt-2 flex flex-col gap-1">
+          {/* Survival sparkline + label. The bar fill width matches
+              the approximate survival probability so the user can
+              scan likelihood at a glance instead of reading the
+              text. Color matches the availability class. */}
+          {survivalLabel && c.survival_pct != null && (
+            <div className="flex items-center gap-2">
+              <div className="relative h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border-soft">
+                <div
+                  className={`absolute left-0 top-0 h-full rounded-full ${
+                    c.availability_next_pick === "probably_gone"
+                      ? "bg-danger/80"
+                      : c.availability_next_pick === "coin_flip"
+                        ? "bg-warning/80"
+                        : "bg-success/80"
+                  }`}
+                  style={{ width: `${c.survival_pct}%` }}
+                />
+              </div>
+              <span
+                className={`font-mono text-[10px] uppercase tracking-[0.14em] ${survivalTone}`}
+              >
+                {survivalLabel} · {c.survival_pct}%
+              </span>
+            </div>
+          )}
+          {c.opponent_signal?.note && (
+            <span
+              className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
+                c.opponent_signal.direction === "amplifies"
+                  ? "text-danger"
+                  : "text-success"
+              }`}
+            >
+              {c.opponent_signal.direction === "amplifies" ? "↓ " : "↑ "}
+              {c.opponent_signal.note}
+            </span>
           )}
           {c.constraint_note && (
             <span className="text-accent normal-case tracking-normal text-[11px]">
@@ -391,6 +443,59 @@ function CandidateCard({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Compact "OPPONENT BETWEEN PICKS" bar at the top of the Decision
+ * card. Names the gap-filler(s) and surfaces their position needs
+ * so the user can see at a glance who's about to pick + what they
+ * likely target. Per user 2026-04-25: this is the missing
+ * game-theory layer that turns "Moore is at risk" (ADP-based,
+ * opponent-blind) into "Moore is safe, opp has 3 WRs already"
+ * (opponent-aware).
+ */
+function OpponentBetweenPicksBar({
+  gap,
+}: {
+  gap: NonNullable<Decision["opponent_between_picks"]>;
+}) {
+  const primary = gap.primary_opponent;
+  if (!primary) return null;
+  const positions = ["QB", "RB", "WR", "TE"] as const;
+  // Order positions by demand descending so the line reads
+  // "likely targets X > Y > Z."
+  const ranked = [...positions].sort(
+    (a, b) =>
+      (primary.position_demand[b] ?? 0) - (primary.position_demand[a] ?? 0),
+  );
+  const topTarget = ranked[0];
+  const counts = positions
+    .map((p) => `${primary.position_counts[p] ?? 0} ${p}`)
+    .join(" · ");
+  const pickCountLabel =
+    primary.pick_nos.length > 1
+      ? `${primary.pick_nos.length} picks before yours`
+      : "1 pick before yours";
+  return (
+    <div className="mt-3 rounded-md border border-border-soft bg-surface px-3 py-2 text-xs">
+      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+        Opponent between picks ·{" "}
+        <span className="text-foreground">
+          {primary.owner_name ?? `Roster ${primary.roster_id}`}
+        </span>{" "}
+        · {pickCountLabel}
+      </div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-muted">
+        <span className="font-mono text-[11px]">{counts}</span>
+        <span className="text-muted-2">·</span>
+        <span>
+          likely targets{" "}
+          <span className="font-medium text-foreground">{topTarget}</span>{" "}
+          first
+        </span>
+      </div>
     </div>
   );
 }

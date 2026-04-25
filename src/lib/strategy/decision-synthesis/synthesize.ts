@@ -24,6 +24,7 @@ import type { RankedArchetype, Position } from "../archetypes/schema";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { WindowsResult } from "../windows/compute";
 import type { WindowWeightingId } from "../windows/types";
+import { slotForPickNo } from "@/lib/sleeper/snake";
 import {
   buildWindowConstraint,
   penalizeForConstraint,
@@ -36,6 +37,9 @@ import type {
   DecisionTopCandidate,
   DecisionQuadrantCandidate,
   NextPickPlanItem,
+  OpponentInGap,
+  OpponentGapAnalysis,
+  CandidateOpponentSignal,
 } from "./types";
 
 const POSITION_LABEL: Record<Position, string> = {
@@ -185,11 +189,240 @@ function availabilityAt(
   return "coin_flip";
 }
 
+// Game-theory layer over the ADP-based survival predictor. The pure
+// ADP classifier is opponent-blind; it only knows market-wide
+// behavior. Real survival also depends on what the SPECIFIC
+// opponents picking between the user's slots actually need.
+//
+// Per user feedback 2026-04-25: when the gap-filling opponent has 3
+// WRs and 0 TEs, "Moore is at risk if I skip" is wrong (he doesn't
+// want another WR) and "LaPorta is safe to wait on" is wrong (he
+// wants a TE badly). The engine has the data; it just wasn't
+// applying it.
+//
+// `analyzeOpponentsInGap` walks the picks between current and the
+// user's next slot, identifies each opponent, and computes their
+// per-position demand (raw need-weighting then normalized to sum to
+// 1.0 across QB/RB/WR/TE). Aggregate demand per position summed
+// across all gap opponents drives the per-candidate signal.
+function analyzeOpponentsInGap(args: {
+  snap: LeagueSnapshot;
+  current: PickScheduleEntry;
+  nextUserPickNo: number;
+}): OpponentGapAnalysis {
+  const { snap, current, nextUserPickNo } = args;
+  const totalTeams = snap.total_teams;
+  const reversalRound = snap.draft.reversal_round;
+  const draftType = snap.draft.type;
+
+  // Map slot → roster_id, with traded-pick overrides applied.
+  // Build slot lookup: slotForPickNo gives slot, then map.
+  const slotToRoster: Record<number, number> = snap.draft.slot_to_roster_id;
+  const tradedOverride = new Map<string, number>();
+  for (const tp of snap.draft.traded_picks) {
+    if (tp.season !== snap.season) continue;
+    tradedOverride.set(`${tp.round}:${tp.original_owner}`, tp.current_owner);
+  }
+
+  const reqs = effectiveStarterReqs(snap);
+  const skillPositions: Position[] = ["QB", "RB", "WR", "TE"];
+
+  const opponentsMap = new Map<number, OpponentInGap>();
+  const aggregate: Record<Position, number> = {
+    QB: 0,
+    RB: 0,
+    WR: 0,
+    TE: 0,
+    K: 0,
+    DST: 0,
+  };
+
+  // Walk pick numbers strictly between current and next user pick.
+  for (
+    let pickNo = current.pick_no + 1;
+    pickNo < nextUserPickNo;
+    pickNo++
+  ) {
+    const { round, slot } = slotForPickNo(pickNo, totalTeams, {
+      type: draftType,
+      reversalRound,
+    });
+    const originalOwner = slotToRoster[slot];
+    if (originalOwner == null) continue;
+    const overrideKey = `${round}:${originalOwner}`;
+    const currentOwner = tradedOverride.get(overrideKey) ?? originalOwner;
+
+    let entry = opponentsMap.get(currentOwner);
+    if (!entry) {
+      const roster = snap.rosters.find((r) => r.roster_id === currentOwner);
+      if (!roster) continue;
+      // Per-position raw need score.
+      // Shortfall (need not met): high demand 0.5 raw weight.
+      // Just-met starter (have == reqs): depth demand 0.15 raw.
+      // Surplus (have >= reqs + 2): low demand 0.05 raw.
+      const rawDemand: Record<Position, number> = {
+        QB: 0,
+        RB: 0,
+        WR: 0,
+        TE: 0,
+        K: 0,
+        DST: 0,
+      };
+      for (const pos of skillPositions) {
+        const need = reqs[pos] ?? 0;
+        if (need <= 0) continue;
+        const have = roster.position_counts[pos] ?? 0;
+        if (have < need) {
+          rawDemand[pos] = 0.5;
+        } else if (have >= need + 2) {
+          rawDemand[pos] = 0.05;
+        } else {
+          rawDemand[pos] = 0.15;
+        }
+      }
+      // Normalize to sum to 1.0 across skill positions.
+      const total = skillPositions.reduce(
+        (s, p) => s + rawDemand[p],
+        0,
+      );
+      const demand: Record<Position, number> = {
+        QB: 0,
+        RB: 0,
+        WR: 0,
+        TE: 0,
+        K: 0,
+        DST: 0,
+      };
+      if (total > 0) {
+        for (const pos of skillPositions) {
+          demand[pos] = rawDemand[pos] / total;
+        }
+      }
+      entry = {
+        roster_id: currentOwner,
+        owner_name: roster.owner_name,
+        pick_nos: [],
+        position_counts: { ...roster.position_counts },
+        position_demand: demand,
+      };
+      opponentsMap.set(currentOwner, entry);
+    }
+    entry.pick_nos.push(pickNo);
+  }
+
+  // Aggregate demand: each pick the opponent owns counts as one
+  // independent draw on their demand distribution. Two back-to-back
+  // wraparound picks from the same opponent count twice.
+  for (const opp of opponentsMap.values()) {
+    for (const pos of skillPositions) {
+      aggregate[pos] += opp.position_demand[pos] * opp.pick_nos.length;
+    }
+  }
+
+  // Pick the most-impactful opponent for the OPPONENT BETWEEN PICKS
+  // line. Heuristic: most picks owned, then highest single-position
+  // demand (creates the sharpest narrative).
+  let primaryOpponent: OpponentInGap | null = null;
+  for (const opp of opponentsMap.values()) {
+    if (
+      !primaryOpponent ||
+      opp.pick_nos.length > primaryOpponent.pick_nos.length
+    ) {
+      primaryOpponent = opp;
+    }
+  }
+
+  return {
+    opponents: Array.from(opponentsMap.values()),
+    total_demand_by_position: aggregate,
+    primary_opponent: primaryOpponent,
+  };
+}
+
+// Per-candidate opponent signal. Combines the position-aggregate
+// gap demand with the candidate's position to produce one of three
+// directional signals + a one-line note. The signal can shift the
+// ADP-based availability up or down by one tier.
+//
+// Thresholds chosen to fire the signal only when the gap is
+// meaningfully imbalanced. Mid-range demand stays neutral so we
+// don't over-claim certainty.
+function opponentSignalForCandidate(args: {
+  player: AvailablePlayer;
+  gap: OpponentGapAnalysis;
+}): CandidateOpponentSignal | null {
+  const { player, gap } = args;
+  const pos = (player.position ?? "").toUpperCase() as Position;
+  if (!["QB", "RB", "WR", "TE"].includes(pos)) return null;
+  if (gap.opponents.length === 0) return null;
+  const demand = gap.total_demand_by_position[pos] ?? 0;
+  // Aggregate demand can exceed 1.0 when multiple opponents have
+  // overlapping high-demand positions. Normalize against pick count.
+  const totalPicksInGap = gap.opponents.reduce(
+    (s, o) => s + o.pick_nos.length,
+    0,
+  );
+  const perPickDemand =
+    totalPicksInGap > 0 ? demand / totalPicksInGap : 0;
+  if (perPickDemand >= 0.35) {
+    // High demand: opponents need this position; player is at risk.
+    const primary = gap.primary_opponent;
+    const note = primary
+      ? `${primary.owner_name ?? "Opp"} likely targets ${pos}`
+      : `Gap opponents likely target ${pos}`;
+    return { direction: "amplifies", note, per_pick_demand: perPickDemand };
+  }
+  if (perPickDemand <= 0.10) {
+    // Low demand: opponents don't need this position; player likely safe.
+    const primary = gap.primary_opponent;
+    const havePos = primary?.position_counts[pos] ?? 0;
+    const note = primary
+      ? `${primary.owner_name ?? "Opp"} has ${havePos} ${pos}, no need`
+      : `Gap opponents don't need ${pos}`;
+    return { direction: "fades", note, per_pick_demand: perPickDemand };
+  }
+  return { direction: "neutral", note: null, per_pick_demand: perPickDemand };
+}
+
+function shiftAvailabilityWithSignal(
+  base: Availability | null,
+  signal: CandidateOpponentSignal | null,
+): Availability | null {
+  if (base == null) return null;
+  if (!signal || signal.direction === "neutral") return base;
+  if (signal.direction === "fades") {
+    if (base === "probably_gone") return "coin_flip";
+    if (base === "coin_flip") return "likely_here";
+    return base;
+  }
+  // amplifies
+  if (base === "likely_here") return "coin_flip";
+  if (base === "coin_flip") return "probably_gone";
+  return base;
+}
+
+// Approximate survival probability for the visual indicator. Three
+// classes mapped to representative %s. The opponent signal nudges
+// these by a small amount when it agrees or disagrees with ADP.
+function survivalPctFor(
+  availability: Availability | null,
+  signal: CandidateOpponentSignal | null,
+): number | null {
+  if (availability == null) return null;
+  let base =
+    availability === "likely_here" ? 90 :
+    availability === "coin_flip" ? 50 : 15;
+  if (signal && signal.direction === "fades") base += 5;
+  if (signal && signal.direction === "amplifies") base -= 5;
+  return Math.max(5, Math.min(95, base));
+}
+
 function buildCandidates(
   snap: LeagueSnapshot,
   ranked: RankedArchetype[],
   available: AvailablePlayer[],
   nextUserPickNo: number,
+  currentPickNo: number,
   windowConstraint: WindowConstraint,
 ): ScoredCandidate[] {
   const me = snap.rosters.find((r) => r.is_me);
@@ -288,7 +521,69 @@ function buildCandidates(
     }
   }
 
-  // Rule 3: Earned value. Consider top 8 by dynasty rank so the window
+  // Rule 3: Position-rank steal. Surfaces a top-3-at-position player
+  // who has fallen significantly past their ADP. Catches the
+  // value-falling moment that earned_value (top-8 OVERALL) misses
+  // and that push_path (archetype-curated) doesn't model.
+  //
+  // Per user feedback 2026-04-25 (LaPorta scenario): a top-3 TE
+  // available 14 picks past consensus is the kind of steal a sharp
+  // dynasty pro spots immediately. Engine should surface it with the
+  // reasoning so the user can decide whether to take it.
+  //
+  // RUNS BEFORE earned_value so the dedupe doesn't lock a steal at
+  // earned_value's lower score and bump it out of the Top 3.
+  //
+  // Score: 80 for top-1-at-position, 75 for top-2, 70 for top-3.
+  // Sits below fill_starter_urgent (100) so a real starter hole still
+  // wins as the lean, but above push_path drift candidates so a steal
+  // beats archetype-curated alternatives in the Top 3 ordering.
+  // Rank by ADP ASC (market's order, not our internal dynasty_rank
+  // which can drift from consensus per our own re-rank cascade).
+  // Top-3 by ADP captures the market's idea of "best at position";
+  // when one of those is available 10+ picks past their ADP, that's
+  // the value-falling steal.
+  //
+  // Why ADP not dynasty_rank: per debug 2026-04-25, Sam LaPorta's
+  // engine search_rank is 79 (Sleeper's positional ranking has
+  // drifted from the original 68), which pushed him to the 4th TE
+  // by dynasty_rank and out of a slice(0, 3) window. ADP is the
+  // market's consensus and doesn't drift the same way; using it as
+  // the position-rank source for the steal rule keeps "top N at
+  // position" aligned with how dynasty pros actually think.
+  const STEAL_GAP_PICKS = 10;
+  for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
+    if (reqs[pos] <= 0) continue;
+    const allAtPos = available
+      .filter((q) => normalizePos(q.position) === pos)
+      .filter((q) => q.adp != null);
+    const top3ByAdp = [...allAtPos]
+      .sort((a, b) => (a.adp ?? 0) - (b.adp ?? 0))
+      .slice(0, 3);
+    for (let i = 0; i < top3ByAdp.length; i++) {
+      const p = top3ByAdp[i];
+      if (seenIds.has(p.id)) continue;
+      if (p.adp == null) continue;
+      const gap = currentPickNo - p.adp;
+      if (gap < STEAL_GAP_PICKS) continue;
+      const positionRank = i + 1;
+      const positionLabelOrdinal =
+        positionRank === 1
+          ? "best"
+          : positionRank === 2
+            ? "second-best"
+            : "third-best";
+      push({
+        player: p,
+        position: pos,
+        rule: "position_steal",
+        score: 85 - positionRank * 5,
+        primary_reason: `${p.name} is the ${positionLabelOrdinal} ${POSITION_LABEL[pos]} on the board by ADP (#${p.search_rank} overall, ADP ${Math.round(p.adp)}). He fell ${Math.round(gap)} picks past consensus, so the market reached past him; rare to grab this profile this late.`,
+      });
+    }
+  }
+
+  // Rule 4: Earned value. Consider top 8 by dynasty rank so the window
   // constraint has real alternatives to penalize toward. If the #1
   // earned-value player is a rookie under heavy-win-now, the #2 / #3
   // (proven vet in the ideal age band) can win after penalty. Scores
@@ -672,6 +967,16 @@ export function synthesizeDecision(args: {
   const nextUserPickNo =
     schedule.length > 1 ? schedule[1].pick_no : current.pick_no + 999;
 
+  // Game-theory layer: identify gap-fillers + their position needs.
+  // Drives the per-candidate opponent_signal and the OPPONENT BETWEEN
+  // PICKS line at the top of the card. Computed once and passed
+  // wherever availability is computed.
+  const gapAnalysis = analyzeOpponentsInGap({
+    snap,
+    current,
+    nextUserPickNo,
+  });
+
   const windowConstraint = buildWindowConstraint(declared_window, windows);
 
   const candidates = buildCandidates(
@@ -679,6 +984,7 @@ export function synthesizeDecision(args: {
     ranked,
     available,
     nextUserPickNo,
+    current.pick_no,
     windowConstraint,
   );
   if (candidates.length === 0) return null;
@@ -759,14 +1065,27 @@ export function synthesizeDecision(args: {
   // + constraint note so the card can show diverse lanes ("push_path"
   // next to "earned_value") and the user can choose the lane.
   const topThree: ScoredCandidate[] = [winner, ...runners].slice(0, 3);
-  const top_candidates: DecisionTopCandidate[] = topThree.map((c) => ({
-    ...toDecisionCandidate(c.player, playerValues),
-    primary_reason: c.primary_reason,
-    rule: c.rule,
-    is_lean: c.player.id === winner.player.id,
-    availability_next_pick: availabilityAt(c.player, nextUserPickNo),
-    constraint_note: c.constraint_note,
-  }));
+  const top_candidates: DecisionTopCandidate[] = topThree.map((c) => {
+    const baseAvail = availabilityAt(c.player, nextUserPickNo);
+    const opponentSignal = opponentSignalForCandidate({
+      player: c.player,
+      gap: gapAnalysis,
+    });
+    const adjustedAvail = shiftAvailabilityWithSignal(
+      baseAvail,
+      opponentSignal,
+    );
+    return {
+      ...toDecisionCandidate(c.player, playerValues),
+      primary_reason: c.primary_reason,
+      rule: c.rule,
+      is_lean: c.player.id === winner.player.id,
+      availability_next_pick: adjustedAvail,
+      survival_pct: survivalPctFor(adjustedAvail, opponentSignal),
+      opponent_signal: opponentSignal,
+      constraint_note: c.constraint_note,
+    };
+  });
 
   // Quadrant candidates. The synthesizer's rule-based scoring tends to
   // surface candidates clustered in similar position+age (e.g. all RBs
@@ -850,21 +1169,31 @@ export function synthesizeDecision(args: {
   const poolSpread =
     ages.length >= 2 ? Math.max(2, (ages[ages.length - 1] - ages[0]) / 2) : 3;
 
-  const quadrant_candidates: DecisionQuadrantCandidate[] = qPool.map((q) => ({
-    ...toDecisionCandidate(q.player, playerValues),
-    primary_reason: q.primary_reason,
-    rule: q.rule,
-    is_lean: q.player.id === winner.player.id,
-    availability_next_pick: availabilityAt(q.player, nextUserPickNo),
-    constraint_note: q.constraint_note,
-    horizon_pct: horizonRelativeToPool(
-      q.player.age,
-      q.player.is_rookie,
-      poolMedian,
-      poolSpread,
-    ),
-    confidence_pct: confidenceForScore(q.score),
-  }));
+  const quadrant_candidates: DecisionQuadrantCandidate[] = qPool.map((q) => {
+    const baseAvail = availabilityAt(q.player, nextUserPickNo);
+    const oppSignal = opponentSignalForCandidate({
+      player: q.player,
+      gap: gapAnalysis,
+    });
+    const adjustedAvail = shiftAvailabilityWithSignal(baseAvail, oppSignal);
+    return {
+      ...toDecisionCandidate(q.player, playerValues),
+      primary_reason: q.primary_reason,
+      rule: q.rule,
+      is_lean: q.player.id === winner.player.id,
+      availability_next_pick: adjustedAvail,
+      survival_pct: survivalPctFor(adjustedAvail, oppSignal),
+      opponent_signal: oppSignal,
+      constraint_note: q.constraint_note,
+      horizon_pct: horizonRelativeToPool(
+        q.player.age,
+        q.player.is_rookie,
+        poolMedian,
+        poolSpread,
+      ),
+      confidence_pct: confidenceForScore(q.score),
+    };
+  });
 
   const next_picks_plan = buildNextPicksPlan(
     snap,
@@ -913,6 +1242,7 @@ export function synthesizeDecision(args: {
     quadrant_candidates,
     why,
     tradeoff,
+    opponent_between_picks: gapAnalysis.opponents.length > 0 ? gapAnalysis : null,
     next_picks_plan,
     scarcity_callout,
     emergency_trade_up,
