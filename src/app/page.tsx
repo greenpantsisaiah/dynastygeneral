@@ -7,15 +7,15 @@ export const metadata: Metadata = {
     "Decision engine for serious dynasty fantasy football managers on Sleeper. Picks with named-player reasoning, trade evaluation against KTC market values, opponent characterization, and live strategy coaching. Free tier, Pro removes caps.",
   alternates: { canonical: "/" },
 };
-import { Benefits } from "@/components/landing/benefits";
-import { Differentiation } from "@/components/landing/differentiation";
+// Homepage is the alpha-share landing target. Heavy marketing funnel
+// moved to /how-it-works 2026-04-25 after Reddit alpha data showed
+// hot users convert via "type Sleeper username, see real league" not
+// via 8 sections of scroll. Keep the Soundboard preview as the trust
+// builder; keep Waitlist as the cold-lead capture path; keep FAQ
+// because launch-stage questions are real. Everything else moved.
 import { FAQ } from "@/components/landing/faq";
 import { Footer } from "@/components/landing/footer";
 import { Hero } from "@/components/landing/hero";
-import { Insight } from "@/components/landing/insight";
-import { Preview } from "@/components/landing/preview";
-import { Problem } from "@/components/landing/problem";
-import { Solution } from "@/components/landing/solution";
 import { SoundboardPreview } from "@/components/landing/soundboard-preview";
 import { Waitlist } from "@/components/landing/waitlist";
 
@@ -46,12 +46,6 @@ export default function HomePage() {
       <SiteNav />
       <main className="flex-1">
         <Hero />
-        <Problem />
-        <Insight />
-        <Solution />
-        <Benefits />
-        <Differentiation />
-        <Preview />
         <SoundboardPreview />
         <Waitlist />
         <FAQ />
