@@ -126,11 +126,21 @@ export default function PrivacyPage() {
               <p className="mt-2">We rely on the following service providers:</p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 <li>
-                  <strong>AI provider</strong> — our AI engine processes
-                  your chat messages and league context to generate
-                  responses. The provider may also perform live web
-                  searches when answering your questions, which may
-                  transmit query content to third-party search providers.
+                  <strong>Anthropic (Claude API)</strong> processes your
+                  chat messages and league context to generate AI
+                  responses. Anthropic does not train its models on your
+                  inputs or outputs per their{" "}
+                  <a
+                    href="https://www.anthropic.com/legal/commercial-terms"
+                    className="text-accent hover:underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    commercial terms
+                  </a>
+                  . Anthropic may also perform live web searches when
+                  answering, which can transmit query content to
+                  third-party search providers.
                 </li>
                 <li>
                   <strong>Sleeper</strong> is the source of your league
@@ -204,13 +214,16 @@ export default function PrivacyPage() {
 
             <Section title="Data export and deletion">
               <p className="mt-2">
-                You can export all data we hold about you or wipe your
-                server-side product data (chat history, pinned briefings)
-                at any time from your Account page. No need to contact us.
-              </p>
-              <p className="mt-2">
-                To delete your account entirely, email us at the address
-                below.
+                To export or delete the data we hold about you, email{" "}
+                <a
+                  href="mailto:isaiah@nextupleader.com"
+                  className="text-accent hover:underline"
+                >
+                  isaiah@nextupleader.com
+                </a>
+                . We respond within 30 days. Self-serve export and wipe
+                from the Account page is on the roadmap and will be
+                announced when available.
               </p>
             </Section>
 
@@ -252,12 +265,12 @@ export default function PrivacyPage() {
               </p>
             </Section>
 
-            <Section title="Children">
+            <Section title="Eligibility and children">
               <p className="mt-2">
-                Dynasty Copilot is not directed to children under 13 and
-                we do not knowingly collect data from anyone under 13.
-                Users must be at least 13 years old (or the minimum age
-                required in your jurisdiction).
+                Dynasty Copilot is intended for users 18 and older. We
+                do not knowingly collect data from anyone under 18. If
+                you believe a minor has provided data, email us and we
+                will delete it.
               </p>
             </Section>
 

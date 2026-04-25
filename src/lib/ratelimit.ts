@@ -21,6 +21,7 @@ type BucketName =
   | "briefings"
   | "decisions"
   | "scout"
+  | "scout-daily"
   | "decisions-strategy"
   | "players-search"
   | "feedback"
@@ -42,13 +43,24 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // Strategy uses Opus (5x cost). Split into its own bucket so a bot can't
   // burn the full decisions allowance on the most expensive endpoint. Per
   // cost-watcher audit 2026-04-22: shared bucket = $1,008/day single-IP exposure.
-  "decisions-strategy": { requests: 5, window: "1 h" },
+  // Tightened from 5/hr to 3/hr per cost-watcher 2026-04-25: at 5/hr a single
+  // IP could consume ~$24/day, leaving $1 of the $25 global cap for everything
+  // else. 3/hr keeps single-IP exposure under $15/day.
+  "decisions-strategy": { requests: 3, window: "1 h" },
   // Scout is a public, force-dynamic page that calls Sonnet with 4000 max
   // output tokens. Pre-audit it had no rate limit at all (single biggest
   // exposure: $1,558-$7,793/day from a single bot per cost-watcher audit
   // 2026-04-22). Tight bucket appropriate; legitimate users only need a
   // handful of scout views per session.
   scout: { requests: 3, window: "10 m" },
+  // Scout per-IP daily ceiling. Per cost-watcher 2026-04-25: at the
+  // 3-per-10-min rate, a single IP can hit 432 verdicts/day at
+  // ~$0.077 each = ~$33/day per IP. Above the global cap on its own.
+  // 20 calls/day is plenty for a real user reviewing their own
+  // portfolio + a few rivals; bots saturating the per-window limit
+  // get stopped by this second layer well before they can drain the
+  // budget.
+  "scout-daily": { requests: 20, window: "1 d" },
   // Player autocomplete: high frequency by design (every keystroke
   // triggers a debounced fetch), but cap so a bot can't loop through
   // q=a..q=zzz busting the cache + forcing a full pool scan each

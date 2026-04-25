@@ -28,7 +28,18 @@ const PRICING_PER_MTOK: Record<
   default: { input: 3, output: 15 },
 };
 
-const DEFAULT_CAP_USD = 25;
+// Default daily cap. Per cost-watcher 2026-04-25 audit at projected
+// alpha mix (100 free + 10 Pro at full per-user caps): realistic
+// daily spend under non-malicious load is ~$244. The $25 default
+// would have triggered well before normal Pro usage was exhausted
+// and blocked legitimate users.
+//
+// $75 covers normal alpha load, leaves margin, and stops cold any
+// rate-limit-saturation attack since per-IP single-endpoint
+// exposure (post the 2026-04-25 fixes) lands at ~$15/day on
+// strategy-Opus and ~$11/day on scout. Override per env via
+// ANTHROPIC_DAILY_USD_CAP. Raise to $200 for beta scale.
+const DEFAULT_CAP_USD = 75;
 
 let redis: Redis | null = null;
 

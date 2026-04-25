@@ -43,7 +43,7 @@ export default function TermsPage() {
               <p>
                 You must be at least 18 years old, or the age of majority
                 in your jurisdiction, to use the Service. The Service is
-                not directed to children under 13.
+                not directed to anyone under 18.
               </p>
             </Section>
 
@@ -56,6 +56,15 @@ export default function TermsPage() {
                 models that can be wrong. You are solely responsible for
                 your roster decisions, trades, and league choices. We do
                 not guarantee any outcome.
+              </p>
+              <p className="mt-3">
+                The Service uses third-party large language models
+                (currently Anthropic Claude). AI-generated outputs can
+                be incorrect, incomplete, outdated, or misleading. You
+                should independently verify any factual claim before
+                acting on it. By submitting league data, chat messages,
+                or other content, you confirm you have the right to do
+                so.
               </p>
             </Section>
 

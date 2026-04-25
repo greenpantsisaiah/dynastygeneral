@@ -86,7 +86,16 @@ function ownerNameFromUsers(
 
 export default async function ScoutPage({ params, searchParams }: PageProps) {
   const { username } = await params;
-  const { claim, claim_league, season } = await searchParams;
+  const { claim: rawClaim, claim_league, season } = await searchParams;
+  // Cap claim at 500 chars BEFORE it reaches any LLM-bound code path.
+  // Scout is unauthenticated and an unbounded claim is a token-inflation
+  // amplifier (per dynasty-security-auditor 2026-04-25). The 500-char
+  // limit is enough for a real user opinion and short of any meaningful
+  // prompt-injection or token-burn attack.
+  const claim =
+    typeof rawClaim === "string" && rawClaim.length > 0
+      ? rawClaim.slice(0, 500)
+      : undefined;
   const cleaned = decodeURIComponent(username).trim().replace(/^@/, "");
   if (!cleaned) notFound();
 
@@ -104,6 +113,21 @@ export default async function ScoutPage({ params, searchParams }: PageProps) {
         <p className="mt-6 text-muted">
           You've hit the scout rate limit ({rate.limit} per window). Try
           again in {Math.ceil(rate.reset_ms / 1000)}s.
+        </p>
+      </ScoutShell>
+    );
+  }
+  // Per-IP daily ceiling. Second layer above the per-window rate.
+  // Stops a determined bot from saturating the global budget cap on
+  // scout alone (per cost-watcher 2026-04-25).
+  const daily = await checkRateLimit("scout-daily", ip);
+  if (!daily.allowed) {
+    return (
+      <ScoutShell username={cleaned}>
+        <p className="mt-6 text-muted">
+          Daily scout limit reached on this network ({daily.limit} per
+          day). The cap resets in {Math.ceil(daily.reset_ms / 3600000)}{" "}
+          hours.
         </p>
       </ScoutShell>
     );

@@ -223,11 +223,28 @@ export async function getPlayerValues(args: {
  *   isHalfPpr   → ppr = 0.5
  *   else        → ppr = 0 (standard)
  */
+// TE-premium multiplier applied to TE values when the league has
+// TE-premium scoring. FantasyCalc's API doesn't expose a TE-premium
+// parameter (cache key is numQbs:ppr only), so the values returned
+// are standard-PPR baseline. Without this multiplier, the Coach's
+// trade-math systematically undervalues TEs in TE-premium leagues:
+// Tucker Kraft at value 58 in standard is worth meaningfully more
+// in TE-premium, and a Coach proposal that asks 0.6× of his
+// standard value would have looked "fair" without the bump.
+//
+// 1.18 reflects the rough KTC-vs-Sleeper-ADP delta dynasty
+// communities observe in moderate TE-premium (1.5 PPR for TEs vs 1
+// for WR/RB). Heavy TE-prem (2.0 PPR for TE) trends higher; this is
+// a conservative single multiplier rather than a tier-of-bonus
+// scheme. Per dynasty-trade-realism-tester 2026-04-25.
+const TE_PREMIUM_MULTIPLIER = 1.18;
+
 export async function resolvePlayerValues(args: {
   ids: readonly string[];
   isSuperflex: boolean;
   isPpr: boolean;
   isHalfPpr: boolean;
+  isTePremium?: boolean;
 }): Promise<Map<string, PlayerValue>> {
   const numQbs = args.isSuperflex ? 2 : 1;
   const ppr = args.isPpr ? 1 : args.isHalfPpr ? 0.5 : 0;
@@ -237,7 +254,20 @@ export async function resolvePlayerValues(args: {
     const entry = await getPlayerValues({ numQbs, ppr });
     for (const id of args.ids) {
       const v = entry.byPlayerId.get(id);
-      if (v) out.set(id, v);
+      if (!v) continue;
+      if (
+        args.isTePremium &&
+        typeof v.position === "string" &&
+        v.position.toUpperCase() === "TE"
+      ) {
+        out.set(id, {
+          ...v,
+          value: v.value * TE_PREMIUM_MULTIPLIER,
+          raw_value: v.raw_value * TE_PREMIUM_MULTIPLIER,
+        });
+      } else {
+        out.set(id, v);
+      }
     }
   } catch {
     // Non-fatal: callers degrade gracefully if values aren't available.

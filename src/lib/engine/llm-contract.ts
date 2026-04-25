@@ -225,6 +225,7 @@ export async function buildTradePricing(args: {
     isSuperflex: isSF,
     isPpr: snap.scoring.includes("PPR"),
     isHalfPpr: snap.scoring.includes("half-PPR"),
+    isTePremium: snap.scoring.includes("TE-premium"),
   });
   const player_values: TradePricing["player_values"] = {};
   for (const [id, v] of playerValueMap.entries()) {

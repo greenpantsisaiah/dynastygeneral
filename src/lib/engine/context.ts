@@ -182,11 +182,15 @@ export async function assembleContext(
     scoringHighlights.some((s) => /\bPPR\b/i.test(s)) &&
     !scoringHighlights.some((s) => /half/i.test(s));
   const isHalfPpr = scoringHighlights.some((s) => /half.?PPR/i.test(s));
+  const isTePremium = scoringHighlights.some((s) =>
+    /TE.?premium|TEP/i.test(s),
+  );
   const playerValueMap = await resolvePlayerValues({
     ids: [...allIds],
     isSuperflex,
     isPpr,
     isHalfPpr,
+    isTePremium,
   });
   const playerValuesRecord: TradePricing["player_values"] = {};
   for (const [id, v] of playerValueMap.entries()) {

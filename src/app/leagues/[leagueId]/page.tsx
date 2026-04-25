@@ -282,6 +282,7 @@ export default async function LeagueHubPage({
             snapshot.format === "superflex" || snapshot.format === "2qb",
           isPpr: snapshot.scoring.includes("PPR"),
           isHalfPpr: snapshot.scoring.includes("half-PPR"),
+          isTePremium: snapshot.scoring.includes("TE-premium"),
         });
         const out: Record<string, number> = {};
         for (const [id, v] of valueMap.entries()) out[id] = v.value;

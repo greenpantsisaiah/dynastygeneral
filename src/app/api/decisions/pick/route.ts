@@ -4,9 +4,15 @@ import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
 import { checkProGate } from "@/lib/auth/paywall";
 
+// Mirror src/lib/sleeper/validate.ts. Sleeper IDs are alphanum + _ -.
+// Strict regex prevents cache-key poisoning + future SSRF if any
+// fetcher misses encoding (per security audit 2026-04-25).
+const LEAGUE_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
+const USERNAME_RE = /^[a-zA-Z0-9._-]{1,60}$/;
+
 const bodySchema = z.object({
-  league_id: z.string().min(1),
-  sleeper_username: z.string().min(1).max(60).nullish(),
+  league_id: z.string().regex(LEAGUE_ID_RE),
+  sleeper_username: z.string().regex(USERNAME_RE).nullish(),
   current_pick: z.string().min(1).max(40),
   // Pre-fill from a live draft can include the full available pool
   // (200+ in dynasty leagues). 400 ceiling matches our available-pool

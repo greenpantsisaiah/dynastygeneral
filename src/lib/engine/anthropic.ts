@@ -109,6 +109,18 @@ export async function runStructured<TSchema extends z.ZodTypeAny>(
       messages,
     });
 
+    // Best-effort spend tracking. Record EVERY attempt, including the
+    // first one when schema validation fails and we retry. Per
+    // dynasty-cost-watcher 2026-04-25 CRITICAL: prior code only
+    // recorded inside the `if (parsed.success)` branch, so a failed-
+    // first-attempt-then-successful-retry under-reported spend by
+    // ~50%. Budget cap was tracking against a fictional total.
+    recordSpend({
+      model,
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+    }).catch(() => {});
+
     const toolUse = response.content.find(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
     );
@@ -120,12 +132,6 @@ export async function runStructured<TSchema extends z.ZodTypeAny>(
 
     const parsed = opts.outputSchema.safeParse(toolUse.input);
     if (parsed.success) {
-      // Best-effort spend tracking (daily budget cap). Don't block on it.
-      recordSpend({
-        model,
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-      }).catch(() => {});
       return {
         output: parsed.data,
         mode: "live",

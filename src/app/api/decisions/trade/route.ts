@@ -7,14 +7,18 @@ import {
   runTradeOutbound,
 } from "@/lib/engine/decisions";
 
+// Mirror src/lib/sleeper/validate.ts. Per security audit 2026-04-25.
+const LEAGUE_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
+const USERNAME_RE = /^[a-zA-Z0-9._-]{1,60}$/;
+
 const strategyEnum = z
   .enum(["contender", "rebuild", "balanced", "undetermined"])
   .nullish();
 
 const incomingSchema = z.object({
   mode: z.literal("incoming"),
-  league_id: z.string().min(1),
-  sleeper_username: z.string().min(1).max(60).nullish(),
+  league_id: z.string().regex(LEAGUE_ID_RE),
+  sleeper_username: z.string().regex(USERNAME_RE).nullish(),
   you_send: z.array(z.string().min(1)).min(1).max(30),
   you_receive: z.array(z.string().min(1)).min(1).max(30),
   other_manager: z.string().max(120).nullish(),
@@ -24,8 +28,8 @@ const incomingSchema = z.object({
 
 const outboundSchema = z.object({
   mode: z.literal("outbound"),
-  league_id: z.string().min(1),
-  sleeper_username: z.string().min(1).max(60).nullish(),
+  league_id: z.string().regex(LEAGUE_ID_RE),
+  sleeper_username: z.string().regex(USERNAME_RE).nullish(),
   target_kind: z.enum(["player", "manager"]),
   target_name: z.string().min(1).max(120),
   willing_to_move: z.array(z.string().min(1)).max(30).nullish(),
