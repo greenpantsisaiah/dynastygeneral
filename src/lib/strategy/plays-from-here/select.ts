@@ -14,7 +14,11 @@ import { slotForPickNo } from "@/lib/sleeper/snake";
 
 const ALL_PLAYS: PlayFromHere[] = [...EARLY_ROUND_PLAYS];
 
-const TOP_N = 4;
+// Bumped from 4 to 6 per user feedback 2026-04-24: Plays From Here
+// is the highest-signal hot-take panel on the hub; surface a couple
+// more when the catalog has them available without compromising
+// quality (selector still filters by AppliesWhen, so weak fits drop).
+const TOP_N = 6;
 
 function userSlot(snap: LeagueSnapshot): number | null {
   // Authoritative: snapshot carries my_slot from slot_to_roster_id.

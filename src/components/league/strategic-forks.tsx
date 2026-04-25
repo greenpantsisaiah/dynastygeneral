@@ -35,6 +35,7 @@ import type {
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { startupPickValue } from "@/lib/players/future-picks";
+import type { PathCompetition } from "@/lib/strategy/same-path-threats/build";
 import { AskCoachButton } from "./ask-coach-button";
 
 const PICKS_PER_FORK = 4; // up to 4 candidates surfaced; variable per fork
@@ -114,6 +115,10 @@ type PathFork = {
   ranked: RankedArchetype;
   candidates: ArchetypeCandidate[];
   candidate_ev: CandidateEv[];
+  // Number of opponents whose roster shape competes for this same
+  // path. From PathCompetition keyed by archetype_id. Null when no
+  // competition data was provided.
+  competitor_count: number | null;
 };
 
 type DepthFork = {
@@ -175,6 +180,7 @@ export function StrategicForks({
   myPickLabel,
   playerValuesById,
   currentPickNo,
+  pathCompetition,
 }: {
   ranked: RankedArchetype[];
   // Available player pool used to fill depth forks at positions that
@@ -193,6 +199,12 @@ export function StrategicForks({
   // Overall pick number the user is on/about to be on. Drives the
   // KTC slot anchor via startupPickValue. Null when no active draft.
   currentPickNo?: number | null;
+  // Per-archetype opponent competition. When provided, path forks
+  // render a "N opponents chasing" hint so the user knows whether
+  // their lean is contested or unique. Per user feedback 2026-04-24:
+  // path competition belongs as compressed signal here, not as a
+  // separate panel high on the page.
+  pathCompetition?: PathCompetition | null;
 }) {
   const valuesById = playerValuesById ?? {};
   // Slot anchor: KTC-equivalent value of THIS pick slot on the same
@@ -217,6 +229,17 @@ export function StrategicForks({
       ev_delta: cls.delta,
     };
   };
+  // Per-archetype competitor count from PathCompetition. Keyed by
+  // archetype_id; empty when path competition wasn't computed for this
+  // hub render (e.g. no opponents with confidence). Path forks render
+  // this as "N opponents chasing" beneath the path label so the user
+  // sees competition signal compressed into the same panel.
+  const competitorCountByArchetype = new Map<string, number>();
+  if (pathCompetition && pathCompetition.paths.length > 0) {
+    for (const p of pathCompetition.paths) {
+      competitorCountByArchetype.set(p.archetype_id, p.threats.length);
+    }
+  }
   const me = snapshot?.rosters.find((r) => r.is_me) ?? null;
   const reqs = snapshot ? starterNeeds(snapshot) : null;
   const positionState = (pos: Position): { have: number; need: number } => {
@@ -339,6 +362,8 @@ export function StrategicForks({
           ranked: r,
           candidates: trimmed.map((x) => x.c),
           candidate_ev: trimmed.map((x) => x.ev),
+          competitor_count:
+            competitorCountByArchetype.get(r.archetype.id) ?? null,
         });
       }
     } else if (positionPool.length > 0) {
@@ -455,18 +480,32 @@ function horizonLabel(h: number): { text: string; tone: string } {
   return { text: "Balanced", tone: "text-foreground" };
 }
 
-function pathTradeoff(ranked: RankedArchetype): string {
+function pathTradeoff(
+  ranked: RankedArchetype,
+  competitorCount: number | null,
+): string {
   const h = ranked.archetype.horizon;
   const driftPct = Math.round(ranked.drift_score * 100);
+  // Competition tail: "Contested by N opponents." or "Uncontested."
+  // Per user feedback 2026-04-24: viability vs competition is the
+  // signal that compresses Path Competition / Strategy Lab into the
+  // fork itself. Null = data unavailable (don't fabricate); 0 = clear
+  // lane; >=1 = name how many.
+  const compTail =
+    competitorCount == null
+      ? ""
+      : competitorCount === 0
+        ? " Lane is uncontested."
+        : ` ${competitorCount} opponent${competitorCount === 1 ? "" : "s"} chasing the same shape.`;
   if (h >= 60)
-    return `Doubles down on win-now. Currently drifting ${driftPct}% toward this path.`;
+    return `Doubles down on win-now. Currently drifting ${driftPct}% toward this path.${compTail}`;
   if (h <= -60)
-    return `Adds to the rebuild stack. Currently drifting ${driftPct}% toward this path.`;
+    return `Adds to the rebuild stack. Currently drifting ${driftPct}% toward this path.${compTail}`;
   if (h >= 20)
-    return `Modest win-now push. Currently drifting ${driftPct}% toward this path.`;
+    return `Modest win-now push. Currently drifting ${driftPct}% toward this path.${compTail}`;
   if (h <= -20)
-    return `Modest future tilt. Currently drifting ${driftPct}% toward this path.`;
-  return `Balanced add. Currently drifting ${driftPct}% toward this path.`;
+    return `Modest future tilt. Currently drifting ${driftPct}% toward this path.${compTail}`;
+  return `Balanced add. Currently drifting ${driftPct}% toward this path.${compTail}`;
 }
 
 function depthTradeoff(position: Position): string {
@@ -772,7 +811,7 @@ function ForkCard({ fork }: { fork: Fork }) {
 
       <p className="mt-3 text-xs text-muted">
         {isPathFork
-          ? pathTradeoff(fork.ranked)
+          ? pathTradeoff(fork.ranked, fork.competitor_count)
           : isStarterNeedFork
             ? starterNeedTradeoff(
                 fork.have,

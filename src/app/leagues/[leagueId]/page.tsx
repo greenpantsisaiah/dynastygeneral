@@ -614,20 +614,6 @@ export default async function LeagueHubPage({
 
               {sleeperUser && <WindowWeightingPrompt leagueId={leagueId} />}
 
-              {/* Strategy Lab: prominent placement (above WindowsBar)
-                  early in the draft when the user has few picks. The
-                  Lab itself decides whether to render in prominent or
-                  context mode based on user pick count. */}
-              {strategyLab && strategyLab.prominent && (
-                <StrategyLab
-                  lab={strategyLab}
-                  leagueId={leagueId}
-                  season={league.season}
-                  commitment={pathCommitment}
-                  signedIn={Boolean(tierState.user)}
-                />
-              )}
-
               {windows && sleeperUser && (
                 <WindowsBar leagueId={leagueId} windows={windows} />
               )}
@@ -637,23 +623,6 @@ export default async function LeagueHubPage({
               )}
 
               {decision && <DecisionCard decision={decision} />}
-
-              {/* Strategy Lab in context mode: compact strip below
-                  the Decision card so the user can see what they're
-                  cutting off as they commit to picks. */}
-              {strategyLab && !strategyLab.prominent && (
-                <StrategyLab
-                  lab={strategyLab}
-                  leagueId={leagueId}
-                  season={league.season}
-                  commitment={pathCommitment}
-                  signedIn={Boolean(tierState.user)}
-                />
-              )}
-
-              {pathCompetition && (
-                <SamePathThreatsCard competition={pathCompetition} />
-              )}
 
               {draftActive && userPickCount >= 2 && (
                 <MultiPickCard
@@ -673,6 +642,19 @@ export default async function LeagueHubPage({
 
               {draftActive && (
                 <>
+                  {/* League Pulse banner: the one Strategy-Lab signal
+                      worth keeping per user feedback 2026-04-24. Sits
+                      directly above Strategic Forks so the room read
+                      anchors the fork interpretation. */}
+                  {strategyLab?.league_pulse.headline && (
+                    <div className="mt-8 rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm leading-relaxed text-foreground">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+                        League pulse ·
+                      </span>{" "}
+                      {strategyLab.league_pulse.headline}
+                    </div>
+                  )}
+
                   <StrategicForks
                     ranked={rankedArchetypes}
                     available={availablePlayers}
@@ -682,6 +664,7 @@ export default async function LeagueHubPage({
                     currentPickNo={
                       leagueSnapshot?.draft.next_pick_no ?? null
                     }
+                    pathCompetition={pathCompetition}
                   />
 
                   {pickApproach && (
@@ -709,6 +692,14 @@ export default async function LeagueHubPage({
 
               {opponentCharacterizations.length > 0 && (
                 <OpponentCharacterizations items={opponentCharacterizations} />
+              )}
+
+              {/* Path competition lives below opponent characterizations
+                  per user feedback 2026-04-24: this is per-opponent
+                  intel, naturally a sub-view of the opponent panel
+                  rather than a high-priority surface above the picks. */}
+              {pathCompetition && (
+                <SamePathThreatsCard competition={pathCompetition} />
               )}
 
               {sleeperUser && (
