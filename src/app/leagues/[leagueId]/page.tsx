@@ -254,6 +254,11 @@ export default async function LeagueHubPage({
       // available. Used by Strategic Forks for EV-band tagging
       // (bargain / fair / reach). Cached 24h server-side via the
       // FantasyCalc resolver; one upstream fetch covers many requests.
+      // The same fetched map is the consensus baseline for ranking
+      // sanity checks below; one cache, two consumers.
+      let valueMap: Awaited<
+        ReturnType<typeof import("@/lib/players/values")["resolvePlayerValues"]>
+      > | null = null;
       try {
         const valueIds: string[] = [];
         const me = snapshot.rosters.find((r) => r.is_me);
@@ -262,7 +267,7 @@ export default async function LeagueHubPage({
         const { resolvePlayerValues } = await import(
           "@/lib/players/values"
         );
-        const valueMap = await resolvePlayerValues({
+        valueMap = await resolvePlayerValues({
           ids: valueIds,
           isSuperflex:
             snapshot.format === "superflex" || snapshot.format === "2qb",
@@ -274,6 +279,48 @@ export default async function LeagueHubPage({
         playerValuesByIdJson = out;
       } catch (err) {
         console.error("[hub:player-values]", err);
+      }
+
+      // Ranking sanity check. Validates engine `available` ordering
+      // against FantasyCalc's overallRank consensus baseline (24h
+      // cached, daily-updated core architecture). Logs severe
+      // disagreements; pushes notable+severe into the diagnose bag
+      // so ?diagnose=1 surfaces them inline. Per user feedback
+      // 2026-04-24: a single seriously mis-ranked elite breaks trust;
+      // backstop the rerank cascade with explicit verification.
+      if (valueMap && valueMap.size > 0 && availablePlayers.length > 0) {
+        try {
+          const { runRankingSanityChecks, summarizeSanityIssues } =
+            await import("@/lib/players/sanity");
+          const sanityIssues = runRankingSanityChecks({
+            available: availablePlayers,
+            playerValues: valueMap,
+          });
+          if (sanityIssues.length > 0) {
+            const severe = sanityIssues.filter(
+              (i) => i.severity === "severe",
+            );
+            if (severe.length > 0) {
+              console.warn(
+                "[hub:ranking-sanity]",
+                summarizeSanityIssues(sanityIssues),
+              );
+            }
+            // Push notable+severe into the diagnose bag so they show
+            // inline when ?diagnose=1 fires. Minor issues are noise
+            // and stay filtered (already dropped by the checker).
+            if (issues) {
+              for (const it of sanityIssues.slice(0, 8)) {
+                issues.push({
+                  stage: `ranking-sanity:${it.severity}`,
+                  message: `${it.name} (${it.position}) is engine #${it.engine_position} but consensus #${it.consensus_rank} (delta ${it.delta >= 0 ? "+" : ""}${it.delta})`,
+                });
+              }
+            }
+          }
+        } catch (err) {
+          captureError(issues, "hub:ranking-sanity", err);
+        }
       }
 
       pickApproach = buildPickApproach(
