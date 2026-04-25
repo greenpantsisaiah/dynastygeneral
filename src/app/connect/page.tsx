@@ -54,7 +54,7 @@ export default async function ConnectPage({ searchParams }: PageProps) {
             <PlatformPicker selected={platform} username={cleaned} />
             <Link
               href="/#waitlist"
-              className="mt-8 inline-flex h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
+              className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110 sm:h-11 sm:w-auto"
             >
               Notify me when MFL ships →
             </Link>
@@ -113,18 +113,18 @@ export default async function ConnectPage({ searchParams }: PageProps) {
               <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
                 Sleeper username
               </span>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   name="username"
                   defaultValue={cleaned}
                   required
                   autoComplete="off"
                   placeholder="e.g. sleeperuser"
-                  className="h-11 flex-1 rounded-md border border-border-strong bg-surface px-3 text-sm text-foreground outline-none focus:border-accent"
+                  className="h-12 flex-1 rounded-md border border-border-strong bg-surface px-3 text-base text-foreground outline-none focus:border-accent sm:h-11"
                 />
                 <button
                   type="submit"
-                  className="inline-flex h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
+                  className="inline-flex h-12 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110 sm:h-11 sm:w-auto"
                 >
                   Fetch leagues
                 </button>
@@ -158,7 +158,7 @@ export default async function ConnectPage({ searchParams }: PageProps) {
                     href={`/scout/${encodeURIComponent(cleaned)}${
                       resolvedSeason ? `?season=${resolvedSeason}` : ""
                     }`}
-                    className="inline-flex h-8 items-center rounded-md border border-border-strong bg-surface px-3 font-mono text-[11px] uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 hover:text-accent"
+                    className="inline-flex h-9 items-center rounded-md border border-border-strong bg-surface px-3 font-mono text-[11px] uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 hover:text-accent sm:h-8"
                   >
                     Scout report →
                   </Link>

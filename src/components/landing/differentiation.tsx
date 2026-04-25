@@ -24,7 +24,7 @@ export function Differentiation() {
           {rows.map((r) => (
             <div
               key={r.from}
-              className="grid grid-cols-[1fr_auto_1.4fr] items-center gap-4 px-6 py-4 text-sm"
+              className="flex flex-col gap-1.5 px-5 py-4 text-sm sm:grid sm:grid-cols-[1fr_auto_1.4fr] sm:items-center sm:gap-4 sm:px-6"
             >
               <div className="text-muted-2 line-through decoration-danger/60 decoration-1">
                 {r.from}

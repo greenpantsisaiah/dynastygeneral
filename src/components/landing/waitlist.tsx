@@ -229,11 +229,11 @@ export function Waitlist() {
               </span>
             </label>
 
-            <div className="flex items-center gap-4 pt-2">
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
               <button
                 type="submit"
                 disabled={status === "submitting"}
-                className="inline-flex h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
+                className="inline-flex h-12 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60 sm:h-11 sm:w-auto"
               >
                 {status === "submitting" ? "Sending…" : "Request access"}
               </button>
@@ -290,8 +290,11 @@ function CountDisplay({ state }: { state: CountState }) {
   );
 }
 
+// text-base (16px) prevents iOS Safari auto-zoom on focus. Anything
+// smaller triggers the zoom-then-back-out dance which feels broken
+// on mobile. Desktop visual delta is negligible.
 const inputCls =
-  "w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent";
+  "w-full rounded-md border border-border-strong bg-surface px-3 py-2.5 text-base text-foreground outline-none transition focus:border-accent";
 
 function Grid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-4 sm:grid-cols-2">{children}</div>;

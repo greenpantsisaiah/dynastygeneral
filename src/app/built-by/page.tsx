@@ -138,16 +138,16 @@ export default function BuiltByPage() {
               Sleeper today, MyFantasyLeague next. Connect your Sleeper account
               to see it on real leagues. Free tier covers one league.
             </p>
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
               <Link
                 href="/connect"
-                className="inline-flex h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
+                className="inline-flex h-12 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110 sm:h-11 sm:w-auto"
               >
                 Try with your Sleeper account
               </Link>
               <Link
                 href="/how-it-works"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-border-strong bg-surface px-6 text-sm font-medium text-foreground transition hover:border-accent/60 hover:text-accent"
+                className="inline-flex h-12 w-full items-center justify-center rounded-md border border-border-strong bg-surface px-6 text-sm font-medium text-foreground transition hover:border-accent/60 hover:text-accent sm:h-11 sm:w-auto"
               >
                 How the engine works →
               </Link>

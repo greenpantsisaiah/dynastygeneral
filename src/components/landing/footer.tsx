@@ -25,6 +25,12 @@ export function Footer() {
             <Link href="/how-it-works" className="hover:text-foreground">
               How it works
             </Link>
+            <Link href="/pricing" className="hover:text-foreground">
+              Pricing
+            </Link>
+            <Link href="/scout" className="hover:text-foreground">
+              Scout
+            </Link>
             <Link href="/built-by" className="hover:text-foreground">
               Built by
             </Link>

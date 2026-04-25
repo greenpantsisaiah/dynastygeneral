@@ -246,24 +246,26 @@ export function DecisionCard({ decision }: { decision: Decision }) {
                     {item.target_position}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-2">
                       <span className="flex-1">
                         <span className="font-medium">
                           {item.target_names.join(" or ")}
                         </span>
                         <span className="text-muted-2"> · {item.reason}</span>
                       </span>
-                      <span
-                        className={`font-mono text-[10px] uppercase tracking-[0.14em] ${conf.color}`}
-                        title="Confidence: how seriously to read this slot's projection"
-                      >
-                        {conf.label}
-                      </span>
-                      {item.density !== "normal" && (
-                        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                          {DENSITY_LABEL[item.density]}
+                      <div className="flex items-baseline gap-2">
+                        <span
+                          className={`font-mono text-[10px] uppercase tracking-[0.14em] ${conf.color}`}
+                          title="Confidence: how seriously to read this slot's projection"
+                        >
+                          {conf.label}
                         </span>
-                      )}
+                        {item.density !== "normal" && (
+                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                            {DENSITY_LABEL[item.density]}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {item.alternates.length > 0 && (
                       <div className="mt-0.5 text-[11px] text-muted-2">
