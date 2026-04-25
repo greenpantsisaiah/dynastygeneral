@@ -320,13 +320,19 @@ function CandidateCard({
 }) {
   const c = candidate;
   const survivalLabel =
-    c.survives_to_next_pick === true
+    c.availability_next_pick === "likely_here"
       ? "Likely here next pick"
-      : c.survives_to_next_pick === false
-        ? "Probably gone by next pick"
-        : null;
+      : c.availability_next_pick === "coin_flip"
+        ? "Coin flip at next pick"
+        : c.availability_next_pick === "probably_gone"
+          ? "Probably gone by next pick"
+          : null;
   const survivalTone =
-    c.survives_to_next_pick === false ? "text-danger" : "text-muted-2";
+    c.availability_next_pick === "probably_gone"
+      ? "text-danger"
+      : c.availability_next_pick === "coin_flip"
+        ? "text-warning"
+        : "text-muted-2";
   return (
     <div
       className={`flex flex-col rounded-md border px-3 py-2.5 ${

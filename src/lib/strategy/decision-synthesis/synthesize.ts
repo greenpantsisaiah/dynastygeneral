@@ -145,16 +145,39 @@ function topAtPos(
     .slice(0, n);
 }
 
-// Scarcity test: will this player survive to the user's NEXT pick?
-// Sleeper ADP is "market average pick position." If adp <= nextUserPickNo,
-// the player is statistically likely to be gone. Returns null if no ADP.
-function survivesToNextUserPick(
+// Three-state availability classifier. Single source of truth for
+// "will this player be on the board at slot N when we reach it?"
+//
+// Replaces the old binary `survivesToNextUserPick` per user feedback
+// 2026-04-25: the engine had three different ADP filters using
+// different buffers (+5 in survives check, -3 in next-picks-plan
+// pool, <0 strict in counter-view). Same player at the same slot
+// got labeled "probably gone" in one panel and "take him here" in
+// another. Unified to one predicate so all surfaces tell the same
+// story.
+//
+// ADP = market-average pick. Player going at his ADP exactly is a
+// coin flip, not "gone." The buckets reflect the real shape of
+// market noise: ADP standard deviation is roughly 3-5 picks for
+// players in the meaningful tier zone.
+//   LIKELY_HERE: gap >= +5 (ADP well after the slot). Take your
+//     time, he's sitting.
+//   COIN_FLIP: -2 < gap < +5. He's at or just past his ADP.
+//     50/50 whether he survives. Not safe to skip without a backup.
+//   PROBABLY_GONE: gap <= -2. ADP is at least 2 picks before slot.
+//     He's past consensus and getting picked any pick now; treat as
+//     fragile-to-gone.
+export type Availability = "likely_here" | "coin_flip" | "probably_gone";
+
+function availabilityAt(
   player: AvailablePlayer,
-  nextUserPickNo: number,
-): boolean | null {
+  slot: number,
+): Availability | null {
   if (player.adp == null) return null;
-  // Modest margin: ADP is an average, not a ceiling. 5-pick buffer.
-  return player.adp > nextUserPickNo + 5;
+  const gap = player.adp - slot;
+  if (gap >= 5) return "likely_here";
+  if (gap <= -2) return "probably_gone";
+  return "coin_flip";
 }
 
 function buildCandidates(
@@ -198,26 +221,29 @@ function buildCandidates(
     if (me.position_counts[pos] >= reqs[pos]) continue;
     const top = topAtPos(available, pos, 1)[0];
     if (!top) continue;
-    const survives = survivesToNextUserPick(top, nextUserPickNo);
+    const availability = availabilityAt(top, nextUserPickNo);
     const have = me.position_counts[pos];
     const need = reqs[pos];
-    if (survives === false) {
-      // Branch fires when ADP says this player is GONE before the user's
-      // NEXT pick. Old copy ("Take him now or you get nothing here") was
-      // deterministic for a probabilistic outcome (ADP is a central
-      // tendency, not a wall); per user feedback 2026-04-24 it read as
-      // alarmist. Probabilistic phrasing graduated by ADP gap below.
-      const adp = top.adp;
-      const gap =
-        typeof adp === "number" ? Math.round(nextUserPickNo - adp) : null;
-      const survival =
-        gap == null
-          ? "ADP unavailable; treat as fragile until you see him on the board."
-          : gap <= 3
-            ? `ADP ${Math.round(adp!)} says he goes ~${gap} pick${gap === 1 ? "" : "s"} before your next slot. Real chance he survives, but skipping is a luck bet.`
-            : gap <= 15
-              ? `ADP ${Math.round(adp!)} puts him ~${gap} picks before your next slot. Likely gone if you pass; if you skip, expect this tier to be empty when you're back.`
-              : `ADP ${Math.round(adp!)} is well past your next slot (~${gap} picks ahead). He'd have to fall hard to survive; treat as gone if you pass.`;
+    // Survival copy graduated by gap. ADP is a central tendency, not
+    // a wall. The three buckets mirror availabilityAt(): well-past
+    // = likely sitting, at-or-just-past = coin flip, before-slot =
+    // probably gone.
+    const adp = top.adp;
+    const gap =
+      typeof adp === "number" ? Math.round(adp - nextUserPickNo) : null;
+    const survival =
+      gap == null
+        ? "ADP unavailable; treat as fragile until you see him on the board."
+        : gap >= 5
+          ? `ADP ${Math.round(adp!)} puts him ${gap} picks past your next slot. Should still be there.`
+          : gap >= 0
+            ? `ADP ${Math.round(adp!)} lands right at your next slot (${nextUserPickNo}). Coin flip whether he survives; not safe to skip without a backup.`
+            : gap >= -3
+              ? `ADP ${Math.round(adp!)} is ${Math.abs(gap)} pick${Math.abs(gap) === 1 ? "" : "s"} past consensus. He's at risk now; could go any pick.`
+              : `ADP ${Math.round(adp!)} is well past consensus (${Math.abs(gap)} picks). He'd have to fall hard to survive; treat as fragile-to-gone.`;
+    if (availability !== "likely_here") {
+      // COIN_FLIP and PROBABLY_GONE both fire urgent-fill scoring.
+      // The user can't safely wait if the player might be gone.
       push({
         player: top,
         position: pos,
@@ -231,7 +257,7 @@ function buildCandidates(
         position: pos,
         rule: "fill_starter",
         score: 60,
-        primary_reason: `Fills your ${POSITION_LABEL[pos]} starter hole (${have}/${need}). ${top.name} is the best available.`,
+        primary_reason: `Fills your ${POSITION_LABEL[pos]} starter hole (${have}/${need}). ${top.name} is the best available; ${survival.toLowerCase()}`,
       });
     }
   }
@@ -314,13 +340,15 @@ function buildTradeoff(
 
   for (const r of runners.slice(0, 2)) {
     if (r.player.id === winner.player.id) continue;
-    const survives = survivesToNextUserPick(r.player, nextUserPickNo);
+    const availability = availabilityAt(r.player, nextUserPickNo);
     const survivalReason =
-      survives === true
-        ? `likely survives to next pick, can take then`
-        : survives === false
-          ? `probably gone by next pick`
-          : `ADP unknown, unclear if survives`;
+      availability === "likely_here"
+        ? `likely here next pick, can wait`
+        : availability === "coin_flip"
+          ? `coin flip at next pick, not safe to skip without a backup`
+          : availability === "probably_gone"
+            ? `probably gone by next pick`
+            : `ADP unknown, unclear if survives`;
     const constraintReason = r.constraint_note
       ? ` · ${r.constraint_note.replace(/\.$/, "")}`
       : "";
@@ -375,12 +403,15 @@ function buildNextPicksPlan(
   const items: NextPickPlanItem[] = [];
   for (let idx = 0; idx < futures.length; idx++) {
     const future = futures[idx];
+    // Bind to the same availability classifier the Top 3 card uses so
+    // the engine never recommends a player it elsewhere flagged as
+    // probably gone. Likely_here and coin_flip stay in the pool;
+    // probably_gone is excluded.
     const survivor = (p: AvailablePlayer): boolean => {
-      // Exclude the current lean from future picks (the user took him
-      // at the current slot in the assumed chain).
       if (leanPlayerId && p.id === leanPlayerId) return false;
-      if (p.adp == null) return true;
-      return p.adp > future.pick_no - 3;
+      const a = availabilityAt(p, future.pick_no);
+      if (a == null) return true;
+      return a !== "probably_gone";
     };
     const pool = available.filter(survivor);
 
@@ -388,6 +419,7 @@ function buildNextPicksPlan(
     let names: string[] = [];
     let primaryIds = new Set<string>();
     let reason = "";
+    let isFillingHole = false;
     for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
       if (reqs[pos] <= 0) continue;
       if (simulated[pos] >= reqs[pos]) continue;
@@ -398,6 +430,7 @@ function buildNextPicksPlan(
       primaryIds = new Set(top2.map((p) => p.id));
       reason = `Fill ${POSITION_LABEL[pos]} hole (${simulated[pos]}/${reqs[pos]}).`;
       simulated[pos] += 1;
+      isFillingHole = true;
       break;
     }
     if (targetPos === "any") {
@@ -405,18 +438,43 @@ function buildNextPicksPlan(
       if (top.length === 0) continue;
       names = top.map((p) => p.name);
       primaryIds = new Set(top.map((p) => p.id));
-      const pos = normalizePos(top[0].position);
-      targetPos = pos ?? "any";
-      reason = `Earned value, ${pos ? POSITION_LABEL[pos] + " " : ""}depth.`;
+      // earned_value labels honestly: if the top 2 span positions,
+      // call it "best on board" rather than "RB depth" with a WR in
+      // the names. Fixes a misleading-label bug per user 2026-04-25.
+      const positions = top.map((p) => normalizePos(p.position)).filter(Boolean);
+      const allSamePos = positions.every((p) => p === positions[0]);
+      const headPos = positions[0];
+      targetPos = allSamePos && headPos ? headPos : "any";
+      reason = allSamePos && headPos
+        ? `Earned value, ${POSITION_LABEL[headPos]} depth.`
+        : `Earned value, best on board.`;
     }
 
-    // Top 3 fallbacks by overall rank, excluding the primary names.
-    // Surfaces cross-lane pivots (RBs in a WR-fill slot, etc.) so the
-    // user sees what the chain looks like if their lane gets sniped.
-    const alternates = pool
-      .filter((p) => !primaryIds.has(p.id))
-      .slice(0, 3)
-      .map((p) => ({ name: p.name, position: p.position }));
+    // Alternates surface the user's fallback shape if the primary
+    // gets sniped. When filling a hole, prefer same-position fallbacks
+    // (the user wants the next WR if WR primary is gone, not three
+    // RBs) and only spill cross-lane after we exhaust same-position
+    // depth. In earned_value mode, just take the next-best by overall
+    // rank since position isn't the lane anyway.
+    let alternates: Array<{ name: string; position: string | null }>;
+    if (isFillingHole && targetPos !== "any") {
+      const samePos = topAtPos(pool, targetPos as Position, 5)
+        .filter((p) => !primaryIds.has(p.id))
+        .slice(0, 2);
+      const samePosIds = new Set(samePos.map((p) => p.id));
+      const crossLane = pool
+        .filter((p) => !primaryIds.has(p.id) && !samePosIds.has(p.id))
+        .slice(0, Math.max(0, 3 - samePos.length));
+      alternates = [...samePos, ...crossLane].map((p) => ({
+        name: p.name,
+        position: p.position,
+      }));
+    } else {
+      alternates = pool
+        .filter((p) => !primaryIds.has(p.id))
+        .slice(0, 3)
+        .map((p) => ({ name: p.name, position: p.position }));
+    }
 
     // High = next user pick, medium = one after, directional = beyond
     // that. Slot-distance buckets (rather than ADP-survival) because
@@ -493,19 +551,22 @@ function buildCounterView(
     if (pos === winnerPos) continue;
     const have = me.position_counts[pos] ?? 0;
     if (have >= reqs[pos]) continue; // already at starter floor; not a cliff
-    const surviving = available.filter((p) => {
+    // Use the same availability classifier as the rest of the engine
+    // so the cliff narrative matches the survival badges. Endangered =
+    // probably_gone OR coin_flip; both are at-risk before next pick.
+    const endangered = available.filter((p) => {
       if (normalizePos(p.position) !== pos) return false;
-      if (p.adp == null) return false;
-      return p.adp < nextUserPickNo;
+      const a = availabilityAt(p, nextUserPickNo);
+      return a === "probably_gone" || a === "coin_flip";
     });
-    if (surviving.length === 0) continue;
-    if (surviving.length > COUNTER_TIER_CAP) continue;
-    surviving.sort((a, b) => (a.adp ?? 999) - (b.adp ?? 999));
-    const top = surviving[0];
-    const headline = `${POSITION_LABEL[pos]} cliff: ${surviving.length} starter-grade ${pos} expected gone before your next pick.`;
+    if (endangered.length === 0) continue;
+    if (endangered.length > COUNTER_TIER_CAP) continue;
+    endangered.sort((a, b) => (a.adp ?? 999) - (b.adp ?? 999));
+    const top = endangered[0];
+    const headline = `${POSITION_LABEL[pos]} cliff: ${endangered.length} starter-grade ${pos} at risk before your next pick.`;
     const detail =
-      `${top.name} (ADP ${Math.round(top.adp ?? 0)}) is the best of the surviving ${pos} group. ` +
-      `If you take ${winner.player.name} here, every viable ${pos} starter is projected gone by pick ${nextUserPickNo}; ` +
+      `${top.name} (ADP ${Math.round(top.adp ?? 0)}) is the best of the at-risk ${pos} group. ` +
+      `If you take ${winner.player.name} here, every viable ${pos} starter is fragile or gone by pick ${nextUserPickNo}; ` +
       `you'll be the last one needing the position.`;
     return {
       kind: "tier_cliff",
@@ -660,7 +721,7 @@ export function synthesizeDecision(args: {
     primary_reason: c.primary_reason,
     rule: c.rule,
     is_lean: c.player.id === winner.player.id,
-    survives_to_next_pick: survivesToNextUserPick(c.player, nextUserPickNo),
+    availability_next_pick: availabilityAt(c.player, nextUserPickNo),
     constraint_note: c.constraint_note,
   }));
 
@@ -747,7 +808,7 @@ export function synthesizeDecision(args: {
     primary_reason: q.primary_reason,
     rule: q.rule,
     is_lean: q.player.id === winner.player.id,
-    survives_to_next_pick: survivesToNextUserPick(q.player, nextUserPickNo),
+    availability_next_pick: availabilityAt(q.player, nextUserPickNo),
     constraint_note: q.constraint_note,
     horizon_pct: horizonRelativeToPool(
       q.player.age,

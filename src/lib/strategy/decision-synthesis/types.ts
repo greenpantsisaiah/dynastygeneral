@@ -97,6 +97,16 @@ export type DecisionWindowFrame = {
   sentence: string;
 };
 
+// Three-state availability classifier. Replaces the old binary
+// `survives_to_next_pick` per user feedback 2026-04-25: ADP at slot
+// is a coin flip, not "gone." Three buckets unify the engine's
+// previously-divergent ADP filters so the Top 3 card and the Next
+// Picks Plan tell the same story about the same player.
+export type DecisionAvailability =
+  | "likely_here"
+  | "coin_flip"
+  | "probably_gone";
+
 // One row in the top-3 candidates view. The recommendation is always
 // `top_candidates[0]` (the lean). The other 1-2 are real alternatives
 // the user should see, each with its own one-line take and the rule
@@ -108,10 +118,10 @@ export type DecisionTopCandidate = DecisionCandidate & {
   // True for the leading pick (same as decision.recommendation). The
   // card highlights this one as "MY LEAN".
   is_lean: boolean;
-  // Survival hint relative to the user's NEXT pick. Lets the card show
-  // "still here next pick" or "probably gone" alongside each candidate.
-  // Null when ADP is unknown.
-  survives_to_next_pick: boolean | null;
+  // Three-state availability hint relative to the user's NEXT pick.
+  // Null when ADP is unknown. Drives the survival badge on each
+  // candidate card.
+  availability_next_pick: DecisionAvailability | null;
   // Window-constraint penalty note when applicable (e.g. "Violates
   // win-now window: age 33 (ideal 24-28)"). Null when no penalty.
   constraint_note: string | null;
