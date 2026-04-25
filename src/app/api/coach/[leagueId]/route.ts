@@ -396,8 +396,21 @@ export async function POST(
   // out of inline derivation 2026-04-24 so new endpoints inherit the
   // same shape via import instead of copy-pasting the math (which
   // drifts and produces format-blind / pricing-free regressions).
+  // Price every player IN ANY ROSTER plus the top of the available
+  // pool. Per dynasty-trade-realism-tester 2026-04-25: prior code
+  // priced only the user's roster + top 30 available, leaving
+  // opponent-roster players outside the pricing scope. The Coach
+  // would then have no anchor for "should I trade for player X on
+  // their team?" and either hedge or freelance numbers. Including
+  // every rostered player keeps the Coach's trade math grounded for
+  // any in-league trade target.
+  //
+  // Cost: 12 teams * ~10 players + 30 available + me = ~150 IDs.
+  // FantasyCalc cache holds 200+; one-time lookup, no extra fetch.
   const valueIds = new Set<string>();
-  if (me) for (const id of me.player_ids) valueIds.add(id);
+  for (const r of snapshot.rosters) {
+    for (const id of r.player_ids) valueIds.add(id);
+  }
   for (const p of available.slice(0, 30)) valueIds.add(p.id);
   const opContext = await buildOperationalContext({
     snap: snapshot,
@@ -646,11 +659,16 @@ export async function POST(
     .trim();
 
   // Record spend AFTER the call succeeds. Best-effort; don't block
-  // the response on a bookkeeping failure.
+  // the response on a bookkeeping failure. web_search_requests is
+  // billed separately from tokens by Anthropic (~$10 per 1k); pass
+  // it through so the budget cap reflects real cost on search-
+  // augmented turns.
   await recordSpend({
     model: "claude-sonnet-4-6",
     input_tokens: response.usage.input_tokens,
     output_tokens: response.usage.output_tokens,
+    web_search_requests:
+      response.usage.server_tool_use?.web_search_requests ?? 0,
   }).catch(() => {});
 
   // Per-user daily counter. Records every successful Coach turn so

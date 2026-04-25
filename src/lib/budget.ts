@@ -28,6 +28,13 @@ const PRICING_PER_MTOK: Record<
   default: { input: 3, output: 15 },
 };
 
+// Web search tool fee. Anthropic bills web search as a separate line
+// item from message tokens: ~$10 per 1000 requests. Per
+// dynasty-cost-watcher 2026-04-25 audit: prior recordSpend captured
+// only input/output tokens, so search-augmented Coach turns under-
+// reported actual cost by the search-tool fee. Fixed below.
+const WEB_SEARCH_USD_PER_REQUEST = 0.01;
+
 // Default daily cap. Per cost-watcher 2026-04-25 audit at projected
 // alpha mix (100 free + 10 Pro at full per-user caps): realistic
 // daily spend under non-malicious load is ~$244. The $25 default
@@ -112,14 +119,23 @@ export async function recordSpend(args: {
   model: string;
   input_tokens: number;
   output_tokens: number;
+  // Optional: number of web_search tool requests this turn used.
+  // Read from response.usage.server_tool_use?.web_search_requests
+  // when calling. Anthropic bills these separately from message
+  // tokens (~$10 per 1000 requests). Without this field, search-
+  // augmented turns under-report cost.
+  web_search_requests?: number;
 }): Promise<void> {
   const r = getRedis();
   if (!r) return;
   const price =
     PRICING_PER_MTOK[args.model] ?? PRICING_PER_MTOK.default;
-  const usd =
+  const tokenUsd =
     (args.input_tokens / 1_000_000) * price.input +
     (args.output_tokens / 1_000_000) * price.output;
+  const searchUsd =
+    (args.web_search_requests ?? 0) * WEB_SEARCH_USD_PER_REQUEST;
+  const usd = tokenUsd + searchUsd;
   if (!Number.isFinite(usd) || usd <= 0) return;
   try {
     const key = todayUtcKey();
