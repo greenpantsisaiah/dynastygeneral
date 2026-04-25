@@ -214,6 +214,16 @@ export default async function LeagueHubPage({
   // (24h FantasyCalc fetch). Best-effort; non-fatal if it fails.
   let playerValuesByIdJson: Record<string, number> = {};
 
+  // Engine integrity backstop: top-100 consensus players who are
+  // silently missing from `availablePlayers`. Populated after the
+  // sanity check runs. ALWAYS rendered as a danger banner when
+  // non-empty, regardless of the diagnose flag, because a partial
+  // pool poisons every downstream call (Decision lean, Counter-view,
+  // Coach context, Next Picks Plan). Better to scare the user with
+  // a visible alarm than to silently mislead. Per LaPorta incident
+  // 2026-04-25.
+  let missingPlayerIssues: import("@/lib/players/sanity").MissingPlayerIssue[] = [];
+
   // Tier check moved earlier in the pipeline so the path-commitment
   // sync (which needs tierState.user) can run inside the snapshot
   // try-block.
@@ -285,8 +295,12 @@ export default async function LeagueHubPage({
       // backstop the rerank cascade with explicit verification.
       if (valueMap && valueMap.size > 0 && availablePlayers.length > 0) {
         try {
-          const { runRankingSanityChecks, summarizeSanityIssues } =
-            await import("@/lib/players/sanity");
+          const {
+            runRankingSanityChecks,
+            summarizeSanityIssues,
+            runCompletenessSanityChecks,
+            summarizeCompletenessIssues,
+          } = await import("@/lib/players/sanity");
           const sanityIssues = runRankingSanityChecks({
             available: availablePlayers,
             playerValues: valueMap,
@@ -309,6 +323,38 @@ export default async function LeagueHubPage({
                 issues.push({
                   stage: `ranking-sanity:${it.severity}`,
                   message: `${it.name} (${it.position}) is engine #${it.engine_position} but consensus #${it.consensus_rank} (delta ${it.delta >= 0 ? "+" : ""}${it.delta})`,
+                });
+              }
+            }
+          }
+
+          // Completeness backstop. Walks the consensus baseline (top
+          // 100 by FantasyCalc rank) and flags any player who's
+          // neither in our available pool nor in the drafted set.
+          // A non-empty result is severe by definition (the engine
+          // is silently missing a real, undrafted, top-tier player)
+          // and is rendered as a danger banner on the hub regardless
+          // of the diagnose flag.
+          const draftedIds = new Set<string>();
+          for (const p of snapshot.draft.picks_made) {
+            if (p.player_id) draftedIds.add(p.player_id);
+          }
+          const missing = runCompletenessSanityChecks({
+            available: availablePlayers,
+            playerValues: valueMap,
+            draftedIds,
+          });
+          if (missing.length > 0) {
+            console.error(
+              "[hub:completeness-sanity]",
+              summarizeCompletenessIssues(missing),
+            );
+            missingPlayerIssues = missing;
+            if (issues) {
+              for (const it of missing.slice(0, 12)) {
+                issues.push({
+                  stage: "completeness-sanity:severe",
+                  message: `${it.name} (${it.position}, consensus #${it.consensus_rank}) is silently missing from the available pool`,
                 });
               }
             }
@@ -630,6 +676,42 @@ export default async function LeagueHubPage({
                 </ul>
               )}
             </div>
+          )}
+
+          {/* Engine integrity banner. Renders ALWAYS (not gated by
+              diagnose=1) when the completeness check finds top-100
+              consensus players silently missing from the available
+              pool. A partial pool poisons every downstream call;
+              better to scare the user with a visible alarm than to
+              silently mislead. Per LaPorta incident 2026-04-25. */}
+          {missingPlayerIssues.length > 0 && (
+            <section className="mt-6 rounded-md border-2 border-danger/60 bg-danger/10 px-4 py-3">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-danger">
+                ⚠ Engine integrity issue · {missingPlayerIssues.length} top-100 player{missingPlayerIssues.length === 1 ? "" : "s"} missing from pool
+              </div>
+              <p className="mt-1.5 text-sm text-foreground leading-relaxed">
+                The engine is missing real, undrafted players the consensus baseline says should be on the board. Recommendations on this page may be incomplete until this is resolved.
+              </p>
+              <ul className="mt-2 space-y-0.5 text-xs text-muted">
+                {missingPlayerIssues.slice(0, 5).map((m) => (
+                  <li key={m.player_id}>
+                    <span className="font-medium text-foreground">{m.name}</span>
+                    <span className="text-muted-2">
+                      {" "}
+                      · {m.position ?? "?"} · consensus #{m.consensus_rank}
+                    </span>
+                  </li>
+                ))}
+                {missingPlayerIssues.length > 5 && (
+                  <li className="text-muted-2">
+                    + {missingPlayerIssues.length - 5} more
+                  </li>
+                )}
+              </ul>
+              <p className="mt-2 text-[11px] text-muted-2">
+                Append <code className="font-mono">?diagnose=1</code> to the URL for the full list. This banner also fires a server-log alarm so we catch regressions.
+              </p>
+            </section>
           )}
 
           {/* Dual-column body. Hub left, coach right. Stacks on <lg. */}

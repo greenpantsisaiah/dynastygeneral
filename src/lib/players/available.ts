@@ -82,16 +82,34 @@ export async function getAvailablePlayers(
   opts: { limit?: number } = {},
 ): Promise<AvailablePlayer[]> {
   const limit = opts.limit ?? 200;
-  // "Unavailable" = drafted in this league's current draft OR already
-  // sitting on someone's active roster. Without the roster union, every
-  // veteran in an established post-draft league surfaces as "available"
-  // (Bijan Robinson appearing as draftable in a year-old league).
+  // "Unavailable" depends on whether a draft is actively running.
+  //
+  // Active draft (drafting / paused): the only authoritative source of
+  // "this player has been claimed" is `snap.draft.picks_made`. Sleeper's
+  // `roster.players` field can carry stale player_ids from prior seasons
+  // or converted leagues (keeper holdovers, league-conversion data); if
+  // we union that into the exclusion set during a live draft we silently
+  // kill real undrafted players. This bit Sam LaPorta on 2026-04-25:
+  // top-100 TE, undrafted in the active draft, but present in some
+  // roster's `roster.players` from prior-season state, so the pool
+  // dropped him entirely. Coach couldn't reason about him because he
+  // wasn't in the snapshot.
+  //
+  // Pre-draft / complete / no-draft: keep the roster union. Without it,
+  // every veteran in an established post-draft league surfaces as
+  // "available" (Bijan Robinson appearing as draftable in a year-old
+  // league). After a draft completes, `roster.players` IS the source
+  // of truth for who's claimed.
+  const isActiveDraft =
+    snap.draft.status === "drafting" || snap.draft.status === "paused";
   const drafted = new Set<string>();
   for (const pick of snap.draft.picks_made) {
     if (pick.player_id) drafted.add(pick.player_id);
   }
-  for (const r of snap.rosters) {
-    for (const id of r.player_ids) drafted.add(id);
+  if (!isActiveDraft) {
+    for (const r of snap.rosters) {
+      for (const id of r.player_ids) drafted.add(id);
+    }
   }
   const all = await __dumpAllPlayers();
   const ranked = all

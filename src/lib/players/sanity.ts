@@ -137,3 +137,74 @@ export function summarizeSanityIssues(issues: SanityIssue[]): string {
   );
   return `ranking sanity: ${severe} severe, ${notable} notable. Top: ${head.join("; ")}`;
 }
+
+/**
+ * One detected MISSING player. Different question than SanityIssue:
+ * presence vs ordering. A consensus top-100 player who is in neither
+ * the available pool nor the drafted set is silently absent from the
+ * engine's view. Severe class of bug per user 2026-04-25 (Sam LaPorta
+ * incident): the Coach couldn't reason about LaPorta because he
+ * wasn't in the snapshot, breaking trust on every downstream call.
+ */
+export type MissingPlayerIssue = {
+  player_id: string;
+  name: string;
+  position: string | null;
+  consensus_rank: number;
+  raw_value: number;
+};
+
+/**
+ * Walk the consensus baseline (FantasyCalc top-100 by overall_rank);
+ * for each consensus player, verify they're either in `available` OR
+ * in the drafted set. A consensus top-100 player in neither is
+ * silently missing from the engine. Returns the missing list sorted
+ * by consensus rank ascending so the most-egregious gaps come first.
+ *
+ * Complement to `runRankingSanityChecks`, which only validates
+ * ordering of players already in the pool. The two checks together
+ * cover both failure modes: wrong order vs wrong members.
+ *
+ * Empty result = engine pool is complete relative to consensus.
+ * Any non-empty result is a hard alarm, not advisory; the hub
+ * surfaces it as a danger banner so the user is never silently
+ * misled by a partial pool.
+ */
+export function runCompletenessSanityChecks(args: {
+  available: AvailablePlayer[];
+  playerValues: Map<string, PlayerValue>;
+  draftedIds: Set<string>;
+}): MissingPlayerIssue[] {
+  const { available, playerValues, draftedIds } = args;
+  if (playerValues.size === 0) return [];
+  const availableIds = new Set(available.map((p) => p.id));
+  const issues: MissingPlayerIssue[] = [];
+  for (const [pid, pv] of playerValues) {
+    if (pv.overall_rank == null) continue;
+    if (pv.overall_rank > SANITY_LIMIT) continue;
+    if (availableIds.has(pid)) continue;
+    if (draftedIds.has(pid)) continue;
+    issues.push({
+      player_id: pid,
+      name: pv.name,
+      position: pv.position,
+      consensus_rank: pv.overall_rank,
+      raw_value: pv.raw_value,
+    });
+  }
+  issues.sort((a, b) => a.consensus_rank - b.consensus_rank);
+  return issues;
+}
+
+export function summarizeCompletenessIssues(
+  issues: MissingPlayerIssue[],
+): string {
+  if (issues.length === 0) return "completeness: clean";
+  const head = issues
+    .slice(0, 5)
+    .map(
+      (i) =>
+        `${i.name} (${i.position}, consensus #${i.consensus_rank})`,
+    );
+  return `completeness: ${issues.length} top-100 player${issues.length === 1 ? "" : "s"} silently missing from pool. Top: ${head.join("; ")}`;
+}
