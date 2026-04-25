@@ -421,6 +421,12 @@ export function StrategicForks({
         Each pick pushes a different path. Pick the one that matches the
         direction you want.
       </p>
+      {slotAnchor != null && (
+        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+          EV badges: BARGAIN = player KTC above this slot's value · REACH = below.
+          Numbers are points on the 0-100 KTC scale (slot anchor here ≈ {Math.round(slotAnchor)}).
+        </p>
+      )}
       <div className={`mt-4 grid gap-3 ${cols}`}>
         {forks.map((f) => (
           <ForkCard
@@ -534,28 +540,36 @@ function divergenceNote(c: {
   return `Sleeper ranks #${sleeperRank} but market drafts at ${Math.round(adp)}. consensus reaches earlier than rank.`;
 }
 
-// EV-tier badge. Compact chip rendered inline next to player names so
-// the user sees value-vs-slot signal at a glance. Bargain (green) =
-// player KTC > slot anchor (buy-low/leverage). Reach (red) = below
-// slot anchor (only justified by need). Fair = no badge (clutter-free).
+// EV-tier badge. Single non-wrapping chip rendered inline next to
+// player names. Number = points above (+) or below (-) this slot's
+// KTC anchor on the 0-100 scale used by player values and pick
+// values. Tooltip spells out the scale; the panel header carries a
+// one-line legend so users don't have to hover to learn it.
+//
+// Fair tier renders nothing (clutter-free). Whitespace-nowrap +
+// inline-flex keeps the chip atomic so it never breaks internally
+// and never gets stranded on its own line below the name.
 function EvBadge({ ev }: { ev: CandidateEv }) {
   if (ev.ev_tier === "fair" || ev.ev_delta == null) return null;
-  if (ev.ev_tier === "bargain") {
-    return (
-      <span
-        className="ml-1.5 rounded-sm border border-success/60 bg-success/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-success"
-        title={`Player KTC value is ${Math.round(ev.ev_delta)} points above this slot's expected value. Bargain at this pick.`}
-      >
-        Bargain +{Math.round(ev.ev_delta)}
-      </span>
-    );
-  }
+  const isBargain = ev.ev_tier === "bargain";
+  const sign = ev.ev_delta >= 0 ? "+" : "";
+  const tone = isBargain
+    ? "border-success/60 bg-success/10 text-success"
+    : "border-warning/60 bg-warning/10 text-warning";
+  const label = isBargain ? "BARGAIN" : "REACH";
+  const title = isBargain
+    ? `Player's KTC value is ${Math.round(ev.ev_delta)} points above this slot's expected value (0-100 scale). Buying low.`
+    : `Player's KTC value is ${Math.round(Math.abs(ev.ev_delta))} points below this slot's expected value (0-100 scale). Only justified by need.`;
   return (
     <span
-      className="ml-1.5 rounded-sm border border-warning/60 bg-warning/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-warning"
-      title={`Player KTC value is ${Math.round(Math.abs(ev.ev_delta))} points below this slot's expected value. Only justified by need.`}
+      className={`ml-1.5 inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border ${tone} px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em]`}
+      title={title}
     >
-      Reach {Math.round(ev.ev_delta)}
+      <span>{label}</span>
+      <span className="opacity-80">
+        {sign}
+        {Math.round(ev.ev_delta)}
+      </span>
     </span>
   );
 }
