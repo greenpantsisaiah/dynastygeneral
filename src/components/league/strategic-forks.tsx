@@ -229,6 +229,34 @@ export function StrategicForks({
       ev_delta: cls.delta,
     };
   };
+  // Re-rank an ordered candidate list by KTC value when present.
+  // Candidates with KTC values come first (sorted descending by
+  // value); candidates without values keep their original Sleeper-
+  // dynasty-rank order at the tail.
+  //
+  // Per user feedback 2026-04-24: Sleeper's dynasty_rank disagreed
+  // with KTC on the LaPorta vs Pitts ordering (LaPorta ADP 69 should
+  // beat Pitts ADP 77). KTC reflects active dynasty market consensus;
+  // dynasty_rank is the Sleeper-derived heuristic we used before
+  // FantasyCalc was plumbed. KTC wins when both are present.
+  function rerankByKtc<
+    T extends { player_id?: string; id?: string },
+  >(items: T[]): T[] {
+    if (Object.keys(valuesById).length === 0) return items;
+    const idOf = (x: T): string =>
+      ("player_id" in x && x.player_id) ||
+      ("id" in x && x.id) ||
+      "";
+    const withVals: Array<{ x: T; v: number }> = [];
+    const withoutVals: T[] = [];
+    for (const x of items) {
+      const v = valueOf(idOf(x));
+      if (v == null) withoutVals.push(x);
+      else withVals.push({ x, v });
+    }
+    withVals.sort((a, b) => b.v - a.v);
+    return [...withVals.map((p) => p.x), ...withoutVals];
+  }
   // Per-archetype competitor count from PathCompetition. Keyed by
   // archetype_id; empty when path competition wasn't computed for this
   // hub render (e.g. no opponents with confidence). Path forks render
@@ -300,8 +328,10 @@ export function StrategicForks({
     );
 
     if (isStarterNeed(pos) && positionPool.length > 0) {
-      // Pull a wide window to allow EV-band filtering, then trim.
-      const window = positionPool.slice(0, 8);
+      // Pull a wide window, re-rank by KTC (when values present) so
+      // market-priced order wins over Sleeper-dynasty heuristic, then
+      // trim to PICKS_PER_FORK.
+      const window = rerankByKtc(positionPool).slice(0, 8);
       const evd = window.map((p) => ({ p, ev: evFor(p.id) }));
       const inBand = evd.filter(
         (x) => x.ev.ev_tier !== "reach" || x.ev.ev_delta == null,
@@ -342,7 +372,13 @@ export function StrategicForks({
 
     if (paths.length > 0) {
       for (const r of paths) {
-        const cands = r.top_candidates!.slice(0, PICKS_PER_FORK + 2);
+        // KTC re-rank applies to path candidates too, otherwise the
+        // primary in a path fork can disagree with the same player's
+        // ordering in starter-need/depth at the same position.
+        const cands = rerankByKtc(r.top_candidates!).slice(
+          0,
+          PICKS_PER_FORK + 2,
+        );
         const evd = cands.map((c) => ({ c, ev: evFor(c.player_id) }));
         // Drop deep reaches from path forks. A path fork is about
         // pushing direction, not filling a hole; reaching defeats
@@ -367,7 +403,10 @@ export function StrategicForks({
         });
       }
     } else if (positionPool.length > 0) {
-      const window = positionPool.slice(0, PICKS_PER_FORK + 2);
+      const window = rerankByKtc(positionPool).slice(
+        0,
+        PICKS_PER_FORK + 2,
+      );
       const evd = window.map((p) => ({ p, ev: evFor(p.id) }));
       const filtered = evd.filter(
         (x) =>
@@ -386,11 +425,16 @@ export function StrategicForks({
     }
   }
 
-  // Earned Value fork: top dynasty-rank players regardless of position
-  // that are AT-OR-ABOVE slot value. "Earned" by definition excludes
+  // Earned Value fork: top dynasty-value players regardless of
+  // position, AT-OR-ABOVE slot anchor. "Earned" by definition excludes
   // reaches; if every option is a reach, the fork drops out (we don't
-  // want to surface "best of bad reaches" as earned value).
-  const evPool = available.slice(0, PICKS_PER_FORK + 4);
+  // want to surface "best of bad reaches" as earned value). Wider
+  // window + KTC re-rank so the cross-position top-of-board reflects
+  // market dynasty value, not Sleeper's NFL-relevance heuristic.
+  const evPool = rerankByKtc(available.slice(0, 30)).slice(
+    0,
+    PICKS_PER_FORK + 4,
+  );
   const evdEv = evPool.map((p) => ({ p, ev: evFor(p.id) }));
   const earnedFiltered = evdEv.filter(
     (x) => x.ev.ev_tier !== "reach" || x.ev.ev_delta == null,
