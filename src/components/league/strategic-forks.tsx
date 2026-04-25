@@ -229,33 +229,51 @@ export function StrategicForks({
       ev_delta: cls.delta,
     };
   };
-  // Re-rank an ordered candidate list by KTC value when present.
-  // Candidates with KTC values come first (sorted descending by
-  // value); candidates without values keep their original Sleeper-
-  // dynasty-rank order at the tail.
+  // Three-tier preference cascade for re-ranking candidates:
+  //   1. KTC value (descending): market + expert + statistical synthesis
+  //      via FantasyCalc. Most authoritative dynasty signal.
+  //   2. ADP (ascending): pure market consensus from Sleeper. Wider
+  //      coverage than KTC; saves us when FantasyCalc lacks the player.
+  //   3. Original dynasty_rank order (Sleeper search_rank x age x
+  //      position factor): heuristic fallback for the long tail.
   //
-  // Per user feedback 2026-04-24: Sleeper's dynasty_rank disagreed
-  // with KTC on the LaPorta vs Pitts ordering (LaPorta ADP 69 should
-  // beat Pitts ADP 77). KTC reflects active dynasty market consensus;
-  // dynasty_rank is the Sleeper-derived heuristic we used before
-  // FantasyCalc was plumbed. KTC wins when both are present.
-  function rerankByKtc<
-    T extends { player_id?: string; id?: string },
+  // Per user feedback 2026-04-24: Sleeper's `search_rank` (from the
+  // /players/nfl blob, what dynasty_rank is built on) is a SEPARATE
+  // field from the draft-board "RK" column the user sees, which is
+  // ADP-derived. They can disagree by 10+ spots, which surfaced as
+  // Pitts (search_rank low) ranking above LaPorta (ADP 69, lower)
+  // despite the user's draft board showing LaPorta first. Using ADP
+  // as the second-tier signal aligns the engine ordering with the
+  // market view the user is reading on Sleeper.
+  function rerank<
+    T extends {
+      player_id?: string;
+      id?: string;
+      adp?: number | null;
+    },
   >(items: T[]): T[] {
-    if (Object.keys(valuesById).length === 0) return items;
     const idOf = (x: T): string =>
       ("player_id" in x && x.player_id) ||
       ("id" in x && x.id) ||
       "";
-    const withVals: Array<{ x: T; v: number }> = [];
-    const withoutVals: T[] = [];
-    for (const x of items) {
+    type Tagged = { x: T; tier: 1 | 2 | 3; key: number };
+    const tagged: Tagged[] = items.map((x) => {
       const v = valueOf(idOf(x));
-      if (v == null) withoutVals.push(x);
-      else withVals.push({ x, v });
-    }
-    withVals.sort((a, b) => b.v - a.v);
-    return [...withVals.map((p) => p.x), ...withoutVals];
+      if (v != null) return { x, tier: 1, key: -v }; // higher = better, negate for asc
+      const adp = x.adp;
+      if (typeof adp === "number" && Number.isFinite(adp)) {
+        return { x, tier: 2, key: adp }; // lower = better
+      }
+      return { x, tier: 3, key: 0 }; // preserve relative order via stable sort
+    });
+    // Sort: tier ascending (KTC first, then ADP, then rest), then
+    // by key within tier. Array.prototype.sort is stable in modern
+    // engines, so tier-3 items retain their original relative order.
+    tagged.sort((a, b) => {
+      if (a.tier !== b.tier) return a.tier - b.tier;
+      return a.key - b.key;
+    });
+    return tagged.map((t) => t.x);
   }
   // Per-archetype competitor count from PathCompetition. Keyed by
   // archetype_id; empty when path competition wasn't computed for this
@@ -331,7 +349,7 @@ export function StrategicForks({
       // Pull a wide window, re-rank by KTC (when values present) so
       // market-priced order wins over Sleeper-dynasty heuristic, then
       // trim to PICKS_PER_FORK.
-      const window = rerankByKtc(positionPool).slice(0, 8);
+      const window = rerank(positionPool).slice(0, 8);
       const evd = window.map((p) => ({ p, ev: evFor(p.id) }));
       const inBand = evd.filter(
         (x) => x.ev.ev_tier !== "reach" || x.ev.ev_delta == null,
@@ -375,7 +393,7 @@ export function StrategicForks({
         // KTC re-rank applies to path candidates too, otherwise the
         // primary in a path fork can disagree with the same player's
         // ordering in starter-need/depth at the same position.
-        const cands = rerankByKtc(r.top_candidates!).slice(
+        const cands = rerank(r.top_candidates!).slice(
           0,
           PICKS_PER_FORK + 2,
         );
@@ -403,7 +421,7 @@ export function StrategicForks({
         });
       }
     } else if (positionPool.length > 0) {
-      const window = rerankByKtc(positionPool).slice(
+      const window = rerank(positionPool).slice(
         0,
         PICKS_PER_FORK + 2,
       );
@@ -431,7 +449,7 @@ export function StrategicForks({
   // want to surface "best of bad reaches" as earned value). Wider
   // window + KTC re-rank so the cross-position top-of-board reflects
   // market dynasty value, not Sleeper's NFL-relevance heuristic.
-  const evPool = rerankByKtc(available.slice(0, 30)).slice(
+  const evPool = rerank(available.slice(0, 30)).slice(
     0,
     PICKS_PER_FORK + 4,
   );
