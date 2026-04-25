@@ -21,6 +21,7 @@
 
 import { z } from "zod";
 import { runStructured } from "@/lib/engine/anthropic";
+import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 import { ARCHETYPES } from "../archetypes";
 import type { LeagueSnapshot } from "../league-state/snapshot";
 import type { RankedArchetype } from "../archetypes/schema";
@@ -273,25 +274,13 @@ function buildUserMessage(args: {
     })),
   }));
 
-  // Operational format rules. Same shape as Coach context contract;
-  // the SYSTEM_PROMPT hard rules ("never claim 'doesn't start' without
-  // checking format_rules") fire here too. Briefings authoring without
-  // this would risk the same superflex-blind framings the Coach used
-  // to produce.
-  const ss = snap.starter_slots;
-  const sfSlots = ss.superflex ?? 0;
-  const flexSlots = ss.flex ?? 0;
-  const recFlexSlots = ss.rec_flex ?? 0;
-  const formatRules = {
-    qb_starters_max: ss.hard.QB + sfSlots,
-    rb_starters_max: ss.hard.RB + flexSlots,
-    wr_starters_max: ss.hard.WR + flexSlots + recFlexSlots,
-    te_starters_max: ss.hard.TE + flexSlots + recFlexSlots,
-    second_qb_starts: (ss.hard.QB + sfSlots) >= 2,
-    te_premium: snap.scoring.includes("TE-premium"),
-    is_superflex:
-      snap.format === "superflex" || snap.format === "2qb",
-  };
+  // Operational format rules via the single source of truth
+  // (llm-contract.ts buildFormatRulesFromSnapshot). Mirrors the Coach
+  // + decision endpoints so the SYSTEM_PROMPT hard rules ("never claim
+  // 'doesn't start' without checking format_rules") fire here too.
+  // Briefings authoring without this would risk the same superflex-
+  // blind framings the Coach used to produce.
+  const formatRules = buildFormatRulesFromSnapshot(snap);
 
   const draftSummary = {
     status: snap.draft.status,

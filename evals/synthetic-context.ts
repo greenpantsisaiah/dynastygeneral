@@ -209,6 +209,7 @@ export function icemanContext(): DecisionContext {
         te_starters_max: 4,
         second_qb_starts: true,
         te_premium: true,
+        is_superflex: true,
         flex_eligible: ["RB", "WR", "TE"] as const,
         sf_eligible: ["QB", "RB", "WR", "TE"] as const,
       },
@@ -252,6 +253,7 @@ export function icemanContext(): DecisionContext {
       player_value_count: 0,
       player_values: {},
       pick_values: [],
+      sf_pick_multiplier: 1.2,
     },
   };
 }
@@ -307,6 +309,7 @@ export function sparseContext(): DecisionContext {
         te_starters_max: 4,
         second_qb_starts: true,
         te_premium: true,
+        is_superflex: true,
         flex_eligible: ["RB", "WR", "TE"] as const,
         sf_eligible: ["QB", "RB", "WR", "TE"] as const,
       },
@@ -338,6 +341,7 @@ export function sparseContext(): DecisionContext {
       player_value_count: 0,
       player_values: {},
       pick_values: [],
+      sf_pick_multiplier: 1.2,
     },
   };
 }

@@ -22,11 +22,7 @@ import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
 import { humanize, resolvePlayers } from "@/lib/players/cache";
-import {
-  SUPERFLEX_PICK_MULTIPLIER,
-  startupPickValue,
-} from "@/lib/players/future-picks";
-import { resolvePlayerValues } from "@/lib/players/values";
+import { buildOperationalContext } from "@/lib/engine/llm-contract";
 import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
@@ -395,66 +391,30 @@ export async function POST(
     }
   }
 
-  // Operational rules block. Per cross-panel framework + context-doctor
-  // diagnosis 2026-04-24: shipping descriptive counts only (e.g.
-  // starter_slots.hard.QB = 1) leaves the LLM to infer format
-  // implications, which it gets wrong (claimed "second QB doesn't
-  // start" in superflex). Ship the rule explicitly so the LLM has to
-  // contradict an explicit boolean to make the failing claim.
-  const isSF = snapshot.format === "superflex" || snapshot.format === "2qb";
-  const sfMult = isSF ? SUPERFLEX_PICK_MULTIPLIER : 1.0;
-  const ss = snapshot.starter_slots;
-  const qbStartersMax = ss.hard.QB + (ss.superflex ?? 0);
-  const teStartersMax = ss.hard.TE + (ss.flex ?? 0) + (ss.rec_flex ?? 0);
-  const rbStartersMax = ss.hard.RB + (ss.flex ?? 0);
-  const wrStartersMax = ss.hard.WR + (ss.flex ?? 0) + (ss.rec_flex ?? 0);
-  const formatRules = {
-    qb_starters_max: qbStartersMax,
-    rb_starters_max: rbStartersMax,
-    wr_starters_max: wrStartersMax,
-    te_starters_max: teStartersMax,
-    second_qb_starts: qbStartersMax >= 2,
-    flex_eligible: ["RB", "WR", "TE"] as const,
-    sf_eligible: isSF ? (["QB", "RB", "WR", "TE"] as const) : null,
-    te_premium: snapshot.scoring.includes("TE-premium"),
-    is_superflex: isSF,
-  };
-  const starterDemandRemaining = me
-    ? {
-        QB: Math.max(0, qbStartersMax - (me.position_counts.QB ?? 0)),
-        RB: Math.max(0, rbStartersMax - (me.position_counts.RB ?? 0)),
-        WR: Math.max(0, wrStartersMax - (me.position_counts.WR ?? 0)),
-        TE: Math.max(0, teStartersMax - (me.position_counts.TE ?? 0)),
-      }
-    : null;
-
-  // Pricing block. Approximates KTC-anchored startup-pick values so
-  // the LLM can reason about trade asks against a real scale instead
-  // of freelancing numbers. Format-multiplied for superflex (rookie
-  // QB scarcity premium).
-  const pricedSchedule = snapshot.draft.my_pick_schedule
-    .slice(0, 8)
-    .map((p) => ({
-      pick_label: p.pick_label,
-      pick_no: p.pick_no,
-      round: p.round,
-      ktc_value: Math.round(startupPickValue(p.pick_no) * sfMult),
-    }));
-
-  // Player values (FantasyCalc, KTC-equivalent, normalized 0-100).
-  // Resolved for the union of user roster + top 30 available, format-
-  // aware. Per dynasty-trade-realism-tester audit 2026-04-24: ~80% of
-  // trade questions are player-for-player; without values plumbed,
-  // Coach freelances. Best-effort; non-fatal if FantasyCalc fails.
+  // Operational context: derived format rules + pricing + starter
+  // demand. Single source of truth in `llm-contract.ts`; refactored
+  // out of inline derivation 2026-04-24 so new endpoints inherit the
+  // same shape via import instead of copy-pasting the math (which
+  // drifts and produces format-blind / pricing-free regressions).
   const valueIds = new Set<string>();
   if (me) for (const id of me.player_ids) valueIds.add(id);
   for (const p of available.slice(0, 30)) valueIds.add(p.id);
-  const playerValueMap = await resolvePlayerValues({
-    ids: [...valueIds],
-    isSuperflex: isSF,
-    isPpr: snapshot.scoring.includes("PPR"),
-    isHalfPpr: snapshot.scoring.includes("half-PPR"),
+  const opContext = await buildOperationalContext({
+    snap: snapshot,
+    pickIds: valueIds,
+    picksToPrice: snapshot.draft.my_pick_schedule.slice(0, 8).map((p) => ({
+      pick_label: p.pick_label,
+      pick_no: p.pick_no,
+      round: p.round,
+      ktc_value: 0, // overwritten by buildTradePricing
+    })),
   });
+  const formatRules = opContext.format_rules;
+  const starterDemandRemaining = opContext.starter_demand_remaining;
+  const pricedSchedule = opContext.pricing.pick_values;
+  const playerValueMap = new Map(
+    Object.entries(opContext.pricing.player_values).map(([id, v]) => [id, v]),
+  );
 
   const contextPayload = {
     league: {
@@ -498,21 +458,12 @@ export async function POST(
           }),
         }
       : null,
-    // Trade pricing context. KTC-anchored 2026-04-22 startup-pick
-    // scale (0-100), format-multiplied for superflex. Use these
-    // values to bound any trade-ask reasoning. Receiving side MUST
-    // be within ±15% of sending side or the ask is fantasy.
-    pricing: {
-      scale_note:
-        "KTC-anchored startup-pick value scale 2026-04-22, 0-100 (format-multiplied for SF). Player values from FantasyCalc 2026-04-24, normalized to same 0-100 scale so picks and players compose arithmetically.",
-      pick_values: pricedSchedule,
-      fairness_band_pct: 15,
-      sf_pick_multiplier: sfMult,
-      // Whether player values were resolved this turn. When false the
-      // GUARD applies for player-side trade math too.
-      player_values_present: playerValueMap.size > 0,
-      player_value_count: playerValueMap.size,
-    },
+    // Trade pricing context (single source of truth via
+    // buildOperationalContext). Receiving side of any trade MUST be
+    // within ±15% of sending side; player values from FantasyCalc
+    // compose arithmetically with pick values. See SYSTEM_PROMPT
+    // hard rules.
+    pricing: opContext.pricing,
     draft: {
       status: snapshot.draft.status,
       next_pick_no: snapshot.draft.next_pick_no,

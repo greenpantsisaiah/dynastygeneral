@@ -27,6 +27,11 @@ import {
   type InferredStrategy,
 } from "@/lib/strategy/infer";
 import { resolvePlayerValues, type PlayerValue } from "@/lib/players/values";
+import {
+  buildFormatRulesFromRosterPositions,
+  type FormatRules,
+  type TradePricing,
+} from "./llm-contract";
 
 /**
  * Decision context: everything the engine needs to reason over a single
@@ -44,20 +49,12 @@ export type DecisionContext = {
     scoring_highlights: string[];
     is_superflex: boolean;
     format_type: "dynasty" | "keeper" | "redraft" | "unknown";
-    // Operational rules derived from format + roster_positions.
-    // Mirrors the Coach context contract so the same SYSTEM_PROMPT
-    // hard rules ("never claim a position 'doesn't start' without
-    // checking format_rules") fire correctly here too.
-    format_rules: {
-      qb_starters_max: number;
-      rb_starters_max: number;
-      wr_starters_max: number;
-      te_starters_max: number;
-      second_qb_starts: boolean;
-      te_premium: boolean;
-      flex_eligible: readonly ["RB", "WR", "TE"];
-      sf_eligible: readonly ["QB", "RB", "WR", "TE"] | null;
-    };
+    // Operational rules derived from format + roster_positions via
+    // buildFormatRulesFromRosterPositions. Single source of truth in
+    // llm-contract.ts; mirrors the Coach + briefings shape so the same
+    // SYSTEM_PROMPT hard rules ("never claim a position 'doesn't start'
+    // without checking format_rules") fire correctly here too.
+    format_rules: FormatRules;
   };
   nfl: { season: string; week: number; season_type: string } | null;
   me: {
@@ -75,30 +72,12 @@ export type DecisionContext = {
   };
   league_profile: LeagueProfile;
   traded_picks_summary: string;
-  // Trade pricing context. Player values from FantasyCalc, KTC-equivalent,
-  // normalized 0-100. Resolved for the user's roster + every team's
-  // headline players. Per dynasty-trade-realism-tester audit 2026-04-24:
-  // SYSTEM_PROMPT trade rules require pricing context; without it the
-  // LLM was freelancing trade math.
-  pricing: {
-    scale_note: string;
-    fairness_band_pct: number;
-    player_values_present: boolean;
-    player_value_count: number;
-    // Map keyed by Sleeper player_id. Renderer surfaces this inline
-    // beside player names so the LLM doesn't need a separate lookup.
-    player_values: Record<string, { value: number; overall_rank: number | null; position_rank: number | null }>;
-    // Pick values. Empty for the decision endpoints (which don't have
-    // draftState) until they wire it in. The system-prompt rule's
-    // "pricing.pick_values empty + pick-involving trade = forbidden"
-    // path keeps this honest in the meantime.
-    pick_values: Array<{
-      pick_label: string;
-      pick_no: number;
-      round: number;
-      ktc_value: number;
-    }>;
-  };
+  // Trade pricing context. Single shape across all LLM endpoints
+  // (Coach, decisions, briefings) defined in llm-contract.ts. The
+  // SYSTEM_PROMPT trade rules require this; without it the LLM
+  // freelances trade math (the 6.2-for-4.3 failure that triggered
+  // the contract's existence).
+  pricing: TradePricing;
 };
 
 export type ContextInputs = {
@@ -178,29 +157,30 @@ export async function assembleContext(
     me?.display_name ??
     "Your team";
 
-  // Derive operational format rules + starter slot maxes from
-  // roster_positions. Mirrors the Coach context contract; needed so
-  // SYSTEM_PROMPT trade rules ("never claim 'doesn't start' without
+  // Derive operational format rules via the single source of truth
+  // (llm-contract.ts). Mirrors the Coach + briefings shape so the
+  // SYSTEM_PROMPT hard rules ("never claim 'doesn't start' without
   // checking format_rules") fire correctly here too.
   const rosterPositions = league.roster_positions ?? [];
-  const countSlot = (slot: string): number =>
-    rosterPositions.filter((p) => p === slot).length;
-  const flexCount = countSlot("FLEX") + countSlot("REC_FLEX") + countSlot("WRRB_FLEX");
-  const recFlexCount = countSlot("REC_FLEX");
-  const sfSlots =
-    countSlot("SUPER_FLEX") + countSlot("SUPERFLEX") + countSlot("SF") + countSlot("Q_FLEX");
-  const qbStartersMax = countSlot("QB") + sfSlots;
-  const teStartersMax = countSlot("TE") + recFlexCount + Math.max(0, flexCount - recFlexCount);
-  const rbStartersMax = countSlot("RB") + Math.max(0, flexCount - recFlexCount);
-  const wrStartersMax = countSlot("WR") + flexCount;
-  const tePremium = scoringHighlights.some((s) => /TE.?premium|TEP/i.test(s));
+  const formatRules = buildFormatRulesFromRosterPositions({
+    rosterPositions,
+    scoringHighlights,
+    isSuperflex,
+  });
 
   // Player values for every rostered player across the league, resolved
   // against FantasyCalc (KTC-equivalent) for this format. Cached
   // server-side so this is at most one upstream fetch per format per
   // 24h. The full pool covers any trade discussion: user's roster +
   // every potential counterparty's roster.
-  const isPpr = scoringHighlights.some((s) => /\bPPR\b/i.test(s)) && !scoringHighlights.some((s) => /half/i.test(s));
+  //
+  // Note: assembleContext doesn't have draftState (that lives in the
+  // hub page route), so pick_values stays empty here. The
+  // SYSTEM_PROMPT rule "no pricing = describe ASK SHAPES" handles
+  // pick-involving trades safely until draftState is wired.
+  const isPpr =
+    scoringHighlights.some((s) => /\bPPR\b/i.test(s)) &&
+    !scoringHighlights.some((s) => /half/i.test(s));
   const isHalfPpr = scoringHighlights.some((s) => /half.?PPR/i.test(s));
   const playerValueMap = await resolvePlayerValues({
     ids: [...allIds],
@@ -208,7 +188,7 @@ export async function assembleContext(
     isPpr,
     isHalfPpr,
   });
-  const playerValuesRecord: Record<string, { value: number; overall_rank: number | null; position_rank: number | null }> = {};
+  const playerValuesRecord: TradePricing["player_values"] = {};
   for (const [id, v] of playerValueMap.entries()) {
     playerValuesRecord[id] = {
       value: v.value,
@@ -228,18 +208,7 @@ export async function assembleContext(
       scoring_highlights: scoringHighlights,
       is_superflex: isSuperflex,
       format_type: classifyFormat(league),
-      format_rules: {
-        qb_starters_max: qbStartersMax,
-        rb_starters_max: rbStartersMax,
-        wr_starters_max: wrStartersMax,
-        te_starters_max: teStartersMax,
-        second_qb_starts: qbStartersMax >= 2,
-        te_premium: tePremium,
-        flex_eligible: ["RB", "WR", "TE"] as const,
-        sf_eligible: isSuperflex
-          ? (["QB", "RB", "WR", "TE"] as const)
-          : null,
-      },
+      format_rules: formatRules,
     },
     nfl: nflState
       ? {
@@ -274,6 +243,7 @@ export async function assembleContext(
       player_value_count: playerValueMap.size,
       player_values: playerValuesRecord,
       pick_values: [],
+      sf_pick_multiplier: isSuperflex ? 1.2 : 1.0,
     },
   };
 }
