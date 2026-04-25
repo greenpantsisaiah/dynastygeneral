@@ -47,6 +47,30 @@ const POSITION_LABEL: Record<Position, string> = {
   DST: "DST",
 };
 
+// Format-aware starter requirement. The SUPER_FLEX slot is
+// position-locked to QB in practice (always the highest scorer in
+// PPR), so a 1-QB-on-roster team in superflex is 1/2 on QB starters,
+// not 1/1. RB/WR/TE FLEX slots are NOT position-locked (a flex can be
+// any of three positions), so we don't expand skill-position
+// requirements here. This mirrors `qb_starters_max = hard.QB +
+// superflex` in `web/src/lib/engine/llm-contract.ts` so the engine's
+// fill-starter rule and the LLM contract's format_rules bind to the
+// same number. Without this alignment the engine reports 1/1 QB while
+// the Coach's format_rules reports 1/2, and the user gets a Decision
+// card lean that ignores the second QB hole. Per dynasty-bug-
+// investigator + ultrathink diagnosis 2026-04-24.
+function effectiveStarterReqs(snap: LeagueSnapshot): Record<Position, number> {
+  const ss = snap.starter_slots;
+  return {
+    QB: ss.hard.QB + ss.superflex,
+    RB: ss.hard.RB,
+    WR: ss.hard.WR,
+    TE: ss.hard.TE,
+    K: ss.hard.K,
+    DST: ss.hard.DST,
+  };
+}
+
 type ScoredCandidate = {
   player: AvailablePlayer;
   position: Position;
@@ -167,7 +191,8 @@ function buildCandidates(
   };
 
   // Rule 1: Fill-starter-hole, weighted by urgency.
-  const reqs = snap.starter_slots.hard;
+  // Format-aware: super_flex counts as a QB hole in superflex.
+  const reqs = effectiveStarterReqs(snap);
   for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
     if (reqs[pos] <= 0) continue;
     if (me.position_counts[pos] >= reqs[pos]) continue;
@@ -323,22 +348,37 @@ function buildNextPicksPlan(
   snap: LeagueSnapshot,
   available: AvailablePlayer[],
   schedule: PickScheduleEntry[],
+  // The lean for the CURRENT pick. Pre-incrementing simulated counts
+  // for the lean's position keeps the future-pick narrative consistent:
+  // if the lean is QB, the plan should not also recommend QB at the
+  // very next slot under "fill QB hole (1/2)" framing. Without this,
+  // a SF league with 1 QB on roster gets QB-leaned at 5.11 AND
+  // QB-leaned at 6.2 with the same "1/2" label.
+  leanPosition: Position | null,
+  leanPlayerId: string | null,
 ): NextPickPlanItem[] {
   if (schedule.length <= 1) return [];
   const me = snap.rosters.find((r) => r.is_me);
   if (!me) return [];
-  const reqs = snap.starter_slots.hard;
+  // Format-aware: super_flex counts as a QB hole in superflex so the
+  // plan recommends a 2nd QB before falling through to depth.
+  const reqs = effectiveStarterReqs(snap);
 
   // Simulate hole-fills as the user makes picks. For each future pick,
   // optimistically treat the hole as filled if the plan recommends
   // that position, so subsequent picks move to the next hole or value.
+  // Seed with the lean's position so the chain reads consistently.
   const simulated: Record<Position, number> = { ...me.position_counts };
+  if (leanPosition) simulated[leanPosition] = (simulated[leanPosition] ?? 0) + 1;
 
   const futures = schedule.slice(1, 1 + MAX_NEXT_PICKS);
   const items: NextPickPlanItem[] = [];
   for (let idx = 0; idx < futures.length; idx++) {
     const future = futures[idx];
     const survivor = (p: AvailablePlayer): boolean => {
+      // Exclude the current lean from future picks (the user took him
+      // at the current slot in the assumed chain).
+      if (leanPlayerId && p.id === leanPlayerId) return false;
       if (p.adp == null) return true;
       return p.adp > future.pick_no - 3;
     };
@@ -438,6 +478,12 @@ function buildCounterView(
   if (!me) return null;
   const isSuperflex = snap.format === "superflex" || snap.format === "2qb";
   const winnerPos = normalizePos(winner.player.position);
+  // Format-aware starter requirements. In SF, having 1 QB still leaves
+  // a starter hole (super_flex slot wants a 2nd QB), so the cliff
+  // detector must compare against effective requirements, not raw
+  // hard counts. Without this the QB cliff is suppressed for any
+  // 1-QB-on-roster team in SF, even with 15 of 24 QBs gone.
+  const reqs = effectiveStarterReqs(snap);
   // Starter-required positions worth checking. K and DST are excluded
   // (rarely cliff-shaped in dynasty; format gating handled elsewhere).
   const candidates: Position[] = isSuperflex
@@ -446,7 +492,7 @@ function buildCounterView(
   for (const pos of candidates) {
     if (pos === winnerPos) continue;
     const have = me.position_counts[pos] ?? 0;
-    if (have > 0) continue; // user already has one; not a cliff for THIS pick
+    if (have >= reqs[pos]) continue; // already at starter floor; not a cliff
     const surviving = available.filter((p) => {
       if (normalizePos(p.position) !== pos) return false;
       if (p.adp == null) return false;
@@ -712,7 +758,13 @@ export function synthesizeDecision(args: {
     confidence_pct: confidenceForScore(q.score),
   }));
 
-  const next_picks_plan = buildNextPicksPlan(snap, available, schedule);
+  const next_picks_plan = buildNextPicksPlan(
+    snap,
+    available,
+    schedule,
+    winner.position,
+    winner.player.id,
+  );
   const scarcity_callout = buildScarcityCallout(
     winner,
     available,
