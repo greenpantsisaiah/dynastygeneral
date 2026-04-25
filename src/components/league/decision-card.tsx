@@ -349,11 +349,14 @@ function CandidateCard({
         >
           {c.is_lean ? "My lean" : RULE_SHORT[c.rule]}
         </span>
-        {c.adp != null && (
-          <span className="font-mono text-[10px] text-muted-2">
-            ADP {Math.round(c.adp)}
-          </span>
-        )}
+        <span className="flex items-baseline gap-2 font-mono text-[10px] text-muted-2">
+          {c.value != null && (
+            <span title="KTC-equivalent dynasty value, FantasyCalc-sourced and normalized 0-100. Higher = more valuable.">
+              VAL {c.value}
+            </span>
+          )}
+          {c.adp != null && <span>ADP {Math.round(c.adp)}</span>}
+        </span>
       </div>
       <div className="mt-1 text-sm font-semibold text-foreground">
         {c.name}

@@ -446,6 +446,7 @@ export default async function LeagueHubPage({
             windows,
             picks_until_me: pickApproach?.picks_until_me ?? 0,
             declared_window: declaredWindow,
+            player_values: playerValuesByIdJson,
           });
         } catch (err) {
           console.error("[hub:decision-synthesis]", err);

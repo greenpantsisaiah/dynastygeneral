@@ -38,6 +38,13 @@ export type DecisionCandidate = {
   search_rank: number;
   adp: number | null;
   is_rookie?: boolean;
+  // KTC-equivalent dynasty value, FantasyCalc-sourced and normalized
+  // 0-100 by top-3 average (so the game's best player is ~100 and a
+  // bench piece is single-digit). Composes with pick values
+  // arithmetically. Null when the resolver had no match for this id.
+  // Surfaced on the Top 3 cards so the user sees value-based scarcity
+  // at a glance, the way the Coach already reasons about it.
+  value: number | null;
 };
 
 // A single line item in the next-picks-plan view. Target is the

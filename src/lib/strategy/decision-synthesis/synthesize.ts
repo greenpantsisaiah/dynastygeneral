@@ -114,7 +114,11 @@ function confidenceForScore(score: number): number {
   return score;
 }
 
-function toDecisionCandidate(p: AvailablePlayer): DecisionCandidate {
+function toDecisionCandidate(
+  p: AvailablePlayer,
+  playerValues: Record<string, number>,
+): DecisionCandidate {
+  const v = playerValues[p.id];
   return {
     player_id: p.id,
     name: p.name,
@@ -124,6 +128,7 @@ function toDecisionCandidate(p: AvailablePlayer): DecisionCandidate {
     search_rank: p.search_rank,
     adp: p.adp,
     is_rookie: p.is_rookie,
+    value: typeof v === "number" ? Math.round(v) : null,
   };
 }
 
@@ -644,9 +649,21 @@ export function synthesizeDecision(args: {
   windows: WindowsResult;
   picks_until_me: number;
   declared_window: WindowWeightingId | null;
+  // FantasyCalc-sourced KTC-equivalent values, normalized 0-100 by
+  // top-3 average. Optional; empty record is fine and just leaves
+  // candidate.value = null on every card. Already loaded by the
+  // hub for Strategic Forks; we plumb the same map in.
+  player_values?: Record<string, number>;
 }): Decision | null {
-  const { snap, ranked, available, windows, picks_until_me, declared_window } =
-    args;
+  const {
+    snap,
+    ranked,
+    available,
+    windows,
+    picks_until_me,
+    declared_window,
+    player_values: playerValues = {},
+  } = args;
   const schedule = snap.draft.my_pick_schedule;
   if (schedule.length === 0) return null;
   if (available.length === 0) return null;
@@ -701,11 +718,37 @@ export function synthesizeDecision(args: {
     const gap = Number.isFinite(current.gap_to_next)
       ? current.gap_to_next
       : null;
+    // Cluster bullet rewritten 2026-04-25 to remove dynasty-veteran
+    // jargon ("swing hard", "punt to the cluster") that the user
+    // explicitly didn't understand. Now states the strategy: the
+    // cluster gives you a refill window, so you have two real
+    // options. Names both.
     why.push(
       gap != null
-        ? `Picks coming back ${gap} slots later (${nextUserPick.pick_label}). Safe to swing hard OR punt to the cluster.`
-        : `Picks coming back soon after this. Safe to swing hard OR punt to the cluster.`,
+        ? `Cluster: ${nextUserPick.pick_label} is ${gap} pick${gap === 1 ? "" : "s"} away. You can lock the more fragile asset now and fill the other hole at ${nextUserPick.pick_label}, OR take the safer earned-value play and fill positions at ${nextUserPick.pick_label}.`
+        : `Cluster: refill window opens at ${nextUserPick.pick_label}. You can lock the more fragile asset now and fill the other hole at ${nextUserPick.pick_label}, OR take the safer earned-value play and fill positions at ${nextUserPick.pick_label}.`,
     );
+    // Cluster sequencing bullet. Fires when the lean and the next
+    // runner-up are BOTH urgent fills at DIFFERENT positions: the
+    // cluster lets the user grab both endangered assets in sequence
+    // (lock the lean now, hunt the runner-up at the next pick). This
+    // is the kind of multi-step game-theory reasoning the Coach
+    // surfaces ("Lock Love. Hunt Higgins at 6.2.") that the panel
+    // didn't articulate before. Per user analysis 2026-04-25.
+    const runner = runners[0];
+    if (
+      runner &&
+      runner.position !== winner.position &&
+      (runner.rule === "fill_starter_urgent" ||
+        runner.rule === "fill_starter") &&
+      (winner.rule === "fill_starter_urgent" ||
+        winner.rule === "fill_starter" ||
+        winner.rule === "push_path")
+    ) {
+      why.push(
+        `Cluster handles both. Lock ${winner.player.name} now, hunt ${runner.player.name} (${POSITION_LABEL[runner.position]}) at ${nextUserPick.pick_label}.`,
+      );
+    }
   }
 
   const tradeoff = buildTradeoff(winner, runners, nextUserPickNo);
@@ -717,7 +760,7 @@ export function synthesizeDecision(args: {
   // next to "earned_value") and the user can choose the lane.
   const topThree: ScoredCandidate[] = [winner, ...runners].slice(0, 3);
   const top_candidates: DecisionTopCandidate[] = topThree.map((c) => ({
-    ...toDecisionCandidate(c.player),
+    ...toDecisionCandidate(c.player, playerValues),
     primary_reason: c.primary_reason,
     rule: c.rule,
     is_lean: c.player.id === winner.player.id,
@@ -804,7 +847,7 @@ export function synthesizeDecision(args: {
     ages.length >= 2 ? Math.max(2, (ages[ages.length - 1] - ages[0]) / 2) : 3;
 
   const quadrant_candidates: DecisionQuadrantCandidate[] = qPool.map((q) => ({
-    ...toDecisionCandidate(q.player),
+    ...toDecisionCandidate(q.player, playerValues),
     primary_reason: q.primary_reason,
     rule: q.rule,
     is_lean: q.player.id === winner.player.id,
@@ -858,7 +901,7 @@ export function synthesizeDecision(args: {
       sentence: windowConstraint.sentence,
     },
     recommendation: {
-      ...toDecisionCandidate(winner.player),
+      ...toDecisionCandidate(winner.player, playerValues),
       primary_reason: winner.primary_reason,
       rule: winner.rule,
     },
