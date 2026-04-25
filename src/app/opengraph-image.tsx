@@ -1,11 +1,18 @@
 /**
  * Open Graph image for the root domain. Used by Slack, iMessage,
- * Twitter/X, Discord, etc. when dynastygeneral.app is shared.
+ * Twitter/X, Discord, Sleeper, etc. when dynastygeneral.app is shared.
  *
  * Next.js convention: any `opengraph-image.{png,tsx,...}` next to a
  * route renders to /opengraph-image at build, and the framework
- * auto-injects the og:image meta. Generated server-side via @vercel/og
- * (already a Next.js peer dep).
+ * auto-injects the og:image meta. Generated server-side via @vercel/og.
+ *
+ * Composition note: many platforms (Sleeper among them) crop OG
+ * images aggressively to a near-square or vertical thumbnail. The
+ * old version put the headline left-aligned so cropping cut off the
+ * leading edge of every line. This version keeps all critical
+ * content (mark, tagline, URL) in a centered safe zone roughly
+ * 760px wide so a 1:1 or 4:5 crop still shows the brand cleanly.
+ * Decorative bleed lives in the outer 220px on each side.
  */
 
 import { ImageResponse } from "next/og";
@@ -31,102 +38,159 @@ export default async function Image() {
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
           backgroundColor: "#0a0a0a",
           color: "#fafafa",
           fontFamily: "system-ui, sans-serif",
-          padding: "80px",
-          backgroundImage:
-            "radial-gradient(circle at 20% 0%, rgba(245, 158, 11, 0.18), transparent 50%)",
+          position: "relative",
         }}
       >
+        {/* Decorative background. Radial glow + corner accents. Lives
+            entirely in the bleed region; safe to be cropped away. */}
         <div
           style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "radial-gradient(circle at 50% 30%, rgba(245, 158, 11, 0.16), transparent 60%)",
             display: "flex",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "linear-gradient(rgba(245, 158, 11, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(245, 158, 11, 0.04) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+            display: "flex",
+          }}
+        />
+
+        {/* Centered safe zone. All critical content lives here. */}
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            gap: 16,
-            fontSize: 18,
-            letterSpacing: "0.16em",
-            textTransform: "uppercase",
-            color: "#f59e0b",
-            fontFamily: "monospace",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logoSrc} alt="" width={48} height={48} />
-          Dynasty Copilot
-        </div>
-
-        <div
-          style={{
-            marginTop: 48,
-            fontSize: 88,
-            fontWeight: 600,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-            display: "flex",
-            maxWidth: 1000,
-          }}
-        >
-          Win the decision in front of you.
-        </div>
-
-        <div
-          style={{
-            marginTop: 36,
-            fontSize: 32,
-            color: "#a3a3a3",
-            lineHeight: 1.3,
-            display: "flex",
-            maxWidth: 980,
-          }}
-        >
-          Dynasty fantasy football decision engine. Sleeper today,
-          MyFantasyLeague next.
-        </div>
-
-        <div style={{ marginTop: "auto", display: "flex", gap: 24 }}>
-          <Tag>One Decision per pick</Tag>
-          <Tag>5-year Contender Outlook</Tag>
-          <Tag>League Spectrum</Tag>
-        </div>
-
-        <div
-          style={{
-            marginTop: 32,
-            display: "flex",
             justifyContent: "space-between",
-            alignItems: "baseline",
-            fontFamily: "monospace",
-            fontSize: 18,
-            color: "#737373",
-            textTransform: "uppercase",
-            letterSpacing: "0.16em",
+            margin: "0 auto",
+            padding: "70px 40px",
+            width: 760,
+            height: "100%",
+            textAlign: "center",
           }}
         >
-          <span>dynastygeneral.app</span>
-          <span style={{ color: "#22c55e" }}>Live private beta</span>
+          {/* Top: brand mark + wordmark, prominent and centered. */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 18,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoSrc} alt="" width={108} height={108} />
+            <div
+              style={{
+                fontSize: 24,
+                letterSpacing: "0.28em",
+                textTransform: "uppercase",
+                color: "#f59e0b",
+                fontFamily: "monospace",
+                display: "flex",
+              }}
+            >
+              Dynasty Copilot
+            </div>
+          </div>
+
+          {/* Middle: the headline + one-line subhead. */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 24,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 76,
+                fontWeight: 700,
+                lineHeight: 1.05,
+                letterSpacing: "-0.02em",
+                display: "flex",
+                color: "#fafafa",
+              }}
+            >
+              Win the decision
+            </div>
+            <div
+              style={{
+                fontSize: 76,
+                fontWeight: 700,
+                lineHeight: 1.05,
+                letterSpacing: "-0.02em",
+                display: "flex",
+                color: "#fafafa",
+              }}
+            >
+              in front of you.
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 26,
+                color: "#a3a3a3",
+                lineHeight: 1.4,
+                display: "flex",
+                maxWidth: 680,
+              }}
+            >
+              Decision engine for Sleeper dynasty leagues.
+            </div>
+          </div>
+
+          {/* Bottom: URL + status, monospace tactical line. */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              fontFamily: "monospace",
+              fontSize: 22,
+              color: "#737373",
+              textTransform: "uppercase",
+              letterSpacing: "0.18em",
+            }}
+          >
+            <span>dynastygeneral.app</span>
+            <span style={{ color: "#525252" }}>·</span>
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: "#22c55e",
+              }}
+            >
+              <span
+                style={{
+                  display: "flex",
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  backgroundColor: "#22c55e",
+                }}
+              />
+              Private beta
+            </span>
+          </div>
         </div>
       </div>
     ),
     size,
-  );
-}
-
-function Tag({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        padding: "10px 18px",
-        fontSize: 22,
-        color: "#fafafa",
-        border: "1px solid #404040",
-        borderRadius: 8,
-        backgroundColor: "rgba(38, 38, 38, 0.6)",
-      }}
-    >
-      {children}
-    </div>
   );
 }
