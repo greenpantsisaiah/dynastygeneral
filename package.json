@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:em-dashes": "! grep -rIl --exclude-dir=node_modules --exclude-dir=.next --include='*.ts' --include='*.tsx' --include='*.md' --include='*.css' --include='*.json' $'\\u2014' src INVARIANTS.md AGENTS.md 2>/dev/null"
+    "check:em-dashes": "! grep -rIl --exclude-dir=node_modules --exclude-dir=.next --include='*.ts' --include='*.tsx' --include='*.md' --include='*.css' --include='*.json' $'\\u2014' src INVARIANTS.md AGENTS.md 2>/dev/null",
+    "test:integrity": "tsx --tsconfig tsconfig.json evals/integrity.test.ts",
+    "test:draft-math": "tsx --tsconfig tsconfig.json evals/draft-math.test.ts",
+    "test:anti-patterns": "tsx --tsconfig tsconfig.json evals/anti-patterns.test.ts",
+    "test": "npm run test:integrity && npm run test:draft-math && npm run test:anti-patterns && npm run check:em-dashes"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

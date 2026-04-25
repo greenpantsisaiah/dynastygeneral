@@ -799,8 +799,12 @@ export function synthesizeDecision(args: {
     });
   }
   // Best available at each rostered position not already in the pool.
+  // Uses effectiveStarterReqs so superflex correctly gates QB even
+  // when hard.QB = 0 (unusual but valid: leagues with only an SF
+  // slot and no dedicated QB slot).
+  const qReqs = effectiveStarterReqs(snap);
   for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
-    if ((snap.starter_slots.hard[pos] ?? 0) <= 0) continue;
+    if ((qReqs[pos] ?? 0) <= 0) continue;
     const top = available.find(
       (p) => normalizePos(p.position) === pos && !qSeen.has(p.id),
     );
