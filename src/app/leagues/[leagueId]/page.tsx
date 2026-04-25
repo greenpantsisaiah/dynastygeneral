@@ -212,6 +212,11 @@ export default async function LeagueHubPage({
   let strategyLab: StrategyLabState | null = null;
   let pathCommitment: ActivePathCommitment | null = null;
   let pathCompetition: PathCompetition | null = null;
+  // Player KTC values for the available pool. Powers EV-band tagging
+  // on Strategic Forks (bargain / fair / reach) and any future surface
+  // that needs cross-position value comparison. Cached server-side
+  // (24h FantasyCalc fetch). Best-effort; non-fatal if it fails.
+  let playerValuesByIdJson: Record<string, number> = {};
 
   // Tier check moved earlier in the pipeline so the path-commitment
   // sync (which needs tierState.user) can run inside the snapshot
@@ -243,6 +248,32 @@ export default async function LeagueHubPage({
         availablePlayers = await getAvailableForRequest(snapshot);
       } catch (err) {
         console.error("[hub:available]", err);
+      }
+
+      // Resolve KTC-equivalent values for the user's roster + top 100
+      // available. Used by Strategic Forks for EV-band tagging
+      // (bargain / fair / reach). Cached 24h server-side via the
+      // FantasyCalc resolver; one upstream fetch covers many requests.
+      try {
+        const valueIds: string[] = [];
+        const me = snapshot.rosters.find((r) => r.is_me);
+        if (me) for (const id of me.player_ids) valueIds.push(id);
+        for (const p of availablePlayers.slice(0, 100)) valueIds.push(p.id);
+        const { resolvePlayerValues } = await import(
+          "@/lib/players/values"
+        );
+        const valueMap = await resolvePlayerValues({
+          ids: valueIds,
+          isSuperflex:
+            snapshot.format === "superflex" || snapshot.format === "2qb",
+          isPpr: snapshot.scoring.includes("PPR"),
+          isHalfPpr: snapshot.scoring.includes("half-PPR"),
+        });
+        const out: Record<string, number> = {};
+        for (const [id, v] of valueMap.entries()) out[id] = v.value;
+        playerValuesByIdJson = out;
+      } catch (err) {
+        console.error("[hub:player-values]", err);
       }
 
       pickApproach = buildPickApproach(
@@ -647,6 +678,10 @@ export default async function LeagueHubPage({
                     available={availablePlayers}
                     snapshot={leagueSnapshot}
                     myPickLabel={pickApproach?.my_pick_label ?? null}
+                    playerValuesById={playerValuesByIdJson}
+                    currentPickNo={
+                      leagueSnapshot?.draft.next_pick_no ?? null
+                    }
                   />
 
                   {pickApproach && (

@@ -34,9 +34,48 @@ import type {
 } from "@/lib/strategy/archetypes/schema";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { startupPickValue } from "@/lib/players/future-picks";
 import { AskCoachButton } from "./ask-coach-button";
 
-const PICKS_PER_FORK = 3; // primary + 2 backups
+const PICKS_PER_FORK = 4; // up to 4 candidates surfaced; variable per fork
+
+// EV-band thresholds (KTC-equivalent, 0-100 scale). A candidate's
+// player_value vs the slot's KTC anchor at this pick determines tier:
+//   bargain: candidate is meaningfully above slot value (buy low)
+//   fair:    within the ZOPA band (no flag)
+//   reach:   meaningfully below slot value (only justified by need)
+//
+// Threshold is +/-8 points which approximates +/-15% in mid-rounds
+// where slot anchors live in the 20-50 range (mirrors the trade-
+// realism fairness band used in the SYSTEM_PROMPT). Per user feedback
+// 2026-04-24: forks should respect EV unless need forces the reach;
+// bargains should be surfaced as future leverage.
+const EV_BARGAIN_DELTA = 8;
+const EV_REACH_DELTA = 8;
+// Magnitude of a "deep reach": candidate so far below slot value
+// that even a starter-fill argument barely justifies them. Used to
+// trim bottom candidates from path/depth forks (which never have a
+// need-driven reason to reach).
+const EV_DEEP_REACH_DELTA = 14;
+
+type EvTier = "bargain" | "fair" | "reach";
+
+function classifyEv(
+  candidateValue: number | null | undefined,
+  slotAnchor: number | null,
+): { tier: EvTier; delta: number | null } {
+  if (
+    candidateValue == null ||
+    slotAnchor == null ||
+    !Number.isFinite(slotAnchor)
+  ) {
+    return { tier: "fair", delta: null };
+  }
+  const delta = candidateValue - slotAnchor;
+  if (delta >= EV_BARGAIN_DELTA) return { tier: "bargain", delta };
+  if (delta <= -EV_REACH_DELTA) return { tier: "reach", delta };
+  return { tier: "fair", delta };
+}
 const POSITION_ORDER: Position[] = ["QB", "RB", "WR", "TE"];
 const POSITION_LABEL: Record<Position, string> = {
   QB: "QB",
@@ -47,12 +86,26 @@ const POSITION_LABEL: Record<Position, string> = {
   DST: "DST",
 };
 
+// Per-candidate EV annotation. Attached server-side via the
+// playerValuesById lookup; surfaced inline as a tier badge.
+type CandidateEv = {
+  player_id: string;
+  ev_tier: EvTier;
+  // Player KTC value minus slot anchor; positive = bargain, negative
+  // = reach. Null when player_value or slot anchor is unavailable.
+  ev_delta: number | null;
+};
+
 type StarterNeedFork = {
   kind: "starter_need";
   position: Position;
   have: number;
   need: number;
   candidates: AvailablePlayer[];
+  candidate_ev: CandidateEv[];
+  // Magnitude of necessary reach when no in-band candidates exist.
+  // Drives the "best you can do here despite the hole" framing.
+  forced_reach_magnitude: number | null;
 };
 
 type PathFork = {
@@ -60,20 +113,34 @@ type PathFork = {
   position: Position;
   ranked: RankedArchetype;
   candidates: ArchetypeCandidate[];
+  candidate_ev: CandidateEv[];
 };
 
 type DepthFork = {
   kind: "depth";
   position: Position;
   candidates: AvailablePlayer[];
+  candidate_ev: CandidateEv[];
 };
 
 type EarnedValueFork = {
   kind: "earned_value";
   candidates: AvailablePlayer[];
+  candidate_ev: CandidateEv[];
 };
 
-type Fork = StarterNeedFork | PathFork | DepthFork | EarnedValueFork;
+type BargainHuntFork = {
+  kind: "bargain_hunt";
+  candidates: AvailablePlayer[];
+  candidate_ev: CandidateEv[];
+};
+
+type Fork =
+  | StarterNeedFork
+  | PathFork
+  | DepthFork
+  | EarnedValueFork
+  | BargainHuntFork;
 
 function starterNeeds(snap: LeagueSnapshot): Record<Position, number> {
   // Use HARD slots only for the fill-starter-hole threshold. Flex and
@@ -106,6 +173,8 @@ export function StrategicForks({
   available,
   snapshot,
   myPickLabel,
+  playerValuesById,
+  currentPickNo,
 }: {
   ranked: RankedArchetype[];
   // Available player pool used to fill depth forks at positions that
@@ -116,7 +185,38 @@ export function StrategicForks({
   snapshot: LeagueSnapshot | null;
   // e.g. "14.9". null when not in active draft. Drives the header copy.
   myPickLabel: string | null;
+  // KTC-equivalent player values, keyed by Sleeper player_id. Used to
+  // tag each candidate with bargain/fair/reach relative to slot anchor.
+  // Empty record when FantasyCalc fetch failed; component degrades to
+  // ungraded forks (no badges, no bargain-hunt).
+  playerValuesById?: Record<string, number>;
+  // Overall pick number the user is on/about to be on. Drives the
+  // KTC slot anchor via startupPickValue. Null when no active draft.
+  currentPickNo?: number | null;
 }) {
+  const valuesById = playerValuesById ?? {};
+  // Slot anchor: KTC-equivalent value of THIS pick slot on the same
+  // 0-100 scale player_values use. Null when no draft is active. We
+  // intentionally do NOT apply the SF multiplier here because the
+  // FantasyCalc player values were fetched format-aware (numQbs=2 for
+  // SF), so both sides of the comparison are already format-normalized.
+  const slotAnchor =
+    currentPickNo != null && currentPickNo > 0
+      ? startupPickValue(currentPickNo)
+      : null;
+  const valueOf = (id: string): number | null => {
+    const v = valuesById[id];
+    return typeof v === "number" ? v : null;
+  };
+  const evFor = (id: string): CandidateEv => {
+    const v = valueOf(id);
+    const cls = classifyEv(v, slotAnchor);
+    return {
+      player_id: id,
+      ev_tier: cls.tier,
+      ev_delta: cls.delta,
+    };
+  };
   const me = snapshot?.rosters.find((r) => r.is_me) ?? null;
   const reqs = snapshot ? starterNeeds(snapshot) : null;
   const positionState = (pos: Position): { have: number; need: number } => {
@@ -153,59 +253,152 @@ export function StrategicForks({
     pathsByPosition[pos].push(r);
   }
 
-  // Build forks in position order. Starter-need forks get visual
-  // emphasis (red treatment) but stay in their position slot rather
-  // than getting promoted to first. Filling a need vs. taking earned
-  // value is itself a strategic choice; we surface both, the general
-  // picks.
+  // Build forks in position order, applying EV-band filtering per
+  // fork kind. Per user feedback 2026-04-24: forks should respect
+  // EV band (ZOPA-style) rather than blindly surfacing top-3.
+  //
+  //   starter_need: keep all in-band; if none in-band, surface best
+  //                 reach with explicit "forced reach" magnitude.
+  //                 Drop deep reaches even from starter-need (those
+  //                 are punts, not picks).
+  //   path / depth: drop deep reaches outright. Path forks have no
+  //                 need-driven argument for reaching.
+  //   earned_value: only fair-or-bargain. "Earned" means at-or-above
+  //                 slot value by definition.
+  //   bargain_hunt: top players whose value > slot anchor by the
+  //                 bargain threshold. Cross-position. Surfaces
+  //                 future-leverage picks (buy low, flip later).
   const positionForks: Fork[] = [];
   for (const pos of POSITION_ORDER) {
     const { have, need } = positionState(pos);
     const paths = pathsByPosition[pos];
-    const positionCandidates = available
-      .filter((p) => (p.position ?? "").toUpperCase() === pos)
-      .slice(0, PICKS_PER_FORK);
+    const positionPool = available.filter(
+      (p) => (p.position ?? "").toUpperCase() === pos,
+    );
 
-    if (isStarterNeed(pos) && positionCandidates.length > 0) {
-      // Render starter-need fork instead of path/depth for this slot.
-      // The starter-need treatment subsumes both since they'd surface
-      // similar players at the position; the starter-need framing is
-      // just sharper about WHY (you have a hole).
+    if (isStarterNeed(pos) && positionPool.length > 0) {
+      // Pull a wide window to allow EV-band filtering, then trim.
+      const window = positionPool.slice(0, 8);
+      const evd = window.map((p) => ({ p, ev: evFor(p.id) }));
+      const inBand = evd.filter(
+        (x) => x.ev.ev_tier !== "reach" || x.ev.ev_delta == null,
+      );
+      const reaches = evd
+        .filter(
+          (x) =>
+            x.ev.ev_tier === "reach" &&
+            x.ev.ev_delta != null &&
+            -x.ev.ev_delta < EV_DEEP_REACH_DELTA,
+        )
+        .sort(
+          (a, b) =>
+            (b.ev.ev_delta ?? -99) - (a.ev.ev_delta ?? -99),
+        );
+      // Prefer in-band; if none, take the best non-deep reaches.
+      // Forced reach magnitude = how far below slot value the user
+      // would have to dip (best case) to fill this hole.
+      const chosen =
+        inBand.length > 0
+          ? inBand.slice(0, PICKS_PER_FORK)
+          : reaches.slice(0, PICKS_PER_FORK);
+      const forcedReach =
+        inBand.length === 0 && chosen.length > 0
+          ? Math.round(Math.abs(chosen[0].ev.ev_delta ?? 0))
+          : null;
       positionForks.push({
         kind: "starter_need",
         position: pos,
         have,
         need,
-        candidates: positionCandidates,
+        candidates: chosen.map((x) => x.p),
+        candidate_ev: chosen.map((x) => x.ev),
+        forced_reach_magnitude: forcedReach,
       });
       continue;
     }
 
     if (paths.length > 0) {
       for (const r of paths) {
+        const cands = r.top_candidates!.slice(0, PICKS_PER_FORK + 2);
+        const evd = cands.map((c) => ({ c, ev: evFor(c.player_id) }));
+        // Drop deep reaches from path forks. A path fork is about
+        // pushing direction, not filling a hole; reaching defeats
+        // the purpose.
+        const filtered = evd.filter(
+          (x) =>
+            x.ev.ev_tier !== "reach" ||
+            x.ev.ev_delta == null ||
+            -x.ev.ev_delta < EV_DEEP_REACH_DELTA,
+        );
+        const chosen =
+          filtered.length > 0 ? filtered : evd; // graceful degrade
+        const trimmed = chosen.slice(0, PICKS_PER_FORK);
         positionForks.push({
           kind: "path",
           position: pos,
           ranked: r,
-          candidates: r.top_candidates!.slice(0, PICKS_PER_FORK),
+          candidates: trimmed.map((x) => x.c),
+          candidate_ev: trimmed.map((x) => x.ev),
         });
       }
-    } else if (positionCandidates.length > 0) {
+    } else if (positionPool.length > 0) {
+      const window = positionPool.slice(0, PICKS_PER_FORK + 2);
+      const evd = window.map((p) => ({ p, ev: evFor(p.id) }));
+      const filtered = evd.filter(
+        (x) =>
+          x.ev.ev_tier !== "reach" ||
+          x.ev.ev_delta == null ||
+          -x.ev.ev_delta < EV_DEEP_REACH_DELTA,
+      );
+      const chosen = filtered.length > 0 ? filtered : evd;
+      const trimmed = chosen.slice(0, PICKS_PER_FORK);
       positionForks.push({
         kind: "depth",
         position: pos,
-        candidates: positionCandidates,
+        candidates: trimmed.map((x) => x.p),
+        candidate_ev: trimmed.map((x) => x.ev),
       });
     }
   }
 
-  // Earned Value fork: top dynasty-rank players regardless of position.
-  // Lets the user compare "fill RB hole (Saquon, 29)" vs "max value
-  // (Cam Ward, 23)" head-to-head without our heuristic deciding for them.
-  const earnedValuePicks = available.slice(0, PICKS_PER_FORK);
+  // Earned Value fork: top dynasty-rank players regardless of position
+  // that are AT-OR-ABOVE slot value. "Earned" by definition excludes
+  // reaches; if every option is a reach, the fork drops out (we don't
+  // want to surface "best of bad reaches" as earned value).
+  const evPool = available.slice(0, PICKS_PER_FORK + 4);
+  const evdEv = evPool.map((p) => ({ p, ev: evFor(p.id) }));
+  const earnedFiltered = evdEv.filter(
+    (x) => x.ev.ev_tier !== "reach" || x.ev.ev_delta == null,
+  );
+  const earnedTrimmed = earnedFiltered.slice(0, PICKS_PER_FORK);
+
+  // Bargain Hunt fork: cross-position top-tier values that go below
+  // their KTC at this slot. Future leverage; "buy low, flip later" is
+  // the user's framing. Suppressed when there are fewer than 2 real
+  // bargains (no signal to surface).
+  const bargainPool = available.slice(0, 60).map((p) => ({
+    p,
+    ev: evFor(p.id),
+  }));
+  const bargains = bargainPool
+    .filter((x) => x.ev.ev_tier === "bargain")
+    .sort((a, b) => (b.ev.ev_delta ?? 0) - (a.ev.ev_delta ?? 0))
+    .slice(0, PICKS_PER_FORK);
+
   const forks: Fork[] = [...positionForks];
-  if (earnedValuePicks.length > 0) {
-    forks.push({ kind: "earned_value", candidates: earnedValuePicks });
+  if (earnedTrimmed.length > 0) {
+    forks.push({
+      kind: "earned_value",
+      candidates: earnedTrimmed.map((x) => x.p),
+      candidate_ev: earnedTrimmed.map((x) => x.ev),
+    });
+  }
+  if (bargains.length >= 2) {
+    forks.push({
+      kind: "bargain_hunt",
+      candidates: bargains.map((x) => x.p),
+      candidate_ev: bargains.map((x) => x.ev),
+    });
   }
   if (forks.length === 0) return null;
 
@@ -236,7 +429,9 @@ export function StrategicForks({
                 ? `path-${f.ranked.archetype.id}`
                 : f.kind === "earned_value"
                   ? "earned-value"
-                  : `${f.kind}-${f.position}`
+                  : f.kind === "bargain_hunt"
+                    ? "bargain-hunt"
+                    : `${f.kind}-${f.position}`
             }
             fork={f}
           />
@@ -272,15 +467,29 @@ function depthTradeoff(position: Position): string {
   return `No top-ranked path is anchored at ${POSITION_LABEL[position]} right now. This is a depth/value pick rather than a directional commitment.`;
 }
 
-function starterNeedTradeoff(have: number, need: number, position: Position): string {
-  if (have === 0) {
-    return `You have 0 starter ${POSITION_LABEL[position]}s (need ${need}). Filling this hole almost always beats doubling down on a path you're already executing.`;
-  }
-  return `You have ${have}/${need} starter ${POSITION_LABEL[position]}s. Below need; fill the hole before doubling down elsewhere.`;
+function starterNeedTradeoff(
+  have: number,
+  need: number,
+  position: Position,
+  forcedReachMagnitude: number | null,
+): string {
+  const baseHole =
+    have === 0
+      ? `You have 0 starter ${POSITION_LABEL[position]}s (need ${need}).`
+      : `You have ${have}/${need} starter ${POSITION_LABEL[position]}s. Below need.`;
+  const reachClause =
+    forcedReachMagnitude && forcedReachMagnitude > 0
+      ? ` Best ${POSITION_LABEL[position]} on the board is ~${forcedReachMagnitude} below this slot's KTC anchor; the hole is bigger than the reach, but know you're paying it.`
+      : ` Filling the hole almost always beats doubling down on a path you're already executing.`;
+  return `${baseHole}${reachClause}`;
 }
 
 function earnedValueTradeoff(): string {
-  return "Top dynasty-value players on the board, regardless of position. Heuristic: Sleeper rank scaled by age + position factor. KTC/ADP integration is a future feature.";
+  return "Top dynasty-value players on the board (KTC at-or-above this slot's anchor), any position. Reaches filtered out: by definition, earned value can't be a discount on yourself.";
+}
+
+function bargainHuntTradeoff(): string {
+  return "Players whose KTC value sits above this slot's expected anchor. Buy-low candidates: take them now and you're banking future trade value, not just filling a roster slot.";
 }
 
 // Format ADP for chip display. Sleeper ADPs use one decimal place
@@ -325,27 +534,57 @@ function divergenceNote(c: {
   return `Sleeper ranks #${sleeperRank} but market drafts at ${Math.round(adp)}. consensus reaches earlier than rank.`;
 }
 
+// EV-tier badge. Compact chip rendered inline next to player names so
+// the user sees value-vs-slot signal at a glance. Bargain (green) =
+// player KTC > slot anchor (buy-low/leverage). Reach (red) = below
+// slot anchor (only justified by need). Fair = no badge (clutter-free).
+function EvBadge({ ev }: { ev: CandidateEv }) {
+  if (ev.ev_tier === "fair" || ev.ev_delta == null) return null;
+  if (ev.ev_tier === "bargain") {
+    return (
+      <span
+        className="ml-1.5 rounded-sm border border-success/60 bg-success/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-success"
+        title={`Player KTC value is ${Math.round(ev.ev_delta)} points above this slot's expected value. Bargain at this pick.`}
+      >
+        Bargain +{Math.round(ev.ev_delta)}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="ml-1.5 rounded-sm border border-warning/60 bg-warning/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-warning"
+      title={`Player KTC value is ${Math.round(Math.abs(ev.ev_delta))} points below this slot's expected value. Only justified by need.`}
+    >
+      Reach {Math.round(ev.ev_delta)}
+    </span>
+  );
+}
+
 function ForkCard({ fork }: { fork: Fork }) {
   if (fork.candidates.length === 0) return null;
   const primary = fork.candidates[0];
   const backups = fork.candidates.slice(1);
   const primaryDivergence = divergenceNote(primary);
+  const evList = fork.candidate_ev;
+  const primaryEv = evList[0];
 
   const isPathFork = fork.kind === "path";
   const isStarterNeedFork = fork.kind === "starter_need";
   const isEarnedValueFork = fork.kind === "earned_value";
+  const isBargainHuntFork = fork.kind === "bargain_hunt";
   const horizon = isPathFork
     ? horizonLabel(fork.ranked.archetype.horizon)
     : null;
   const isExecuting = isPathFork && fork.ranked.phase === "executing";
 
   // Visual tone:
-  //   starter_need → red (you have a hole, but it's still your call)
-  //   earned_value → success-green border (positive emphasis on value)
-  //   path / depth → standard
+  //   starter_need: red (you have a hole, but it's still your call)
+  //   earned_value: success-green border (positive emphasis on value)
+  //   bargain_hunt: success-green border (positive emphasis on value)
+  //   path / depth: standard
   const cardBorder = isStarterNeedFork
     ? "border-2 border-danger/60 bg-danger/5"
-    : isEarnedValueFork
+    : isEarnedValueFork || isBargainHuntFork
       ? "border-2 border-success/50 bg-success/5"
       : "border border-border-strong bg-surface";
 
@@ -356,6 +595,10 @@ function ForkCard({ fork }: { fork: Fork }) {
   ) : isEarnedValueFork ? (
     <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-success">
       Earned value
+    </span>
+  ) : isBargainHuntFork ? (
+    <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-success">
+      Bargain hunt
     </span>
   ) : (
     <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
@@ -371,10 +614,14 @@ function ForkCard({ fork }: { fork: Fork }) {
     <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-success">
       Any pos
     </span>
+  ) : isBargainHuntFork ? (
+    <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-success">
+      Future leverage
+    </span>
   ) : horizon ? (
     <span
       className={`font-mono text-[11px] uppercase tracking-[0.14em] ${horizon.tone}`}
-      title="Horizon: -100 rebuild ↔ +100 contender"
+      title="Horizon: -100 rebuild to +100 contender"
     >
       {horizon.text}
     </span>
@@ -390,28 +637,32 @@ function ForkCard({ fork }: { fork: Fork }) {
       ? `Fill ${POSITION_LABEL[fork.position]} starter hole`
       : isEarnedValueFork
         ? "Max dynasty value"
-        : `Best at ${POSITION_LABEL[fork.position]}`;
+        : isBargainHuntFork
+          ? "Buy low, flip later"
+          : `Best at ${POSITION_LABEL[fork.position]}`;
 
   const innerBoxClass = isStarterNeedFork
     ? "mt-3 rounded-md border border-danger/40 bg-danger/5 px-3 py-2"
-    : isEarnedValueFork
+    : isEarnedValueFork || isBargainHuntFork
       ? "mt-3 rounded-md border border-success/40 bg-success/5 px-3 py-2"
       : "mt-3 rounded-md border border-accent/40 bg-accent/5 px-3 py-2";
 
   const innerLabelTone = isStarterNeedFork
     ? "text-danger"
-    : isEarnedValueFork
+    : isEarnedValueFork || isBargainHuntFork
       ? "text-success"
       : "text-accent";
   const innerLabelText = isStarterNeedFork
     ? "Take to fill"
     : isEarnedValueFork
       ? "Top value"
-      : "Primary";
+      : isBargainHuntFork
+        ? "Best bargain"
+        : "Primary";
 
   const innerDividerClass = isStarterNeedFork
     ? "border-danger/20"
-    : isEarnedValueFork
+    : isEarnedValueFork || isBargainHuntFork
       ? "border-success/20"
       : "border-accent/20";
 
@@ -440,6 +691,7 @@ function ForkCard({ fork }: { fork: Fork }) {
           <span className="text-sm font-semibold text-foreground">
             {primary.name}
             {primary.is_rookie && <RookieChip />}
+            {primaryEv && <EvBadge ev={primaryEv} />}
           </span>
           {primary.adp != null && (
             <span
@@ -469,6 +721,7 @@ function ForkCard({ fork }: { fork: Fork }) {
             <ul className="mt-1 space-y-0.5">
               {backups.map((b, i) => {
                 const id = "player_id" in b ? b.player_id : b.id;
+                const ev = evList[i + 1];
                 return (
                   <li
                     key={id}
@@ -482,6 +735,7 @@ function ForkCard({ fork }: { fork: Fork }) {
                         {b.name}
                       </span>
                       {b.is_rookie && <RookieChip />}
+                      {ev && <EvBadge ev={ev} />}
                       <span className="text-muted-2">
                         {" "}
                         · {b.position}
@@ -506,10 +760,17 @@ function ForkCard({ fork }: { fork: Fork }) {
         {isPathFork
           ? pathTradeoff(fork.ranked)
           : isStarterNeedFork
-            ? starterNeedTradeoff(fork.have, fork.need, fork.position)
+            ? starterNeedTradeoff(
+                fork.have,
+                fork.need,
+                fork.position,
+                fork.forced_reach_magnitude,
+              )
             : isEarnedValueFork
               ? earnedValueTradeoff()
-              : depthTradeoff(fork.position)}
+              : isBargainHuntFork
+                ? bargainHuntTradeoff()
+                : depthTradeoff(fork.position)}
       </p>
 
       <AskCoachButton prompt={buildForkCoachPrompt(fork)} />
@@ -539,6 +800,11 @@ function buildForkCoachPrompt(fork: Fork): string {
     return `Max dynasty value on the board is ${primary}${
       backups ? ` (then ${backups})` : ""
     }. Should I take the highest-value player regardless of position here?`;
+  }
+  if (fork.kind === "bargain_hunt") {
+    return `Bargains on the board (going below their KTC value) are ${primary}${
+      backups ? ` and ${backups}` : ""
+    }. Worth grabbing as future leverage even if not a starter need?`;
   }
   return `Best depth at ${POSITION_LABEL[fork.position]} is ${primary}${
     backups ? ` or ${backups}` : ""
