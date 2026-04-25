@@ -24,7 +24,7 @@ export function FAQ() {
   return (
     <section className="border-b border-border-soft bg-surface py-24 sm:py-32">
       <div className="mx-auto max-w-3xl px-6">
-        <Ticker label="08 · FAQ" />
+        <Ticker label="09 · FAQ" />
         <h2 className="mt-6 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
           Direct answers.
         </h2>

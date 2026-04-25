@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Connect Your League",
   description:
-    "Connect your Sleeper dynasty league to Dynasty Copilot. Enter your username and get AI-powered trade, pick, and strategy analysis.",
+    "Connect your Sleeper dynasty league to Dynasty Copilot. Enter your username and get live trade evaluation, pick recommendations, and strategy coaching on your real roster.",
   alternates: { canonical: "/connect" },
 };
 import { SiteNav } from "@/components/site-nav";

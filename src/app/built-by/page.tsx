@@ -100,15 +100,26 @@ export default function BuiltByPage() {
               </p>
             </Section>
 
-            <Section title="What's coming">
+            <Section title="What's on the workbench">
               <p>
-                Multi-pick draft rollout (your full pick schedule,
-                synthesized into a multi-pick plan). Trade-impact
-                simulator (if you trade these three R1s for Bijan,
-                here's what your 2028 contender outlook looks like).
-                Class-strength overlays (the engine knows the 2027
-                rookie class is bid up; soon it will know which
-                positions in that class).
+                The Soundboard. Today the engine has one preset: the
+                sharp dynasty intelligence analyst the founder spent
+                two decades being. We're refactoring the buried
+                weights (gamble vs analyst, age preference, tier-cliff
+                sensitivity, trade aggression) into named dials you
+                can hold yourself. Run a more aggressive gambler. A
+                patient builder. An old-school coach who values anchor
+                RBs over young upside. Or bolt on your own theory of
+                divisional difficulty, O-line tier, or coach grades as
+                a custom criterion the engine then weights into every
+                recommendation.
+              </p>
+              <p>
+                Trade-impact simulator. If you trade these three R1s
+                for Bijan, here's what your 2028 contender outlook
+                looks like. Class-strength overlays. The engine knows
+                the 2027 rookie class is bid up; soon it will know
+                which positions in that class.
               </p>
               <p>
                 And a long list of things we will not ship until they

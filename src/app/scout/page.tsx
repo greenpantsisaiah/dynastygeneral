@@ -13,7 +13,7 @@ import { redirect } from "next/navigation";
 export const metadata: Metadata = {
   title: "Scout Report",
   description:
-    "Scout any Sleeper dynasty manager. Get AI-powered verdicts on their roster strength, team archetype, and championship windows.",
+    "Scout any Sleeper dynasty manager. Verdicts on their roster strength, team archetype, and championship windows with the evidence cited.",
   alternates: { canonical: "/scout" },
 };
 import Link from "next/link";

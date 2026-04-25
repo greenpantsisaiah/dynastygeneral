@@ -8,7 +8,7 @@ import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 export const metadata = {
   title: "Pricing",
   description:
-    "Dynasty Copilot pricing. AI-powered trade analysis, pick recommendations, strategy coaching, and scout reports for Sleeper dynasty leagues.",
+    "Dynasty Copilot pricing. Decision engine for Sleeper dynasty leagues. Trade analysis, pick recommendations with named-player reasoning, strategy coaching, and scout reports. Free tier, Pro removes daily caps.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -34,7 +34,7 @@ export default async function PricingPage() {
             </h1>
             <p className="mt-6 mx-auto max-w-2xl text-lg leading-relaxed text-muted">
               {beta
-                ? "Every signed-in user gets the killer features (Coach, Briefings, Multi-pick rollout, Contender Outlook) during alpha/beta. Hosting and our AI engine cost real money. We bill so the lights stay on, not to lock features behind a wall. Pro tier exists for testers who want to support the project and lock in early-bird pricing before we tighten things up post-beta."
+                ? "Every signed-in user gets the killer features (Coach, Briefings, the 5-deep Decision card, Contender Outlook) during alpha/beta. Hosting and the engine cost real money. We bill so the lights stay on, not to lock features behind a wall. Pro tier exists for testers who want to support the project and lock in early-bird pricing before we tighten things up post-beta."
                 : "Free is real free: every killer feature, capped at sensible daily limits so we can keep the lights on for everyone. Pro removes the caps, syncs across devices, and supports the project. No billing during football season if you go annual."}
             </p>
             <p className="mt-4 mx-auto max-w-2xl text-xs text-muted-2">
@@ -67,8 +67,8 @@ export default async function PricingPage() {
                   ? [
                       "Coach chat with full league context + web search",
                       "Intelligence briefings on demand",
+                      "Decision card with 5-deep Next Picks Plan + Counter-view",
                       "5-year Contender Outlook + Decision Quadrant",
-                      "Multi-pick draft rollout (Monte Carlo with 500 trials)",
                       "Scout report on any Sleeper username",
                       "Connect multiple leagues",
                     ]
@@ -76,7 +76,7 @@ export default async function PricingPage() {
                       "1 dynasty league connected",
                       "5 Coach turns / day",
                       "3 intelligence briefings / day",
-                      "1 multi-pick rollout / day",
+                      "Decision card with 5-deep Next Picks Plan",
                       "Scout report on any Sleeper username · always unlimited",
                       "Verdict + League Spectrum + opponent characterizations",
                       "Local-only chat history (no cross-device sync)",
@@ -137,12 +137,13 @@ export default async function PricingPage() {
                       "Same daily budget cap as Free during beta",
                     ]
                   : [
-                      "Unlimited Coach turns, briefings, multi-pick rollouts",
+                      "Unlimited Coach turns and briefings",
                       "Unlimited dynasty leagues connected",
                       "Cross-device chat history + War Room sync",
                       "5-year Contender Outlook + Decision Quadrant",
                       "Lock in early-bird pricing for life",
                       "Direct line on feedback to the founder",
+                      "Early access to the Soundboard when it ships",
                     ]
                 ).map((f, i) => (
                   <li key={i} className="flex items-start gap-2">
@@ -206,8 +207,9 @@ export default async function PricingPage() {
             <Faq q="What counts as a Coach turn or briefing?">
               A Coach turn is one back-and-forth with the analyst. A briefing
               is one batch of 2-3 generated takes from the Run New Analysis
-              button. Free caps are: 5 Coach turns / day, 3 briefings / day,
-              1 multi-pick rollout / day. Caps reset daily at midnight UTC.
+              button. Free caps are: 5 Coach turns / day, 3 briefings / day.
+              Caps reset daily at midnight UTC. The Decision card itself is
+              uncapped: it runs locally and costs nothing.
             </Faq>
             <Faq q="What happens to my data if I downgrade?">
               Nothing is deleted. Your saved chat history, pinned briefings,
@@ -245,9 +247,10 @@ export default async function PricingPage() {
               <Faq q="What changes when beta ends?">
                 The post-beta model is volume caps, not feature gates. Free
                 keeps every killer feature with sensible daily limits (5
-                Coach / 3 briefings / 1 multi-pick); Pro removes the caps
-                and adds cross-device sync. Anyone on Pro at beta-end keeps
-                current pricing for life. Sign up today to lock that in.
+                Coach turns / 3 briefings per day; the Decision card stays
+                uncapped); Pro removes the caps and adds cross-device sync.
+                Anyone on Pro at beta-end keeps current pricing for life.
+                Sign up today to lock that in.
               </Faq>
             )}
             <Faq q="Is this affiliated with Sleeper or the NFL?">

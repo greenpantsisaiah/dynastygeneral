@@ -37,9 +37,9 @@ export function Hero() {
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
               Beta is open ·
             </span>{" "}
-            Coach, briefings, multi-pick rollout, and contender outlook are
-            free for every signed-in tester. Hosting and our AI engine cost
-            real money. Support the project on{" "}
+            Coach, briefings, the 5-deep Decision card, and Contender
+            Outlook are free for every signed-in tester. Hosting and the
+            engine cost real money. Support the project on{" "}
             <Link href="/pricing" className="text-accent hover:underline">
               Pro
             </Link>{" "}

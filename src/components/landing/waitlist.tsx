@@ -146,7 +146,7 @@ export function Waitlist() {
   return (
     <section id="waitlist" className="border-b border-border-soft py-24 sm:py-32">
       <div className="mx-auto max-w-3xl px-6">
-        <Ticker label="07 · Private beta" />
+        <Ticker label="08 · Private beta" />
         <h2 className="mt-6 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
           Private beta for serious dynasty players.
         </h2>

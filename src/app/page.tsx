@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { SiteNav } from "@/components/site-nav";
 
 export const metadata: Metadata = {
-  title: "Dynasty Copilot: AI Dynasty Fantasy Football Decision Engine",
+  title: "Dynasty Copilot: Decision Engine for Sleeper Dynasty Leagues",
   description:
-    "AI-powered dynasty fantasy football copilot. Trade analysis, pick recommendations, strategy coaching, and scout reports for Sleeper dynasty leagues.",
+    "Decision engine for serious dynasty fantasy football managers on Sleeper. Picks with named-player reasoning, trade evaluation against KTC market values, opponent characterization, and live strategy coaching. Free tier, Pro removes caps.",
   alternates: { canonical: "/" },
 };
 import { Benefits } from "@/components/landing/benefits";
@@ -16,6 +16,7 @@ import { Insight } from "@/components/landing/insight";
 import { Preview } from "@/components/landing/preview";
 import { Problem } from "@/components/landing/problem";
 import { Solution } from "@/components/landing/solution";
+import { SoundboardPreview } from "@/components/landing/soundboard-preview";
 import { Waitlist } from "@/components/landing/waitlist";
 
 const jsonLd = {
@@ -25,7 +26,7 @@ const jsonLd = {
   applicationCategory: "SportsApplication",
   operatingSystem: "Web",
   description:
-    "AI-powered dynasty fantasy football decision engine. Trade analysis, pick recommendations, strategy coaching, and scout reports for Sleeper dynasty leagues.",
+    "Decision engine for serious dynasty fantasy football managers on Sleeper. Live picks, trade evaluation, strategy coaching, and opponent intelligence with evidence cited per recommendation.",
   url: "https://dynastygeneral.app",
   offers: {
     "@type": "Offer",
@@ -51,6 +52,7 @@ export default function HomePage() {
         <Benefits />
         <Differentiation />
         <Preview />
+        <SoundboardPreview />
         <Waitlist />
         <FAQ />
       </main>

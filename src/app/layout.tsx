@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s · Dynasty Copilot",
   },
   description:
-    "AI-powered dynasty fantasy football decision engine. Pick recommendations, trade analysis, and strategy coaching for Sleeper leagues.",
+    "Decision engine for serious dynasty fantasy football managers on Sleeper. Pick recommendations with named-player reasoning, trade evaluation against KTC market values, and live strategy coaching.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://dynastygeneral.app",
   ),
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Dynasty Copilot",
     description:
-      "Win the decision in front of you. AI-powered dynasty fantasy football decision engine for Sleeper leagues.",
+      "Win the decision in front of you. Decision engine for Sleeper dynasty leagues with named-player reasoning, KTC-anchored trade evaluation, and strategy coaching.",
     type: "website",
     siteName: "Dynasty Copilot",
     url: "/",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Dynasty Copilot",
     description:
-      "AI-powered dynasty fantasy football decision engine. Pick recommendations, trade analysis, and strategy coaching.",
+      "Decision engine for Sleeper dynasty leagues. Pick recommendations, trade evaluation, and strategy coaching with evidence cited per call.",
   },
   robots: {
     index: true,
