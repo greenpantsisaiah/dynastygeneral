@@ -224,7 +224,7 @@ export function StrategyLab({
         </header>
         <p className="mt-3 text-sm leading-relaxed text-muted">
           {allClosed
-            ? "The strategic forks for this draft are behind you. The Decision card and multi-pick rollout are now the right tools; come back here next year when fresh archetypes are open."
+            ? "The strategic forks for this draft are behind you. The Decision card is now the right tool; come back here next year when fresh archetypes are open."
             : "We don't have enough roster or draft signal yet to score archetype paths. Add a pick or two, or come back once your league has a draft underway."}
         </p>
       </section>
@@ -276,8 +276,8 @@ export function StrategyLab({
           </span>{" "}
           You don't have to commit yet. Lean is a soft signal we'll
           track across picks; you can switch any time as the board
-          unfolds. For the full branch projection of your next picks,
-          scroll to the multi-pick rollout below.
+          unfolds. For the projected chain of your next picks, see
+          the Decision card's Next Picks Plan above.
         </p>
       )}
 

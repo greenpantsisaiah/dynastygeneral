@@ -42,6 +42,11 @@ export type DecisionCandidate = {
 
 // A single line item in the next-picks-plan view. Target is the
 // recommended position + named player(s) likely to be there.
+//
+// Replaces the now-deleted Multi-Pick Rollout card. The duplicate
+// surface produced conflicting recommendations because it ranked by
+// raw dynasty value and ignored starter-fill / window logic. Folded
+// into here per architecture pillar "ONE Decision card per pick."
 export type NextPickPlanItem = {
   pick_label: string;
   pick_no: number;
@@ -50,6 +55,21 @@ export type NextPickPlanItem = {
   // Usually 1-2 named players. "Stroud or Tuten (whichever survives)".
   target_names: string[];
   reason: string;
+  // How seriously to read this slot's projection. Buckets mirror the
+  // brand vocabulary (lock / lean / coin-flip / fade) used elsewhere.
+  // Per assumption-auditor 2026-04-23: top-6 stability collapses past
+  // pick 7, so any pick more than 2 slots out is "directional" only.
+  // Buckets: high (next user pick), medium (one after), directional
+  // (further out).
+  confidence: "high" | "medium" | "directional";
+  // Top 3 players by overall rank the user could pivot to if the
+  // primary lane gets sniped. Excludes anyone already in target_names.
+  // Position included so the user sees the cross-lane shape at a
+  // glance, not just a name list.
+  alternates: Array<{
+    name: string;
+    position: string | null;
+  }>;
 };
 
 export type DecisionTradeoff = {

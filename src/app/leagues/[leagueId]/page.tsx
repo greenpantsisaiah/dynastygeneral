@@ -53,9 +53,6 @@ import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forec
 import { synthesizeContenderOutlook } from "@/lib/strategy/contender-outlook/synthesize";
 import type { ContenderOutlook } from "@/lib/strategy/contender-outlook/types";
 import { getMyRoster } from "@/lib/strategy/league-state/snapshot";
-import { MultiPickCard } from "@/components/league/multi-pick-card";
-import { buildMultiPickPlan } from "@/lib/strategy/multi-pick/forecast";
-import type { MultiPickPlan } from "@/lib/strategy/multi-pick/types";
 import { getTier } from "@/lib/auth/session";
 import { PlaysFromHere } from "@/components/league/plays-from-here";
 import { DecisionCard } from "@/components/league/decision-card";
@@ -208,7 +205,6 @@ export default async function LeagueHubPage({
     | Awaited<ReturnType<typeof buildLeagueSnapshot>>
     | null = null;
   let contenderOutlook: ContenderOutlook | null = null;
-  let multiPickPlan: MultiPickPlan | null = null;
   let strategyLab: StrategyLabState | null = null;
   let pathCommitment: ActivePathCommitment | null = null;
   let pathCompetition: PathCompetition | null = null;
@@ -220,9 +216,8 @@ export default async function LeagueHubPage({
 
   // Tier check moved earlier in the pipeline so the path-commitment
   // sync (which needs tierState.user) can run inside the snapshot
-  // try-block. Used again later for UI gating; we declare once here.
+  // try-block.
   const tierState = await getTier();
-  const isPro = tierState.tier === "pro";
   if (draftState) {
     try {
       leagueSnapshot = await buildLeagueSnapshot({
@@ -370,21 +365,6 @@ export default async function LeagueHubPage({
         }));
       }
 
-      // Multi-pick rollout. Cheap (no LLM call), Pro-only at the UI
-      // tier. Computed whenever the draft is active and the user has
-      // at least 2 picks remaining; the card itself shows an upsell
-      // for free users.
-      if (draftActive && availablePlayers.length > 0) {
-        try {
-          multiPickPlan = buildMultiPickPlan({
-            snap: snapshot,
-            available: availablePlayers,
-          });
-        } catch (err) {
-          console.error("[hub:multi-pick]", err);
-        }
-      }
-
       // Strategy Lab. Always-on during draft; flips between prominent
       // (early picks, hero card above WindowsBar) and context (later,
       // compact strip below DecisionCard). Cheap, no LLM call.
@@ -520,15 +500,14 @@ export default async function LeagueHubPage({
   // when available, else leave undefined.
   const topLean = rankedArchetypes[0]?.archetype.name ?? null;
 
-  // (tierState + isPro declared earlier in pipeline so the path-
-  // commitment sync inside the snapshot try-block can use them.)
+  // (tierState declared earlier in pipeline so the path-commitment
+  // sync inside the snapshot try-block can use it.)
   // Beta-mode flag opens the killer features to every signed-in user
-  // (Coach, Briefings, Multi-pick rollout). Per-feature gates become
-  // packaging, not safety; the daily Anthropic budget cap is the true
-  // cost ceiling. Toggle via BETA_OPEN_MODE env var.
+  // (Coach, Briefings). Per-feature gates become packaging, not safety;
+  // the daily Anthropic budget cap is the true cost ceiling. Toggle
+  // via BETA_OPEN_MODE env var.
   const betaOpen = isBetaOpenMode();
   const draftLive = isNflDraftWindowActive();
-  const userPickCount = leagueSnapshot?.draft.my_pick_schedule.length ?? 0;
 
   return (
     <>
@@ -670,15 +649,6 @@ export default async function LeagueHubPage({
               )}
 
               {decision && <DecisionCard decision={decision} />}
-
-              {draftActive && userPickCount >= 2 && (
-                <MultiPickCard
-                  plan={multiPickPlan}
-                  isPro={isPro}
-                  pickCount={userPickCount}
-                  betaOpen={betaOpen}
-                />
-              )}
 
               {decision && decision.quadrant_candidates.length > 0 && (
                 <DecisionQuadrant

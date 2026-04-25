@@ -1,9 +1,9 @@
 /**
  * Per-archetype branch preview. "If you commit to this archetype, here
  * is the chain of picks across your next 3-4 slots." Deterministic so
- * the projection doesn't flip across refreshes (per audit pattern; the
- * Monte Carlo variant lives in multi-pick/forecast.ts and answers a
- * different question: best-overall plan, not branch-conditional).
+ * the projection doesn't flip across refreshes. The best-overall
+ * (non-branch-conditional) projection lives in the Decision card's
+ * Next Picks Plan, not here.
  *
  * Method:
  *   1. Identify the archetype's primary position (QB / RB / WR / TE)
@@ -27,8 +27,7 @@
  * Why deterministic and not Monte Carlo: this is a hypothetical chain,
  * not a probability claim. "If you go this archetype, here's the
  * projected next 3 picks" reads better when stable than when each
- * refresh suggests a different player. Variance estimation is
- * surfaced separately on the multi-pick rollout.
+ * refresh suggests a different player.
  *
  * Why this lives in strategy-lab/ and not in archetypes/: the engine
  * doesn't change. This is a UI-tier projection that consumes engine
@@ -42,8 +41,7 @@ import type { AvailablePlayer } from "@/lib/players/available";
 export type BranchPreviewPick = {
   pick_label: string;
   pick_no: number;
-  // Picks made by the league between "now" and this pick. Mirrors the
-  // multi-pick `picks_until` shape so UI components can read both.
+  // Picks made by the league between "now" and this pick.
   picks_until: number;
   // The user's projected pick at this slot. Null when the pool is
   // exhausted at the archetype's position AND we're not yet in
@@ -80,8 +78,9 @@ export type BranchPreview = {
   thread: string;
 };
 
-// Cap matches multi-pick rollout (4) so the UI honesty band is shared.
-// Past pick 4 the projection is too speculative to render as a chain.
+// Past pick 4 the projection is too speculative to render as a chain
+// (per assumption-auditor 2026-04-23: top-6 stability collapses past
+// pick 7).
 const MAX_PICKS_PROJECTED = 4;
 // After the user has banked this many picks at the archetype's primary
 // position, switch to spillover. Mirrors the engine's PUSH-vs-EXECUTE

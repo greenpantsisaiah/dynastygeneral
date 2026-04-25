@@ -76,6 +76,15 @@ const DENSITY_LABEL: Record<PickDensityKind, string> = {
   normal: "Normal",
 };
 
+const NEXT_PICK_CONF: Record<
+  "high" | "medium" | "directional",
+  { label: string; color: string }
+> = {
+  high: { label: "High", color: "text-success" },
+  medium: { label: "Medium", color: "text-accent" },
+  directional: { label: "Directional", color: "text-muted-2" },
+};
+
 const DENSITY_BLURB: Record<PickDensityKind, string> = {
   wraparound: "Back-to-back turn. Take the scarcer asset first.",
   cluster: "Picks coming back soon. Safe to swing or punt.",
@@ -214,34 +223,66 @@ export function DecisionCard({ decision }: { decision: Decision }) {
 
       {decision.next_picks_plan.length > 0 && (
         <div className="mt-4">
-          <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2">
-            Next picks plan
+          <div className="flex items-baseline justify-between">
+            <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2">
+              Next picks plan
+            </div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              Confidence falls past pick 2
+            </div>
           </div>
-          <ul className="mt-1 space-y-1 text-sm">
-            {decision.next_picks_plan.map((item) => (
-              <li
-                key={item.pick_no}
-                className="flex items-baseline gap-2 text-foreground"
-              >
-                <span className="font-mono text-xs text-muted-2 w-12 shrink-0">
-                  {item.pick_label}
-                </span>
-                <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-2 w-8 shrink-0">
-                  {item.target_position}
-                </span>
-                <span className="flex-1">
-                  <span className="font-medium">
-                    {item.target_names.join(" or ")}
+          <ul className="mt-1 space-y-2 text-sm">
+            {decision.next_picks_plan.map((item) => {
+              const conf = NEXT_PICK_CONF[item.confidence];
+              return (
+                <li
+                  key={item.pick_no}
+                  className="flex items-baseline gap-2 text-foreground"
+                >
+                  <span className="font-mono text-xs text-muted-2 w-12 shrink-0">
+                    {item.pick_label}
                   </span>
-                  <span className="text-muted-2"> · {item.reason}</span>
-                </span>
-                {item.density !== "normal" && (
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                    {DENSITY_LABEL[item.density]}
+                  <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-2 w-8 shrink-0">
+                    {item.target_position}
                   </span>
-                )}
-              </li>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <span className="flex-1">
+                        <span className="font-medium">
+                          {item.target_names.join(" or ")}
+                        </span>
+                        <span className="text-muted-2"> · {item.reason}</span>
+                      </span>
+                      <span
+                        className={`font-mono text-[10px] uppercase tracking-[0.14em] ${conf.color}`}
+                        title="Confidence: how seriously to read this slot's projection"
+                      >
+                        {conf.label}
+                      </span>
+                      {item.density !== "normal" && (
+                        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                          {DENSITY_LABEL[item.density]}
+                        </span>
+                      )}
+                    </div>
+                    {item.alternates.length > 0 && (
+                      <div className="mt-0.5 text-[11px] text-muted-2">
+                        <span className="font-mono uppercase tracking-[0.14em]">
+                          alts
+                        </span>
+                        {": "}
+                        {item.alternates
+                          .map(
+                            (a) =>
+                              `${a.name}${a.position ? ` (${a.position})` : ""}`,
+                          )
+                          .join(", ")}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

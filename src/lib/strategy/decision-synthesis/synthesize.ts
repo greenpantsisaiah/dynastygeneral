@@ -307,10 +307,18 @@ function buildTradeoff(
   return { gains, losses };
 }
 
-// Project what's likely to be around at the user's next 2-3 picks.
+// Project what's likely to be around at the user's next 5 picks.
 // Simple model: for each future pick, estimate the pool by removing
 // players whose ADP puts them well before that pick. Then apply the
 // same hole/path/value logic to pick a target.
+//
+// Cap at 5 chosen as 3 (the original) + 2 per user 2026-04-24
+// ("wish it went 2 more picks down"), bounded by the
+// assumption-auditor finding that top-6 pool stability collapses
+// past pick 7. Anything past the 4th projected slot is labeled
+// "directional" so the user sees the honesty band.
+const MAX_NEXT_PICKS = 5;
+
 function buildNextPicksPlan(
   snap: LeagueSnapshot,
   available: AvailablePlayer[],
@@ -326,8 +334,10 @@ function buildNextPicksPlan(
   // that position, so subsequent picks move to the next hole or value.
   const simulated: Record<Position, number> = { ...me.position_counts };
 
+  const futures = schedule.slice(1, 1 + MAX_NEXT_PICKS);
   const items: NextPickPlanItem[] = [];
-  for (const future of schedule.slice(1, 4)) {
+  for (let idx = 0; idx < futures.length; idx++) {
+    const future = futures[idx];
     const survivor = (p: AvailablePlayer): boolean => {
       if (p.adp == null) return true;
       return p.adp > future.pick_no - 3;
@@ -336,6 +346,7 @@ function buildNextPicksPlan(
 
     let targetPos: Position | "any" = "any";
     let names: string[] = [];
+    let primaryIds = new Set<string>();
     let reason = "";
     for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
       if (reqs[pos] <= 0) continue;
@@ -344,6 +355,7 @@ function buildNextPicksPlan(
       if (top2.length === 0) continue;
       targetPos = pos;
       names = top2.map((p) => p.name);
+      primaryIds = new Set(top2.map((p) => p.id));
       reason = `Fill ${POSITION_LABEL[pos]} hole (${simulated[pos]}/${reqs[pos]}).`;
       simulated[pos] += 1;
       break;
@@ -352,10 +364,27 @@ function buildNextPicksPlan(
       const top = pool.slice(0, 2);
       if (top.length === 0) continue;
       names = top.map((p) => p.name);
+      primaryIds = new Set(top.map((p) => p.id));
       const pos = normalizePos(top[0].position);
       targetPos = pos ?? "any";
       reason = `Earned value, ${pos ? POSITION_LABEL[pos] + " " : ""}depth.`;
     }
+
+    // Top 3 fallbacks by overall rank, excluding the primary names.
+    // Surfaces cross-lane pivots (RBs in a WR-fill slot, etc.) so the
+    // user sees what the chain looks like if their lane gets sniped.
+    const alternates = pool
+      .filter((p) => !primaryIds.has(p.id))
+      .slice(0, 3)
+      .map((p) => ({ name: p.name, position: p.position }));
+
+    // High = next user pick, medium = one after, directional = beyond
+    // that. Slot-distance buckets (rather than ADP-survival) because
+    // the unknown that compounds is roster state at future picks, not
+    // just player availability. Folded in from the deleted multi-pick
+    // rollout's confidence vocabulary.
+    const confidence: "high" | "medium" | "directional" =
+      idx === 0 ? "high" : idx === 1 ? "medium" : "directional";
 
     items.push({
       pick_label: future.pick_label,
@@ -364,6 +393,8 @@ function buildNextPicksPlan(
       target_position: targetPos,
       target_names: names,
       reason,
+      confidence,
+      alternates,
     });
   }
   return items;
