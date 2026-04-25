@@ -71,7 +71,6 @@ import {
 import { RefreshButton } from "@/components/league/refresh-button";
 import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
-import { StrategyLab } from "@/components/league/strategy-lab";
 import { buildStrategyLab } from "@/lib/strategy/strategy-lab/build";
 import type { StrategyLabState } from "@/lib/strategy/strategy-lab/types";
 import {
