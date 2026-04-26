@@ -9,7 +9,7 @@ import { EmailSignInForm } from "@/components/auth/email-sign-in";
 
 export const metadata = {
   title: "Sign In",
-  description: "Sign in to Dynasty Copilot with Google or email to access your dynasty leagues.",
+  description: "Sign in to Dynasty General with Google or email to access your dynasty leagues.",
   alternates: { canonical: "/login" },
 };
 

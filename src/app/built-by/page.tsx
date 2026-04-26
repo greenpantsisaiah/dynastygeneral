@@ -6,7 +6,7 @@ import { Ticker } from "@/components/ui/ticker";
 export const metadata = {
   title: "Built By",
   description:
-    "The story behind Dynasty Copilot. An intelligence-analyst's take on dynasty fantasy: you are the general; the product is the analyst team.",
+    "The story behind Dynasty General. An intelligence-analyst's take on dynasty fantasy: you are the general; the product is the analyst team.",
   alternates: { canonical: "/built-by" },
 };
 
@@ -22,7 +22,7 @@ export default function BuiltByPage() {
               You're the general. We're the analyst team.
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-muted">
-              Dynasty Copilot is built by a former intelligence analyst who
+              Dynasty General is built by a former intelligence analyst who
               spent years briefing generals, CEOs, and Shark Tank investors.
               The job was the same every time: take a flood of raw signals,
               compress them into one clear take, and put the decision in

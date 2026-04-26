@@ -4,7 +4,7 @@ import { Footer } from "@/components/landing/footer";
 export const metadata = {
   title: "Terms of Service",
   description:
-    "Dynasty Copilot terms of service. Usage rules, subscriptions, and acceptable use.",
+    "Dynasty General terms of service. Usage rules, subscriptions, and acceptable use.",
   alternates: { canonical: "/terms" },
 };
 
@@ -23,13 +23,13 @@ export default function TermsPage() {
 
           <div className="mt-8 space-y-6 text-sm leading-relaxed text-muted sm:text-base">
             <p>
-              By using Dynasty Copilot ("the Service"), you agree to these
+              By using Dynasty General ("the Service"), you agree to these
               Terms.
             </p>
 
             <Section n={1} title="The Service">
               <p>
-                Dynasty Copilot is a dynasty fantasy football analytics
+                Dynasty General is a dynasty fantasy football analytics
                 tool that reads publicly available data from Sleeper to
                 generate strategy analysis, pick recommendations, and
                 trade suggestions. The Service is an independent product.
@@ -144,7 +144,7 @@ export default function TermsPage() {
 
             <Section n={9} title="Limitation of liability">
               <p className="uppercase">
-                To the maximum extent permitted by law, Dynasty Copilot
+                To the maximum extent permitted by law, Dynasty General
                 and its operators shall not be liable for any indirect,
                 incidental, consequential, or punitive damages, or any
                 loss of profits, data, league standing, or fantasy

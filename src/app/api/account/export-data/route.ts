@@ -2,7 +2,7 @@
  * GET /api/account/export-data
  *
  * Right-to-data-portability control: returns a JSON file containing
- * everything Dynasty Copilot has stored about the authenticated user
+ * everything Dynasty General has stored about the authenticated user
  * server-side. Streams as `Content-Disposition: attachment` so the
  * browser saves a file rather than rendering JSON in the address bar.
  *

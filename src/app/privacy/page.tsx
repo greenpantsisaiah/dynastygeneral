@@ -4,7 +4,7 @@ import { Footer } from "@/components/landing/footer";
 export const metadata = {
   title: "Privacy Policy",
   description:
-    "Dynasty Copilot privacy policy. What we collect, how we use it, and your rights.",
+    "Dynasty General privacy policy. What we collect, how we use it, and your rights.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
 
           <div className="mt-8 space-y-6 text-sm leading-relaxed text-muted sm:text-base">
             <p>
-              Dynasty Copilot ("we," "our," "us") provides a dynasty fantasy
+              Dynasty General ("we," "our," "us") provides a dynasty fantasy
               football analytics product for users of the Sleeper platform.
               This policy explains what we collect, how we use it, and the
               choices you have.
@@ -191,7 +191,7 @@ export default function PrivacyPage() {
 
             <Section title="International transfers">
               <p className="mt-2">
-                Dynasty Copilot is operated in the United States. If you
+                Dynasty General is operated in the United States. If you
                 access the Service from outside the U.S., your data
                 will be transferred to and processed in the U.S. by us
                 and our sub-processors. We rely on the EU-U.S. Data
@@ -299,7 +299,7 @@ export default function PrivacyPage() {
 
             <Section title="Eligibility and children">
               <p className="mt-2">
-                Dynasty Copilot is intended for users 18 and older. We
+                Dynasty General is intended for users 18 and older. We
                 do not knowingly collect data from anyone under 18. If
                 you believe a minor has provided data, email us and we
                 will delete it.
@@ -324,7 +324,7 @@ export default function PrivacyPage() {
                 </a>
               </p>
               <p className="mt-2">
-                Dynasty Copilot is operated by an independent founder.
+                Dynasty General is operated by an independent founder.
               </p>
             </Section>
           </div>

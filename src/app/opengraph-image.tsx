@@ -21,7 +21,7 @@ import { join } from "node:path";
 
 export const runtime = "nodejs";
 
-export const alt = "Dynasty Copilot: Win the decision in front of you.";
+export const alt = "Dynasty General: Win the decision in front of you.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -102,7 +102,7 @@ export default async function Image() {
                 display: "flex",
               }}
             >
-              Dynasty Copilot
+              Dynasty General
             </div>
           </div>
 

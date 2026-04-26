@@ -21,7 +21,7 @@ export async function SiteNav() {
             className="h-7 w-7 brightness-0 invert"
           />
           <span className="font-mono text-xs uppercase tracking-[0.18em] text-foreground">
-            Dynasty Copilot
+            Dynasty General
           </span>
         </Link>
         <nav className="flex items-center gap-6 text-sm">

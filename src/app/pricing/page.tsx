@@ -8,7 +8,7 @@ import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 export const metadata = {
   title: "Pricing",
   description:
-    "Dynasty Copilot pricing. Decision engine for Sleeper dynasty leagues. Trade analysis, pick recommendations with named-player reasoning, strategy coaching, and scout reports. Free tier, Pro removes daily caps.",
+    "Dynasty General pricing. Decision engine for Sleeper dynasty leagues. Trade analysis, pick recommendations with named-player reasoning, strategy coaching, and scout reports. Free tier, Pro removes daily caps.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -254,7 +254,7 @@ export default async function PricingPage() {
               </Faq>
             )}
             <Faq q="Is this affiliated with Sleeper or the NFL?">
-              No. Dynasty Copilot is an independent product that reads your
+              No. Dynasty General is an independent product that reads your
               public Sleeper league data via their API. We are not
               affiliated with, endorsed by, or sponsored by Sleeper or the
               NFL.

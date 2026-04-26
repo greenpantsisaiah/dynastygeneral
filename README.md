@@ -1,4 +1,4 @@
-# Dynasty Copilot: Web
+# Dynasty General: Web
 
 A Sleeper-first dynasty fantasy football decision copilot.
 Positioning: **Win the decision in front of you.**

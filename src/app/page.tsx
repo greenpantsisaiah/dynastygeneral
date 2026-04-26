@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SiteNav } from "@/components/site-nav";
 
 export const metadata: Metadata = {
-  title: "Dynasty Copilot: Decision Engine for Sleeper Dynasty Leagues",
+  title: "Dynasty General: Decision Engine for Sleeper Dynasty Leagues",
   description:
     "Decision engine for serious dynasty fantasy football managers on Sleeper. Picks with named-player reasoning, trade evaluation against KTC market values, opponent characterization, and live strategy coaching. Free tier, Pro removes caps.",
   alternates: { canonical: "/" },
@@ -22,7 +22,7 @@ import { Waitlist } from "@/components/landing/waitlist";
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  name: "Dynasty Copilot",
+  name: "Dynasty General",
   applicationCategory: "SportsApplication",
   operatingSystem: "Web",
   description:

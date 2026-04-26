@@ -628,7 +628,7 @@ export function seedCoachPrompt(prompt: string): void {
 /**
  * Inline copy-to-clipboard button on each assistant message. Lets a
  * user paste a coach take into Sleeper league chat or Slack with one
- * tap. The take itself is the value Dynasty Copilot delivers; making
+ * tap. The take itself is the value Dynasty General delivers; making
  * it shareable to leaguemates is a growth lever and a respect signal
  * (the copilot serves the user, not a walled garden).
  */

@@ -14,7 +14,7 @@ import { getStripe } from "@/lib/stripe/client";
 
 export const metadata = {
   title: "Account",
-  description: "Manage your Dynasty Copilot account, subscription, and connected leagues.",
+  description: "Manage your Dynasty General account, subscription, and connected leagues.",
   robots: { index: false, follow: false },
 };
 

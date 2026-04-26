@@ -60,10 +60,10 @@ export function PaywallModal({
   const isSignIn = reason.kind === "sign_in";
   const title = isSignIn
     ? "Sign in to use this feature"
-    : "Help keep Dynasty Copilot running";
+    : "Help keep Dynasty General running";
   const body = isSignIn
     ? "Your league data is on the line; we don't let anonymous calls burn through the coach's budget. Sign in with Google or email and you're in."
-    : "Hosting and our AI engine cost real money. We\u2019re in beta, so the killer features are open to everyone. If Dynasty Copilot is making your decisions sharper, support us so the lights stay on.";
+    : "Hosting and our AI engine cost real money. We\u2019re in beta, so the killer features are open to everyone. If Dynasty General is making your decisions sharper, support us so the lights stay on.";
   const ctaLabel = isSignIn ? "Sign in" : "Support the project";
   // After the pro_required short-circuit above, `reason` is narrowed
   // to sign_in. Guarding with `isSignIn` lets the never-reached
@@ -86,7 +86,7 @@ export function PaywallModal({
         aria-labelledby="paywall-title"
       >
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          {isSignIn ? "Sign in" : "Support Dynasty Copilot"}
+          {isSignIn ? "Sign in" : "Support Dynasty General"}
         </div>
         <h2
           id="paywall-title"

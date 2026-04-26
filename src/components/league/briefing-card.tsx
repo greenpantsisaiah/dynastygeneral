@@ -243,7 +243,7 @@ export function BriefingCard({
 /**
  * Copy a briefing as readable plain text (headline + body + bulleted
  * evidence). Lets a user paste an analyst take into Sleeper league
- * chat or Slack with one tap. The take is the value Dynasty Copilot
+ * chat or Slack with one tap. The take is the value Dynasty General
  * delivers; surfacing it for sharing is a respect signal and a
  * growth lever.
  */

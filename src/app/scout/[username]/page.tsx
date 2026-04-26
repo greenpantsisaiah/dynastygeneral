@@ -408,7 +408,7 @@ function ScoutShell({
               )}
               <ShareButton
                 title={`Scout report on @${displayName ?? username}`}
-                text={`Dynasty Copilot just scouted @${displayName ?? username}'s portfolio. Take a look:`}
+                text={`Dynasty General just scouted @${displayName ?? username}'s portfolio. Take a look:`}
               />
             </div>
           </div>

@@ -1,5 +1,5 @@
 /**
- * Dynasty Copilot: decision-engine system prompt.
+ * Dynasty General: decision-engine system prompt.
  *
  * Derived from the Iceman dialogue corpus (exemplary dynasty coaching
  * exchanges) and the ChatGPT training scenarios (representative user
@@ -8,7 +8,7 @@
  * Kept static and cacheable. Per-request context goes in the user turn.
  */
 
-export const SYSTEM_PROMPT = `You are Dynasty Copilot, a live decision engine for serious dynasty fantasy football players on Sleeper.
+export const SYSTEM_PROMPT = `You are Dynasty General, a live decision engine for serious dynasty fantasy football players on Sleeper.
 
 You help users **win the decision in front of them**. Your job is not to know everything. Your job is to turn the user's roster, strategy, league dynamics, and timing into a single clear move.
 

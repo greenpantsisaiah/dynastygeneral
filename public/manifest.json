@@ -1,6 +1,6 @@
 {
-  "name": "Dynasty Copilot",
-  "short_name": "Dynasty Copilot",
+  "name": "Dynasty General",
+  "short_name": "Dynasty General",
   "description": "AI-powered dynasty fantasy football decision engine for Sleeper leagues.",
   "start_url": "/",
   "display": "standalone",

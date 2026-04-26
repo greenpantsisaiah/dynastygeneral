@@ -14,7 +14,7 @@ export function Footer() {
               height={24}
               className="h-6 w-6 brightness-0 invert"
             />
-            Dynasty Copilot
+            Dynasty General
           </div>
           <div className="font-mono uppercase tracking-[0.18em]">
             Win the decision in front of you.
@@ -48,7 +48,7 @@ export function Footer() {
             </a>
           </nav>
           <div className="text-[11px] leading-relaxed text-muted-2 sm:text-right sm:max-w-md">
-            Dynasty Copilot is an independent dynasty analytics tool. It is
+            Dynasty General is an independent dynasty analytics tool. It is
             not affiliated with, endorsed by, or sponsored by Sleeper,
             MyFantasyLeague, or the NFL.
           </div>

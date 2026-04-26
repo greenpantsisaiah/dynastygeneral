@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Dynasty Copilot: Win the decision in front of you.",
-    template: "%s · Dynasty Copilot",
+    default: "Dynasty General: Win the decision in front of you.",
+    template: "%s · Dynasty General",
   },
   description:
     "Decision engine for serious dynasty fantasy football managers on Sleeper. Pick recommendations with named-player reasoning, trade evaluation against KTC market values, and live strategy coaching.",
@@ -34,16 +34,16 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   openGraph: {
-    title: "Dynasty Copilot",
+    title: "Dynasty General",
     description:
       "Win the decision in front of you. Decision engine for Sleeper dynasty leagues with named-player reasoning, KTC-anchored trade evaluation, and strategy coaching.",
     type: "website",
-    siteName: "Dynasty Copilot",
+    siteName: "Dynasty General",
     url: "/",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Dynasty Copilot",
+    title: "Dynasty General",
     description:
       "Decision engine for Sleeper dynasty leagues. Pick recommendations, trade evaluation, and strategy coaching with evidence cited per call.",
   },

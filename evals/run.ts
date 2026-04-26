@@ -269,7 +269,7 @@ async function main() {
   const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7);
   const toRun = findScenarios(only);
 
-  console.log(`\nDynasty Copilot: scenario eval`);
+  console.log(`\nDynasty General: scenario eval`);
   console.log(`Running ${toRun.length} scenario(s)\n`);
 
   const results: Result[] = [];
