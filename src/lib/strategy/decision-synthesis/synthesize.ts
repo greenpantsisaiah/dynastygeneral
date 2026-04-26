@@ -20,7 +20,11 @@
  */
 
 import type { LeagueSnapshot, PickScheduleEntry } from "../league-state/snapshot";
-import type { RankedArchetype, Position } from "../archetypes/schema";
+import type {
+  LeagueScoring,
+  RankedArchetype,
+  Position,
+} from "../archetypes/schema";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { WindowsResult } from "../windows/compute";
 import type { WindowWeightingId } from "../windows/types";
@@ -72,6 +76,98 @@ export function effectiveStarterReqs(snap: LeagueSnapshot): Record<Position, num
     TE: ss.hard.TE,
     K: ss.hard.K,
     DST: ss.hard.DST,
+  };
+}
+
+// Realistic flex share per position by format. Represents the maximum
+// number of THIS position the user would realistically start in flex
+// slots before flex value runs out vs other positions. Calibrated to
+// scoring format:
+//
+//   PPR / half-PPR: WR3 outscores RB4 outscores TE3 by a lot.
+//     Top WR3s in modern PPR put up 12-16 PPR/game; RB3-as-flex
+//     averages 8-12; TE3 rarely sees 7+. So a roster's realistic
+//     flex allocation skews WR-heavy in PPR.
+//   Standard: RB-heavy. Top RB2-3 outscores WR3 in non-PPR formats.
+//
+// Numbers represent "max additional starters of this position beyond
+// hard slots that the user would realistically start in flex." So a
+// PPR roster with hard.WR=2 could realistically start up to 2 more
+// WRs in flex (3 flex × WR-share where WR-share is high), giving 4
+// realistic WR starters before adding a 5th WR is bench-only.
+//
+// Used by `positionSaturationModifier` to penalize earned_value /
+// position_steal candidates that would push the user past their
+// realistic starter ceiling at that position. Clones the position-
+// fit logic the Strategic Forks card patterns implicitly bake in
+// (TE Tandem caps at 2 TEs; Robust RB caps at 3-4 RBs; etc).
+function flexShareForPosition(
+  pos: Position,
+  scoring: LeagueScoring[],
+): number {
+  const isPpr =
+    scoring.includes("PPR") || scoring.includes("half-PPR");
+  if (isPpr) {
+    if (pos === "WR") return 2;
+    if (pos === "RB") return 2;
+    if (pos === "TE") return 1;
+    return 0;
+  }
+  // Standard scoring
+  if (pos === "RB") return 2;
+  if (pos === "WR") return 1;
+  if (pos === "TE") return 1;
+  return 0;
+}
+
+// Position saturation. Returns the score penalty to apply to an
+// earned_value or position_steal candidate at this position, plus a
+// human-readable note for the WHY. The penalty fires only when ADDING
+// the candidate would push the user PAST realistic starter use at
+// that position.
+//
+// Why this exists: Rule 4 (earned_value) used to be roster-blind. It
+// picked the top of the harmonized pool regardless of whether the
+// user's roster needed that position. In a PPR superflex with
+// hard.TE=1, a user with 2 TEs already would still get a 3rd-TE
+// recommendation if a TE was the top KTC value on the board. The
+// engine ignored that flex EV at TE peters out fast in PPR (TE3
+// rarely sees lineup over a WR3) and surfaced a depth pick as the
+// lean.
+//
+// Rule 1 (fill_starter) only checks HARD slots, so this rule covers
+// the gap: a user who has filled all hard slots but is below realistic
+// starter use at WR (in a 5-WR-eligible PPR superflex) gets WR
+// candidates UN-PENALIZED (their natural earned_value score wins),
+// while TE candidates get penalized for being over realistic max.
+//
+// Per founder analysis 2026-04-26 (Isaiah Likely as TE3 in PPR SF
+// despite 2 WRs in 5-WR-eligible format).
+function positionSaturationModifier(
+  snap: LeagueSnapshot,
+  pos: Position,
+): { penalty: number; note: string | null } {
+  const me = snap.rosters.find((r) => r.is_me);
+  if (!me) return { penalty: 0, note: null };
+  const have = me.position_counts[pos] ?? 0;
+  const hard = snap.starter_slots.hard[pos] ?? 0;
+  const sf = pos === "QB" ? snap.starter_slots.superflex ?? 0 : 0;
+  const flexShare =
+    pos === "QB" ? 0 : flexShareForPosition(pos, snap.scoring);
+  const realisticMax = hard + sf + flexShare;
+  // Surplus AFTER the candidate is added (hypothetical).
+  const surplusAfter = have + 1 - realisticMax;
+  if (surplusAfter <= 0) return { penalty: 0, note: null };
+  if (surplusAfter >= 2) {
+    return {
+      penalty: 30,
+      note: `${POSITION_LABEL[pos]} is 2+ over realistic starter use (would be ${have + 1} after; this format typically starts ~${realisticMax}). Pure trade asset, unlikely to crack lineup.`,
+    };
+  }
+  // surplusAfter === 1
+  return {
+    penalty: 18,
+    note: `${POSITION_LABEL[pos]} would exceed realistic starter use (would be ${have + 1} after; this format typically starts ~${realisticMax}). Depth pick, low chance of starting.`,
   };
 }
 
@@ -632,12 +728,17 @@ function buildCandidates(
           : positionRank === 2
             ? "second-best"
             : "third-best";
+      const sat = positionSaturationModifier(snap, pos);
+      const reasonParts = [
+        `${p.name} is the ${positionLabelOrdinal} ${POSITION_LABEL[pos]} on the board (ADP ${Math.round(p.adp)}). He fell ${Math.round(gap)} picks past consensus, so the market reached past him; rare to grab this profile this late.`,
+      ];
+      if (sat.note) reasonParts.push(sat.note);
       push({
         player: p,
         position: pos,
         rule: "position_steal",
-        score: 85 - positionRank * 5,
-        primary_reason: `${p.name} is the ${positionLabelOrdinal} ${POSITION_LABEL[pos]} on the board (ADP ${Math.round(p.adp)}). He fell ${Math.round(gap)} picks past consensus, so the market reached past him; rare to grab this profile this late.`,
+        score: 85 - positionRank * 5 - sat.penalty,
+        primary_reason: reasonParts.join(" "),
       });
     }
   }
@@ -647,16 +748,28 @@ function buildCandidates(
   // earned-value player is a rookie under heavy-win-now, the #2 / #3
   // (proven vet in the ideal age band) can win after penalty. Scores
   // decay gently with rank so the #1 pick still wins absent a constraint.
+  //
+  // ROSTER FIT (2026-04-26): apply position saturation penalty so the
+  // engine doesn't recommend a 3rd-at-position when the user's flex
+  // EV at that position has run out. Rule 1 (fill_starter) only catches
+  // HARD slot holes; this rule covers flex-eligible position fit.
+  // Without it, a TE at top-of-pool KTC value won the lean for a user
+  // already 2-deep at TE in a 1-hard-TE PPR SF league.
   for (let i = 0; i < Math.min(available.length, 8); i++) {
     const p = available[i];
     const pos = normalizePos(p.position);
     if (!pos) continue;
+    const sat = positionSaturationModifier(snap, pos);
+    const reasonParts = [
+      `Dynasty value on the board (${p.name}, rank #${p.search_rank}).`,
+    ];
+    if (sat.note) reasonParts.push(sat.note);
     push({
       player: p,
       position: pos,
       rule: "earned_value",
-      score: 45 - i * 1.5,
-      primary_reason: `Dynasty value on the board (${p.name}, rank #${p.search_rank}).`,
+      score: 45 - i * 1.5 - sat.penalty,
+      primary_reason: reasonParts.join(" "),
     });
   }
 
@@ -793,7 +906,21 @@ function buildNextPicksPlan(
       break;
     }
     if (targetPos === "any") {
-      const top = pool.slice(0, 2);
+      // Apply the same position-saturation penalty here so the plan
+      // doesn't recommend a 3rd-at-position when the user's flex EV
+      // at that position is gone. Re-rank the pool by (rank-implied
+      // base score) - saturation_penalty and pick the top 2.
+      const ranked = pool
+        .map((p, i) => {
+          const pos = normalizePos(p.position);
+          const sat = pos
+            ? positionSaturationModifier(snap, pos)
+            : { penalty: 0, note: null };
+          return { p, pos, base: 45 - i * 1.5, score: 45 - i * 1.5 - sat.penalty };
+        })
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score);
+      const top = ranked.slice(0, 2).map((x) => x.p);
       if (top.length === 0) continue;
       names = top.map((p) => p.name);
       primaryIds = new Set(top.map((p) => p.id));
