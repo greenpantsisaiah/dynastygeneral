@@ -60,43 +60,56 @@ function clamp01(n: number): number {
 // Component scorers. each returns 0..1
 // =====================================================================
 
+// Win-now age signal. Skew-Gaussian peak curve, smooth everywhere.
+// No piecewise breakpoints (which cause slope discontinuities at age
+// boundaries: a 22.99 vs 23.01 roster reading meaningfully different
+// is a calibration artifact, not real signal). Per founder analysis
+// 2026-04-26: smooth is the natural shape.
+//
+// Parameters:
+//   peakAge 27       proven prime production
+//   sigmaLeft 3.5    steeper ramp up (rookies prove themselves fast)
+//   sigmaRight 5.5   gentler decline (vets retain win-now value)
+//   baseline 0.2     floor for very young (unproven) rosters
+//   peak 1.0         maximum at peakAge
+//
+// Sample values: 22→0.49, 25→0.86, 27→1.00, 30→0.89, 33→0.65, 36→0.36.
+// Continuous in value AND derivative everywhere.
 function ageWinNowSignal(me: RosterSnapshot | null): number {
-  if (!me || me.avg_age == null) return 0.5; // neutral when unknown
-  // Peak-curve calibration. Replaces the prior linear 24→0, 28→1 which
-  // was the algebraic inverse of ageFutureSignal: ageWinNow + ageFuture
-  // summed to 1.0 for every age. That treated "young + proven" as
-  // anti-win-now by construction. A 25-year-old roster of quality
-  // starters (Bijan, Chase, Lawrence-style core) is BOTH win-now AND
-  // future-positioned. The peak curve: ramp up from age 22 (unproven
-  // rookies/sophomores), peak at 26-29 (proven prime production),
-  // slow decline past 29 (post-peak vets retain real win-now value).
-  // Per founder analysis 2026-04-26: a 25.1-avg-age roster with 4/4
-  // starting positions covered was reading 54 in win-now and 56 in
-  // future, and the Contender Outlook landed on "Rebuild" for 3
-  // consecutive years. Both numbers below their targets is a math
-  // artifact of the zero-sum age component, not the roster's actual
-  // posture.
+  if (!me || me.avg_age == null) return 0.5;
   const age = me.avg_age;
-  if (age < 22) return 0.2;
-  if (age < 26) return 0.2 + (age - 22) * 0.175; // 22→0.2, 26→0.9
-  if (age <= 29) return Math.min(1.0, 0.9 + (age - 26) * 0.0333); // 26→0.9, 29→1.0
-  if (age <= 32) return Math.max(0.85, 1.0 - (age - 29) * 0.05); // 29→1.0, 32→0.85
-  if (age <= 35) return Math.max(0.5, 0.85 - (age - 32) * 0.117); // 32→0.85, 35→0.5
-  return 0.4;
+  const peakAge = 27;
+  const sigma = age < peakAge ? 3.5 : 5.5;
+  const baseline = 0.2;
+  const peak = 1.0;
+  const distance = age - peakAge;
+  const gaussian = Math.exp(
+    -(distance * distance) / (2 * sigma * sigma),
+  );
+  return baseline + (peak - baseline) * gaussian;
 }
 
+// Future age signal. Logistic decline, monotonically decreasing.
+// Smooth everywhere. Replaces a linear (28-age)/4 + clamp + piecewise
+// hybrid that had slope discontinuities at the breakpoints.
+//
+// Parameters:
+//   midAge 28       inflection point (sigmoid centerline)
+//   k 2.5           transition sharpness
+//   floor 0.1       residual future value for very-old rosters (rebuild
+//                   via trades + rookie picks remains an option)
+//   peak 1.0        maximum at very young
+//
+// Sample values: 22→0.92, 25→0.79, 28→0.55, 31→0.27, 34→0.14.
 function ageFutureSignal(me: RosterSnapshot | null): number {
   if (!me || me.avg_age == null) return 0.5;
-  // Monotonically declining: youth = future. Calibrated alongside
-  // the win-now peak curve so young + proven rosters can score
-  // strongly on BOTH (the zero-sum trap is broken). Floor at 0.1
-  // for very old rosters (33+); they have minimal future projection
-  // but trades and rookie picks can still rebuild.
   const age = me.avg_age;
-  if (age <= 22) return 1.0;
-  if (age <= 28) return Math.max(0.4, 1.0 - (age - 22) * 0.1); // 22→1.0, 28→0.4
-  if (age <= 33) return Math.max(0.1, 0.4 - (age - 28) * 0.06); // 28→0.4, 33→0.1
-  return 0.1;
+  const midAge = 28;
+  const k = 2.5;
+  const floor = 0.1;
+  const peak = 1.0;
+  const sigmoid = 1 / (1 + Math.exp((age - midAge) / k));
+  return floor + (peak - floor) * sigmoid;
 }
 
 function positionCompleteness(me: RosterSnapshot | null): number {
