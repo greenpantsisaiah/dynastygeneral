@@ -260,7 +260,17 @@ export function scoreWinNowFor(
 }
 
 function scoreFutureValue(snap: LeagueSnapshot): WindowScore {
-  const me = getMyRoster(snap);
+  return scoreFutureValueFor(snap, getMyRoster(snap));
+}
+
+// Internal: score future for ANY roster. Public callers use
+// scoreFutureValue(snap) for the user's roster; the league-wide
+// outlook view calls this directly for each opposing roster to plot
+// the entire field on the scatter chart.
+export function scoreFutureValueFor(
+  snap: LeagueSnapshot,
+  me: RosterSnapshot | null,
+): WindowScore {
   const targetDepth = Math.max(snap.draft.rounds || 12, 12);
 
   // Future-pick capital component, scored relative to the league's own

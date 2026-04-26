@@ -33,6 +33,13 @@ import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { LiveStrategyBoard } from "@/components/league/live-strategy-board";
 import { computeWindows, type WindowsResult } from "@/lib/strategy/windows/compute";
+import {
+  computeLeagueOutlook,
+  type LeagueOutlook,
+} from "@/lib/strategy/league-outlook/compute";
+import { LeagueScatter } from "@/components/league/league-scatter";
+import { LeagueTrajectory } from "@/components/league/league-trajectory";
+import { LeagueTable } from "@/components/league/league-table";
 import { selectPlaysFromHere } from "@/lib/strategy/plays-from-here/select";
 import { enrichPlaysFromHere } from "@/lib/strategy/plays-from-here/enrich";
 import type { ResolvedPlayFromHere } from "@/lib/strategy/plays-from-here/types";
@@ -243,6 +250,7 @@ export default async function LeagueHubPage({
     | Awaited<ReturnType<typeof buildLeagueSnapshot>>
     | null = null;
   let contenderOutlook: ContenderOutlook | null = null;
+  let leagueOutlook: LeagueOutlook | null = null;
   let strategyLab: StrategyLabState | null = null;
   let pathCommitment: ActivePathCommitment | null = null;
   let pathCompetition: PathCompetition | null = null;
@@ -286,6 +294,15 @@ export default async function LeagueHubPage({
       const snapshot = leagueSnapshot;
       rankedArchetypes = rankArchetypes(snapshot);
       windows = computeWindows(snapshot);
+      // League-wide outlook: per-team win-now, future, 5-year forecast.
+      // Powers the BCD visualizations (scatter, trajectory, table).
+      // Best-effort; failure leaves the new viz off but the rest of the
+      // hub renders normally. Per founder analysis 2026-04-26.
+      try {
+        leagueOutlook = await computeLeagueOutlook(snapshot);
+      } catch (err) {
+        console.error("[hub:league-outlook]", err);
+      }
       playsFromHere = selectPlaysFromHere(snapshot);
       opponentReadout = buildOpponentReadout(snapshot);
       opponentCharacterizations = await buildOpponentCharacterizations(
@@ -850,6 +867,14 @@ export default async function LeagueHubPage({
 
               {windows && sleeperUser && (
                 <WindowsBar leagueId={leagueId} windows={windows} />
+              )}
+
+              {leagueOutlook && (
+                <div className="mt-6 space-y-6">
+                  <LeagueScatter outlook={leagueOutlook} />
+                  <LeagueTrajectory outlook={leagueOutlook} />
+                  <LeagueTable outlook={leagueOutlook} />
+                </div>
               )}
 
               {contenderOutlook && (
