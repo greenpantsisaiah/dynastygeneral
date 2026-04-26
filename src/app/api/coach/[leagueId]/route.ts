@@ -154,6 +154,54 @@ yet. When the user asks about a rookie:
   - If the user names a specific rookie not in the top_available
     snapshot, say so directly. Don't fabricate stats.
 
+## Trade initiation (proactive + reactive)
+
+When the user asks about INITIATING a trade (not "should I accept this
+offer," but "should I make an offer" or "should I trade up" or
+"someone put a pick on the block"), use this structure:
+
+For "should I trade up" / "should I move up to take X":
+  1. Confirm whether trading up makes sense AT ALL given the user's
+     window (win-now leans defend trade-ups for roster-completing
+     starters; future leans rarely justify trading up).
+  2. Identify the TARGET PICK (the slot you'd need to land at) and the
+     player you're protecting against missing.
+  3. Pick the BEST PARTNER from \`opponents[]\`. Best partner has BOTH
+     a need that aligns with what the user can spare AND a stance of
+     "approach" or holds the pick you want and is in EXECUTING phase
+     (won't fight for marginal upgrades). Name the owner.
+  4. Construct a fair offer using \`pricing\` (pick values + player
+     values from FantasyCalc). Receiving side must be within ±15%
+     of sending side. Show the math: "(pick X = 1200) + (player Y =
+     800) for (pick Z = 1900). 2000 vs 1900, 5% premium for the
+     move-up."
+  5. State why THEY accept: tie it to their position_counts holes or
+     a trade_angle headline. "They're 0/1 on TE and you're sending
+     surplus TE depth."
+
+For "X put pick A.B on the block, should I bid":
+  1. State whether the pick is worth pursuing for the user's window.
+  2. Look up the pick value in \`pricing.pick_values\` if it's a
+     future pick, else estimate from KTC startup curve.
+  3. Construct an offer using assets the user can spare (their
+     surplus positions + future picks they don't need). Show the
+     math.
+  4. Predict competition: who else in the league has a need that
+     pick fills? If 2+ teams have the same hole, the asking price
+     will be high; tell the user.
+  5. If the user shouldn't bid, say so directly.
+
+For "who would trade with me right now":
+  1. Scan \`opponents[]\` for stance "approach" angles. List up to 3
+     by name with their headline.
+  2. For each, name what the user could send and what to ask back.
+  3. Rank by alignment strength: the team with the BIGGEST hole that
+     the user can fill cheapest comes first.
+
+Never propose a trade without naming the owner, listing both sides of
+the offer with values, and giving a one-line "why they accept." A
+trade idea without those three is freelancing.
+
 ## Web search (use sparingly)
 
 You have a web_search tool with up to 3 calls per turn. Default to the
@@ -535,15 +583,27 @@ export async function POST(
       gamble_pct: Math.round(r.live_gamble.pct * 100),
       horizon: r.archetype.horizon,
     })),
-    opponents: opponents.teams.map((t) => ({
-      owner: t.owner_name,
-      picks: t.picks_count,
-      patterns: t.observations.map((o) => o.pattern_name),
-      trade_angles: t.trade_angles.map((a) => ({
-        stance: a.stance,
-        headline: a.headline,
-      })),
-    })),
+    // Per-opponent profile for trade-initiation reasoning. Includes
+    // position_counts (so the model can do exact math: "they have 0
+    // TEs in a 1-TE league") and trade_angles from observe.ts which
+    // already classifies stance (approach / extract / avoid) plus
+    // surplus / deficit patterns. The model uses this to answer
+    // "who has a need that lines up with what I have?" without
+    // re-deriving roster shape from picks alone.
+    opponents: opponents.teams.map((t) => {
+      const r = snapshot.rosters.find((x) => x.roster_id === t.roster_id);
+      return {
+        owner: t.owner_name,
+        roster_id: t.roster_id,
+        picks: t.picks_count,
+        position_counts: r?.position_counts ?? null,
+        patterns: t.observations.map((o) => o.pattern_name),
+        trade_angles: t.trade_angles.map((a) => ({
+          stance: a.stance,
+          headline: a.headline,
+        })),
+      };
+    }),
     top_available: available.slice(0, 30).map((p) => {
       const v = playerValueMap.get(p.id);
       return {

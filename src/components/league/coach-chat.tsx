@@ -39,9 +39,10 @@ const MAX_HISTORY = 30;
 
 const QUICK_PROMPTS = [
   "Compare my next-pick options. Which one should I take and why?",
+  "Should I trade up from my next slot? Who would I approach and with what offer?",
+  "Someone put a pick on the block. Should I bid, and what's a fair offer?",
+  "Who in the league has a need that lines up with what I have to offer?",
   "Is my strategy still on track? What should I be doing differently?",
-  "Who should I target for trades, and what should I offer?",
-  "Talk through the top divergences in our strategic forks.",
 ];
 
 function storageKey(leagueId: string): string {
