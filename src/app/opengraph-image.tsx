@@ -27,7 +27,7 @@ export const contentType = "image/png";
 
 export default async function Image() {
   const logoData = await readFile(
-    join(process.cwd(), "public", "dynasty_copilot_logomark.png"),
+    join(process.cwd(), "public", "dynasty_general_logomark.png"),
   );
   const logoSrc = `data:image/png;base64,${logoData.toString("base64")}`;
 

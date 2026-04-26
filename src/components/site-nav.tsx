@@ -1,7 +1,7 @@
 import Link from "next/link";
-import Image from "next/image";
 import { getOptionalUser } from "@/lib/auth/session";
 import { UserMenu } from "@/components/nav/user-menu";
+import { DynastyGeneralLogo } from "@/components/dynasty-general-logo";
 
 export async function SiteNav() {
   const user = await getOptionalUser();
@@ -13,12 +13,10 @@ export async function SiteNav() {
           href="/"
           className="flex items-center gap-2"
         >
-          <Image
-            src="/dynasty_copilot_logomark.png"
-            alt=""
-            width={28}
-            height={28}
-            className="h-7 w-7 brightness-0 invert"
+          <DynastyGeneralLogo
+            size={28}
+            className="h-7 w-7 text-accent"
+            aria-label="Dynasty General"
           />
           <span className="font-mono text-xs uppercase tracking-[0.18em] text-foreground">
             Dynasty General

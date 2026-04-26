@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Dynasty General">
+  
+  <g fill="none" stroke="#D4A24C" stroke-width="6.3" stroke-linecap="square" stroke-linejoin="miter" opacity="0.22">
+    <path d="M 18 36 L 52 72"></path>
+    <path d="M 18 72 L 52 72"></path>
+    <path d="M 18 128 L 52 128"></path>
+    <path d="M 18 164 L 52 128"></path>
+    <path d="M 18 100 L 96 100"></path>
+    <path d="M 52 72 L 96 100"></path>
+    <path d="M 52 128 L 96 100"></path>
+    <path d="M 96 100 L 162 56"></path>
+    <path d="M 156 50 L 168 62"></path>
+    <path d="M 156 62 L 168 50"></path>
+  </g>
+  <g fill="#D4A24C" opacity="0.352">
+    <circle cx="18" cy="36" r="5.88"></circle>
+    <circle cx="18" cy="72" r="5.88"></circle>
+    <circle cx="18" cy="100" r="5.88"></circle>
+    <circle cx="18" cy="128" r="5.88"></circle>
+    <circle cx="18" cy="164" r="5.88"></circle>
+    <circle cx="52" cy="72" r="5.39"></circle>
+    <circle cx="52" cy="128" r="5.39"></circle>
+  </g>
+  
+  <g fill="none" stroke="#D4A24C" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M 96 100 L 144 132 L 174 132"></path>
+  </g>
+  
+  <path d="M 174 116.6 L 196.4 132 L 174 147.4 Z" fill="#D4A24C"></path>
+  
+  <circle cx="96" cy="100" r="9.8" fill="#D4A24C"></circle>
+</svg>
