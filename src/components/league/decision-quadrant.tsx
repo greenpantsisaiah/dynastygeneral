@@ -29,18 +29,20 @@ const PAD_BOTTOM = 36;
 const PLOT_W = W - PAD_LEFT - PAD_RIGHT;
 const PLOT_H = H - PAD_TOP - PAD_BOTTOM;
 
-// Position color palette. Aligned to Sleeper's draftboard color
-// coding so users moving between Sleeper and our hub see the same
-// visual language: QB salmon, RB green, WR blue, TE orange, K + DST
-// slate. Tuned slightly cooler / brighter than Sleeper's exact tiles
-// for legibility against our darker surface.
+// Position color palette. Eye-matched to Sleeper's draftboard tiles
+// so users moving between Sleeper and our hub see the same visual
+// language. Critical hue separation: RB is TEAL (cyan-green), TE is
+// ORANGE (warm). Earlier pass used mint-green for RB and amber for
+// TE which both lean warm-yellow and merged at small dot sizes.
+// Tuned a touch brighter than Sleeper's tiles for legibility on the
+// dark surface.
 const POSITION_COLOR: Record<string, string> = {
-  QB: "#ff8e9c", // salmon
-  RB: "#7be88c", // green
-  WR: "#69c8e8", // sky / cyan
-  TE: "#fbbf24", // amber / orange
-  K: "#cbd5e1",
-  DST: "#94a3b8",
+  QB: "#e94b76", // magenta-pink
+  RB: "#3ec5a3", // teal
+  WR: "#5d8dd4", // blue
+  TE: "#e89548", // orange
+  K: "#a274d8", // purple
+  DST: "#94a3b8", // slate
 };
 const FALLBACK_COLOR = "#94a3b8";
 
