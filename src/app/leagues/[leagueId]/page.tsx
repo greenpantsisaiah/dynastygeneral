@@ -40,6 +40,9 @@ import {
 import { LeagueScatter } from "@/components/league/league-scatter";
 import { LeagueTrajectory } from "@/components/league/league-trajectory";
 import { LeagueTable } from "@/components/league/league-table";
+import { LeagueRankLadder } from "@/components/league/league-rank-ladder";
+import { LeaguePositionGrid } from "@/components/league/league-position-grid";
+import { LeagueDivergence } from "@/components/league/league-divergence";
 import { selectPlaysFromHere } from "@/lib/strategy/plays-from-here/select";
 import { enrichPlaysFromHere } from "@/lib/strategy/plays-from-here/enrich";
 import type { ResolvedPlayFromHere } from "@/lib/strategy/plays-from-here/types";
@@ -873,6 +876,9 @@ export default async function LeagueHubPage({
                 <div className="mt-6 space-y-6">
                   <LeagueScatter outlook={leagueOutlook} />
                   <LeagueTrajectory outlook={leagueOutlook} />
+                  <LeagueRankLadder outlook={leagueOutlook} />
+                  <LeaguePositionGrid outlook={leagueOutlook} />
+                  <LeagueDivergence outlook={leagueOutlook} />
                   <LeagueTable outlook={leagueOutlook} />
                 </div>
               )}
