@@ -37,6 +37,7 @@ export type IntegrityKind =
   | "pool_missing_player"
   | "drafted_in_available"
   | "roster_not_found"
+  | "roster_identity_mismatch"
   | "position_unknown"
   | "format_mismatch"
   | "cache_stale"
@@ -74,6 +75,7 @@ export function runEngineIntegrityChecks(args: {
   issues.push(...runPoolCompletenessCheck(args));
   issues.push(...runDraftedPresenceCheck(args));
   issues.push(...runRosterIdentificationCheck(args));
+  issues.push(...runRosterIdentityVerification(args));
   issues.push(...runPositionNormalizationCheck(args));
   issues.push(...runFormatDetectionCheck(args));
   issues.push(...runCacheFreshnessCheck(args));
@@ -160,6 +162,38 @@ function runRosterIdentificationCheck(args: {
       detail:
         "snap.rosters.find(r => r.is_me) returned null. Possible causes: you are a co-owner (not primary owner), your Sleeper username changed, or the user-id mapping is stale. Until this is resolved every roster-aware surface (Decision card, position counts, anchors, Coach context) will treat you as having no players.",
       evidence: `Total rosters: ${args.snap.rosters.length}; none flagged is_me`,
+    },
+  ];
+}
+
+// 3b. Roster identity verification. The is_me roster passed the
+// find() guard but may still be the wrong roster (wrong username
+// in URL, stale profile mapping, navigation accident landed on
+// someone else's hub). Cross-check against ground truth: during
+// an active draft, picks_made is authoritative on which roster
+// owns which players. If is_me roster has zero attributed picks
+// while the draft has picks, the identity is almost certainly
+// wrong. Pattern: Strawhatdoofy hub viewed under izzydabomb
+// session 2026-04-25.
+function runRosterIdentityVerification(args: {
+  snap: LeagueSnapshot;
+}): IntegrityIssue[] {
+  const me = args.snap.rosters.find((r) => r.is_me);
+  if (!me) return [];
+  const picks = args.snap.draft.picks_made;
+  if (picks.length === 0) return [];
+  const minePickCount = picks.filter(
+    (p) => p.roster_id === me.roster_id,
+  ).length;
+  if (minePickCount > 0) return [];
+  return [
+    {
+      kind: "roster_identity_mismatch",
+      severity: "severe",
+      headline: `You are mapped to roster ${me.roster_id} but Sleeper shows zero picks for that roster in this draft`,
+      detail:
+        "The hub identified your roster from owner_id matching, but ground-truth draft picks attribute zero selections to that roster while the draft has progressed. You are almost certainly viewing the wrong team. Common causes: a stale ?username= in the URL, a navigation that loaded another manager's view, or a saved-username mismatch. Every recommendation below this banner reflects the WRONG team's roster.",
+      evidence: `is_me roster_id=${me.roster_id}, owner_id=${me.owner_id}, picks_in_draft=${picks.length}, picks_attributed_to_me=${minePickCount}`,
     },
   ];
 }

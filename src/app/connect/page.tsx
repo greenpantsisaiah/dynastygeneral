@@ -17,6 +17,8 @@ import {
   type SleeperLeague,
 } from "@/lib/sleeper";
 import { PLATFORMS, type PlatformId } from "@/lib/leagues/types";
+import { getOptionalUser } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,27 @@ export default async function ConnectPage({ searchParams }: PageProps) {
           resolvedSeason = state?.season ?? String(new Date().getFullYear());
         }
         leagues = await getLeaguesForUser(sleeperUser.user_id, resolvedSeason);
+
+        // Persist the verified sleeper identity to the signed-in
+        // user's profile so future "my leagues" navigation can default
+        // to it without retyping. Fail-soft: connection still works
+        // even if the upsert fails (logged-out user, RLS hiccup, etc).
+        try {
+          const authUser = await getOptionalUser();
+          if (authUser) {
+            const supabase = await createClient();
+            await supabase
+              .from("profiles")
+              .update({
+                sleeper_user_id: sleeperUser.user_id,
+                sleeper_username:
+                  sleeperUser.display_name ?? sleeperUser.username ?? cleaned,
+              })
+              .eq("id", authUser.id);
+          }
+        } catch (err) {
+          console.error("[connect:save-profile]", err);
+        }
       }
     } catch (err) {
       console.error("[connect]", err);

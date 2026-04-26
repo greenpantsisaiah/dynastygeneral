@@ -53,7 +53,8 @@ import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forec
 import { synthesizeContenderOutlook } from "@/lib/strategy/contender-outlook/synthesize";
 import type { ContenderOutlook } from "@/lib/strategy/contender-outlook/types";
 import { getMyRoster } from "@/lib/strategy/league-state/snapshot";
-import { getTier } from "@/lib/auth/session";
+import { getOptionalUser, getTier } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 import { PlaysFromHere } from "@/components/league/plays-from-here";
 import { DecisionCard } from "@/components/league/decision-card";
 import { DecisionQuadrant } from "@/components/league/decision-quadrant";
@@ -139,10 +140,48 @@ export default async function LeagueHubPage({
 
   if (!league) notFound();
 
-  const cleanedUsername = username.trim().replace(/^@/, "");
+  // Saved Sleeper identity from the signed-in user's profile. Used to
+  // (1) default the hub to the user's own team when ?username= is not
+  // in the URL (so /account → "My leagues" lands on yourself, not a
+  // blank prompt or a stale cache of someone else's hub), and (2)
+  // detect when the URL is showing a DIFFERENT manager's hub so we
+  // can render a clear "Viewing X" banner. Per 2026-04-25 incident:
+  // user navigated to another team's view from a scout link, did not
+  // realize, and the engine fed Coach the wrong roster. Every
+  // recommendation that turn reflected the wrong team.
+  let savedSleeperUsername: string | null = null;
+  let savedSleeperUserId: string | null = null;
+  try {
+    const authUser = await getOptionalUser();
+    if (authUser) {
+      const supabase = await createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("sleeper_user_id, sleeper_username")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      savedSleeperUsername =
+        (data?.sleeper_username as string | null) ?? null;
+      savedSleeperUserId = (data?.sleeper_user_id as string | null) ?? null;
+    }
+  } catch (err) {
+    captureError(issues, "hub:profile-lookup", err);
+  }
+
+  const urlUsername = username.trim().replace(/^@/, "");
+  const cleanedUsername = urlUsername || savedSleeperUsername || "";
   const sleeperUser = cleanedUsername
     ? await getUserByUsername(cleanedUsername)
     : null;
+
+  // Viewing-other detection: signed-in user has a saved Sleeper
+  // identity AND the resolved sleeperUser.user_id is different. Drives
+  // the "Viewing {team}" banner. When the user is anonymous or has
+  // never connected, we cannot tell, so the banner is suppressed.
+  const isViewingOther =
+    !!savedSleeperUserId &&
+    !!sleeperUser &&
+    sleeperUser.user_id !== savedSleeperUserId;
 
   const myRoster = sleeperUser
     ? rosters.find((r) => r.owner_id === sleeperUser.user_id)
@@ -598,6 +637,33 @@ export default async function LeagueHubPage({
           <Ticker
             label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${draftLive ? " · 🔴 NFL Draft live · refresh between picks" : ""}${betaOpen ? " · Beta · everything open" : ""}`}
           />
+
+          {isViewingOther && savedSleeperUsername && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/60 bg-warning/10 px-4 py-3 text-sm">
+              <div className="text-foreground">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
+                  Viewing another team
+                </span>
+                <div className="mt-1">
+                  Hub is showing{" "}
+                  <span className="font-semibold">{String(teamName)}</span>
+                  {sleeperUser?.display_name && sleeperUser.display_name !== teamName ? (
+                    <span className="text-muted">
+                      {" "}
+                      · @{sleeperUser.display_name}
+                    </span>
+                  ) : null}
+                  . Recommendations apply to that roster, not yours.
+                </div>
+              </div>
+              <Link
+                href={`/leagues/${leagueId}?username=${encodeURIComponent(savedSleeperUsername)}${seasonParam ? `&season=${seasonParam}` : ""}`}
+                className="rounded-md border border-warning/60 bg-surface px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-warning transition hover:border-warning hover:text-foreground"
+              >
+                Switch to your team →
+              </Link>
+            </div>
+          )}
 
           {/* Hub header with title + trade buttons */}
           <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
