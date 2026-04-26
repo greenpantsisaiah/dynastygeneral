@@ -182,12 +182,15 @@ export function LeagueScatter({ outlook }: { outlook: LeagueOutlook }) {
           median
         </text>
 
-        {/* Team dots */}
+        {/* Team dots. Only label the user prominently to avoid label
+            collision when teams cluster. The detail table below names
+            every team with raw numbers; the chart's job is to show
+            spatial position at a glance, not to be a labeled directory. */}
         {outlook.teams.map((t) => {
           const cx = xFor(t.win_now);
           const cy = yFor(t.future);
-          const r = t.is_me ? 9 : 5;
-          const fill = t.is_me ? "#f59e0b" : "rgba(255,255,255,0.45)";
+          const r = t.is_me ? 9 : 4;
+          const fill = t.is_me ? "#f59e0b" : "rgba(255,255,255,0.40)";
           return (
             <g key={t.roster_id}>
               {t.is_me && (
@@ -202,19 +205,46 @@ export function LeagueScatter({ outlook }: { outlook: LeagueOutlook }) {
                 />
               )}
               <circle cx={cx} cy={cy} r={r} fill={fill} />
-              <text
-                x={cx + r + 4}
-                y={cy + 3}
-                fill={t.is_me ? "#f59e0b" : "currentColor"}
-                fontSize={t.is_me ? 11 : 10}
-                fontWeight={t.is_me ? 600 : 400}
-                opacity={t.is_me ? 1 : 0.65}
-              >
-                {surnameOf(t.owner_name)}
-              </text>
             </g>
           );
         })}
+
+        {/* User label, rendered last + with a subtle backdrop so it
+            sits cleanly above any nearby dots. */}
+        {(() => {
+          const me = outlook.teams.find((t) => t.is_me);
+          if (!me) return null;
+          const cx = xFor(me.win_now);
+          const cy = yFor(me.future);
+          const text = `${surnameOf(me.owner_name)} (${me.win_now} / ${me.future})`;
+          const labelX = cx + 14;
+          const labelY = cy + 4;
+          // Approx label width for a backdrop pill so the text reads
+          // even on top of other dots.
+          const w = text.length * 6 + 10;
+          return (
+            <g>
+              <rect
+                x={labelX - 4}
+                y={labelY - 11}
+                width={w}
+                height={16}
+                rx={3}
+                fill="#0a0a0a"
+                opacity={0.75}
+              />
+              <text
+                x={labelX}
+                y={labelY}
+                fill="#f59e0b"
+                fontSize={11}
+                fontWeight={700}
+              >
+                {text}
+              </text>
+            </g>
+          );
+        })()}
       </svg>
     </section>
   );

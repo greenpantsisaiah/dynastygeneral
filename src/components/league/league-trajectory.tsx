@@ -176,7 +176,11 @@ export function LeagueTrajectory({ outlook }: { outlook: LeagueOutlook }) {
           </g>
         ))}
 
-        {/* Lines per team. Render non-me first so user's line is on top. */}
+        {/* Lines per team. Render non-me first so user's line is on top.
+            Other teams are dimmed lines with NO end labels (label collision
+            destroyed legibility when 12 lines converge in the same vertical
+            band). The detail table below names every team with raw numbers
+            per year. */}
         {outlook.teams
           .slice()
           .sort((a, b) => Number(a.is_me) - Number(b.is_me))
@@ -188,7 +192,7 @@ export function LeagueTrajectory({ outlook }: { outlook: LeagueOutlook }) {
                 return `${cmd} ${xFor(i)} ${yFor(y.score)}`;
               })
               .join(" ");
-            const stroke = t.is_me ? "#f59e0b" : "rgba(255,255,255,0.18)";
+            const stroke = t.is_me ? "#f59e0b" : "rgba(255,255,255,0.16)";
             const strokeWidth = t.is_me ? 2.5 : 1;
             return (
               <g key={t.roster_id}>
@@ -199,21 +203,72 @@ export function LeagueTrajectory({ outlook }: { outlook: LeagueOutlook }) {
                   fill="none"
                   strokeLinejoin="round"
                 />
-                {/* End-of-line label */}
-                <text
-                  x={xFor(t.forecast.length - 1) + 6}
-                  y={yFor(t.forecast[t.forecast.length - 1].score) + 3}
-                  fill={t.is_me ? "#f59e0b" : "currentColor"}
-                  fontSize={t.is_me ? 11 : 9}
-                  fontWeight={t.is_me ? 600 : 400}
-                  opacity={t.is_me ? 1 : 0.5}
-                >
-                  {surnameOf(t.owner_name)}
-                </text>
+                {/* Per-year score markers + values on the user's line. Ports
+                    the detail the deprecated Contender Outlook card showed
+                    in horizontal-bar form into the inline trajectory.
+                    Other teams: no markers, just the dim line. */}
+                {t.is_me &&
+                  t.forecast.map((y, i) => (
+                    <g key={y.season}>
+                      <circle
+                        cx={xFor(i)}
+                        cy={yFor(y.score)}
+                        r={3.5}
+                        fill="#f59e0b"
+                      />
+                      <text
+                        x={xFor(i)}
+                        y={yFor(y.score) - 8}
+                        textAnchor="middle"
+                        fill="#f59e0b"
+                        fontSize={10}
+                        fontWeight={600}
+                      >
+                        {y.score}
+                      </text>
+                    </g>
+                  ))}
+                {/* End label only for user. */}
+                {t.is_me && (
+                  <text
+                    x={xFor(t.forecast.length - 1) + 6}
+                    y={yFor(t.forecast[t.forecast.length - 1].score) + 3}
+                    fill="#f59e0b"
+                    fontSize={11}
+                    fontWeight={700}
+                  >
+                    {surnameOf(t.owner_name)}
+                  </text>
+                )}
               </g>
             );
           })}
       </svg>
+
+      {/* Per-year detail row. Replaces the legacy ContenderOutlookCard's
+          year list (2026: 80 Trending Contender, etc) inline with the
+          chart, so users get the chart AND the numbers in one section. */}
+      {(() => {
+        const me = outlook.teams.find((t) => t.is_me);
+        if (!me || me.forecast.length === 0) return null;
+        return (
+          <div className="mt-4 grid grid-cols-5 gap-2 border-t border-border-soft pt-3 text-xs">
+            {me.forecast.map((y) => (
+              <div key={y.season} className="text-center">
+                <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                  {y.season}
+                </div>
+                <div className="mt-0.5 font-semibold text-foreground">
+                  {y.score}
+                </div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+                  {y.tier}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </section>
   );
 }

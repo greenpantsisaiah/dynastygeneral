@@ -877,9 +877,13 @@ export default async function LeagueHubPage({
                 </div>
               )}
 
-              {contenderOutlook && (
-                <ContenderOutlookCard outlook={contenderOutlook} />
-              )}
+              {/* ContenderOutlookCard removed 2026-04-26: per-year scores
+                  now render inline in LeagueTrajectory, removing the
+                  duplicate "winning all the way but missing context"
+                  surface the founder flagged. The ContenderOutlookCard
+                  component remains in the codebase for the Coach context
+                  payload (which still cites the take + window-protect
+                  bullets); only the hub render is removed. */}
 
               {decision && <DecisionCard decision={decision} />}
 
