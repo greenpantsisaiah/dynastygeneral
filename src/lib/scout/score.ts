@@ -42,6 +42,10 @@ import { buildLeagueSnapshot, getMyRoster } from "@/lib/strategy/league-state/sn
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forecast";
+import {
+  buildFormatRulesFromRosterPositions,
+  type FormatRules,
+} from "@/lib/engine/llm-contract";
 import type { DraftState } from "@/lib/sleeper/draft-state";
 import {
   walkLeagueHistory,
@@ -94,6 +98,12 @@ export type ScoutTeamScore = {
   league_id: string;
   league_name: string;
   league_format: "1qb" | "2qb" | "superflex";
+  // Operational format rules derived from roster_positions + scoring.
+  // Single source of truth for "does QB2 start?", "is TE-premium?",
+  // "what's the WR starter ceiling?" so the verdict LLM never has to
+  // infer format from raw counts. Per cross-endpoint LLM-contract
+  // pillar in INVARIANTS.md.
+  format_rules: FormatRules;
   season: string;
   status: string | null;
   total_rosters: number;
@@ -371,6 +381,20 @@ export async function scoreTeamForLeague(args: {
   } = args;
   const format = detectFormat(league);
   const isSuperflex = format === "superflex" || format === "2qb";
+  // Format rules from roster_positions + scoring (TE-premium detected
+  // via bonus_rec_te). Computed here so every per-team summary sent
+  // to the verdict LLM ships the canonical FormatRules shape.
+  const scoringHighlights: string[] = [];
+  const teRecBonus =
+    typeof league.scoring_settings?.bonus_rec_te === "number"
+      ? league.scoring_settings.bonus_rec_te
+      : 0;
+  if (teRecBonus >= 0.4) scoringHighlights.push("TE-premium");
+  const format_rules = buildFormatRulesFromRosterPositions({
+    rosterPositions: league.roster_positions ?? [],
+    scoringHighlights,
+    isSuperflex,
+  });
   // Mirror snapshot.ts: union roster.players (server-of-record after the
   // draft completes) with the live draft picks (only source of truth
   // mid-draft). Either side may be empty; the union is what the team
@@ -590,6 +614,7 @@ export async function scoreTeamForLeague(args: {
     league_id: league.league_id,
     league_name: league.name,
     league_format: format,
+    format_rules,
     season: league.season,
     status: league.status ?? null,
     total_rosters: league.total_rosters ?? 12,
