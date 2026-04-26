@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { FeedbackWidget } from "@/components/feedback/feedback-widget";
 import { WhatsNewRibbon } from "@/components/whats-new-ribbon";
+import { CookieBanner } from "@/components/cookie-banner";
 import { getOptionalUser } from "@/lib/auth/session";
 
 const geistSans = Geist({
@@ -63,6 +64,11 @@ export default async function RootLayout({
   // they see "we know it's you" before submitting (consent transparency
   // per the security-audit MEDIUM finding from 2026-04-23).
   const user = await getOptionalUser();
+  // Env-gated cookie banner. Off by default; flip
+  // NEXT_PUBLIC_COOKIE_BANNER_ENABLED to "true" in Vercel when EU
+  // traffic appears. Build-time replaced; safe to leave the import.
+  const cookieBannerOn =
+    process.env.NEXT_PUBLIC_COOKIE_BANNER_ENABLED === "true";
   return (
     <html
       lang="en"
@@ -72,6 +78,7 @@ export default async function RootLayout({
         {children}
         <WhatsNewRibbon />
         <FeedbackWidget signedInEmail={user?.email ?? null} />
+        {cookieBannerOn && <CookieBanner />}
       </body>
     </html>
   );
