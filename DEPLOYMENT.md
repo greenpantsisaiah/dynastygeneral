@@ -30,6 +30,8 @@ Set in Vercel project settings AND in `.env.local` for local dev:
 | `CAP_PRO_BRIEFINGS_PER_DAY` | optional, default `100` | Protective Pro briefings cap. | `lib/consumption/track.ts` |
 | `CAP_PRO_MULTI_PICK_PER_DAY` | optional, default `50` | Protective Pro multi-pick cap. | `lib/consumption/track.ts` |
 | `STRIPE_PRICE_ID_DAY_PASS` | optional | Stripe one-time price ID (~$3-5) for the Day Pass: 24h unlimited usage. Surfaced inline when a user hits a cap. Without it, the Day Pass button shows but checkout errors. | `lib/stripe/client.ts` |
+| `NEXT_PUBLIC_COOKIE_BANNER_ENABLED` | optional, default off | Set to `"true"` to render the EU-style cookie consent banner at the bottom of every page. Off by default because we don't load ad trackers or third-party analytics today. Flip when EU/UK traffic appears or you wire Vercel Analytics. | `components/cookie-banner.tsx`, mounted in `app/layout.tsx` |
+| `SENTRY_DSN` | optional | Error tracking. Without it, errors only land in Vercel logs. | `lib/sentry/*` (when wired) |
 
 If `KV_*` is unset, rate limits and budget caps run in-memory (process-local). That works for a single Vercel function instance but breaks under concurrent traffic. Production: provision Vercel KV before launch.
 
@@ -97,6 +99,7 @@ Run all of these before promoting to production. The `dynasty-security-auditor` 
 - [ ] Vercel KV provisioned and `KV_*` env vars set.
 - [ ] Sentry (or equivalent) DSN configured if using error tracking.
 - [ ] Vercel Analytics enabled if you want traffic visibility.
+- [ ] Supabase migrations applied. Run `supabase db push` (or paste each `.sql` into the SQL editor in order). The Soundboard scaffold (0006_soundboard.sql) introduces three tables: `judgment_profiles`, `mixer_feedback`, `mixer_suggestions`. Without it, /soundboard renders fine but argue/suggest 500.
 
 ## Deploy procedure
 
