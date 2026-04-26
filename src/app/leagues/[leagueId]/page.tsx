@@ -251,6 +251,10 @@ export default async function LeagueHubPage({
   // that needs cross-position value comparison. Cached server-side
   // (24h FantasyCalc fetch). Best-effort; non-fatal if it fails.
   let playerValuesByIdJson: Record<string, number> = {};
+  // KTC overall_rank per player_id, surfaced on Top 3 cards alongside
+  // ADP so users see both the Sleeper-UI signal and the dynasty-pro
+  // signal. Drives the trust-hierarchy callout when the two diverge.
+  let ktcOverallRanksByIdJson: Record<string, number> = {};
 
   // Engine integrity backstop. Suite of pure-function checks
   // covering pool completeness, drafted-in-pool, roster identification,
@@ -323,8 +327,15 @@ export default async function LeagueHubPage({
           isTePremium: snapshot.scoring.includes("TE-premium"),
         });
         const out: Record<string, number> = {};
-        for (const [id, v] of valueMap.entries()) out[id] = v.value;
+        const ranksOut: Record<string, number> = {};
+        for (const [id, v] of valueMap.entries()) {
+          out[id] = v.value;
+          if (typeof v.overall_rank === "number") {
+            ranksOut[id] = v.overall_rank;
+          }
+        }
         playerValuesByIdJson = out;
+        ktcOverallRanksByIdJson = ranksOut;
 
         // Harmonize the available-pool ordering by the consensus
         // cascade (KTC value > ADP > heuristic dynasty_rank). Per
@@ -520,6 +531,7 @@ export default async function LeagueHubPage({
             picks_until_me: pickApproach?.picks_until_me ?? 0,
             declared_window: declaredWindow,
             player_values: playerValuesByIdJson,
+            ktc_overall_ranks: ktcOverallRanksByIdJson,
           });
         } catch (err) {
           console.error("[hub:decision-synthesis]", err);

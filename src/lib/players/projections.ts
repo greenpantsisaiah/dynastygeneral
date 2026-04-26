@@ -150,7 +150,24 @@ export type AdpFormatKey = {
   // dynasty variants are sparse for unsigned rookies pre-NFL-draft;
   // adp_rookie is the only field consistently populated for them.
   isRookie?: boolean;
+  // Player position. Optional but required for the TE-premium ADP
+  // adjustment below: Sleeper does NOT publish a TE-premium ADP
+  // variant, so we apply a downward multiplier to TE ADPs to compensate
+  // for TE-premium drafts pulling TEs earlier than standard PPR ADP
+  // suggests. Without it, TE ADPs in TE-premium leagues systematically
+  // underestimate how early TEs go (and the engine's earned_value
+  // rule reads the wrong scarcity signal).
+  position?: string | null;
 };
+
+// Multiplier applied to TE ADPs in TE-premium leagues to compensate
+// for the missing adp_dynasty_te_premium variant from Sleeper. 0.90
+// shifts TE ADPs ~10% earlier, matching the asymmetric KTC value
+// uplift (TE_PREMIUM_MULTIPLIER = 1.18 in players/values.ts) within
+// reasonable calibration. Conservative single number rather than a
+// tier-of-bonus scheme; refresh when we have ground-truth data on
+// actual TE-premium league draft order.
+const TE_PREMIUM_ADP_MULTIPLIER = 0.90;
 
 export function pickAdpFromVariants(
   adp: PlayerAdp | undefined,
@@ -188,6 +205,18 @@ export function pickAdpFromVariants(
   for (const [v, variant] of candidates) {
     // Skip Sleeper's "999" sentinel and null/undefined
     if (v != null && Number.isFinite(v) && v < 999) {
+      // TE-premium adjustment: in TE-premium leagues, TEs go earlier
+      // than standard PPR ADP shows. Apply only to TE position.
+      if (
+        fmt.isTePremium &&
+        typeof fmt.position === "string" &&
+        fmt.position.toUpperCase() === "TE"
+      ) {
+        return {
+          value: Math.round(v * TE_PREMIUM_ADP_MULTIPLIER),
+          variant: `${variant}_te_premium_adj`,
+        };
+      }
       return { value: v, variant };
     }
   }

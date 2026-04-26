@@ -88,6 +88,13 @@ export type DecisionCandidate = {
   // Surfaced on the Top 3 cards so the user sees value-based scarcity
   // at a glance, the way the Coach already reasons about it.
   value: number | null;
+  // KTC overall rank (lower = better, top of dynasty board). Pulled
+  // from FantasyCalc's overallRank field. Surfaced alongside ADP so
+  // the user sees both the Sleeper-UI signal (ADP) AND the dynasty-
+  // pro signal (KTC rank) and can judge any divergence themselves.
+  // The Coach uses KTC ranks; without exposing them on the card the
+  // user can't tell why the engine made a counterintuitive call.
+  ktc_overall_rank: number | null;
 };
 
 // A single line item in the next-picks-plan view. Target is the

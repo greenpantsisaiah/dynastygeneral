@@ -375,7 +375,16 @@ function CandidateCard({
               VAL {c.value}
             </span>
           )}
-          {c.adp != null && <span>ADP {Math.round(c.adp)}</span>}
+          {c.ktc_overall_rank != null && (
+            <span title="KTC overall dynasty rank (lower = better). Crowdsourced expertise from FantasyCalc; the dynasty-pro signal we trust more than ADP for futures.">
+              KTC #{c.ktc_overall_rank}
+            </span>
+          )}
+          {c.adp != null && (
+            <span title="Average Draft Position from Sleeper. The signal you see in Sleeper's UI. We surface it but trust KTC more for dynasty.">
+              ADP {Math.round(c.adp)}
+            </span>
+          )}
         </span>
       </div>
       <div className="mt-1 text-sm font-semibold text-foreground">

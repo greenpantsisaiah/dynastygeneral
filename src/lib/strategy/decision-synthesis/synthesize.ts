@@ -143,6 +143,50 @@ function flexShareForPosition(
 //
 // Per founder analysis 2026-04-26 (Isaiah Likely as TE3 in PPR SF
 // despite 2 WRs in 5-WR-eligible format).
+// ADP-gap modifier. Rewards "buying past ADP" (you're getting the
+// player at a discount because the market reached past him) and
+// penalizes "reaching" (you'd be drafting earlier than consensus).
+//
+// Why this exists: the harmonized pool is ordered by KTC VALUE
+// (descending). A high-VAL player whose ADP is well past the current
+// pick used to win earned_value over a lower-VAL player whose ADP
+// puts him at-the-cusp-of-gone. That inverts what a dynasty pro
+// means by "value": value isn't "highest KTC number," it's "biggest
+// gap between cost-to-acquire (current pick) and player tier."
+//
+// The modifier is bounded so it doesn't swamp the rule cascade: a
+// max swing of ±10-12 points keeps fill_starter_urgent (100) and
+// position_steal (70-85) hierarchy intact while still flipping
+// close-call earned_value comparisons (Likely vs Kincaid in
+// founder analysis 2026-04-26).
+//
+// Per founder analysis 2026-04-26: Kincaid (ADP 100, current 110,
+// gap +10 = market reached past him) was the right call; Likely
+// (ADP 127, current 110, gap -17 = reaching) won the rule because
+// the engine valued raw KTC over ADP-implied scarcity.
+function adpGapModifier(
+  adp: number | null,
+  currentPickNo: number,
+): { adjustment: number; note: string | null } {
+  if (adp == null) return { adjustment: 0, note: null };
+  const gap = currentPickNo - adp;
+  const clamped = Math.max(-12, Math.min(15, gap));
+  const adjustment = clamped * 0.8;
+  if (gap >= 8) {
+    return {
+      adjustment,
+      note: `Market reached ${Math.round(gap)} picks past his ADP (${Math.round(adp)}); you're getting him below consensus.`,
+    };
+  }
+  if (gap <= -8) {
+    return {
+      adjustment,
+      note: `ADP says ${Math.round(adp)}; taking him here is reaching ${Math.abs(Math.round(gap))} picks before consensus.`,
+    };
+  }
+  return { adjustment, note: null };
+}
+
 function positionSaturationModifier(
   snap: LeagueSnapshot,
   pos: Position,
@@ -217,8 +261,10 @@ function confidenceForScore(score: number): number {
 function toDecisionCandidate(
   p: AvailablePlayer,
   playerValues: Record<string, number>,
+  ktcOverallRanks: Record<string, number>,
 ): DecisionCandidate {
   const v = playerValues[p.id];
+  const r = ktcOverallRanks[p.id];
   return {
     player_id: p.id,
     name: p.name,
@@ -229,6 +275,7 @@ function toDecisionCandidate(
     adp: p.adp,
     is_rookie: p.is_rookie,
     value: typeof v === "number" ? Math.round(v) : null,
+    ktc_overall_rank: typeof r === "number" ? r : null,
   };
 }
 
@@ -760,15 +807,17 @@ function buildCandidates(
     const pos = normalizePos(p.position);
     if (!pos) continue;
     const sat = positionSaturationModifier(snap, pos);
+    const adpGap = adpGapModifier(p.adp, currentPickNo);
     const reasonParts = [
       `Dynasty value on the board (${p.name}, rank #${p.search_rank}).`,
     ];
+    if (adpGap.note) reasonParts.push(adpGap.note);
     if (sat.note) reasonParts.push(sat.note);
     push({
       player: p,
       position: pos,
       rule: "earned_value",
-      score: 45 - i * 1.5 - sat.penalty,
+      score: 45 - i * 1.5 - sat.penalty + adpGap.adjustment,
       primary_reason: reasonParts.join(" "),
     });
   }
@@ -1135,6 +1184,10 @@ export function synthesizeDecision(args: {
   // candidate.value = null on every card. Already loaded by the
   // hub for Strategic Forks; we plumb the same map in.
   player_values?: Record<string, number>;
+  // KTC overall rank per player (lower = better). Optional; surfaced
+  // on Top 3 cards alongside ADP so the user sees both signals when
+  // they diverge. Drives the trust-hierarchy callout in WHY THIS LEAN.
+  ktc_overall_ranks?: Record<string, number>;
 }): Decision | null {
   const {
     snap,
@@ -1144,6 +1197,7 @@ export function synthesizeDecision(args: {
     picks_until_me,
     declared_window,
     player_values: playerValues = {},
+    ktc_overall_ranks: ktcOverallRanks = {},
   } = args;
   const schedule = snap.draft.my_pick_schedule;
   if (schedule.length === 0) return null;
@@ -1186,6 +1240,60 @@ export function synthesizeDecision(args: {
     why.push(
       `Window says "${windowConstraint.label.toLowerCase()}" but this pick violates it (${winner.constraint_note.toLowerCase().replace(/\.$/, "")}). Rule score still wins on scarcity/path.`,
     );
+  }
+  // Trust-hierarchy callout. When the lean has materially worse ADP
+  // than a runner-up Top 3 candidate (i.e., Sleeper's ADP would
+  // suggest the runner-up over the lean), surface the divergence so
+  // the user understands why we picked against the ADP signal.
+  // Per founder feedback 2026-04-26: "I'd have loved 'Even though
+  // Kincaid is showing higher by ADP in Sleeper, [the lean] is
+  // actually ranked higher on KTC crowdsourced expertise.'" The
+  // user's natural mental model is ADP (Sleeper UI shows it); we
+  // need to acknowledge their model AND explain the override.
+  // Threshold: 10+ pick ADP gap qualifies. Smaller gaps are noise.
+  const winnerAdp = winner.player.adp;
+  if (typeof winnerAdp === "number") {
+    let earliestRunner: ScoredCandidate | null = null;
+    for (const r of runners) {
+      const rAdp = r.player.adp;
+      if (typeof rAdp !== "number") continue;
+      if (rAdp >= winnerAdp - 10) continue; // not materially earlier
+      if (!earliestRunner || rAdp < (earliestRunner.player.adp ?? Infinity)) {
+        earliestRunner = r;
+      }
+    }
+    if (earliestRunner && typeof earliestRunner.player.adp === "number") {
+      const winnerVal = playerValues[winner.player.id];
+      const runnerVal = playerValues[earliestRunner.player.id];
+      const winnerKtcRank = ktcOverallRanks[winner.player.id];
+      const runnerKtcRank = ktcOverallRanks[earliestRunner.player.id];
+      // Build the most honest line we can given which signals are present.
+      const parts: string[] = [
+        `By Sleeper ADP alone, ${earliestRunner.player.name} (ADP ${Math.round(earliestRunner.player.adp)}) would go earlier than ${winner.player.name} (ADP ${Math.round(winnerAdp)}).`,
+      ];
+      if (
+        typeof winnerVal === "number" &&
+        typeof runnerVal === "number" &&
+        winnerVal > runnerVal
+      ) {
+        parts.push(
+          `KTC dynasty value puts ${winner.player.name} higher (VAL ${Math.round(winnerVal)} vs ${Math.round(runnerVal)}); we weight KTC for dynasty futures.`,
+        );
+      } else if (
+        typeof winnerKtcRank === "number" &&
+        typeof runnerKtcRank === "number" &&
+        winnerKtcRank < runnerKtcRank
+      ) {
+        parts.push(
+          `KTC overall rank puts ${winner.player.name} higher (#${winnerKtcRank} vs #${runnerKtcRank}); we weight KTC for dynasty futures.`,
+        );
+      } else {
+        parts.push(
+          `Our rule cascade (scarcity, path-fit, roster context) outweighed the ADP signal here.`,
+        );
+      }
+      why.push(parts.join(" "));
+    }
   }
   // Density framing. Always names the NEXT user pick by label so the
   // "you wait N picks" number is unambiguous. Without the label this
@@ -1262,7 +1370,7 @@ export function synthesizeDecision(args: {
       opponentSignal,
     );
     return {
-      ...toDecisionCandidate(c.player, playerValues),
+      ...toDecisionCandidate(c.player, playerValues, ktcOverallRanks),
       primary_reason: c.primary_reason,
       rule: c.rule,
       is_lean: c.player.id === winner.player.id,
@@ -1363,7 +1471,7 @@ export function synthesizeDecision(args: {
     });
     const adjustedAvail = shiftAvailabilityWithSignal(baseAvail, oppSignal);
     return {
-      ...toDecisionCandidate(q.player, playerValues),
+      ...toDecisionCandidate(q.player, playerValues, ktcOverallRanks),
       primary_reason: q.primary_reason,
       rule: q.rule,
       is_lean: q.player.id === winner.player.id,
@@ -1420,7 +1528,7 @@ export function synthesizeDecision(args: {
       sentence: windowConstraint.sentence,
     },
     recommendation: {
-      ...toDecisionCandidate(winner.player, playerValues),
+      ...toDecisionCandidate(winner.player, playerValues, ktcOverallRanks),
       primary_reason: winner.primary_reason,
       rule: winner.rule,
     },

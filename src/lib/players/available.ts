@@ -172,7 +172,7 @@ export async function getAvailablePlayers(
     const adpRaw = projections?.byPlayerId.get(p.player_id);
     const { value: adp, variant: adp_variant } = pickAdpFromVariants(
       adpRaw,
-      { ...fmtKey, isRookie: is_rookie },
+      { ...fmtKey, isRookie: is_rookie, position: human.position },
     );
     return {
       ...human,
