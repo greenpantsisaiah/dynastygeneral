@@ -11,13 +11,14 @@ export const metadata: Metadata = {
 // moved to /how-it-works 2026-04-25 after Reddit alpha data showed
 // hot users convert via "type Sleeper username, see real league" not
 // via 8 sections of scroll. Keep the Soundboard preview as the trust
-// builder; keep Waitlist as the cold-lead capture path; keep FAQ
-// because launch-stage questions are real. Everything else moved.
+// builder; keep FAQ because launch-stage questions are real.
+// Waitlist removed 2026-04-25: account creation is the real signal
+// now (saves leagues, chats, saved roster identity), not a beta-list
+// signup, so the duplicate "apply for beta" form was a dead end.
 import { FAQ } from "@/components/landing/faq";
 import { Footer } from "@/components/landing/footer";
 import { Hero } from "@/components/landing/hero";
 import { SoundboardPreview } from "@/components/landing/soundboard-preview";
-import { Waitlist } from "@/components/landing/waitlist";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -47,7 +48,6 @@ export default function HomePage() {
       <main className="flex-1">
         <Hero />
         <SoundboardPreview />
-        <Waitlist />
         <FAQ />
       </main>
       <Footer />

@@ -143,7 +143,7 @@ export function UserMenu({ name, email, avatarUrl, tier }: Props) {
             <MenuLink href="/account" onClick={() => setOpen(false)}>
               Account settings
             </MenuLink>
-            <MenuLink href="/connect" onClick={() => setOpen(false)}>
+            <MenuLink href="/account" onClick={() => setOpen(false)}>
               My leagues
             </MenuLink>
             <MenuLink href="/pricing" onClick={() => setOpen(false)}>
