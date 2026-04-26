@@ -239,124 +239,54 @@ function ConnectedPlatforms() {
 }
 
 async function ConnectedLeagues({ userId }: { userId: string }) {
+  // Account page no longer renders a full leagues panel; that's the
+  // dedicated /leagues page now (one canonical UI, one shared
+  // component). Account just shows the saved Sleeper identity and a
+  // link out, keeping account focused on billing + identity.
   const supabase = await createClient();
-
-  // Saved Sleeper identity from /connect. When present, we trust it as
-  // the user's "this is me" pin and use it to (a) display a small
-  // "Saved as @X" pill with a forgiveness link to redo, and (b) drive
-  // the live league list below. Per 2026-04-25 founder feedback:
-  // clicking "My leagues" used to land at the username search instead
-  // of pulling the user's actual leagues.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("sleeper_user_id, sleeper_username")
+    .select("sleeper_username")
     .eq("id", userId)
     .maybeSingle();
   const savedUsername =
     (profile?.sleeper_username as string | null) ?? null;
-  const savedUserId = (profile?.sleeper_user_id as string | null) ?? null;
-
-  // Live Sleeper leagues for the current season. Pulled fresh because
-  // league membership changes (people get added/dropped); a cached DB
-  // copy would go stale. Best-effort: if Sleeper is down or the saved
-  // identity is gone, fall back to the empty state.
-  type LeagueRow = {
-    sleeper_league_id: string;
-    name: string | null;
-    season: string;
-    is_dynasty: boolean;
-  };
-  let leagues: LeagueRow[] = [];
-  if (savedUserId) {
-    try {
-      const state = await getNflState();
-      const season = state?.season ?? String(new Date().getFullYear());
-      const live = await getLeaguesForUser(savedUserId, season);
-      leagues = live.map((l) => ({
-        sleeper_league_id: l.league_id,
-        name: l.name ?? null,
-        season: l.season,
-        is_dynasty: isDynastyLeague(l),
-      }));
-      // Dynasty leagues first; redraft / keeper after.
-      leagues.sort((a, b) =>
-        a.is_dynasty === b.is_dynasty ? 0 : a.is_dynasty ? -1 : 1,
-      );
-    } catch (err) {
-      console.error("[account:live-leagues]", err);
-    }
-  }
 
   return (
     <div className="mt-8 rounded-lg border border-border-strong bg-surface px-5 py-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          My leagues
+          Sleeper identity
         </div>
-        {savedUsername ? (
-          <div className="flex items-baseline gap-3 text-xs">
-            <span className="text-muted">
-              Saved as{" "}
-              <span className="font-mono text-foreground">@{savedUsername}</span>
-            </span>
-            <Link
-              href="/connect"
-              className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
-            >
-              Not me? Re-connect →
-            </Link>
-          </div>
-        ) : (
-          <Link
-            href="/connect"
-            className="font-mono text-xs uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
-          >
-            Connect Sleeper →
-          </Link>
-        )}
+        <Link
+          href={savedUsername ? "/leagues" : "/connect"}
+          className="font-mono text-xs uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
+        >
+          {savedUsername ? "View my leagues →" : "Connect Sleeper →"}
+        </Link>
       </div>
-      {!savedUserId ? (
-        <p className="mt-3 text-sm text-muted">
-          Connect your Sleeper account so we know which roster is yours.
-          Once saved, your leagues show up here and the hub loads to your
-          team automatically.{" "}
-          <Link href="/connect" className="text-accent hover:underline">
-            Connect now →
+      {savedUsername ? (
+        <p className="mt-2 text-sm text-muted">
+          Saved as{" "}
+          <span className="font-mono text-foreground">@{savedUsername}</span>.
+          Your leagues live at{" "}
+          <Link href="/leagues" className="text-accent hover:underline">
+            /leagues
           </Link>
-        </p>
-      ) : leagues.length === 0 ? (
-        <p className="mt-3 text-sm text-muted">
-          Sleeper has no dynasty leagues for{" "}
-          <span className="font-mono">@{savedUsername}</span> in the current
-          season. Check the username, or try the right season.{" "}
+          .{" "}
           <Link href="/connect" className="text-accent hover:underline">
-            Re-connect →
+            Not me? Re-connect →
           </Link>
         </p>
       ) : (
-        <ul className="mt-3 space-y-1.5 text-sm">
-          {leagues.map((l) => (
-            <li
-              key={l.sleeper_league_id}
-              className="flex items-baseline justify-between gap-2"
-            >
-              <Link
-                href={`/leagues/${l.sleeper_league_id}`}
-                className="text-foreground hover:text-accent"
-              >
-                {l.name ?? l.sleeper_league_id}
-                {!l.is_dynasty && (
-                  <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                    redraft / keeper
-                  </span>
-                )}
-              </Link>
-              <span className="font-mono text-[10px] text-muted-2">
-                {l.season}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <p className="mt-2 text-sm text-muted">
+          Connect your Sleeper account so we know which roster is yours.
+          Once saved, your leagues live at{" "}
+          <Link href="/leagues" className="text-accent hover:underline">
+            /leagues
+          </Link>
+          .
+        </p>
       )}
     </div>
   );

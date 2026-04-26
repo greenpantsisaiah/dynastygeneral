@@ -10,6 +10,10 @@ import {
   getNflState,
   isDynastyLeague,
 } from "@/lib/sleeper";
+import {
+  LeagueListGroup,
+  type LeagueListItem,
+} from "@/components/league/league-list";
 
 export const metadata = {
   title: "My Leagues",
@@ -32,23 +36,22 @@ export default async function MyLeaguesPage() {
   const savedUsername = (profile?.sleeper_username as string | null) ?? null;
   const savedUserId = (profile?.sleeper_user_id as string | null) ?? null;
 
-  type LeagueRow = {
-    sleeper_league_id: string;
-    name: string | null;
-    season: string;
-    is_dynasty: boolean;
-  };
+  type LeagueRow = LeagueListItem & { is_dynasty: boolean };
   let leagues: LeagueRow[] = [];
   let fetchError = false;
+  let resolvedSeason = "";
   if (savedUserId) {
     try {
       const state = await getNflState();
-      const season = state?.season ?? String(new Date().getFullYear());
-      const live = await getLeaguesForUser(savedUserId, season);
+      resolvedSeason =
+        state?.season ?? String(new Date().getFullYear());
+      const live = await getLeaguesForUser(savedUserId, resolvedSeason);
       leagues = live.map((l) => ({
-        sleeper_league_id: l.league_id,
+        league_id: l.league_id,
         name: l.name ?? null,
         season: l.season,
+        total_rosters: l.total_rosters ?? null,
+        status: l.status ?? null,
         is_dynasty: isDynastyLeague(l),
       }));
       leagues.sort((a, b) =>
@@ -62,6 +65,14 @@ export default async function MyLeaguesPage() {
 
   const dynastyLeagues = leagues.filter((l) => l.is_dynasty);
   const otherLeagues = leagues.filter((l) => !l.is_dynasty);
+
+  function buildHref(id: string): string {
+    const params = new URLSearchParams();
+    if (resolvedSeason) params.set("season", resolvedSeason);
+    if (savedUsername) params.set("username", savedUsername);
+    const qs = params.toString();
+    return `/leagues/${id}${qs ? `?${qs}` : ""}`;
+  }
 
   return (
     <>
@@ -132,16 +143,18 @@ export default async function MyLeaguesPage() {
             ) : (
               <div className="mt-6 space-y-6">
                 {dynastyLeagues.length > 0 && (
-                  <LeagueGroup
+                  <LeagueListGroup
                     title="Dynasty leagues"
                     leagues={dynastyLeagues}
+                    buildHref={buildHref}
                     emphasized
                   />
                 )}
                 {otherLeagues.length > 0 && (
-                  <LeagueGroup
-                    title="Redraft / keeper"
+                  <LeagueListGroup
+                    title="Other leagues (redraft / keeper)"
                     leagues={otherLeagues}
+                    buildHref={buildHref}
                   />
                 )}
               </div>
@@ -163,46 +176,3 @@ export default async function MyLeaguesPage() {
   );
 }
 
-function LeagueGroup({
-  title,
-  leagues,
-  emphasized,
-}: {
-  title: string;
-  leagues: Array<{
-    sleeper_league_id: string;
-    name: string | null;
-    season: string;
-  }>;
-  emphasized?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-lg border bg-surface px-5 py-5 ${
-        emphasized ? "border-accent/40" : "border-border-strong"
-      }`}
-    >
-      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-        {title}
-      </div>
-      <ul className="mt-3 divide-y divide-border-soft">
-        {leagues.map((l) => (
-          <li
-            key={l.sleeper_league_id}
-            className="flex items-baseline justify-between gap-3 py-2.5"
-          >
-            <Link
-              href={`/leagues/${l.sleeper_league_id}`}
-              className="text-base text-foreground transition hover:text-accent"
-            >
-              {l.name ?? l.sleeper_league_id}
-            </Link>
-            <span className="font-mono text-[10px] text-muted-2">
-              {l.season}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}

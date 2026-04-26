@@ -19,6 +19,10 @@ import {
 import { PLATFORMS, type PlatformId } from "@/lib/leagues/types";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import {
+  LeagueListGroup,
+  type LeagueListItem,
+} from "@/components/league/league-list";
 
 export const dynamic = "force-dynamic";
 
@@ -188,19 +192,21 @@ export default async function ConnectPage({ searchParams }: PageProps) {
                 </div>
               </div>
 
-              <LeagueGroup
+              <LeagueListGroup
                 title="Dynasty leagues"
-                leagues={dynastyLeagues}
-                season={resolvedSeason}
-                username={cleaned}
+                leagues={dynastyLeagues.map(toListItem)}
+                buildHref={(id) =>
+                  buildLeagueHref(id, resolvedSeason, cleaned)
+                }
                 emphasized
               />
               {otherLeagues.length > 0 && (
-                <LeagueGroup
+                <LeagueListGroup
                   title="Other leagues (redraft / keeper)"
-                  leagues={otherLeagues}
-                  season={resolvedSeason}
-                  username={cleaned}
+                  leagues={otherLeagues.map(toListItem)}
+                  buildHref={(id) =>
+                    buildLeagueHref(id, resolvedSeason, cleaned)
+                  }
                 />
               )}
               {leagues.length === 0 && (
@@ -267,60 +273,24 @@ function PlatformPicker({
   );
 }
 
-function LeagueGroup({
-  title,
-  leagues,
-  season,
-  username,
-  emphasized = false,
-}: {
-  title: string;
-  leagues: SleeperLeague[];
-  season: string;
-  username: string;
-  emphasized?: boolean;
-}) {
-  if (leagues.length === 0) return null;
-  const buildHref = (leagueId: string) => {
-    const params = new URLSearchParams();
-    if (season) params.set("season", season);
-    if (username) params.set("username", username);
-    const qs = params.toString();
-    return `/leagues/${leagueId}${qs ? `?${qs}` : ""}`;
+function toListItem(l: SleeperLeague): LeagueListItem {
+  return {
+    league_id: l.league_id,
+    name: l.name ?? null,
+    season: l.season,
+    total_rosters: l.total_rosters ?? null,
+    status: l.status ?? null,
   };
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-2">
-          {title}
-        </h2>
-        <span className="font-mono text-[11px] text-muted-2">
-          {leagues.length}
-        </span>
-      </div>
-      <ul className="mt-3 grid gap-2">
-        {leagues.map((l) => (
-          <li key={l.league_id}>
-            <Link
-              href={buildHref(l.league_id)}
-              className={`flex items-center justify-between rounded-md border px-4 py-3 text-sm transition ${
-                emphasized
-                  ? "border-border-strong bg-surface hover:border-accent/60"
-                  : "border-border-soft bg-surface/60 hover:border-border-strong"
-              }`}
-            >
-              <div>
-                <div className="font-medium text-foreground">{l.name}</div>
-                <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-2">
-                  {l.season} · {l.total_rosters ?? "?"} teams ·{" "}
-                  {l.status ?? "unknown"}
-                </div>
-              </div>
-              <span className="font-mono text-[11px] text-accent">Open →</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+}
+
+function buildLeagueHref(
+  leagueId: string,
+  season: string,
+  username: string,
+): string {
+  const params = new URLSearchParams();
+  if (season) params.set("season", season);
+  if (username) params.set("username", username);
+  const qs = params.toString();
+  return `/leagues/${leagueId}${qs ? `?${qs}` : ""}`;
 }
