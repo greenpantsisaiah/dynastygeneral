@@ -25,29 +25,14 @@ import type {
   LeagueOutlookTeam,
 } from "../league-outlook/compute";
 import type { Position } from "../archetypes/schema";
-import {
-  buildFormatRulesFromSnapshot,
-  type FormatRules,
-} from "@/lib/engine/llm-contract";
+import { getUpperBoundStarterMax } from "@/lib/engine/roster-fit";
 
-// Format-aware starter capacity for a position. INVARIANTS: never
-// branch on starter_slots.hard.X directly; use the canonical helper
-// so superflex / 2QB formats correctly count the second QB slot,
-// flex eligibility for RB/WR/TE, and rec-flex for WR/TE.
-function startersMaxFor(pos: Position, rules: FormatRules): number {
-  switch (pos) {
-    case "QB":
-      return rules.qb_starters_max;
-    case "RB":
-      return rules.rb_starters_max;
-    case "WR":
-      return rules.wr_starters_max;
-    case "TE":
-      return rules.te_starters_max;
-    default:
-      return 0;
-  }
-}
+// SWOT room-health framing uses upper-bound starter counts: "how many
+// slots COULD this position fill in any given week" (hard slots + all
+// flex they're eligible for). Distinct from realistic-max (used by
+// Decision card saturation): SWOT cares about bench safety / one-
+// injury exposure, not economic ranking. Call getUpperBoundStarterMax
+// from canonical roster-fit.ts directly; do not re-wrap.
 
 export type SwotVoice = "statistician" | "coach" | "gambler";
 
@@ -129,7 +114,6 @@ export function computeSwot(
   const isTePremium = snap.scoring.includes("TE-premium");
   const isPpr =
     snap.scoring.includes("PPR") || snap.scoring.includes("half-PPR");
-  const rules = buildFormatRulesFromSnapshot(snap);
 
   // Pre-compute per-position rank tables.
   const posRank: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
@@ -187,7 +171,7 @@ export function computeSwot(
   // counts for WR/TE. NEVER branch on starter_slots.hard directly.
   for (const pos of SKILL) {
     const myCount = me.position_counts[pos] ?? 0;
-    const starters = startersMaxFor(pos, rules);
+    const starters = getUpperBoundStarterMax(snap, pos);
     if (starters >= 1 && myCount >= starters + 2) {
       strengths.push({
         voice: "coach",
@@ -258,7 +242,7 @@ export function computeSwot(
   // Format-aware via buildFormatRulesFromSnapshot.
   for (const pos of SKILL) {
     const myCount = me.position_counts[pos] ?? 0;
-    const starters = startersMaxFor(pos, rules);
+    const starters = getUpperBoundStarterMax(snap, pos);
     if (starters >= 1 && myCount <= starters) {
       weaknesses.push({
         voice: "coach",

@@ -93,6 +93,29 @@ const RULES: Rule[] = [
       "NEVER branch on starter_slots.hard",
     ],
   },
+  // Roster-fit math is canonical in src/lib/engine/roster-fit.ts. No
+  // surface outside that module is allowed to define a function that
+  // re-derives "how many starters at position X" or "realistic max"
+  // or related concepts. Imports from roster-fit.ts are required.
+  // Per INVARIANTS "Tuning capacity" (2026-04-27): the reason to
+  // consolidate is so a tweak in one place propagates everywhere.
+  // Re-derivation breaks that promise and the same bug class returns
+  // on every refactor.
+  {
+    name: "no re-derived roster-fit functions outside engine/roster-fit.ts",
+    why: "Roster-fit math (effectiveStarterReqs, realisticStarterMaxFor, startersMaxFor, getHardStarterReqs, getRealisticStarterMax, getUpperBoundStarterMax, buildPositionRoomHealth) is canonical in src/lib/engine/roster-fit.ts. Other surfaces import; they don't define. Re-derivation drifts and produces the Mac Jones / Schultz bug class (2026-04-27).",
+    pattern: /^\s*(?:export\s+)?function\s+(?:effectiveStarterReqs|realisticStarterMaxFor|startersMaxFor|getHardStarterReqs|getRealisticStarterMax|getUpperBoundStarterMax|buildPositionRoomHealth|flexShareForPosition)\s*[(<]/,
+    scan: { dir: SRC, ext: [".ts"] },
+    allowFilePrefixes: [
+      EVALS,
+      // The canonical home is allowed to define these.
+      join(SRC, "lib", "engine", "roster-fit.ts"),
+    ],
+    allowLineSubstrings: [
+      "// allowed re-export",
+      "// canonical",
+    ],
+  },
 ];
 
 function walk(dir: string, exts: string[], out: string[] = []): string[] {

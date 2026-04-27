@@ -21,7 +21,6 @@
 
 import type { LeagueSnapshot, PickScheduleEntry } from "../league-state/snapshot";
 import type {
-  LeagueScoring,
   RankedArchetype,
   Position,
 } from "../archetypes/schema";
@@ -29,6 +28,10 @@ import type { AvailablePlayer } from "@/lib/players/available";
 import type { WindowsResult } from "../windows/compute";
 import type { WindowWeightingId } from "../windows/types";
 import { slotForPickNo } from "@/lib/sleeper/snake";
+import {
+  buildPositionRoomHealth,
+  getHardStarterReqs as effectiveStarterReqs,
+} from "@/lib/engine/roster-fit";
 import {
   buildWindowConstraint,
   penalizeForConstraint,
@@ -58,67 +61,13 @@ const POSITION_LABEL: Record<Position, string> = {
 // Format-aware starter requirement. The SUPER_FLEX slot is
 // position-locked to QB in practice (always the highest scorer in
 // PPR), so a 1-QB-on-roster team in superflex is 1/2 on QB starters,
-// not 1/1. RB/WR/TE FLEX slots are NOT position-locked (a flex can be
-// any of three positions), so we don't expand skill-position
-// requirements here. This mirrors `qb_starters_max = hard.QB +
-// superflex` in `web/src/lib/engine/llm-contract.ts` so the engine's
-// fill-starter rule and the LLM contract's format_rules bind to the
-// same number. Without this alignment the engine reports 1/1 QB while
-// the Coach's format_rules reports 1/2, and the user gets a Decision
-// card lean that ignores the second QB hole. Per dynasty-bug-
-// investigator + ultrathink diagnosis 2026-04-24.
-export function effectiveStarterReqs(snap: LeagueSnapshot): Record<Position, number> {
-  const ss = snap.starter_slots;
-  return {
-    QB: ss.hard.QB + ss.superflex,
-    RB: ss.hard.RB,
-    WR: ss.hard.WR,
-    TE: ss.hard.TE,
-    K: ss.hard.K,
-    DST: ss.hard.DST,
-  };
-}
+// not 1/1. Imported from roster-fit.ts (canonical source). Re-exported
+// here under the legacy name so existing imports from
+// "decision-synthesis/synthesize" keep working without bulk rename.
+export { effectiveStarterReqs };
 
-// Realistic flex share per position by format. Represents the maximum
-// number of THIS position the user would realistically start in flex
-// slots before flex value runs out vs other positions. Calibrated to
-// scoring format:
-//
-//   PPR / half-PPR: WR3 outscores RB4 outscores TE3 by a lot.
-//     Top WR3s in modern PPR put up 12-16 PPR/game; RB3-as-flex
-//     averages 8-12; TE3 rarely sees 7+. So a roster's realistic
-//     flex allocation skews WR-heavy in PPR.
-//   Standard: RB-heavy. Top RB2-3 outscores WR3 in non-PPR formats.
-//
-// Numbers represent "max additional starters of this position beyond
-// hard slots that the user would realistically start in flex." So a
-// PPR roster with hard.WR=2 could realistically start up to 2 more
-// WRs in flex (3 flex × WR-share where WR-share is high), giving 4
-// realistic WR starters before adding a 5th WR is bench-only.
-//
-// Used by `positionSaturationModifier` to penalize earned_value /
-// position_steal candidates that would push the user past their
-// realistic starter ceiling at that position. Clones the position-
-// fit logic the Strategic Forks card patterns implicitly bake in
-// (TE Tandem caps at 2 TEs; Robust RB caps at 3-4 RBs; etc).
-function flexShareForPosition(
-  pos: Position,
-  scoring: LeagueScoring[],
-): number {
-  const isPpr =
-    scoring.includes("PPR") || scoring.includes("half-PPR");
-  if (isPpr) {
-    if (pos === "WR") return 2;
-    if (pos === "RB") return 2;
-    if (pos === "TE") return 1;
-    return 0;
-  }
-  // Standard scoring
-  if (pos === "RB") return 2;
-  if (pos === "WR") return 1;
-  if (pos === "TE") return 1;
-  return 0;
-}
+// flexShareForPosition + realisticStarterMaxFor moved to canonical
+// `roster-fit.ts` 2026-04-27. Imported below as getRealisticStarterMax.
 
 // Position saturation. Returns the score penalty to apply to an
 // earned_value or position_steal candidate at this position, plus a
@@ -187,54 +136,24 @@ function adpGapModifier(
   return { adjustment, note: null };
 }
 
-// Realistic-max model for a position: how many bodies of this
-// position can plausibly start in a typical week. QB uses the
-// canonical superflex-aware max (hard.QB + ss.superflex). RB/WR/TE
-// use fractional flex share, since flex slots are shared and a
-// single position can't fully claim flex every week.
-//
-// Per INVARIANTS: never read starter_slots.hard.QB or hard[pos]
-// without superflex addition. The QB branch goes through this
-// helper; skill positions hit literal hard.RB/.WR/.TE only.
-function realisticStarterMaxFor(snap: LeagueSnapshot, pos: Position): number {
-  const ss = snap.starter_slots;
-  if (pos === "QB") {
-    return ss.hard.QB + (ss.superflex ?? 0);
-  }
-  if (pos === "RB") {
-    return ss.hard.RB + flexShareForPosition("RB", snap.scoring);
-  }
-  if (pos === "WR") {
-    return ss.hard.WR + flexShareForPosition("WR", snap.scoring);
-  }
-  if (pos === "TE") {
-    return ss.hard.TE + flexShareForPosition("TE", snap.scoring);
-  }
-  return 0;
-}
-
+// Saturation modifier reads from canonical roster-fit. Does NOT
+// re-derive realistic-max math; that lives in roster-fit.ts.
 function positionSaturationModifier(
   snap: LeagueSnapshot,
   pos: Position,
 ): { penalty: number; note: string | null } {
-  const me = snap.rosters.find((r) => r.is_me);
-  if (!me) return { penalty: 0, note: null };
-  const have = me.position_counts[pos] ?? 0;
-  const realisticMax = realisticStarterMaxFor(snap, pos);
-  // Surplus AFTER the candidate is added (hypothetical).
-  const surplusAfter = have + 1 - realisticMax;
-  if (surplusAfter <= 0) return { penalty: 0, note: null };
-  if (surplusAfter >= 2) {
+  const health = buildPositionRoomHealth(snap, pos);
+  if (health.surplus_after_one_more <= 0) {
+    return { penalty: 0, note: null };
+  }
+  const have = health.current_count;
+  const realisticMax = health.realistic_starters;
+  if (health.surplus_after_one_more >= 2) {
     return {
       penalty: 30,
       note: `${POSITION_LABEL[pos]} is 2+ over realistic starter use (would be ${have + 1} after; this format typically starts ~${realisticMax}). Pure trade asset, unlikely to crack lineup.`,
     };
   }
-  // surplusAfter === 1. Penalty matches surplusAfter >= 2 because TE3
-  // / RB4 / WR4 in standard PPR is functionally trade-bait depth, not
-  // a credible starter (Mason Taylor TE3 incident, 2026-04-26: prior
-  // 18-point penalty was cancelled by a +12 ADP-gap bonus, leaving
-  // saturated TE alive in earned_value over real WR need).
   return {
     penalty: 30,
     note: `${POSITION_LABEL[pos]} would exceed realistic starter use (would be ${have + 1} after; this format typically starts ~${realisticMax}). Depth pick, low chance of starting.`,

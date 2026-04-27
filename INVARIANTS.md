@@ -42,6 +42,75 @@ These are NOT auto-loaded (would inflate every-session context) but should be re
 - Evidence-cited. Name specific players, leagues, gaps. Don't summarize generically.
 - Voice: dynasty intelligence analyst speaking to a sophisticated reader.
 
+## Design Lessons (carry forward across refactors)
+
+These are the principles every future refactor MUST preserve. When you change how a surface gets its data, where math lives, or how the user expresses judgment, the new architecture must satisfy every lesson below. Each one was born from a specific incident; renaming or "simplifying" them in a refactor without reading their justification is how regressions get reintroduced.
+
+### Meta-principles (the reasons we refactor)
+
+- **Tuning capacity is the reason to consolidate.** [2026-04-27] Refactors exist so the founder can tune ONE place when something feels off and have the change propagate. Code-cleanliness without consolidation of sources-of-truth is decorative, not load-bearing. A "refactor" that moves code around but leaves three implementations of the same concept is a net negative: the same bug class can still hide in three places.
+- **Lessons-preservation is a first-class refactor step.** [2026-04-27] Before any architectural move, survey what we've learned and ensure the new design satisfies each lesson. Lessons get lost when commit messages or memory files capture them but the code doesn't enforce them. This register is the canonical source.
+
+### Strategy framing
+
+- **Lanes over declarations for timeline.** [2026-04-27, planned] A user's strategy is REVEALED by their picks, not COMMITTED upfront. The Decision card should show top candidates per timeline lane (win-now / balanced / future) and reflect the emergent doctrine back to the user. Don't force a binary "lean heavily win-now" declaration that then drives constraint penalties on candidates the user might prefer. The Soundboard's Horizon dial is an OPTIONAL bias on lane weighting, never an override that boxes the user in.
+- **Synthesis over panels.** ONE Decision card per pick. Multi-panel rollouts were explicitly killed (decision-vs-multipick conflict resolved 2026-04-24). Density and window constraints feed the card; they don't get their own panels.
+- **Density is a context modifier, not a panel.** Cluster vs gap vs wraparound shape the per-pick framing. Compute at snapshot build (`my_pick_schedule`) and let surfaces consume it as inline framing.
+- **Win-now constraint is a soft penalty, not a hard filter.** Even when the engine declares a window, candidates that violate it should be penalized in score, not removed. A strong-enough alternative can still win.
+
+### Engine sources of truth
+
+- **One strategy engine.** `buildLeagueSnapshot → rankArchetypes → computeWindows` is the source. NO surface re-derives strategy. New surfaces consume engine output.
+- **Engine starter-need binds to LLM contract.** When the LLM contract has a derived field (`qb_starters_max`, `te_starters_max`), the engine MUST consume the same helper (`buildStarterDemand` / `effectiveStarterReqs` from `lib/engine/llm-contract.ts`). Never branch on `starter_slots.hard.X` directly. SF QB starter bug (3c61992) was caused by exactly this drift. Lint rule in `evals/anti-patterns.test.ts` flags `hard.QB` reads in `decision-synthesis/` and `swot/`.
+- **KTC harmonization across the FULL pool.** `resolvePlayerValues` runs against the whole available pool, not capped at top 100 by Sleeper search_rank. Players with weaker NFL relevance but real KTC dynasty value (Khalil Shakir, Sam LaPorta) must reach the rerank cascade.
+- **Three-tier ranking cascade.** KTC value first (descending), ADP second (ascending), heuristic dynasty_rank third. Strategic Forks rerank uses the same cascade as the hub.
+- **Pool completeness is non-negotiable.** Top-100 FantasyCalc players must NEVER silently disappear from the available pool. Three layers protect this: picks-only exclusion during active drafts, `runCompletenessSanityChecks`, hub-level danger banner. Never disable any layer.
+
+### LLM correctness (durable invariants beat soft prompts)
+
+- **Three-layer fixes for LLM hallucinations.** When Coach claims something structurally wrong (format-blind reasoning, trade math without anchors), DO NOT patch with prompt nudges. Ship: (1) explicit context field (`format_rules.second_qb_starts: true`, `pricing.player_values_present: boolean`), (2) hard system-prompt rule referencing the field by name, (3) pre-LLM precondition that injects `[GUARD]` if context insufficient. All three layers, not one.
+- **Coach context contract.** Coach receives the user's NAMED roster (player name, position, team, age) plus `system_decision`, `windows.declared`, `starter_slots`, `format_rules`, `pricing`, `my_pick_schedule`. IDs alone produce hallucinations.
+- **LLM trade-pricing contract.** Every endpoint where the LLM might propose trades ships a `pricing` block with `pick_values` (KTC-anchored, format-multiplied) and `player_values` (FantasyCalc, normalized 0-100). `player_values_present: boolean` is the GUARD signal.
+
+### Roster + identity correctness
+
+- **Roster identity ground-truth verified.** `is_me` matches `roster.owner_id === mySleeperUserId`. During active drafts, `picks_made` is authoritative on which roster owns which players. `runRosterIdentityVerification` flags severe when the `is_me` roster has zero attributed picks while the draft has progressed. Hub defaults `?username=` from saved `profiles.sleeper_username` when missing; renders "Viewing {team}" banner on identity divergence.
+- **`roster.players` is empty during active drafts.** Mid-draft picks live in `/draft/{draft_id}/picks`. Filtering by `team != null` excludes pre-NFL-draft rookies entirely. Don't.
+- **Sleeper data gotchas** (full list above): co-owners, traded_picks, ADP variant keys, `nfl_state`, position casing.
+
+### UI + framing principles
+
+- **Confidence calibration patterns.** ContenderOutlook gates conclusive tier labels by anchor count. DecisionCard fill_starter_urgent uses warning tone, not danger. ADP-based copy is probabilistic (gap-graduated), not deterministic.
+- **Smooth curves, not breakpoints.** Age curves use Gaussian + sigmoid, not stepwise thresholds. Severity labels graduate with magnitude ("slightly past ideal" vs "well past ideal"), not binary fire-or-don't.
+- **Survival labels are unambiguous.** Use "Survival likely / coin flip / unlikely" with a percentage that the user can read as "X% chance survives." Avoid framings that read both directions ("Probably gone · 15%" reads as "15% chance gone").
+- **Per-team superlatives at most one badge per team** via min-margin checks. A "best at X" with no clear leader is noise.
+
+### SWOT framework (the analyst voice)
+
+- **Three voices per quadrant.** Statistician (counts, ranks, percentiles), Coach (roster construction, lineup math, starter-room health), Gambler (composite odds, market-implied risk). Voices CAN disagree on the same data.
+- **Rank-based, not absolute thresholds.** Clustered league data never crosses absolute cutoffs (myCount >= median + 2). Use top-3 / bottom-3 of 12 so meaningful relative ordering always surfaces.
+- **Force-fill: ≥3 items per quadrant.** If rule-based fires don't fill, surface next-tier candidates so briefings always have substance.
+- **Posture line anchored on composite rank** (contender / longshot / mid-pack), not whether any rule fired.
+
+### Personalization (Soundboard)
+
+- **Soundboard is additive, never a refactor.** Dial UI and storage SHIP without modifying engine consumers in the same commit. Engine wiring is a planned migration: hoist each consumer to read from JudgmentProfile, then deprecate standalone storage.
+- **Per-dial WHY notes are the live calibration signal.** Argue (mixer_feedback) is parked because dissent on a baseline weight is incoherent before the engine has one. Notes capture the user's stated reasoning for the position they took.
+- **Tooltip surface lists are truthful.** Each dial's tooltip lists ONLY actual engine touchpoints. If a dial isn't wired, badge it "Pending wiring." Never fictionalize.
+
+### Workflow rules
+
+- **Verify before patching.** State "the bug is X because Y" and verify Y at runtime BEFORE editing. Renaming a flag is not a fix. If Y can't be verified in 2 minutes, spawn `dynasty-bug-investigator`.
+- **Silent catches must log message + stack.** Wide-pipeline try/catch must log `err.message + err.stack`, not just a tag. Parse external blobs per-entry so one bad row doesn't poison a 5MB cache.
+- **`?diagnose=1` for hub error surface.** Append to a league hub URL to render captured silent-catch errors inline.
+- **Build clean before claiming a fix shipped.** `npm run build` zero warnings, `npm test` all suites green.
+- **For UI changes:** start the dev server and exercise the feature. Type checks are not feature checks.
+
+### Business model
+
+- **Volume gates over feature gates.** Pro tier is "I want to use it a lot," not "I want to unlock features." Free tier gets every killer feature with a daily cap. Per-feature gates only for persistence (cross-device, GDPR export).
+- **Intelligence-analyst positioning.** Insights arrive as briefings, not data dumps. User is the general; system is their analyst team. Founder advised generals/CEOs/Shark Tank investors; bake into product surfaces and marketing.
+
 ## Sleeper data shapes (the gotchas that bit us)
 
 These are not in the schemas. They are runtime quirks that have caused trust-breaking bugs.
