@@ -339,13 +339,17 @@ function CandidateCard({
   tone: { border: string; bg: string; accent: string };
 }) {
   const c = candidate;
+  // Survival label rephrased 2026-04-27: prior "Probably gone by next
+  // pick · 15%" was ambiguous: users read "15% chance gone" when the
+  // engine meant "15% chance survives." "Survival: 15%" with the
+  // class-specific qualifier removes that ambiguity.
   const survivalLabel =
     c.availability_next_pick === "likely_here"
-      ? "Likely here next pick"
+      ? "Survival likely"
       : c.availability_next_pick === "coin_flip"
-        ? "Coin flip at next pick"
+        ? "Survival coin flip"
         : c.availability_next_pick === "probably_gone"
-          ? "Probably gone by next pick"
+          ? "Survival unlikely"
           : null;
   const survivalTone =
     c.availability_next_pick === "probably_gone"
@@ -381,7 +385,7 @@ function CandidateCard({
             </span>
           )}
           {c.adp != null && (
-            <span title="Average Draft Position from Sleeper. The signal you see in Sleeper's UI. We surface it but trust KTC more for dynasty.">
+            <span title="Dynasty ADP from Sleeper's projections data, format-aware. May differ 10-20 picks from Sleeper's live draft-room display, which is computed differently. We trust KTC more for dynasty value.">
               ADP {Math.round(c.adp)}
             </span>
           )}

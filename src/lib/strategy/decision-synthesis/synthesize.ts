@@ -359,7 +359,13 @@ function availabilityThresholdsFor(slot: number): {
 } {
   if (slot <= 24) return { here: 3, gone: -1 }; // top of draft, tight
   if (slot <= 100) return { here: 5, gone: -2 }; // mid draft, baseline
-  return { here: 7, gone: -3 }; // deep, wider variance
+  // Deep draft (slot > 100) ADP variance is 5-8 picks per the
+  // dynasty-community SD estimate above. A player only 3 picks past
+  // ADP at round 15+ is normal noise, not "probably gone." Widening
+  // gone from -3 to -5 keeps the coin_flip band realistic for late
+  // rounds (Bug 2026-04-27: ADP -3 in round 15 was rendering a red
+  // 15% bar for what is in fact ~50/50).
+  return { here: 7, gone: -5 };
 }
 
 function availabilityAt(
@@ -806,11 +812,23 @@ function buildCandidates(
         `${p.name} is the ${positionLabelOrdinal} ${POSITION_LABEL[pos]} on the board (ADP ${Math.round(p.adp)}). He fell ${Math.round(gap)} picks past consensus, so the market reached past him; rare to grab this profile this late.`,
       ];
       if (sat.note) reasonParts.push(sat.note);
+      // SATURATION CAP (2026-04-27): a saturated position_steal cannot
+      // win the lean over a non-saturated earned_value candidate.
+      // Without this cap, a top-of-position TE steal scored 85 - 5 -
+      // 30 = 50 and beat earned_value WRs at index 3+ (45 - 4.5 =
+      // 40.5), pushing the engine to recommend a 3rd TE in a
+      // 1-hard-TE format with the user's WR depth gap unfilled.
+      // Mirrors the earned_value sat-gate in fb61c39.
+      const baseScore = 85 - positionRank * 5;
+      const stealScore =
+        sat.penalty >= 30
+          ? Math.min(baseScore - sat.penalty, 40 - positionRank * 2)
+          : baseScore - sat.penalty;
       push({
         player: p,
         position: pos,
         rule: "position_steal",
-        score: 85 - positionRank * 5 - sat.penalty,
+        score: stealScore,
         primary_reason: reasonParts.join(" "),
       });
     }

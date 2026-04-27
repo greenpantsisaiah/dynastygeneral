@@ -360,6 +360,16 @@ export function StrategicForks({
 
     if (paths.length > 0) {
       for (const r of paths) {
+        // EXECUTING-PHASE GATE (2026-04-27): mirrors the suppression
+        // already applied in decision-synthesis/synthesize.ts:731. A
+        // path whose primary position is saturated (`phase ===
+        // "executing"`) is finished acquiring; surfacing it as a fork
+        // contradicts the architecture pillar that EXECUTING means
+        // "stop acquiring at this position." Without this gate, the
+        // user saw "PUSH BALANCED · TE Tandem · EXECUTING · drifting
+        // 100% toward this path" promoting a path the engine
+        // explicitly classified as completed.
+        if (r.phase === "executing") continue;
         // KTC re-rank applies to path candidates too, otherwise the
         // primary in a path fork can disagree with the same player's
         // ordering in starter-need/depth at the same position.
@@ -781,7 +791,7 @@ function ForkCard({ fork }: { fork: Fork }) {
           {primary.adp != null && (
             <span
               className="font-mono text-[10px] text-muted-2"
-              title={`Sleeper ADP for this league format. lower = drafted earlier`}
+              title={`Dynasty ADP from Sleeper's projections data, format-aware. May differ 10-20 picks from Sleeper's live draft-room display.`}
             >
               ADP {fmtAdp(primary.adp)}
             </span>
