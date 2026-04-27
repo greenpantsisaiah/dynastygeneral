@@ -261,6 +261,15 @@ export function CoachChat({
       };
       const updated = [...history, newUserMsg].slice(-MAX_HISTORY);
       writeHistory(leagueId, updated);
+      // Optimistic clear so the user sees their message land in the
+      // history; we restore the draft if anything fails (auth, rate
+      // limit, network) so they don't lose their typed prompt across
+      // a sign-in roundtrip. Founder mobile bug 2026-04-26: typed a
+      // long question, got bounced to /login, came back to empty
+      // input. Question text is the user's WORK; never lose it.
+      const restoreDraft = () => {
+        setDraft(message);
+      };
       setDraft("");
       setPending(true);
       try {
@@ -283,8 +292,8 @@ export function CoachChat({
         const reason = await readPaywallReason(res);
         if (reason) {
           setPaywall({ ...reason, nextPath: window.location.pathname });
-          // Roll back the optimistic user message we just wrote
           writeHistory(leagueId, history);
+          restoreDraft();
           return;
         }
         if (!res.ok) {
@@ -302,10 +311,15 @@ export function CoachChat({
                 dayPassAvailable: Boolean(body.day_pass_available),
               });
               writeHistory(leagueId, history);
+              restoreDraft();
               return;
             }
+            writeHistory(leagueId, history);
+            restoreDraft();
             throw new Error("Too many requests. Wait a moment and try again.");
           }
+          writeHistory(leagueId, history);
+          restoreDraft();
           throw new Error("Something went wrong. Refresh and try again.");
         }
         const data = (await res.json()) as { reply: string };
@@ -316,6 +330,9 @@ export function CoachChat({
         };
         writeHistory(leagueId, [...updated, reply].slice(-MAX_HISTORY));
       } catch (err) {
+        // Network / unexpected error path. Idempotent if already
+        // restored above. The user's question text is their WORK.
+        restoreDraft();
         setError(err instanceof Error ? err.message : String(err));
       } finally {
         setPending(false);
