@@ -334,7 +334,16 @@ export default async function LeagueHubPage({
         const valueIds: string[] = [];
         const me = snapshot.rosters.find((r) => r.is_me);
         if (me) for (const id of me.player_ids) valueIds.push(id);
-        for (const p of availablePlayers.slice(0, 100)) valueIds.push(p.id);
+        // Look up KTC values for the FULL available pool, not just the
+        // top 100 by dynasty_rank. The 100-cap meant any consensus-tier
+        // player whose Sleeper search_rank put him outside the top 100
+        // (Khalil Shakir, deep-tier WRs/RBs) never received a tier-1
+        // KTC ranking and got buried below worse-by-consensus tier-1
+        // KTC players in the rerank cascade. Shakir incident,
+        // 2026-04-26: invisible to Decision card despite real WR need.
+        // FantasyCalc resolver hits a single cached map; expanding the
+        // ID list is O(n) lookups, not extra network.
+        for (const p of availablePlayers) valueIds.push(p.id);
         const { resolvePlayerValues } = await import(
           "@/lib/players/values"
         );

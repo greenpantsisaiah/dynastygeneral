@@ -363,7 +363,43 @@ export async function POST(
   const opponents = buildOpponentReadout(snapshot);
   const windows = computeWindows(snapshot);
   const pickApproach = buildPickApproach(snapshot, ranked);
-  const available = await getAvailableForRequest(snapshot).catch(() => []);
+  let available = await getAvailableForRequest(snapshot).catch(() => []);
+
+  // Mirror the hub's value-resolve + rerank pipeline so coach's
+  // synthesized system_decision uses the same canonical pool ordering
+  // the Decision card uses. Without this, coach reasons against a
+  // dynasty_rank-sorted pool while the user sees a KTC-sorted one,
+  // and "the system says X" diverges between surfaces. Single
+  // FantasyCalc fetch is cached, so the cost is in-memory lookups.
+  let coachPlayerValues: Record<string, number> | undefined;
+  let coachKtcOverallRanks: Record<string, number> | undefined;
+  try {
+    const valueIds: string[] = [];
+    const me = snapshot.rosters.find((r) => r.is_me);
+    if (me) for (const id of me.player_ids) valueIds.push(id);
+    for (const p of available) valueIds.push(p.id);
+    const { resolvePlayerValues } = await import("@/lib/players/values");
+    const valueMap = await resolvePlayerValues({
+      ids: valueIds,
+      isSuperflex:
+        snapshot.format === "superflex" || snapshot.format === "2qb",
+      isPpr: snapshot.scoring.includes("PPR"),
+      isHalfPpr: snapshot.scoring.includes("half-PPR"),
+      isTePremium: snapshot.scoring.includes("TE-premium"),
+    });
+    const values: Record<string, number> = {};
+    const ranks: Record<string, number> = {};
+    for (const [id, v] of valueMap.entries()) {
+      values[id] = v.value;
+      if (typeof v.overall_rank === "number") ranks[id] = v.overall_rank;
+    }
+    coachPlayerValues = values;
+    coachKtcOverallRanks = ranks;
+    const { rerankByConsensus } = await import("@/lib/players/rerank");
+    available = rerankByConsensus(available, values);
+  } catch (err) {
+    console.error("[coach:rerank-available]", err);
+  }
 
   // Read declared window from the mirror cookie so coach sees the same
   // window constraint the Decision card applied. Null if not declared.
@@ -385,6 +421,8 @@ export async function POST(
         windows,
         picks_until_me: pickApproach?.picks_until_me ?? 0,
         declared_window: declaredWindow,
+        player_values: coachPlayerValues,
+        ktc_overall_ranks: coachKtcOverallRanks,
       });
     }
   } catch (err) {
