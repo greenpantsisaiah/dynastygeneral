@@ -208,9 +208,13 @@ function positionSaturationModifier(
       note: `${POSITION_LABEL[pos]} is 2+ over realistic starter use (would be ${have + 1} after; this format typically starts ~${realisticMax}). Pure trade asset, unlikely to crack lineup.`,
     };
   }
-  // surplusAfter === 1
+  // surplusAfter === 1. Penalty matches surplusAfter >= 2 because TE3
+  // / RB4 / WR4 in standard PPR is functionally trade-bait depth, not
+  // a credible starter (Mason Taylor TE3 incident, 2026-04-26: prior
+  // 18-point penalty was cancelled by a +12 ADP-gap bonus, leaving
+  // saturated TE alive in earned_value over real WR need).
   return {
-    penalty: 18,
+    penalty: 30,
     note: `${POSITION_LABEL[pos]} would exceed realistic starter use (would be ${have + 1} after; this format typically starts ~${realisticMax}). Depth pick, low chance of starting.`,
   };
 }
@@ -802,12 +806,25 @@ function buildCandidates(
   // HARD slot holes; this rule covers flex-eligible position fit.
   // Without it, a TE at top-of-pool KTC value won the lean for a user
   // already 2-deep at TE in a 1-hard-TE PPR SF league.
-  for (let i = 0; i < Math.min(available.length, 8); i++) {
+  // Window widened from 8 to 15 (2026-04-26): WRs with weaker Sleeper
+  // search_rank but real KTC value (Khalil Shakir incident) fell
+  // outside the top-8 dynasty_rank window and never entered scoring,
+  // leaving the user with TE-heavy candidates despite a clear WR hole.
+  // Score decay (45 - i * 1.5) keeps top-of-pool advantage intact.
+  for (let i = 0; i < Math.min(available.length, 15); i++) {
     const p = available[i];
     const pos = normalizePos(p.position);
     if (!pos) continue;
     const sat = positionSaturationModifier(snap, pos);
-    const adpGap = adpGapModifier(p.adp, currentPickNo);
+    // ADP-gap bonus is gated on position fit. A saturated position
+    // (TE3, RB4) shouldn't earn a "market discount" bonus, because the
+    // discount only matters if the player can crack your lineup. Bug
+    // 2026-04-26: Mason Taylor TE3 ADP +32 cancelled an 18-point sat
+    // penalty and won the lean despite the founder having a real WR
+    // hole and the engine's own guards firing on the TE pick.
+    const adpGap = sat.penalty > 0
+      ? { adjustment: 0, note: null }
+      : adpGapModifier(p.adp, currentPickNo);
     const reasonParts = [
       `Dynasty value on the board (${p.name}, rank #${p.search_rank}).`,
     ];
