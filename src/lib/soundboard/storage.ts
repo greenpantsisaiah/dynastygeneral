@@ -15,6 +15,7 @@ import {
   DIAL_SPECS,
   defaultProfile,
   type DialId,
+  type DialValue,
   type JudgmentProfile,
 } from "./types";
 
@@ -37,21 +38,34 @@ function sanitizeNotes(
   return out;
 }
 
+// Permissive coerce on read: persisted values may pre-date a dial type
+// change. Drop anything obviously wrong; defaults fill the gap.
+function coerceDialValue(raw: unknown): DialValue | undefined {
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) {
+    if (raw.length === 2 && raw.every((n) => typeof n === "number")) {
+      return raw as [number, number];
+    }
+    if (raw.every((s) => typeof s === "string")) {
+      return raw as string[];
+    }
+  }
+  return undefined;
+}
+
 function safeParseProfile(raw: string | undefined): JudgmentProfile | null {
   if (!raw) return null;
   try {
     const obj = JSON.parse(decodeURIComponent(raw));
     if (!obj || typeof obj !== "object") return null;
-    const dials = (obj.dials ?? {}) as Record<string, number | string>;
-    // Sanity: drop any keys that aren't known dial IDs, fill missing
-    // ones from defaults. This way an old cookie surviving a dial
-    // rename doesn't poison the profile shape.
+    const dials = (obj.dials ?? {}) as Record<string, unknown>;
     const validIds = new Set<DialId>(DIAL_SPECS.map((s) => s.id));
     const merged = defaultProfile();
     for (const [k, v] of Object.entries(dials)) {
-      if (validIds.has(k as DialId)) {
-        merged.dials[k as DialId] = v;
-      }
+      if (!validIds.has(k as DialId)) continue;
+      const coerced = coerceDialValue(v);
+      if (coerced !== undefined) merged.dials[k as DialId] = coerced;
     }
     merged.notes = sanitizeNotes(obj.notes, validIds);
     merged.last_edited_at =
@@ -83,12 +97,12 @@ export async function readProfileServer(): Promise<JudgmentProfile> {
       .maybeSingle();
     if (!data) return defaultProfile();
     const merged = defaultProfile();
-    const incoming = (data.dials as Record<string, number | string>) ?? {};
+    const incoming = (data.dials as Record<string, unknown>) ?? {};
     const validIds = new Set<DialId>(DIAL_SPECS.map((s) => s.id));
     for (const [k, v] of Object.entries(incoming)) {
-      if (validIds.has(k as DialId)) {
-        merged.dials[k as DialId] = v;
-      }
+      if (!validIds.has(k as DialId)) continue;
+      const coerced = coerceDialValue(v);
+      if (coerced !== undefined) merged.dials[k as DialId] = coerced;
     }
     merged.notes = sanitizeNotes(data.notes, validIds);
     merged.last_edited_at =

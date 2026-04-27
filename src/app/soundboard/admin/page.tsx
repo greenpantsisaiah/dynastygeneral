@@ -38,10 +38,24 @@ type SuggestionRow = {
 
 type ProfileRow = {
   user_id: string;
-  dials: Record<string, number | string> | null;
+  dials: Record<string, unknown> | null;
   notes: Record<string, string> | null;
   last_edited_at: string | null;
 };
+
+function formatDialValue(v: unknown): string {
+  if (typeof v === "number") return v > 0 ? `+${v}` : String(v);
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    if (v.length === 2 && v.every((n) => typeof n === "number")) {
+      return `${v[0]}-${v[1]}`;
+    }
+    if (v.every((s) => typeof s === "string")) {
+      return v.length === 0 ? "(none)" : v.join(", ");
+    }
+  }
+  return String(v);
+}
 
 export default async function SoundboardAdminPage() {
   const admin = await getAdminUser();
@@ -153,7 +167,7 @@ export default async function SoundboardAdminPage() {
                                   `Unknown: ${dialId}`}
                                 {value !== undefined && (
                                   <span className="ml-2 text-muted-2">
-                                    = {String(value)}
+                                    = {formatDialValue(value)}
                                   </span>
                                 )}
                               </span>

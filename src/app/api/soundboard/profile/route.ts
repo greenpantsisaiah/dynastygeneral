@@ -3,6 +3,12 @@
  *
  * GET  returns the current profile (defaults filled).
  * POST upserts the dial values and writes to cookie + DB.
+ *
+ * Dial value types are axis-driven: linear -> number, select/seg* ->
+ * string (must be a declared option), range -> [number,number] within
+ * declared bounds, multi -> string[] of declared options. Anything
+ * shape-violating is silently dropped so a stale UI client can't
+ * poison the persisted shape.
  */
 
 import { NextResponse } from "next/server";
@@ -15,16 +21,21 @@ import {
   DIAL_NOTE_MAX_LENGTH,
   DIAL_SPECS,
   type DialId,
+  type DialValue,
 } from "@/lib/soundboard/types";
 
 export const runtime = "nodejs";
 
 const dialIds: DialId[] = DIAL_SPECS.map((s) => s.id);
 
-const dialsSchema = z.record(
+const dialValueSchema = z.union([
+  z.number(),
   z.string(),
-  z.union([z.number(), z.string()]),
-);
+  z.tuple([z.number(), z.number()]),
+  z.array(z.string()),
+]);
+
+const dialsSchema = z.record(z.string(), dialValueSchema);
 
 const notesSchema = z.record(z.string(), z.string());
 
@@ -52,27 +63,16 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  // Filter to known dial ids; reject silently if extras snuck through.
-  // Range-clamp linear dials to -100..+100; coerce select values to
-  // their declared option set.
-  const cleanDials: Record<string, number | string> = {};
+  const cleanDials: Record<string, DialValue> = {};
   const knownIds = new Set<DialId>(dialIds);
   for (const [k, v] of Object.entries(parsed.data.dials)) {
     if (!knownIds.has(k as DialId)) continue;
     const spec = DIAL_SPECS.find((s) => s.id === (k as DialId));
     if (!spec) continue;
-    if (spec.axis.kind === "linear") {
-      const n = typeof v === "number" ? v : Number(v);
-      if (!Number.isFinite(n)) continue;
-      cleanDials[k] = Math.max(-100, Math.min(100, Math.round(n)));
-    } else {
-      const s = String(v);
-      const valid = spec.axis.options.some((o) => o.value === s);
-      if (!valid) continue;
-      cleanDials[k] = s;
-    }
+    const cleaned = sanitizeDialValue(spec.axis, v);
+    if (cleaned !== undefined) cleanDials[k] = cleaned;
   }
-  // Notes: trim, length-cap, drop unknown dial ids and empty strings.
+
   const cleanNotes: Partial<Record<DialId, string>> = {};
   if (parsed.data.notes) {
     for (const [k, v] of Object.entries(parsed.data.notes)) {
@@ -87,13 +87,47 @@ export async function POST(req: Request) {
   for (const [k, v] of Object.entries(cleanDials)) {
     profile.dials[k as DialId] = v;
   }
-  // Replace notes wholesale on save: an empty body means the user
-  // cleared all notes. Sending a partial map merges by key (keys
-  // present in the body win; absent keys retain prior value).
   if (parsed.data.notes !== undefined) {
     profile.notes = cleanNotes;
   }
   profile.last_edited_at = new Date().toISOString();
   await writeProfileServer(profile);
   return NextResponse.json({ ok: true, profile });
+}
+
+function sanitizeDialValue(
+  axis: (typeof DIAL_SPECS)[number]["axis"],
+  raw: unknown,
+): DialValue | undefined {
+  switch (axis.kind) {
+    case "linear": {
+      const n = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(n)) return undefined;
+      return Math.max(-100, Math.min(100, Math.round(n)));
+    }
+    case "select":
+    case "seg3":
+    case "seg5": {
+      const s = String(raw);
+      return axis.options.some((o) => o.value === s) ? s : undefined;
+    }
+    case "range": {
+      if (!Array.isArray(raw) || raw.length !== 2) return undefined;
+      const [a, b] = raw.map((n) => (typeof n === "number" ? n : Number(n)));
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return undefined;
+      const lo = Math.max(axis.min, Math.min(axis.max, Math.round(Math.min(a, b))));
+      const hi = Math.max(axis.min, Math.min(axis.max, Math.round(Math.max(a, b))));
+      if (lo === hi) return undefined;
+      return [lo, hi];
+    }
+    case "multi": {
+      if (!Array.isArray(raw)) return undefined;
+      const valid = new Set(axis.options.map((o) => o.value));
+      const dedup = new Set<string>();
+      for (const item of raw) {
+        if (typeof item === "string" && valid.has(item)) dedup.add(item);
+      }
+      return Array.from(dedup);
+    }
+  }
 }

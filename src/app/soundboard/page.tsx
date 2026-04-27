@@ -9,7 +9,7 @@ import { readProfileServer } from "@/lib/soundboard/storage";
 export const metadata: Metadata = {
   title: "Soundboard",
   description:
-    "Shape the engine. Tune dials for horizon, rookie tilt, risk tolerance, trade aggression, position bias, and roster age preference. Add a one-line WHY when you move a dial so the founder sees your reasoning.",
+    "Tune your doctrine. 16 dials shape the engine across timeline, risk, trade behavior, market alignment, and voice. Load a stock preset or build your own. The doctrine readout synthesizes your settings into one line.",
   robots: { index: false, follow: false },
 };
 
@@ -22,18 +22,17 @@ export default async function SoundboardPage() {
       <SiteNav />
       <main className="flex-1 bg-background">
         <section className="border-b border-border-soft">
-          <div className="mx-auto max-w-3xl px-6 py-12">
-            <Ticker label="Soundboard · shape the engine" />
+          <div className="mx-auto max-w-6xl px-6 py-12">
+            <Ticker label="War Room · doctrine soundboard" />
             <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
               Soundboard
             </h1>
             <p className="mt-3 max-w-2xl text-muted">
-              The dials below are the engine&rsquo;s judgment surface.
-              Each one tells you exactly what it consults. When you move
-              a dial off default, drop a one-line WHY so the founder can
-              see your reasoning. Today the dials store; engine wiring
-              lands in a guided migration so we don&rsquo;t break what
-              works.
+              Sixteen dials. Each one is a real lever the engine
+              consults; click ? on any tile to see exactly what it
+              touches. Load a preset or tune your own. Move a dial off
+              default and drop a one-line WHY so we know your reasoning.
+              The doctrine strip synthesizes everything into one line.
             </p>
             <div className="mt-3 flex flex-wrap gap-3 text-xs">
               <span className="rounded-md border border-warning/40 bg-warning/10 px-3 py-1 font-mono uppercase tracking-[0.14em] text-warning">

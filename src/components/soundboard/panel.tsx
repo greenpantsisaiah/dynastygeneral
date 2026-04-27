@@ -1,29 +1,36 @@
 "use client";
 
 /**
- * Soundboard panel. Composes:
- *   - one SoundboardDial per spec in DIAL_SPECS
- *   - the SuggestForm at the bottom
+ * War Room Console: 4-column dial grid with a preset bar above and the
+ * Doctrine readout strip below. Click any preset to load a stock dial
+ * config; tune from there. Custom lights when no stock matches.
  *
- * Reads the initial JudgmentProfile from props (server-rendered);
- * tracks local state for the slider/select interactions plus the
- * per-dial "Why?" notes, and POSTs to /api/soundboard/profile on save.
- * Optimistic UX: dial moves are instant; save is explicit so we don't
- * spam the API on every drag.
+ * Save persists dial values + notes to cookie + DB. Optimistic UX:
+ * dial moves are instant; save is explicit so we don't spam the API
+ * on every adjustment.
  *
- * Argue is parked: dissent on a dial-baseline weight is only coherent
- * once engine wiring exists. Today the dial movement IS the user's
+ * Argue is parked: dissent on a dial baseline is only coherent once
+ * engine wiring exists. Today the dial movement IS the user's
  * position; the inline "Why?" captures their reasoning.
  */
 
 import { useState } from "react";
 import { SoundboardDial } from "./dial";
 import { SuggestForm } from "./suggest-form";
+import { PresetBar } from "./preset-bar";
+import { DoctrineStrip } from "./doctrine-strip";
 import {
   DIAL_SPECS,
   type DialId,
+  type DialValue,
   type JudgmentProfile,
 } from "@/lib/soundboard/types";
+import {
+  PRESET_BY_ID,
+  detectActivePreset,
+  type PresetId,
+} from "@/lib/soundboard/presets";
+import { deriveDoctrine } from "@/lib/soundboard/doctrine";
 
 export function SoundboardPanel({
   initialProfile,
@@ -40,7 +47,10 @@ export function SoundboardPanel({
   );
   const [error, setError] = useState<string | null>(null);
 
-  function setDialValue(id: DialId, value: number | string) {
+  const activePresetId = detectActivePreset(dials);
+  const doctrine = deriveDoctrine(dials);
+
+  function setDialValue(id: DialId, value: DialValue) {
     setDials((prev) => ({ ...prev, [id]: value }));
   }
 
@@ -48,10 +58,21 @@ export function SoundboardPanel({
     setNotes((prev) => ({ ...prev, [id]: value }));
   }
 
+  function loadPreset(id: PresetId) {
+    const preset = PRESET_BY_ID.get(id);
+    if (!preset) return;
+    setDials((prev) => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(preset.values)) {
+        next[k as DialId] = v as DialValue;
+      }
+      return next;
+    });
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
-    // Strip empty notes before posting; only meaningful WHYs go to DB.
     const cleanNotes: Record<string, string> = {};
     for (const [k, v] of Object.entries(notes)) {
       const trimmed = (v ?? "").trim();
@@ -82,7 +103,12 @@ export function SoundboardPanel({
 
   return (
     <>
-      <div className="space-y-3">
+      <PresetBar
+        active={activePresetId ?? "custom"}
+        onLoad={(id) => loadPreset(id)}
+      />
+
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {DIAL_SPECS.map((spec) => (
           <SoundboardDial
             key={spec.id}
@@ -93,6 +119,14 @@ export function SoundboardPanel({
             onNoteChange={(v) => setDialNote(spec.id, v)}
           />
         ))}
+      </div>
+
+      <div className="mt-4">
+        <DoctrineStrip
+          doctrine={doctrine}
+          totalDials={DIAL_SPECS.length}
+          lastEdited={savedAt}
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-strong bg-surface px-5 py-3">
@@ -113,7 +147,7 @@ export function SoundboardPanel({
             disabled={saving}
             className="rounded-md bg-accent px-4 py-2 font-mono text-xs font-semibold uppercase tracking-[0.14em] text-black transition hover:brightness-110 disabled:opacity-60"
           >
-            {saving ? "Saving..." : "Save profile"}
+            {saving ? "Saving..." : "Save doctrine"}
           </button>
         </div>
       </div>
