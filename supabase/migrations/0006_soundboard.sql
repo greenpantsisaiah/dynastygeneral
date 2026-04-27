@@ -31,7 +31,7 @@ create table if not exists public.judgment_profiles (
 drop trigger if exists set_judgment_profiles_updated_at on public.judgment_profiles;
 create trigger set_judgment_profiles_updated_at
   before update on public.judgment_profiles
-  for each row execute function public.set_updated_at();
+  for each row execute function public.tg_set_updated_at();
 
 alter table public.judgment_profiles enable row level security;
 
