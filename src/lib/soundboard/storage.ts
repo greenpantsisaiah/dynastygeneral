@@ -11,6 +11,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import {
+  DIAL_NOTE_MAX_LENGTH,
   DIAL_SPECS,
   defaultProfile,
   type DialId,
@@ -19,6 +20,22 @@ import {
 
 const COOKIE_NAME = "dg_judgment";
 const COOKIE_MAX_AGE_S = 60 * 60 * 24 * 180; // 180 days
+
+function sanitizeNotes(
+  raw: unknown,
+  validIds: Set<DialId>,
+): Partial<Record<DialId, string>> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Partial<Record<DialId, string>> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!validIds.has(k as DialId)) continue;
+    if (typeof v !== "string") continue;
+    const trimmed = v.trim();
+    if (!trimmed) continue;
+    out[k as DialId] = trimmed.slice(0, DIAL_NOTE_MAX_LENGTH);
+  }
+  return out;
+}
 
 function safeParseProfile(raw: string | undefined): JudgmentProfile | null {
   if (!raw) return null;
@@ -36,6 +53,7 @@ function safeParseProfile(raw: string | undefined): JudgmentProfile | null {
         merged.dials[k as DialId] = v;
       }
     }
+    merged.notes = sanitizeNotes(obj.notes, validIds);
     merged.last_edited_at =
       typeof obj.last_edited_at === "string" ? obj.last_edited_at : null;
     return merged;
@@ -60,7 +78,7 @@ export async function readProfileServer(): Promise<JudgmentProfile> {
     if (!auth.user) return defaultProfile();
     const { data } = await supabase
       .from("judgment_profiles")
-      .select("dials, last_edited_at")
+      .select("dials, notes, last_edited_at")
       .eq("user_id", auth.user.id)
       .maybeSingle();
     if (!data) return defaultProfile();
@@ -72,6 +90,7 @@ export async function readProfileServer(): Promise<JudgmentProfile> {
         merged.dials[k as DialId] = v;
       }
     }
+    merged.notes = sanitizeNotes(data.notes, validIds);
     merged.last_edited_at =
       (data.last_edited_at as string | null) ?? null;
     return merged;
@@ -102,6 +121,7 @@ export async function writeProfileServer(
     await supabase.from("judgment_profiles").upsert({
       user_id: auth.user.id,
       dials: profile.dials,
+      notes: profile.notes,
       last_edited_at: profile.last_edited_at,
     });
   } catch (err) {

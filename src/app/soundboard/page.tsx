@@ -9,7 +9,7 @@ import { readProfileServer } from "@/lib/soundboard/storage";
 export const metadata: Metadata = {
   title: "Soundboard",
   description:
-    "Shape the engine. Tune dials for horizon, rookie tilt, risk tolerance, trade aggression, position bias, and roster age preference. Argue with any dial that doesn't match your judgment.",
+    "Shape the engine. Tune dials for horizon, rookie tilt, risk tolerance, trade aggression, position bias, and roster age preference. Add a one-line WHY when you move a dial so the founder sees your reasoning.",
   robots: { index: false, follow: false },
 };
 
@@ -29,10 +29,11 @@ export default async function SoundboardPage() {
             </h1>
             <p className="mt-3 max-w-2xl text-muted">
               The dials below are the engine&rsquo;s judgment surface.
-              Each one tells you exactly what it consults, and lets you
-              argue when the weighting feels wrong. Suggestions go to
-              the founder. Today the dials store; engine wiring lands in
-              a guided migration so we don&rsquo;t break what works.
+              Each one tells you exactly what it consults. When you move
+              a dial off default, drop a one-line WHY so the founder can
+              see your reasoning. Today the dials store; engine wiring
+              lands in a guided migration so we don&rsquo;t break what
+              works.
             </p>
             <div className="mt-3 flex flex-wrap gap-3 text-xs">
               <span className="rounded-md border border-warning/40 bg-warning/10 px-3 py-1 font-mono uppercase tracking-[0.14em] text-warning">

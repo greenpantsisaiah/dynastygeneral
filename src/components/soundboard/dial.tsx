@@ -8,7 +8,9 @@
  *   - the slider/select control
  *   - a numeric or label readout of the current value
  *   - a "what does this do" tooltip listing the truthful surface
- *   - an "argue" link that opens the argue modal at this dial
+ *   - an inline "Why?" field that appears when the dial value differs
+ *     from default. Captures judgment provenance, not adversarial
+ *     feedback. Argue is parked until engine wiring lands.
  *   - a "wired/pending" badge if the dial is stored but not yet wired
  *
  * Per the moat strategy: never fictionalize the surface list. The
@@ -17,20 +19,23 @@
  */
 
 import { useState } from "react";
-import type { DialSpec } from "@/lib/soundboard/types";
+import { DIAL_NOTE_MAX_LENGTH, type DialSpec } from "@/lib/soundboard/types";
 
 export function SoundboardDial({
   spec,
   value,
+  note,
   onChange,
-  onArgue,
+  onNoteChange,
 }: {
   spec: DialSpec;
   value: number | string;
+  note: string;
   onChange: (v: number | string) => void;
-  onArgue: (dialId: string) => void;
+  onNoteChange: (v: string) => void;
 }) {
   const [showSurface, setShowSurface] = useState(false);
+  const isMoved = value !== spec.default;
 
   return (
     <div className="rounded-lg border border-border-strong bg-surface px-5 py-4">
@@ -59,13 +64,6 @@ export function SoundboardDial({
           >
             {showSurface ? "Hide" : "What it does"}
           </button>
-          <button
-            type="button"
-            onClick={() => onArgue(spec.id)}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-warning"
-          >
-            Argue
-          </button>
         </div>
       </div>
 
@@ -85,6 +83,25 @@ export function SoundboardDial({
           />
         )}
       </div>
+
+      {/* Why? field, only when the user has moved the dial off default */}
+      {isMoved && (
+        <div className="mt-3">
+          <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+            Why? (optional, founder reviews)
+          </label>
+          <input
+            type="text"
+            value={note}
+            onChange={(e) =>
+              onNoteChange(e.target.value.slice(0, DIAL_NOTE_MAX_LENGTH))
+            }
+            placeholder="e.g. just acquired Bijan, leaning 2027-28"
+            maxLength={DIAL_NOTE_MAX_LENGTH}
+            className="mt-1 w-full rounded-md border border-border-soft bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+        </div>
+      )}
 
       {/* Surface list (truthful) */}
       {showSurface && (

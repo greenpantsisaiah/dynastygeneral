@@ -141,10 +141,16 @@ export type JudgmentProfile = {
   // Map of dial id to current value. Linear dials use number;
   // select dials use string. Defaults applied when missing.
   dials: Record<DialId, number | string>;
+  // Per-dial WHY captured when the user moves a dial off default.
+  // The dial movement is the position; the note is the stated
+  // reasoning. Surfaces to admin as the calibration signal.
+  notes: Partial<Record<DialId, string>>;
   // Optional metadata. last_edited_at distinguishes "never touched"
   // (still showing defaults) from "actively zeroed out" by a user.
   last_edited_at: string | null;
 };
+
+export const DIAL_NOTE_MAX_LENGTH = 500;
 
 export function defaultProfile(): JudgmentProfile {
   const dials: Record<string, number | string> = {};
@@ -153,6 +159,7 @@ export function defaultProfile(): JudgmentProfile {
   }
   return {
     dials: dials as JudgmentProfile["dials"],
+    notes: {},
     last_edited_at: null,
   };
 }

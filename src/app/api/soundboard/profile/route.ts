@@ -11,7 +11,11 @@ import {
   readProfileServer,
   writeProfileServer,
 } from "@/lib/soundboard/storage";
-import { DIAL_SPECS, type DialId } from "@/lib/soundboard/types";
+import {
+  DIAL_NOTE_MAX_LENGTH,
+  DIAL_SPECS,
+  type DialId,
+} from "@/lib/soundboard/types";
 
 export const runtime = "nodejs";
 
@@ -22,8 +26,11 @@ const dialsSchema = z.record(
   z.union([z.number(), z.string()]),
 );
 
+const notesSchema = z.record(z.string(), z.string());
+
 const bodySchema = z.object({
   dials: dialsSchema,
+  notes: notesSchema.optional(),
 });
 
 export async function GET() {
@@ -65,9 +72,26 @@ export async function POST(req: Request) {
       cleanDials[k] = s;
     }
   }
+  // Notes: trim, length-cap, drop unknown dial ids and empty strings.
+  const cleanNotes: Partial<Record<DialId, string>> = {};
+  if (parsed.data.notes) {
+    for (const [k, v] of Object.entries(parsed.data.notes)) {
+      if (!knownIds.has(k as DialId)) continue;
+      const trimmed = v.trim();
+      if (!trimmed) continue;
+      cleanNotes[k as DialId] = trimmed.slice(0, DIAL_NOTE_MAX_LENGTH);
+    }
+  }
+
   const profile = await readProfileServer();
   for (const [k, v] of Object.entries(cleanDials)) {
     profile.dials[k as DialId] = v;
+  }
+  // Replace notes wholesale on save: an empty body means the user
+  // cleared all notes. Sending a partial map merges by key (keys
+  // present in the body win; absent keys retain prior value).
+  if (parsed.data.notes !== undefined) {
+    profile.notes = cleanNotes;
   }
   profile.last_edited_at = new Date().toISOString();
   await writeProfileServer(profile);

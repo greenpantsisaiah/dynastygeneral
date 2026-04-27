@@ -36,27 +36,46 @@ type SuggestionRow = {
   created_at: string;
 };
 
+type ProfileRow = {
+  user_id: string;
+  dials: Record<string, number | string> | null;
+  notes: Record<string, string> | null;
+  last_edited_at: string | null;
+};
+
 export default async function SoundboardAdminPage() {
   const admin = await getAdminUser();
   if (!admin) redirect("/login?next=/soundboard/admin");
 
   // Service-role read so RLS doesn't filter to admin's own rows.
   const supabase = getAdminClient();
-  const [{ data: feedback }, { data: suggestions }] = await Promise.all([
-    supabase
-      .from("mixer_feedback")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabase
-      .from("mixer_suggestions")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200),
-  ]);
+  const [{ data: feedback }, { data: suggestions }, { data: profiles }] =
+    await Promise.all([
+      supabase
+        .from("mixer_feedback")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabase
+        .from("mixer_suggestions")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabase
+        .from("judgment_profiles")
+        .select("user_id, dials, notes, last_edited_at")
+        .not("last_edited_at", "is", null)
+        .order("last_edited_at", { ascending: false })
+        .limit(100),
+    ]);
 
   const feedbackRows = (feedback ?? []) as FeedbackRow[];
   const suggestionRows = (suggestions ?? []) as SuggestionRow[];
+  const profileRows = (profiles ?? []) as ProfileRow[];
+  // Profiles with at least one note are the calibration signal.
+  const profilesWithNotes = profileRows.filter(
+    (p) => p.notes && Object.values(p.notes).some((n) => (n ?? "").trim()),
+  );
   const feedbackByDial = new Map<string, FeedbackRow[]>();
   for (const row of feedbackRows) {
     const list = feedbackByDial.get(row.dial_id) ?? [];
@@ -76,30 +95,85 @@ export default async function SoundboardAdminPage() {
               Soundboard feedback
             </h1>
             <p className="mt-3 text-sm text-muted">
-              Every &ldquo;argue&rdquo; submission and dial suggestion lands
-              here. Use to drive calibration updates. When you ship one
-              prompted by feedback, notify the user (manual for now).
+              Per-dial WHY notes, suggestions, and parked argument
+              submissions land here. Notes are the live calibration
+              signal; arguments are parked until engine wiring lands.
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <Stat label="Arguments (lifetime)" value={feedbackRows.length} />
+              <Stat
+                label="Profiles with notes"
+                value={profilesWithNotes.length}
+              />
               <Stat
                 label="Suggestions (lifetime)"
                 value={suggestionRows.length}
               />
               <Stat
-                label="Distinct dials argued"
-                value={feedbackByDial.size}
+                label="Arguments (parked)"
+                value={feedbackRows.length}
               />
             </div>
 
             <h2 className="mt-10 font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
-              Arguments by dial
+              Recent dial notes
+            </h2>
+            {profilesWithNotes.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">
+                No notes yet. Move a dial from /soundboard and add a one-line WHY to verify the queue.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {profilesWithNotes.map((p) => {
+                  const noteEntries = Object.entries(p.notes ?? {}).filter(
+                    ([, v]) => (v ?? "").trim(),
+                  );
+                  return (
+                    <div
+                      key={p.user_id}
+                      className="rounded-lg border border-border-strong bg-surface px-5 py-4"
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="font-mono text-[10px] text-muted-2">
+                          user: {p.user_id}
+                        </span>
+                        <span className="font-mono text-[10px] text-muted-2">
+                          {p.last_edited_at
+                            ? new Date(p.last_edited_at).toLocaleString()
+                            : ""}
+                        </span>
+                      </div>
+                      <ul className="mt-3 space-y-2">
+                        {noteEntries.map(([dialId, note]) => {
+                          const value = (p.dials ?? {})[dialId];
+                          return (
+                            <li key={dialId} className="text-sm">
+                              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                                {dialNameById.get(dialId as never) ??
+                                  `Unknown: ${dialId}`}
+                                {value !== undefined && (
+                                  <span className="ml-2 text-muted-2">
+                                    = {String(value)}
+                                  </span>
+                                )}
+                              </span>
+                              <p className="mt-1 text-foreground">{note}</p>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <h2 className="mt-12 font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
+              Arguments by dial (parked)
             </h2>
             {feedbackRows.length === 0 ? (
               <p className="mt-3 text-sm text-muted">
-                No arguments yet. After running migration 0006, submit a
-                test argument from /soundboard to verify the queue.
+                Argue is parked until engine wiring lands. No new submissions expected.
               </p>
             ) : (
               <div className="mt-4 space-y-6">

@@ -4,17 +4,20 @@
  * Soundboard panel. Composes:
  *   - one SoundboardDial per spec in DIAL_SPECS
  *   - the SuggestForm at the bottom
- *   - the ArgueModal that opens when any dial's "Argue" button fires
  *
  * Reads the initial JudgmentProfile from props (server-rendered);
- * tracks local state for the slider/select interactions and POSTs to
- * /api/soundboard/profile on save. Optimistic UX: dial moves are
- * instant; save is explicit so we don't spam the API on every drag.
+ * tracks local state for the slider/select interactions plus the
+ * per-dial "Why?" notes, and POSTs to /api/soundboard/profile on save.
+ * Optimistic UX: dial moves are instant; save is explicit so we don't
+ * spam the API on every drag.
+ *
+ * Argue is parked: dissent on a dial-baseline weight is only coherent
+ * once engine wiring exists. Today the dial movement IS the user's
+ * position; the inline "Why?" captures their reasoning.
  */
 
 import { useState } from "react";
 import { SoundboardDial } from "./dial";
-import { ArgueModal } from "./argue-modal";
 import { SuggestForm } from "./suggest-form";
 import {
   DIAL_SPECS,
@@ -28,7 +31,9 @@ export function SoundboardPanel({
   initialProfile: JudgmentProfile;
 }) {
   const [dials, setDials] = useState(initialProfile.dials);
-  const [arguingId, setArguingId] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Partial<Record<DialId, string>>>(
+    initialProfile.notes ?? {},
+  );
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(
     initialProfile.last_edited_at,
@@ -39,14 +44,24 @@ export function SoundboardPanel({
     setDials((prev) => ({ ...prev, [id]: value }));
   }
 
+  function setDialNote(id: DialId, value: string) {
+    setNotes((prev) => ({ ...prev, [id]: value }));
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
+    // Strip empty notes before posting; only meaningful WHYs go to DB.
+    const cleanNotes: Record<string, string> = {};
+    for (const [k, v] of Object.entries(notes)) {
+      const trimmed = (v ?? "").trim();
+      if (trimmed) cleanNotes[k] = trimmed;
+    }
     try {
       const res = await fetch("/api/soundboard/profile", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ dials }),
+        body: JSON.stringify({ dials, notes: cleanNotes }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as {
@@ -73,8 +88,9 @@ export function SoundboardPanel({
             key={spec.id}
             spec={spec}
             value={dials[spec.id] ?? spec.default}
+            note={notes[spec.id] ?? ""}
             onChange={(v) => setDialValue(spec.id, v)}
-            onArgue={(id) => setArguingId(id)}
+            onNoteChange={(v) => setDialNote(spec.id, v)}
           />
         ))}
       </div>
@@ -105,12 +121,6 @@ export function SoundboardPanel({
       <div className="mt-8">
         <SuggestForm />
       </div>
-
-      <ArgueModal
-        dialId={arguingId}
-        onClose={() => setArguingId(null)}
-        context={{ dial_state: dials }}
-      />
     </>
   );
 }
