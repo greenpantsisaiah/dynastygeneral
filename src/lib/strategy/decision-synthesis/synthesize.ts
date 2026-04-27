@@ -187,6 +187,32 @@ function adpGapModifier(
   return { adjustment, note: null };
 }
 
+// Realistic-max model for a position: how many bodies of this
+// position can plausibly start in a typical week. QB uses the
+// canonical superflex-aware max (hard.QB + ss.superflex). RB/WR/TE
+// use fractional flex share, since flex slots are shared and a
+// single position can't fully claim flex every week.
+//
+// Per INVARIANTS: never read starter_slots.hard.QB or hard[pos]
+// without superflex addition. The QB branch goes through this
+// helper; skill positions hit literal hard.RB/.WR/.TE only.
+function realisticStarterMaxFor(snap: LeagueSnapshot, pos: Position): number {
+  const ss = snap.starter_slots;
+  if (pos === "QB") {
+    return ss.hard.QB + (ss.superflex ?? 0);
+  }
+  if (pos === "RB") {
+    return ss.hard.RB + flexShareForPosition("RB", snap.scoring);
+  }
+  if (pos === "WR") {
+    return ss.hard.WR + flexShareForPosition("WR", snap.scoring);
+  }
+  if (pos === "TE") {
+    return ss.hard.TE + flexShareForPosition("TE", snap.scoring);
+  }
+  return 0;
+}
+
 function positionSaturationModifier(
   snap: LeagueSnapshot,
   pos: Position,
@@ -194,11 +220,7 @@ function positionSaturationModifier(
   const me = snap.rosters.find((r) => r.is_me);
   if (!me) return { penalty: 0, note: null };
   const have = me.position_counts[pos] ?? 0;
-  const hard = snap.starter_slots.hard[pos] ?? 0;
-  const sf = pos === "QB" ? snap.starter_slots.superflex ?? 0 : 0;
-  const flexShare =
-    pos === "QB" ? 0 : flexShareForPosition(pos, snap.scoring);
-  const realisticMax = hard + sf + flexShare;
+  const realisticMax = realisticStarterMaxFor(snap, pos);
   // Surplus AFTER the candidate is added (hypothetical).
   const surplusAfter = have + 1 - realisticMax;
   if (surplusAfter <= 0) return { penalty: 0, note: null };

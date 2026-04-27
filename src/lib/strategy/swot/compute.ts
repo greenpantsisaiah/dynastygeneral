@@ -25,6 +25,29 @@ import type {
   LeagueOutlookTeam,
 } from "../league-outlook/compute";
 import type { Position } from "../archetypes/schema";
+import {
+  buildFormatRulesFromSnapshot,
+  type FormatRules,
+} from "@/lib/engine/llm-contract";
+
+// Format-aware starter capacity for a position. INVARIANTS: never
+// branch on starter_slots.hard.X directly; use the canonical helper
+// so superflex / 2QB formats correctly count the second QB slot,
+// flex eligibility for RB/WR/TE, and rec-flex for WR/TE.
+function startersMaxFor(pos: Position, rules: FormatRules): number {
+  switch (pos) {
+    case "QB":
+      return rules.qb_starters_max;
+    case "RB":
+      return rules.rb_starters_max;
+    case "WR":
+      return rules.wr_starters_max;
+    case "TE":
+      return rules.te_starters_max;
+    default:
+      return 0;
+  }
+}
 
 export type SwotVoice = "statistician" | "coach" | "gambler";
 
@@ -106,6 +129,7 @@ export function computeSwot(
   const isTePremium = snap.scoring.includes("TE-premium");
   const isPpr =
     snap.scoring.includes("PPR") || snap.scoring.includes("half-PPR");
+  const rules = buildFormatRulesFromSnapshot(snap);
 
   // Pre-compute per-position rank tables.
   const posRank: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
@@ -158,17 +182,19 @@ export function computeSwot(
     }
   }
 
-  // Coach: starter-room locked at hard-slot positions (myCount >= hard + 2).
+  // Coach: starter-room locked. Format-aware: SF / 2QB count the
+  // second QB slot, flex eligibility counts for RB/WR/TE, REC_FLEX
+  // counts for WR/TE. NEVER branch on starter_slots.hard directly.
   for (const pos of SKILL) {
     const myCount = me.position_counts[pos] ?? 0;
-    const hardSlots = snap.starter_slots.hard[pos] ?? 0;
-    if (hardSlots >= 1 && myCount >= hardSlots + 2) {
+    const starters = startersMaxFor(pos, rules);
+    if (starters >= 1 && myCount >= starters + 2) {
       strengths.push({
         voice: "coach",
-        headline: `${POSITION_LABEL[pos]} room locked (${myCount} bodies for ${hardSlots} starter slot${hardSlots === 1 ? "" : "s"})`,
+        headline: `${POSITION_LABEL[pos]} room locked (${myCount} bodies for ${starters} starter slot${starters === 1 ? "" : "s"})`,
         evidence: `You can absorb a ${POSITION_LABEL[pos]} injury without losing lineup capacity. Most teams can't.`,
         play: `When the league hits its first ${POSITION_LABEL[pos]} injury wave, you're the leverage point. Don't preempt; let urgency build.`,
-        weight: 65 + (myCount - hardSlots) * 4,
+        weight: 65 + (myCount - starters) * 4,
       });
     }
   }
@@ -227,18 +253,19 @@ export function computeSwot(
     }
   }
 
-  // Coach: starter-room thin vs format demand. Hard-slot count + 1
-  // (one body of injury insurance) is the floor; below that = lineup risk.
+  // Coach: starter-room thin vs format demand. "Thin" = bodies barely
+  // cover the format's actual starter slots (zero injury cushion).
+  // Format-aware via buildFormatRulesFromSnapshot.
   for (const pos of SKILL) {
     const myCount = me.position_counts[pos] ?? 0;
-    const hardSlots = snap.starter_slots.hard[pos] ?? 0;
-    if (hardSlots >= 1 && myCount <= hardSlots + 1) {
+    const starters = startersMaxFor(pos, rules);
+    if (starters >= 1 && myCount <= starters) {
       weaknesses.push({
         voice: "coach",
-        headline: `${POSITION_LABEL[pos]} room thin (${myCount} bodies for ${hardSlots} starter slot${hardSlots === 1 ? "" : "s"})`,
+        headline: `${POSITION_LABEL[pos]} room thin (${myCount} bodies for ${starters} starter slot${starters === 1 ? "" : "s"})`,
         evidence: `One injury at ${POSITION_LABEL[pos]} forces a flex / waiver scramble. League median is ${posMed[pos].toFixed(1)}; ${posMax[pos]} max.`,
         play: `Build ${POSITION_LABEL[pos]} insurance into your next 2-3 picks. Bench depth is starter capacity in disguise.`,
-        weight: 75 + (hardSlots + 2 - myCount) * 5,
+        weight: 75 + (starters + 2 - myCount) * 5,
       });
     }
   }

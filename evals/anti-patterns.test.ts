@@ -53,19 +53,44 @@ const RULES: Rule[] = [
       "Don't filter by team!=null",
     ],
   },
+  // QB starter math is the most-bugged pattern: SF / 2QB leagues have
+  // their second QB slot in starter_slots.superflex, NOT in
+  // starter_slots.hard.QB. Reading hard.QB without adding superflex,
+  // OR using the dynamic key form hard[pos] (which dispatches to QB
+  // unguarded), produces the SF QB starter bug class.
+  //
+  // The pattern below flags:
+  //   - hard.QB unless followed on the same line by `+ X.superflex`
+  //   - hard[anything]   (dynamic key, could be QB)
+  // Literal hard.RB / hard.WR / hard.TE / hard.K / hard.DST are NOT
+  // flagged: those positions don't have a SF analogue, so direct
+  // reads are safe.
   {
-    name: "no raw starter_slots.hard in decision-synthesis loops",
-    why: "Engine starter-need math must use effectiveStarterReqs() so it stays aligned with format_rules. Reading starter_slots.hard directly in synthesize.ts loops re-introduces the SF QB starter bug class.",
-    // Allow `ss.hard.QB + ss.superflex` style (the canonical helper
-    // implementation in effectiveStarterReqs), but flag any other
-    // `starter_slots.hard.X` reference inside synthesize.ts.
-    pattern: /snap\.starter_slots\.hard(?!\s*\.\s*\w+\s*\+\s*\w+\.superflex)/,
+    name: "no raw starter_slots.hard.QB or hard[pos] in decision-synthesis",
+    why: "Engine starter-need math for QB-eligible positions must use rules.qb_starters_max (or the canonical hard.QB + ss.superflex line in the helper). Raw hard.QB / hard[pos] re-introduces the SF QB starter bug class.",
+    pattern: /starter_slots\.hard\.QB(?!\s*\+\s*\w+\.superflex)|starter_slots\.hard\s*\[/,
     scan: { dir: join(SRC, "lib", "strategy", "decision-synthesis"), ext: [".ts"] },
     allowFilePrefixes: [EVALS],
     allowLineSubstrings: [
-      "ss.hard.QB + ss.superflex",
-      "// effectiveStarterReqs",
-      "* `starter_slots.hard.X`",
+      // Doc / comment references are fine.
+      "starter_slots.hard.X",
+      "starter_slots.hard.QB",
+      "branch on starter_slots.hard",
+      "NEVER read",
+    ],
+  },
+  {
+    name: "no raw starter_slots.hard.QB or hard[pos] in swot compute",
+    why: "SWOT briefing math must use buildFormatRulesFromSnapshot + startersMaxFor so SF / 2QB folds in correctly. Founder bug 2026-04-26: SWOT said 'QB room locked (3 bodies for 1 starter slot)' in a SF league because compute branched on starter_slots.hard.QB directly.",
+    pattern: /starter_slots\.hard\.QB(?!\s*\+\s*\w+\.superflex)|starter_slots\.hard\s*\[/,
+    scan: { dir: join(SRC, "lib", "strategy", "swot"), ext: [".ts"] },
+    allowFilePrefixes: [EVALS],
+    allowLineSubstrings: [
+      "starter_slots.hard.X",
+      "starter_slots.hard.QB",
+      "branch on starter_slots.hard",
+      "NEVER read",
+      "NEVER branch on starter_slots.hard",
     ],
   },
 ];

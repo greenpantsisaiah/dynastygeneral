@@ -85,6 +85,7 @@ These are the load-bearing patterns. Violating any of them creates duplication o
 - **Mocking Sleeper in tests when the bug class involves real-API edge cases** (mid-draft roster shape, traded picks, co-owners). Use a fixture from a real call.
 - **Recomputing strategy in a new surface** instead of consuming the engine output. If you need win-now score in a new place, plumb it from the snapshot/rank/windows pipeline.
 - **Hedging in coach output** ("you might consider..."). The coach is an analyst, not a search result.
+- **Reading `starter_slots.hard.QB` or `starter_slots.hard[pos]` as the QB starter count.** SF / 2QB leagues put the second QB slot in `starter_slots.superflex`, not `hard.QB`. Reading `hard.QB` alone treats SF as 1QB. Use `buildFormatRulesFromSnapshot(snap).qb_starters_max` (canonical helper) or, in `decision-synthesis/synthesize.ts`, the local `realisticStarterMaxFor(snap, pos)`. Lint rule in `evals/anti-patterns.test.ts` flags both `hard.QB` (unguarded) and dynamic `hard[pos]` access in `decision-synthesis/` and `swot/`. Add the rule to a new directory before writing engine math there. Bug: 2026-04-26 SWOT card said "QB room locked (3 bodies for 1 starter slot)" in a SF league because compute branched on `hard.QB` directly.
 
 ## Quality gates worth automating
 
@@ -92,5 +93,7 @@ These exist or should exist:
 
 - **Em dash blocker.** PreToolUse hook on Edit/Write that denies any payload containing U+2014. Installed in `.claude/settings.local.json`.
 - **Build before claiming a fix is shipped.** `npm run build` from `web/` must pass with zero warnings. TypeScript catches type drift but does not catch behavior bugs.
+- **`npm test` before claiming a feature ships.** Runs integrity + draft-math + anti-patterns + rerank + swot + em-dash. Catches: SF QB starter math regressions, raw `hard[pos]` bug class, em dashes, ranking cascade drift, snake-pick math, integrity issues. Cheap, ~10s, no network.
 - **For UI changes:** start the dev server and exercise the feature in a browser. Type checks are not feature checks.
 - **For coach prompt changes:** test with thin-roster and named-player edge cases before shipping.
+- **For new engine surfaces that compute starter math:** add the directory to the SF QB lint rule in `evals/anti-patterns.test.ts` AND add a regression test in `evals/swot.test.ts` style covering 1QB + SF + 2QB + flex semantics. The lint catches the syntax pattern; the test catches the semantic bug.
