@@ -12,7 +12,14 @@
 import type {
   SwotItem,
   SwotReport,
+  SwotVoice,
 } from "@/lib/strategy/swot/compute";
+
+const VOICE_LABEL: Record<SwotVoice, string> = {
+  statistician: "Statistician",
+  coach: "Coach",
+  gambler: "Gambler",
+};
 
 export function SwotCard({ swot }: { swot: SwotReport }) {
   if (
@@ -124,7 +131,10 @@ function Quadrant({
         <ul className="mt-3 space-y-3">
           {items.map((item, i) => (
             <li key={i} className="border-t border-border-soft pt-3 first:border-t-0 first:pt-0">
-              <div className="text-sm font-semibold text-foreground">
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                {VOICE_LABEL[item.voice]}
+              </div>
+              <div className="mt-0.5 text-sm font-semibold text-foreground">
                 {item.headline}
               </div>
               <p className="mt-1 text-xs text-muted">{item.evidence}</p>

@@ -1,8 +1,8 @@
 /**
- * Variation 3: Divergence from League Mean. For each team, two
- * horizontal bars showing how their win-now and future scores diverge
- * from the league mean. Bars left of zero = below average, right =
- * above. User's bars in accent gold.
+ * Divergence from League Mean. For each team, two horizontal bars
+ * showing how their win-now and future scores diverge from the league
+ * mean. Bars left of zero = below average, right = above. User's bars
+ * in accent gold.
  *
  * The point: when absolute scores cluster (everyone 75-90), abs values
  * obscure differentiation. Centering on league mean makes a +3 vs -2
@@ -41,7 +41,7 @@ export function LeagueDivergence({
     <section className="rounded-lg border border-border-soft bg-surface px-5 py-5">
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          Variation 3 · Divergence from league mean
+          Divergence from league mean
         </div>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground">
           Above or below the field

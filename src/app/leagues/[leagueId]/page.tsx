@@ -37,8 +37,6 @@ import {
   computeLeagueOutlook,
   type LeagueOutlook,
 } from "@/lib/strategy/league-outlook/compute";
-import { LeagueScatter } from "@/components/league/league-scatter";
-import { LeagueTrajectory } from "@/components/league/league-trajectory";
 import { LeagueTable } from "@/components/league/league-table";
 import { LeagueDivergence } from "@/components/league/league-divergence";
 import { SwotCard } from "@/components/league/swot-card";
@@ -881,26 +879,13 @@ export default async function LeagueHubPage({
                 <WindowsBar leagueId={leagueId} windows={windows} />
               )}
 
-              {leagueOutlook && leagueSnapshot && (
-                <div className="mt-6 space-y-6">
-                  <SwotCard
-                    swot={computeSwot(leagueSnapshot, leagueOutlook)}
-                  />
-                  <LeagueScatter outlook={leagueOutlook} />
-                  <LeagueTrajectory outlook={leagueOutlook} />
-                  <LeagueDivergence outlook={leagueOutlook} />
-                  <LeagueTable outlook={leagueOutlook} />
-                </div>
-              )}
-
-              {/* ContenderOutlookCard removed 2026-04-26: per-year scores
-                  now render inline in LeagueTrajectory, removing the
-                  duplicate "winning all the way but missing context"
-                  surface the founder flagged. The ContenderOutlookCard
-                  component remains in the codebase for the Coach context
-                  payload (which still cites the take + window-protect
-                  bullets); only the hub render is removed. */}
-
+              {/* Order per user feedback 2026-04-26: Decision first
+                  (it's the action signal), then Decision Quadrant
+                  (visualizing the candidates), then SWOT (briefing on
+                  posture), then Divergence + Standings (league context).
+                  League Shape (scatter) and Contender Outlook (trajectory)
+                  removed: clustered league data made them low-signal at
+                  this stage of league formation. */}
               {decision && <DecisionCard decision={decision} />}
 
               {decision && decision.quadrant_candidates.length > 0 && (
@@ -908,6 +893,16 @@ export default async function LeagueHubPage({
                   candidates={decision.quadrant_candidates}
                   pickLabel={decision.pick_label}
                 />
+              )}
+
+              {leagueOutlook && leagueSnapshot && (
+                <div className="mt-6 space-y-6">
+                  <SwotCard
+                    swot={computeSwot(leagueSnapshot, leagueOutlook)}
+                  />
+                  <LeagueDivergence outlook={leagueOutlook} />
+                  <LeagueTable outlook={leagueOutlook} />
+                </div>
               )}
 
               {draftActive && (
