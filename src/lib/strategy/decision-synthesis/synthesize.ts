@@ -1220,6 +1220,13 @@ export function synthesizeDecision(args: {
   // on Top 3 cards alongside ADP so the user sees both signals when
   // they diverge. Drives the trust-hierarchy callout in WHY THIS LEAN.
   ktc_overall_ranks?: Record<string, number>;
+  /**
+   * Soundboard Horizon dial value (-100..+100). When |x| >= 40 and
+   * the dial points opposite the declared window direction, the
+   * constraint downgrades (Soundboard wiring 2026-04-27). Default
+   * 0 = no override.
+   */
+  horizon_dial?: number;
 }): Decision | null {
   const {
     snap,
@@ -1230,6 +1237,7 @@ export function synthesizeDecision(args: {
     declared_window,
     player_values: playerValues = {},
     ktc_overall_ranks: ktcOverallRanks = {},
+    horizon_dial: horizonDial = 0,
   } = args;
   const schedule = snap.draft.my_pick_schedule;
   if (schedule.length === 0) return null;
@@ -1251,11 +1259,14 @@ export function synthesizeDecision(args: {
 
   // Trajectory-aware constraint: if the user's actual picks
   // contradict the declared window, the constraint softens. Phase E.
+  // Horizon dial override layered on top: explicit Soundboard
+  // declaration acts in parallel to behavioral trajectory.
   const trajectoryReadout = buildTrajectory(snap);
   const windowConstraint = buildWindowConstraint(
     declared_window,
     windows,
     trajectoryReadout.build_label,
+    horizonDial,
   );
 
   const candidates = buildCandidates(

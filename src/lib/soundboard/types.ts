@@ -90,11 +90,11 @@ export const DIAL_SPECS: DialSpec[] = [
     default: 0,
     icon: "horizon",
     surface: [
-      "Mirrors your declared draft window",
-      "WindowsBar remains source of truth today",
-      "Engine wiring through penalizeForConstraint is the next migration",
+      "Wired into Decision card constraint penalty",
+      "Move to ±40+ to override the engine's auto-window read",
+      "Layered with emergent trajectory: either signal can soften the constraint",
     ],
-    wired: false,
+    wired: true,
   },
   {
     id: "rookie_tilt",

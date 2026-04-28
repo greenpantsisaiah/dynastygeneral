@@ -121,14 +121,18 @@ function buildCoachPrompt(d: Decision): string {
 export function DecisionCard({
   decision,
   trajectory,
+  horizonDial,
 }: {
   decision: Decision;
   trajectory?: BuildTrajectory;
+  horizonDial?: number;
 }) {
   const tone = RULE_TONE[decision.recommendation.rule];
   const rec = decision.recommendation;
   const isOnClock = decision.picks_until_me <= 0;
   const density = decision.density;
+  const horizonActive =
+    typeof horizonDial === "number" && Math.abs(horizonDial) >= 40;
 
   return (
     <section
@@ -163,6 +167,26 @@ export function DecisionCard({
           )}
         </div>
       </div>
+
+      {horizonActive && (
+        <div className="mt-3 rounded-md border border-success/40 bg-success/5 px-3 py-2 text-xs">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-success">
+            Soundboard ·{" "}
+          </span>
+          <span className="text-foreground">
+            Horizon{" "}
+            <span className="font-semibold">
+              {horizonDial! > 0 ? "+" : ""}
+              {horizonDial}
+            </span>{" "}
+            ·{" "}
+            <span className="font-semibold">
+              {horizonDial! > 0 ? "Future" : "Win-Now"}
+            </span>
+            . Constraint softened on opposing-direction candidates.
+          </span>
+        </div>
+      )}
 
       {trajectory && trajectory.pick_count > 0 && (
         <div className="mt-3 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-xs">

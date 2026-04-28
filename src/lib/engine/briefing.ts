@@ -24,39 +24,55 @@
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { Position } from "@/lib/strategy/archetypes/schema";
+import type { JudgmentProfile } from "@/lib/soundboard/types";
 import { buildPositionRoomHealth, type RoomHealth } from "./roster-fit";
 import { buildTrajectory, type BuildTrajectory } from "./build-trajectory";
 
 const POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
 
+/**
+ * Soundboard dial overrides extracted from the user's judgment
+ * profile and shaped for engine consumption. Today only horizon is
+ * wired; other dials remain "Pending wiring" until they're read by
+ * a real engine consumer.
+ */
+export type DialOverrides = {
+  /** -100 (Win Now) ↔ +100 (Future). 0 = no override. */
+  horizon: number;
+};
+
 export type LeagueBriefing = {
   /**
    * Per-position room health. THE source of truth for every surface
    * that talks about starter count, saturation, or bench depth.
-   *
-   * Each entry contains hard / realistic / upper-bound starter counts
-   * AND a `room` classification (thin / adequate / saturated / locked).
-   * SWOT uses room + upper_bound for bench-safety framing; Decision
-   * card uses surplus_after_one_more + realistic for economic-fit
-   * framing. Same data, different lens.
    */
   position_health: Record<Position, RoomHealth>;
   /**
    * Emergent build trajectory derived from the user's actual picks
-   * this draft. Composition (full picks) + trend (last 3). Replaces
-   * the declared-window framing as the primary read of "where the
-   * user's build is going."
+   * this draft.
    */
   trajectory: BuildTrajectory;
+  /**
+   * Soundboard dial overrides. Sparse: only dials with a real engine
+   * consumer are populated.
+   */
+  dials: DialOverrides;
 };
 
-export function buildLeagueBriefing(snap: LeagueSnapshot): LeagueBriefing {
+export function buildLeagueBriefing(
+  snap: LeagueSnapshot,
+  judgmentProfile?: JudgmentProfile | null,
+): LeagueBriefing {
   const position_health = {} as Record<Position, RoomHealth>;
   for (const pos of POSITIONS) {
     position_health[pos] = buildPositionRoomHealth(snap, pos);
   }
+  const horizonRaw = judgmentProfile?.dials?.horizon;
+  const horizon =
+    typeof horizonRaw === "number" ? horizonRaw : 0;
   return {
     position_health,
     trajectory: buildTrajectory(snap),
+    dials: { horizon },
   };
 }

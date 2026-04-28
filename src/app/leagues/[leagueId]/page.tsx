@@ -34,6 +34,7 @@ import {
   buildLeagueBriefing,
   type LeagueBriefing,
 } from "@/lib/engine/briefing";
+import { readProfileServer } from "@/lib/soundboard/storage";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { LiveStrategyBoard } from "@/components/league/live-strategy-board";
 import { computeWindows, type WindowsResult } from "@/lib/strategy/windows/compute";
@@ -301,10 +302,14 @@ export default async function LeagueHubPage({
       rankedArchetypes = rankArchetypes(snapshot);
       windows = computeWindows(snapshot);
       // Digested briefing object. Pre-bundles per-position room
-      // health so surfaces don't re-derive. Surfaced in ?diagnose=1
-      // for tuning verification. Phase B 2026-04-27.
+      // health + emergent build trajectory + soundboard dial
+      // overrides. Surfaced in ?diagnose=1 for tuning verification.
+      // Phase B + Soundboard wiring 2026-04-27.
       try {
-        leagueBriefing = buildLeagueBriefing(snapshot);
+        const judgmentProfile = await readProfileServer().catch(
+          () => null,
+        );
+        leagueBriefing = buildLeagueBriefing(snapshot, judgmentProfile);
       } catch (err) {
         captureError(issues, "hub:briefing", err);
       }
@@ -572,6 +577,7 @@ export default async function LeagueHubPage({
             declared_window: declaredWindow,
             player_values: playerValuesByIdJson,
             ktc_overall_ranks: ktcOverallRanksByIdJson,
+            horizon_dial: leagueBriefing?.dials.horizon ?? 0,
           });
         } catch (err) {
           console.error("[hub:decision-synthesis]", err);
@@ -951,6 +957,7 @@ export default async function LeagueHubPage({
                 <DecisionCard
                   decision={decision}
                   trajectory={leagueBriefing?.trajectory}
+                  horizonDial={leagueBriefing?.dials.horizon}
                 />
               )}
 

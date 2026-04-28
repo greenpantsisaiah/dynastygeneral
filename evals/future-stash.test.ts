@@ -24,6 +24,7 @@
 import {
   synthesizeDecision,
 } from "../src/lib/strategy/decision-synthesis/synthesize";
+import { buildWindowConstraint } from "../src/lib/strategy/decision-synthesis/window-constraint";
 import type { LeagueSnapshot } from "../src/lib/strategy/league-state/snapshot";
 import type { AvailablePlayer } from "../src/lib/players/available";
 import type { RankedArchetype } from "../src/lib/strategy/archetypes/schema";
@@ -252,6 +253,70 @@ function run() {
       "winning rule is future_stash (NOT saturated position_steal)",
       decision?.recommendation.rule === "future_stash",
       `actual: ${decision?.recommendation.rule}`,
+    );
+  }
+
+  console.log("\n── 4. Horizon dial: +60 softens win-now constraint ──");
+  {
+    // Empty-roster snap with WindowsResult declaring win-now-heavy
+    // direction. Without dial, constraint strength = "heavy". With
+    // horizon_dial = +60 (Future), strength downgrades to "moderate"
+    // because the dial points opposite the auto-declared win-now.
+    const fakeWindows = {
+      win_now: { score: 60 },
+      future: { score: 40 },
+    } as unknown as Parameters<typeof buildWindowConstraint>[1];
+
+    // Without dial.
+    const noDial = buildWindowConstraint(
+      "all-in",
+      fakeWindows,
+      null,
+      0,
+    );
+    check(
+      "without dial: heavy constraint stays heavy",
+      noDial.strength === "heavy",
+      `actual: ${noDial.strength}`,
+    );
+
+    // With Horizon dial pointing future, constraint should soften.
+    const futureDial = buildWindowConstraint(
+      "all-in",
+      fakeWindows,
+      null,
+      60,
+    );
+    check(
+      "with dial +60 (Future) opposing win-now: heavy → moderate",
+      futureDial.strength === "moderate",
+      `actual: ${futureDial.strength}`,
+    );
+
+    // Dial below threshold doesn't override.
+    const weakDial = buildWindowConstraint(
+      "all-in",
+      fakeWindows,
+      null,
+      30,
+    );
+    check(
+      "with dial +30 (below ±40 threshold): no override",
+      weakDial.strength === "heavy",
+      `actual: ${weakDial.strength}`,
+    );
+
+    // Same-direction dial doesn't downgrade either.
+    const alignedDial = buildWindowConstraint(
+      "all-in",
+      fakeWindows,
+      null,
+      -60,
+    );
+    check(
+      "with dial -60 (Win-Now) aligned with win-now direction: no override",
+      alignedDial.strength === "heavy",
+      `actual: ${alignedDial.strength}`,
     );
   }
 

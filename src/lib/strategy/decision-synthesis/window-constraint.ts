@@ -48,11 +48,17 @@ export function buildWindowConstraint(
    * Optional trajectory override from the user's actual picks. When
    * the trajectory clearly disagrees with the declared window, the
    * constraint strength downgrades (heavy → moderate, moderate →
-   * none) and excludeRookies relaxes. Per Phase E 2026-04-27: the
-   * user's behavior is the truth signal; the auto-window is a
-   * suggestion that loses to a contradicting pattern of picks.
+   * none) and excludeRookies relaxes. Per Phase E 2026-04-27.
    */
   trajectoryBuildLabel?: string | null,
+  /**
+   * Optional Horizon dial override (-100..+100). Strong values
+   * (|x| >= 40) declare the user's intended timeline lean
+   * explicitly: a thumb on the scale parallel to the trajectory
+   * read. Same downgrade ladder applied. Per Soundboard wiring
+   * 2026-04-27. Default 0 = no override (dial unmoved).
+   */
+  horizonDial?: number,
 ): WindowConstraint {
   if (!declaredWindow) {
     return {
@@ -88,9 +94,6 @@ export function buildWindowConstraint(
   // picks contradict the declared window's direction, downgrade the
   // constraint. Their behavior is the truth signal; the declared
   // window is a suggestion that loses to a contradicting pattern.
-  // Heavy + opposite trajectory → moderate; moderate + opposite →
-  // none. Aligned trajectories or balanced trajectories don't
-  // perturb anything.
   if (trajectoryBuildLabel) {
     const trajIsFuture = trajectoryBuildLabel.includes("Future");
     const trajIsWinNow = trajectoryBuildLabel.includes("Win-Now");
@@ -98,6 +101,25 @@ export function buildWindowConstraint(
       (direction === "win_now" && trajIsFuture) ||
       (direction === "future" && trajIsWinNow);
     if (opposite) {
+      if (strength === "heavy") strength = "moderate";
+      else if (strength === "moderate") strength = "none";
+    }
+  }
+
+  // HORIZON DIAL OVERRIDE (Soundboard wiring 2026-04-27). Same
+  // downgrade ladder as trajectory but driven by the user's
+  // explicit dial position. |dial| >= 40 = "I've taken a real
+  // position." Below 40 the dial is too close to balanced to count
+  // as an opposing read. Operates parallel to trajectory: either
+  // can downgrade. With both pointing the same direction, the
+  // strength still floors at "none" (can't go negative).
+  if (typeof horizonDial === "number" && Math.abs(horizonDial) >= 40) {
+    const dialIsFuture = horizonDial > 0;
+    const dialIsWinNow = horizonDial < 0;
+    const oppositeDial =
+      (direction === "win_now" && dialIsFuture) ||
+      (direction === "future" && dialIsWinNow);
+    if (oppositeDial) {
       if (strength === "heavy") strength = "moderate";
       else if (strength === "moderate") strength = "none";
     }
