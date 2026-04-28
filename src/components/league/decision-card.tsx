@@ -285,6 +285,95 @@ export function DecisionCard({
         </div>
       )}
 
+      {/* By-lane view (Phase D piece 5). Three columns showing the top
+          candidate per timeline lane drawn from quadrant_candidates.
+          Top_candidates above is the engine's overall top 3 (rule-
+          chosen); this is "best in each lane" so the user can pick
+          their lane independently of the engine's lean. */}
+      {decision.quadrant_candidates &&
+        decision.quadrant_candidates.length > 0 &&
+        (() => {
+          const byLane = {
+            "win-now": [] as typeof decision.quadrant_candidates,
+            balanced: [] as typeof decision.quadrant_candidates,
+            future: [] as typeof decision.quadrant_candidates,
+          };
+          for (const q of decision.quadrant_candidates) {
+            byLane[q.timeline_lane].push(q);
+          }
+          for (const lane of Object.keys(byLane) as Array<
+            keyof typeof byLane
+          >) {
+            byLane[lane].sort(
+              (a, b) => (b.confidence_pct ?? 0) - (a.confidence_pct ?? 0),
+            );
+          }
+          const lanes = [
+            { id: "win-now" as const, label: "Win-Now lane", tone: "warning" },
+            { id: "balanced" as const, label: "Balanced lane", tone: "muted" },
+            { id: "future" as const, label: "Future lane", tone: "success" },
+          ];
+          const anyHits = lanes.some((l) => byLane[l.id].length > 0);
+          if (!anyHits) return null;
+          return (
+            <div className="mt-4">
+              <div className="flex items-baseline justify-between">
+                <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2">
+                  Top by lane
+                </div>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                  Pick your timeline
+                </span>
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {lanes.map((l) => {
+                  const top = byLane[l.id][0] ?? null;
+                  const headerColor =
+                    l.tone === "warning"
+                      ? "text-warning"
+                      : l.tone === "success"
+                        ? "text-success"
+                        : "text-muted-2";
+                  return (
+                    <div
+                      key={l.id}
+                      className="rounded-md border border-border-soft bg-surface px-3 py-2.5"
+                    >
+                      <div
+                        className={`font-mono text-[10px] uppercase tracking-[0.14em] ${headerColor}`}
+                      >
+                        {l.label}
+                      </div>
+                      {top ? (
+                        <>
+                          <div className="mt-1 text-sm font-semibold text-foreground">
+                            {top.name}
+                          </div>
+                          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                            {top.position}
+                            {top.team ? `-${top.team}` : ""}
+                            {top.age != null ? ` · age ${top.age}` : ""}
+                            {top.adp != null
+                              ? ` · ADP ${Math.round(top.adp)}`
+                              : ""}
+                          </div>
+                          <p className="mt-1.5 text-xs text-foreground leading-snug">
+                            {top.primary_reason}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-1.5 text-xs text-muted-2">
+                          No qualifying candidate at this slot.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
       {decision.why.length > 0 && (
         <div className="mt-4">
           <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2">
