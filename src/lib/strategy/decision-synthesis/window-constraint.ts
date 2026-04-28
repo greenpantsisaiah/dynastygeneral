@@ -44,6 +44,15 @@ export type WindowConstraint = {
 export function buildWindowConstraint(
   declaredWindow: WindowWeightingId | null,
   windows: WindowsResult,
+  /**
+   * Optional trajectory override from the user's actual picks. When
+   * the trajectory clearly disagrees with the declared window, the
+   * constraint strength downgrades (heavy → moderate, moderate →
+   * none) and excludeRookies relaxes. Per Phase E 2026-04-27: the
+   * user's behavior is the truth signal; the auto-window is a
+   * suggestion that loses to a contradicting pattern of picks.
+   */
+  trajectoryBuildLabel?: string | null,
 ): WindowConstraint {
   if (!declaredWindow) {
     return {
@@ -74,6 +83,25 @@ export function buildWindowConstraint(
   if (target >= 65) direction = "win_now";
   else if (target <= 35) direction = "future";
   else direction = "balanced";
+
+  // TRAJECTORY OVERRIDE (Phase E 2026-04-27). When the user's actual
+  // picks contradict the declared window's direction, downgrade the
+  // constraint. Their behavior is the truth signal; the declared
+  // window is a suggestion that loses to a contradicting pattern.
+  // Heavy + opposite trajectory → moderate; moderate + opposite →
+  // none. Aligned trajectories or balanced trajectories don't
+  // perturb anything.
+  if (trajectoryBuildLabel) {
+    const trajIsFuture = trajectoryBuildLabel.includes("Future");
+    const trajIsWinNow = trajectoryBuildLabel.includes("Win-Now");
+    const opposite =
+      (direction === "win_now" && trajIsFuture) ||
+      (direction === "future" && trajIsWinNow);
+    if (opposite) {
+      if (strength === "heavy") strength = "moderate";
+      else if (strength === "moderate") strength = "none";
+    }
+  }
 
   // Age bands. Strength-aware so a "lean win-now" target (65/35)
   // doesn't penalize a 29-year-old elite RB the same way "all-in

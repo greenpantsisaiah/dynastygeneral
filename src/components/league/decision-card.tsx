@@ -217,21 +217,20 @@ export function DecisionCard({
           if (!showAsPrimary && !disagrees) return null;
           if (disagrees) {
             return (
-              <div className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-warning">
-                  Conflict ·{" "}
+              <div className="mt-2 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-xs">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                  Override ·{" "}
                 </span>
                 <span className="text-foreground">
                   Engine auto-suggests{" "}
                   <span className="font-semibold">
                     {decision.window_frame.label}
                   </span>
-                  ; your picks lean{" "}
+                  ; your picks say{" "}
                   <span className="font-semibold">
                     {trajectory!.build_label}
                   </span>
-                  . Candidates may carry an age-band penalty from the
-                  engine&rsquo;s read; your picks override the framing.
+                  . Constraint softened to honor your lean.
                 </span>
               </div>
             );

@@ -32,7 +32,10 @@ import {
   buildPositionRoomHealth,
   getHardStarterReqs as effectiveStarterReqs,
 } from "@/lib/engine/roster-fit";
-import { classifyLane } from "@/lib/engine/build-trajectory";
+import {
+  buildTrajectory,
+  classifyLane,
+} from "@/lib/engine/build-trajectory";
 import {
   buildWindowConstraint,
   penalizeForConstraint,
@@ -1246,7 +1249,14 @@ export function synthesizeDecision(args: {
     nextUserPickNo,
   });
 
-  const windowConstraint = buildWindowConstraint(declared_window, windows);
+  // Trajectory-aware constraint: if the user's actual picks
+  // contradict the declared window, the constraint softens. Phase E.
+  const trajectoryReadout = buildTrajectory(snap);
+  const windowConstraint = buildWindowConstraint(
+    declared_window,
+    windows,
+    trajectoryReadout.build_label,
+  );
 
   const candidates = buildCandidates(
     snap,
