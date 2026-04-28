@@ -707,9 +707,20 @@ export async function POST(
   // 7.12) overrode the current state (e.g. 9.12). The COACH_CONTRACT
   // tells the model that <current_state> is authoritative when prior
   // turns conflict.
+  // Cost guard 2026-04-28: cap re-sent history at 20 messages.
+  // Schema permits 40, but late-session turns at 40 messages can
+  // reach ~16K+ input tokens, doubling per-turn cost. Slicing the
+  // last 20 turns retains all recent context while bounding worst-
+  // case input growth. The user-visible difference at most sessions
+  // is zero (most coach sessions stay well under 20 turns).
+  const COACH_HISTORY_LIMIT = 20;
+  const trimmedHistory =
+    history.length > COACH_HISTORY_LIMIT
+      ? history.slice(-COACH_HISTORY_LIMIT)
+      : history;
   const turnContent = `<current_state>\n${JSON.stringify(contextPayload, null, 2)}\n</current_state>${tradeGuard}\n\n${message}`;
   const messages: Anthropic.MessageParam[] = [
-    ...history.map((m) => ({ role: m.role, content: m.content })),
+    ...trimmedHistory.map((m) => ({ role: m.role, content: m.content })),
     { role: "user", content: turnContent },
   ];
 
