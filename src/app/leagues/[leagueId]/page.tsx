@@ -72,6 +72,8 @@ import { PlaysFromHere } from "@/components/league/plays-from-here";
 import { DecisionCard } from "@/components/league/decision-card";
 import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
+import { DraftJournal } from "@/components/league/draft-journal";
+import { resolvePlayers } from "@/lib/players/cache";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
@@ -659,6 +661,50 @@ export default async function LeagueHubPage({
     }
   }
 
+  // Draft journal entries: user's own picks_made with player names
+  // resolved + pick label formatted. Powers the post-Quadrant
+  // self-awareness surface ("your draft so far"). Best-effort; UI
+  // degrades gracefully if it fails.
+  let journalEntries: Array<{
+    pick_no: number;
+    pick_label: string;
+    taken_player_id: string;
+    taken_player_name: string;
+  }> = [];
+  if (leagueSnapshot) {
+    try {
+      const myRosterSnap = getMyRoster(leagueSnapshot);
+      if (myRosterSnap) {
+        const myPicks = leagueSnapshot.draft.picks_made
+          .filter((p) => p.roster_id === myRosterSnap.roster_id)
+          .sort((a, b) => a.pick_no - b.pick_no);
+        if (myPicks.length > 0) {
+          const teams = leagueSnapshot.rosters.length;
+          const playerIds = myPicks.map((p) => p.player_id);
+          const players = await resolvePlayers(playerIds);
+          journalEntries = myPicks.map((p) => {
+            const round = Math.ceil(p.pick_no / teams);
+            const within = ((p.pick_no - 1) % teams) + 1;
+            const pl = players.get(p.player_id);
+            const combined = [pl?.first_name, pl?.last_name]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            const playerName = pl?.full_name ?? combined ?? p.player_id;
+            return {
+              pick_no: p.pick_no,
+              pick_label: `${round}.${within}`,
+              taken_player_id: p.player_id,
+              taken_player_name: playerName,
+            };
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[hub:journal-entries]", err);
+    }
+  }
+
   // Derive standing if we have my roster + records on all rosters.
   const standing = myRoster ? calcStanding(rosters, myRoster.roster_id) : null;
   const season = seasonParam ?? league.season;
@@ -1035,6 +1081,13 @@ export default async function LeagueHubPage({
                 <DecisionQuadrant
                   candidates={decision.quadrant_candidates}
                   pickLabel={decision.pick_label}
+                />
+              )}
+
+              {journalEntries.length > 0 && (
+                <DraftJournal
+                  leagueId={leagueId}
+                  serverEntries={journalEntries}
                 />
               )}
 
