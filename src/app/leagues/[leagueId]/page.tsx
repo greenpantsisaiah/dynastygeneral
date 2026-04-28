@@ -971,6 +971,24 @@ export default async function LeagueHubPage({
                   decision={decision}
                   trajectory={leagueBriefing?.trajectory}
                   horizonDial={leagueBriefing?.dials.horizon}
+                  leagueId={leagueId}
+                  recentPicks={(() => {
+                    if (!leagueSnapshot) return [];
+                    const ownerByRosterId = new Map(
+                      leagueSnapshot.rosters.map((r) => [
+                        r.roster_id,
+                        r.owner_name,
+                      ]),
+                    );
+                    const picks = leagueSnapshot.draft.picks_made;
+                    const recent = picks.slice(-15);
+                    return recent.map((p) => ({
+                      pick_no: p.pick_no,
+                      player_id: p.player_id,
+                      owner_name:
+                        ownerByRosterId.get(p.roster_id) ?? null,
+                    }));
+                  })()}
                 />
               )}
 

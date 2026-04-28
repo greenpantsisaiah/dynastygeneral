@@ -20,6 +20,7 @@
 
 import Link from "next/link";
 import { AskCoachButton } from "./ask-coach-button";
+import { DecisionContinuity } from "./decision-continuity";
 import type {
   Decision,
   DecisionRule,
@@ -27,6 +28,12 @@ import type {
 } from "@/lib/strategy/decision-synthesis/types";
 import type { PickDensityKind } from "@/lib/strategy/league-state/snapshot";
 import type { BuildTrajectory } from "@/lib/engine/build-trajectory";
+
+export type RecentPickForContinuity = {
+  pick_no: number;
+  player_id: string;
+  owner_name: string | null;
+};
 
 const RULE_LABEL: Record<DecisionRule, string> = {
   fill_starter_urgent: "Fill starter · urgent",
@@ -123,10 +130,14 @@ export function DecisionCard({
   decision,
   trajectory,
   horizonDial,
+  leagueId,
+  recentPicks,
 }: {
   decision: Decision;
   trajectory?: BuildTrajectory;
   horizonDial?: number;
+  leagueId?: string;
+  recentPicks?: RecentPickForContinuity[];
 }) {
   const tone = RULE_TONE[decision.recommendation.rule];
   const rec = decision.recommendation;
@@ -287,6 +298,24 @@ export function DecisionCard({
             gap={decision.opponent_between_picks}
           />
         )}
+
+      {/* Continuity chip. Acknowledges what changed between the
+          user's previous refresh and this one. PIVOT chip fires when
+          the prior standing call appears in recentPicks (got drafted).
+          HOLD chip fires when the call is the same across at least
+          two pick windows. Pure client-side localStorage memory; zero
+          network cost. Founder mandate 2026-04-28. */}
+      {leagueId && recentPicks && (
+        <DecisionContinuity
+          leagueId={leagueId}
+          currentCall={{
+            player_id: rec.player_id,
+            player_name: rec.name,
+          }}
+          currentUserPickNo={decision.pick_no}
+          recentPicks={recentPicks}
+        />
+      )}
 
       {/* STANDING CALL band (2026-04-27 synthesis-fix).
           Surfaces the engine's #1 pick prominently above the lane
