@@ -177,12 +177,12 @@ export function DecisionQuadrant({
           <p className="mt-1 text-sm text-muted">
             Each candidate plotted by horizon (left = win-now relative
             to who&apos;s left, right = future) and our confidence (top =
-            strong call). The lean is the brightest dot.
+            strong call). The standing call is the brightest dot.
           </p>
         </div>
         {lean && (
           <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
-            Lean: {lean.name}
+            Standing call: {lean.name}
           </span>
         )}
       </div>
@@ -441,7 +441,7 @@ export function DecisionQuadrant({
                     {c.name}
                     {c.is_lean && (
                       <span className="ml-1.5 font-mono text-[9px] uppercase tracking-[0.14em]">
-                        my lean
+                        standing call
                       </span>
                     )}
                   </span>

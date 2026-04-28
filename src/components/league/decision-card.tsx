@@ -288,22 +288,55 @@ export function DecisionCard({
           />
         )}
 
+      {/* STANDING CALL band (2026-04-27 synthesis-fix).
+          Surfaces the engine's #1 pick prominently above the lane
+          grid so Decision card, Coach, and Decision Quadrant speak
+          the same vocabulary ("standing call"). Earlier iteration
+          flattened three lane primaries to equal weight which made
+          the card APPEAR to disagree with Coach + Quadrant when in
+          fact all three surfaces had the same answer; the card was
+          just mute. */}
+      <div
+        className={`mt-4 rounded-md border-2 ${tone.border} bg-surface-2 px-4 py-3`}
+      >
+        <div className="flex items-baseline justify-between gap-3">
+          <div className={`font-mono text-[10px] uppercase tracking-[0.18em] ${tone.accent}`}>
+            Standing call
+          </div>
+          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+            {RULE_LABEL[rec.rule]}
+          </div>
+        </div>
+        <div className="mt-1.5 flex items-baseline justify-between gap-3">
+          <div className="text-xl font-semibold text-foreground">
+            {rec.name}
+          </div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+            {rec.position}
+            {rec.team ? `-${rec.team}` : ""}
+            {rec.age != null ? ` · age ${rec.age}` : ""}
+            {rec.adp != null ? ` · ADP ${Math.round(rec.adp)}` : ""}
+            {rec.value != null ? ` · VAL ${rec.value}` : ""}
+          </div>
+        </div>
+        <p className="mt-1.5 text-sm text-foreground leading-snug">
+          {rec.primary_reason}
+        </p>
+      </div>
+
       {/* THE LANES (post-Phase D iteration 2026-04-27).
           Three timeline lanes side-by-side, each containing the top
-          2-3 picks that advance that direction. Replaces the prior
-          TOP 3 OPTIONS + TOP BY LANE pair (which surfaced the same
-          candidates twice with slightly different framings).
+          2-3 picks that advance that direction. The lane containing
+          the standing call gets visual prominence; other lanes are
+          alternative directions if the user wants to override.
 
-          No global "MY LEAN" badge: the engine's rule cascade still
-          produces an internal lean for things like trade-off framing
-          and Coach context, but the UI doesn't claim "the answer."
-          Each lane has its own PRIMARY (top within that lane). The
-          user picks the lane that matches the direction they want.
-
-          Visual emphasis: when Soundboard Horizon is moved to ±40+
-          OR the user's pick trajectory leans strongly, that lane
-          gets a thicker border + glow. Otherwise all three lanes
-          render at equal weight.
+          Visual emphasis: lane containing the standing call wins
+          (so the card and Quadrant agree on the call). Soundboard
+          Horizon and trajectory are shown as secondary signals (not
+          drivers of emphasis), so when the engine overrides the
+          dial (e.g. future_stash fires because all slots are
+          filled), the card shows the actual call instead of dial
+          direction.
 
           Golden flag: a candidate whose age <= 24 AND KTC rank top
           of the pool advances BOTH win-now (proven enough to start)
@@ -351,19 +384,30 @@ export function DecisionCard({
           const anyHits = lanes.some((l) => byLane[l.id].length > 0);
           if (!anyHits) return null;
 
-          // Determine which lane (if any) gets visual emphasis. Two
-          // signals can promote a lane: Soundboard Horizon dial set
-          // strongly, OR pick trajectory clearly leaning.
-          let emphasisLane: "win-now" | "balanced" | "future" | null = null;
-          if (horizonActive) {
-            emphasisLane = horizonDial! > 0 ? "future" : "win-now";
-          } else if (trajectory && trajectory.pick_count >= 3) {
-            if (trajectory.build_label.includes("Future")) {
-              emphasisLane = "future";
-            } else if (trajectory.build_label.includes("Win-Now")) {
-              emphasisLane = "win-now";
-            }
-          }
+          // Lane emphasis follows the standing call (not the dial).
+          // Per 2026-04-27 synthesis fix: when the engine's call
+          // disagreed with the dial direction (e.g. future_stash
+          // fires because all slots filled but dial says win-now),
+          // the OLD logic emphasized the dial's lane and made the
+          // card disagree with itself. New rule: emphasize the lane
+          // that contains the standing call. The dial + trajectory
+          // are shown as supporting signals so the user knows their
+          // declared direction was considered.
+          const leanCandidate = decision.quadrant_candidates.find(
+            (q) => q.is_lean,
+          );
+          const emphasisLane: "win-now" | "balanced" | "future" =
+            leanCandidate?.timeline_lane ?? "balanced";
+          // Detect when the engine overrode the dial so we can be
+          // honest about it instead of pretending the dial direction
+          // is still in force.
+          const dialDirection: "win-now" | "future" | null = horizonActive
+            ? horizonDial! > 0
+              ? "future"
+              : "win-now"
+            : null;
+          const dialOverridden =
+            dialDirection != null && dialDirection !== emphasisLane;
 
           return (
             <div className="mt-4">
@@ -374,9 +418,9 @@ export function DecisionCard({
                   Lanes · pick your direction
                 </div>
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                  {emphasisLane
-                    ? `Emphasis: ${emphasisLane === "win-now" ? "Win-Now" : emphasisLane === "future" ? "Future" : "Balanced"}`
-                    : "Equal weight"}
+                  {dialOverridden
+                    ? `Dial: ${dialDirection === "win-now" ? "Win-Now" : "Future"} · softened`
+                    : `Call lane: ${emphasisLane === "win-now" ? "Win-Now" : emphasisLane === "future" ? "Future" : "Balanced"}`}
                 </span>
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
@@ -434,11 +478,18 @@ export function DecisionCard({
                                     {p.name}
                                   </div>
                                   <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em]">
-                                    {isPrimary && (
-                                      <span className={`${headerColor}`}>
-                                        Primary
+                                    {p.is_lean ? (
+                                      <span
+                                        className={`rounded-sm border ${tone.border} bg-surface-2 px-1.5 py-0 ${tone.accent}`}
+                                        title="Engine's #1 pick. Coach + Quadrant agree."
+                                      >
+                                        Standing call
                                       </span>
-                                    )}
+                                    ) : isPrimary ? (
+                                      <span className={`${headerColor}`}>
+                                        Lane primary
+                                      </span>
+                                    ) : null}
                                     {isGolden && (
                                       <span
                                         className="rounded-sm border border-accent/60 bg-accent/10 px-1.5 py-0 text-accent"
