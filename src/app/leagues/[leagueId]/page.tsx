@@ -30,6 +30,10 @@ import {
 } from "@/lib/sleeper";
 import { resolveDraftState, type DraftStatus } from "@/lib/sleeper/draft-state";
 import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import {
+  buildLeagueBriefing,
+  type LeagueBriefing,
+} from "@/lib/engine/briefing";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { LiveStrategyBoard } from "@/components/league/live-strategy-board";
 import { computeWindows, type WindowsResult } from "@/lib/strategy/windows/compute";
@@ -239,6 +243,7 @@ export default async function LeagueHubPage({
   // if snapshot can't build (e.g. Sleeper outage or player cache fail).
   let rankedArchetypes: RankedArchetype[] = [];
   let windows: WindowsResult | null = null;
+  let leagueBriefing: LeagueBriefing | null = null;
   let playsFromHere: ResolvedPlayFromHere[] = [];
   let pickApproach: PickApproachData | null = null;
   let decision: Decision | null = null;
@@ -295,6 +300,14 @@ export default async function LeagueHubPage({
       const snapshot = leagueSnapshot;
       rankedArchetypes = rankArchetypes(snapshot);
       windows = computeWindows(snapshot);
+      // Digested briefing object. Pre-bundles per-position room
+      // health so surfaces don't re-derive. Surfaced in ?diagnose=1
+      // for tuning verification. Phase B 2026-04-27.
+      try {
+        leagueBriefing = buildLeagueBriefing(snapshot);
+      } catch (err) {
+        captureError(issues, "hub:briefing", err);
+      }
       // League-wide outlook: per-team win-now, future, 5-year forecast.
       // Powers the BCD visualizations (scatter, trajectory, table).
       // Best-effort; failure leaves the new viz off but the rest of the
@@ -773,6 +786,54 @@ export default async function LeagueHubPage({
               )}
             </div>
           </div>
+
+          {/* Briefing panel (?diagnose=1 only). Shows the digested
+              per-position room health so the founder can verify
+              SWOT and Decision are reading the same numbers. Renders
+              when the briefing built successfully and ?diagnose=1
+              is set. Phase B 2026-04-27. */}
+          {diagnose && leagueBriefing && (
+            <div className="mt-4 rounded-lg border border-accent/40 bg-accent/5 p-4">
+              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-accent">
+                Briefing · position health
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                Single source of truth consumed by every surface.
+                SWOT reads upper-bound (bench depth); Decision reads
+                realistic-max (lineup economics). Different numbers,
+                same source.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                {(
+                  ["QB", "RB", "WR", "TE", "K", "DST"] as const
+                ).map((pos) => {
+                  const h = leagueBriefing!.position_health[pos];
+                  const tone =
+                    h.room === "thin"
+                      ? "border-warning/60 text-warning"
+                      : h.room === "saturated"
+                        ? "border-danger/40 text-danger"
+                        : h.room === "locked"
+                          ? "border-success/40 text-success"
+                          : "border-border-soft text-muted-2";
+                  return (
+                    <div
+                      key={pos}
+                      className={`rounded-md border ${tone} bg-surface px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.1em]`}
+                    >
+                      <div className="text-foreground">
+                        {pos}: {h.current_count} / {h.realistic_starters}
+                      </div>
+                      <div className="mt-0.5 text-muted-2 normal-case tracking-normal">
+                        hard {h.hard_starters} · realistic {h.realistic_starters} · upper {h.upper_bound_starters}
+                      </div>
+                      <div className="mt-0.5">{h.room}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Diagnostic surface (?diagnose=1). When the user is debugging
               a blank-hub regression we render captured silent-catch

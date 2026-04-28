@@ -171,14 +171,14 @@ export function computeSwot(
   // counts for WR/TE. NEVER branch on starter_slots.hard directly.
   for (const pos of SKILL) {
     const myCount = me.position_counts[pos] ?? 0;
-    const starters = getUpperBoundStarterMax(snap, pos);
-    if (starters >= 1 && myCount >= starters + 2) {
+    const eligibleSlots = getUpperBoundStarterMax(snap, pos);
+    if (eligibleSlots >= 1 && myCount >= eligibleSlots + 2) {
       strengths.push({
         voice: "coach",
-        headline: `${POSITION_LABEL[pos]} room locked (${myCount} bodies for ${starters} starter slot${starters === 1 ? "" : "s"})`,
+        headline: `${POSITION_LABEL[pos]} bench depth locked (${myCount} bodies, ${eligibleSlots} slot${eligibleSlots === 1 ? "" : "s"} eligible)`,
         evidence: `You can absorb a ${POSITION_LABEL[pos]} injury without losing lineup capacity. Most teams can't.`,
         play: `When the league hits its first ${POSITION_LABEL[pos]} injury wave, you're the leverage point. Don't preempt; let urgency build.`,
-        weight: 65 + (myCount - starters) * 4,
+        weight: 65 + (myCount - eligibleSlots) * 4,
       });
     }
   }
@@ -237,19 +237,24 @@ export function computeSwot(
     }
   }
 
-  // Coach: starter-room thin vs format demand. "Thin" = bodies barely
-  // cover the format's actual starter slots (zero injury cushion).
-  // Format-aware via buildFormatRulesFromSnapshot.
+  // Coach: bench depth thin vs format demand. "Thin" = bodies barely
+  // cover the format's eligible starting slots (zero injury cushion).
+  // Uses upper-bound starter count: hard slots + every flex this
+  // position is eligible for. Distinct from Decision card's realistic-
+  // max framing (which is about lineup economics). Phrased as bench
+  // depth so it doesn't read as a contradiction with Decision's
+  // saturation language. Both numbers are correct; they answer
+  // different questions. See briefing.ts.
   for (const pos of SKILL) {
     const myCount = me.position_counts[pos] ?? 0;
-    const starters = getUpperBoundStarterMax(snap, pos);
-    if (starters >= 1 && myCount <= starters) {
+    const eligibleSlots = getUpperBoundStarterMax(snap, pos);
+    if (eligibleSlots >= 1 && myCount <= eligibleSlots) {
       weaknesses.push({
         voice: "coach",
-        headline: `${POSITION_LABEL[pos]} room thin (${myCount} bodies for ${starters} starter slot${starters === 1 ? "" : "s"})`,
-        evidence: `One injury at ${POSITION_LABEL[pos]} forces a flex / waiver scramble. League median is ${posMed[pos].toFixed(1)}; ${posMax[pos]} max.`,
+        headline: `${POSITION_LABEL[pos]} bench depth thin (${myCount} bodies, ${eligibleSlots} slot${eligibleSlots === 1 ? "" : "s"} eligible)`,
+        evidence: `One injury at ${POSITION_LABEL[pos]} forces a flex / waiver scramble. League median ${posMed[pos].toFixed(1)}; ${posMax[pos]} max.`,
         play: `Build ${POSITION_LABEL[pos]} insurance into your next 2-3 picks. Bench depth is starter capacity in disguise.`,
-        weight: 75 + (starters + 2 - myCount) * 5,
+        weight: 75 + (eligibleSlots + 2 - myCount) * 5,
       });
     }
   }

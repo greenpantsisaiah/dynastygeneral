@@ -150,20 +150,23 @@ function run() {
     // Original bug: SWOT said "QB room locked (3 bodies for 1 starter slot)"
     // because compute branched on starter_slots.hard.QB (which is 1 in SF).
     // Fix: starters = qb_starters_max = 2 in SF, so 3 < 2+2 = 4, NOT locked.
+    // Copy refreshed 2026-04-27 to "QB bench depth locked / thin" so SWOT's
+    // upper-bound framing doesn't read as a contradiction with Decision
+    // card's realistic-max framing. Same math, clearer language.
     check(
-      "SF QB with 3 bodies does NOT trip 'QB room locked' (regression: 1-starter math is gone)",
+      "SF QB with 3 bodies does NOT trip 'QB bench depth locked' (regression: 1-starter math is gone)",
       !swot.strengths.some(
         (s) =>
           s.voice === "coach" &&
-          s.headline.startsWith("QB room locked"),
+          s.headline.startsWith("QB bench depth locked"),
       ),
       "locked threshold is starters+2 = 4 in SF; 3 bodies is adequate",
     );
     check(
-      "SF QB with 3 bodies does NOT trip 'QB room thin'",
+      "SF QB with 3 bodies does NOT trip 'QB bench depth thin'",
       !swot.weaknesses.some(
         (s) =>
-          s.voice === "coach" && s.headline.startsWith("QB room thin"),
+          s.voice === "coach" && s.headline.startsWith("QB bench depth thin"),
       ),
       "thin threshold is starters = 2; 3 bodies is above that",
     );
@@ -182,18 +185,18 @@ function run() {
     });
     const swot = computeSwot(snap, outlook);
     const qbItem = [...swot.strengths, ...swot.weaknesses].find(
-      (s) => s.headline.includes("QB room") && s.voice === "coach",
+      (s) => s.headline.includes("QB bench depth") && s.voice === "coach",
     );
     check(
-      "1QB QB room headline mentions 1 starter slot",
-      Boolean(qbItem) && qbItem!.headline.includes("1 starter slot"),
+      "1QB QB bench-depth headline mentions 1 slot eligible",
+      Boolean(qbItem) && qbItem!.headline.includes("1 slot eligible"),
       qbItem ? `headline: ${qbItem.headline}` : "qbItem missing",
     );
     check(
-      "1QB with 3 QBs trips 'locked' (1 + 2 = 3)",
+      "1QB with 3 QBs trips 'bench depth locked' (1 + 2 = 3)",
       swot.strengths.some(
         (s) =>
-          s.voice === "coach" && s.headline.startsWith("QB room locked"),
+          s.voice === "coach" && s.headline.startsWith("QB bench depth locked"),
       ),
     );
   }
@@ -216,11 +219,11 @@ function run() {
     });
     const swot = computeSwot(snap, outlook);
     const wrThin = [...swot.weaknesses].find(
-      (s) => s.voice === "coach" && s.headline.startsWith("WR room thin"),
+      (s) => s.voice === "coach" && s.headline.startsWith("WR bench depth thin"),
     );
     check(
-      "WR thin headline reports 3 starter slots (2 hard + 1 flex), not 2",
-      Boolean(wrThin) && wrThin!.headline.includes("3 starter slot"),
+      "WR bench depth headline reports 3 slots eligible (2 hard + 1 flex), not 2",
+      Boolean(wrThin) && wrThin!.headline.includes("3 slots eligible"),
       wrThin ? `headline: ${wrThin.headline}` : "no WR thin item fired",
     );
   }
@@ -240,13 +243,13 @@ function run() {
     });
     const swot = computeSwot(snap, outlook);
     const locked = swot.strengths.find(
-      (s) => s.voice === "coach" && s.headline.startsWith("QB room locked"),
+      (s) => s.voice === "coach" && s.headline.startsWith("QB bench depth locked"),
     );
     check(
-      "SF QB locked headline reports 4 bodies for 2 starter slots",
+      "SF QB bench-depth locked headline reports 4 bodies, 2 slots eligible",
       Boolean(locked) &&
         locked!.headline.includes("4 bodies") &&
-        locked!.headline.includes("2 starter slot"),
+        locked!.headline.includes("2 slot"),
       locked ? `headline: ${locked.headline}` : "no QB locked item fired",
     );
   }
