@@ -19,6 +19,7 @@ Spawn via the Agent tool with `subagent_type` set to one of:
 
 - **`dynasty-bug-investigator`**: root-cause-first bug triage. Returns diagnosis with file:line. Does not edit code.
 - **`dynasty-assumption-auditor`**: defensibility audit on embedded constants and thresholds. Channels statistician + dynasty pro + coach + gambler voices. Returns Defensible / Weak / Indefensible per assumption with citations.
+- **`dynasty-canon-keeper`**: research-grounded signal arbiter. Curates the published corpus (peer-reviewed + named industry frameworks + cohort studies) into citable evidence for every signal, weight, and threshold. Three modes: SEED (bulk corpus build, produces RESEARCH_CORPUS.md), CRITIQUE (per-signal grounding verdict), DEBUNK (challenge pundit/common-knowledge claims with research). Spawn before any signal/weight design work AND when the user, Coach, or product makes a claim that needs grounding. The model has to survive Cade Massey / Wayne Winston / MIT Sloan scrutiny; this agent makes that pass-able.
 - **`dynasty-context-doctor`**: diagnoses LLM hallucinations by classifying as snapshot / contract / model bug.
 - **`dynasty-trade-realism-tester`**: validates trade recommendations against KTC pricing within ±15%.
 - **`dynasty-security-auditor`**: pre-deploy security audit (OWASP + dynasty-specific risks).
