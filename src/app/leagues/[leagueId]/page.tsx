@@ -60,7 +60,6 @@ import {
 } from "@/lib/strategy/player-suggestions/enrich";
 import { enrichArchetypeWithTargets } from "@/lib/strategy/player-suggestions/play-targets";
 import { WindowsBar } from "@/components/league/windows-bar";
-import { WindowWeightingPrompt } from "@/components/league/window-weighting-prompt";
 import { ContenderOutlookCard } from "@/components/league/contender-outlook-card";
 import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forecast";
 import { synthesizeContenderOutlook } from "@/lib/strategy/contender-outlook/synthesize";
@@ -940,19 +939,24 @@ export default async function LeagueHubPage({
                 <DraftBanner state={draftState} />
               )}
 
-              {sleeperUser && <WindowWeightingPrompt leagueId={leagueId} />}
+              {/* WindowWeightingPrompt removed 2026-04-27. Lanes-as-
+                  emergent-direction (Decision card lane grid + Soundboard
+                  Horizon dial) replaced the win-now/future declaration
+                  prompt. The user's actual picks reveal direction now;
+                  declaring it upfront created the "MY LEAN" coercion
+                  problem the synthesis fix already solved. WindowsBar
+                  meters retained as math (CAN-WIN-NOW vs FUTURE scores
+                  are league-state observations, not user declarations). */}
 
               {windows && sleeperUser && (
                 <WindowsBar leagueId={leagueId} windows={windows} />
               )}
 
-              {/* Order per user feedback 2026-04-26: Decision first
-                  (it's the action signal), then Decision Quadrant
-                  (visualizing the candidates), then SWOT (briefing on
-                  posture), then Divergence + Standings (league context).
-                  League Shape (scatter) and Contender Outlook (trajectory)
-                  removed: clustered league data made them low-signal at
-                  this stage of league formation. */}
+              {/* Order per user feedback 2026-04-27: Decision first
+                  (the standing call), then Value plays directly under
+                  it (max-dynasty-value + buy-low-flip-later are
+                  decision-adjacent, not bottom-of-page context), then
+                  Decision Quadrant, then SWOT, then league context. */}
               {decision && (
                 <DecisionCard
                   decision={decision}
@@ -961,29 +965,10 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {decision && decision.quadrant_candidates.length > 0 && (
-                <DecisionQuadrant
-                  candidates={decision.quadrant_candidates}
-                  pickLabel={decision.pick_label}
-                />
-              )}
-
-              {leagueOutlook && leagueSnapshot && (
-                <div className="mt-6 space-y-6">
-                  <SwotCard
-                    swot={computeSwot(leagueSnapshot, leagueOutlook)}
-                  />
-                  <LeagueDivergence outlook={leagueOutlook} />
-                  <LeagueTable outlook={leagueOutlook} />
-                </div>
-              )}
-
               {draftActive && (
                 <>
                   {/* League Pulse banner: the one Strategy-Lab signal
-                      worth keeping per user feedback 2026-04-24. Sits
-                      directly above Strategic Forks so the room read
-                      anchors the fork interpretation. */}
+                      worth keeping per user feedback 2026-04-24. */}
                   {strategyLab?.league_pulse.headline && (
                     <div className="mt-8 rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm leading-relaxed text-foreground">
                       <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
@@ -1017,6 +1002,23 @@ export default async function LeagueHubPage({
                     </div>
                   )}
                 </>
+              )}
+
+              {decision && decision.quadrant_candidates.length > 0 && (
+                <DecisionQuadrant
+                  candidates={decision.quadrant_candidates}
+                  pickLabel={decision.pick_label}
+                />
+              )}
+
+              {leagueOutlook && leagueSnapshot && (
+                <div className="mt-6 space-y-6">
+                  <SwotCard
+                    swot={computeSwot(leagueSnapshot, leagueOutlook)}
+                  />
+                  <LeagueDivergence outlook={leagueOutlook} />
+                  <LeagueTable outlook={leagueOutlook} />
+                </div>
               )}
 
               <PlaysFromHere plays={playsFromHere} />

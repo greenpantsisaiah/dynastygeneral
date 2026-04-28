@@ -255,7 +255,7 @@ export function DecisionCard({
                   <span className="font-semibold">
                     {trajectory!.build_label}
                   </span>
-                  . Constraint softened to honor your lean.
+                  . Constraint softened to honor your direction.
                 </span>
               </div>
             );
@@ -511,6 +511,26 @@ export function DecisionCard({
                                     ? ` · VAL ${p.value}`
                                     : ""}
                                 </div>
+                                {p.availability_next_pick && (
+                                  <div
+                                    className={`mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
+                                      p.availability_next_pick === "probably_gone"
+                                        ? "text-danger"
+                                        : p.availability_next_pick === "coin_flip"
+                                          ? "text-warning"
+                                          : "text-muted-2"
+                                    }`}
+                                  >
+                                    {p.availability_next_pick === "likely_here"
+                                      ? "Survival likely"
+                                      : p.availability_next_pick === "coin_flip"
+                                        ? "Survival coin flip"
+                                        : "Survival unlikely"}
+                                    {p.survival_pct != null
+                                      ? ` · ${p.survival_pct}%`
+                                      : ""}
+                                  </div>
+                                )}
                                 {isPrimary && (
                                   <p className="mt-1.5 text-xs text-foreground leading-snug">
                                     {p.primary_reason}
@@ -575,7 +595,7 @@ export function DecisionCard({
       {decision.counter_view && (
         <div className="mt-4 rounded-md border border-warning/60 bg-warning/10 px-3 py-3 text-xs text-foreground">
           <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-warning">
-            Counter-view · the case against this lean
+            Counter-view · the case against this call
           </div>
           <div className="mt-1.5 font-medium">
             {decision.counter_view.headline}
@@ -705,168 +725,10 @@ function emptyLaneCopy(lane: "win-now" | "balanced" | "future"): string {
   }
 }
 
-const RULE_SHORT: Record<DecisionRule, string> = {
-  fill_starter_urgent: "Starter · urgent",
-  fill_starter: "Starter",
-  push_path: "Push path",
-  window_direction: "Window",
-  earned_value: "Earned value",
-  position_steal: "Steal",
-  future_stash: "Future stash",
-};
-
-function CandidateCard({
-  candidate,
-  tone,
-}: {
-  candidate: DecisionTopCandidate;
-  tone: { border: string; bg: string; accent: string };
-}) {
-  const c = candidate;
-  // Survival label rephrased 2026-04-27: prior "Probably gone by next
-  // pick · 15%" was ambiguous: users read "15% chance gone" when the
-  // engine meant "15% chance survives." "Survival: 15%" with the
-  // class-specific qualifier removes that ambiguity.
-  const survivalLabel =
-    c.availability_next_pick === "likely_here"
-      ? "Survival likely"
-      : c.availability_next_pick === "coin_flip"
-        ? "Survival coin flip"
-        : c.availability_next_pick === "probably_gone"
-          ? "Survival unlikely"
-          : null;
-  const survivalTone =
-    c.availability_next_pick === "probably_gone"
-      ? "text-danger"
-      : c.availability_next_pick === "coin_flip"
-        ? "text-warning"
-        : "text-muted-2";
-  return (
-    <div
-      className={`flex flex-col rounded-md border px-3 py-2.5 ${
-        c.is_lean
-          ? `${tone.border} ${tone.bg}`
-          : "border-border-soft bg-surface"
-      }`}
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <span
-          className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
-            c.is_lean ? tone.accent : "text-muted-2"
-          }`}
-        >
-          {c.is_lean ? "My lean" : RULE_SHORT[c.rule]}
-        </span>
-        <span className="flex items-baseline gap-2 font-mono text-[10px] text-muted-2">
-          {c.value != null && (
-            <span title="KTC-equivalent dynasty value, FantasyCalc-sourced and normalized 0-100. Higher = more valuable.">
-              VAL {c.value}
-            </span>
-          )}
-          {c.ktc_overall_rank != null && (
-            <span title="KTC overall dynasty rank (lower = better). Crowdsourced expertise from FantasyCalc; the dynasty-pro signal we trust more than ADP for futures.">
-              KTC #{c.ktc_overall_rank}
-            </span>
-          )}
-          {c.adp != null && (
-            <span title="Dynasty ADP from Sleeper's projections data, format-aware. May differ 10-20 picks from Sleeper's live draft-room display, which is computed differently. We trust KTC more for dynasty value.">
-              ADP {Math.round(c.adp)}
-            </span>
-          )}
-        </span>
-      </div>
-      <div className="mt-1 text-sm font-semibold text-foreground">
-        {c.name}
-        {c.is_rookie && (
-          <span
-            className="ml-1.5 rounded-sm border border-accent/60 bg-accent/10 px-1 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-accent"
-            title="Incoming rookie. Pre-NFL-draft value is speculative pending landing spot."
-          >
-            Rookie
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-        <span>
-          {c.position}
-          {c.team ? `-${c.team}` : ""}
-          {c.age != null ? ` · age ${c.age}` : ""}
-        </span>
-        <span
-          className={`rounded-sm border px-1.5 py-0 text-[9px] ${
-            c.timeline_lane === "future"
-              ? "border-success/50 bg-success/10 text-success"
-              : c.timeline_lane === "win-now"
-                ? "border-warning/50 bg-warning/10 text-warning"
-                : "border-border-soft bg-surface-2 text-muted-2"
-          }`}
-          title={
-            c.timeline_lane === "future"
-              ? "Future lane: rookie or age <= 23. Long-term build asset."
-              : c.timeline_lane === "win-now"
-                ? "Win-now lane: age >= 28. Immediate-impact starter."
-                : "Balanced lane: age 24-27. Productive across both windows."
-          }
-        >
-          {c.timeline_lane === "future"
-            ? "Future"
-            : c.timeline_lane === "win-now"
-              ? "Win-Now"
-              : "Balanced"}
-        </span>
-      </div>
-      <p className="mt-1.5 text-xs text-foreground leading-snug">
-        {c.primary_reason}
-      </p>
-      {(survivalLabel || c.constraint_note || c.opponent_signal?.note) && (
-        <div className="mt-2 flex flex-col gap-1">
-          {/* Survival sparkline + label. The bar fill width matches
-              the approximate survival probability so the user can
-              scan likelihood at a glance instead of reading the
-              text. Color matches the availability class. */}
-          {survivalLabel && c.survival_pct != null && (
-            <div className="flex items-center gap-2">
-              <div className="relative h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border-soft">
-                <div
-                  className={`absolute left-0 top-0 h-full rounded-full ${
-                    c.availability_next_pick === "probably_gone"
-                      ? "bg-danger/80"
-                      : c.availability_next_pick === "coin_flip"
-                        ? "bg-warning/80"
-                        : "bg-success/80"
-                  }`}
-                  style={{ width: `${c.survival_pct}%` }}
-                />
-              </div>
-              <span
-                className={`font-mono text-[10px] uppercase tracking-[0.14em] ${survivalTone}`}
-              >
-                {survivalLabel} · {c.survival_pct}%
-              </span>
-            </div>
-          )}
-          {c.opponent_signal?.note && (
-            <span
-              className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
-                c.opponent_signal.direction === "amplifies"
-                  ? "text-danger"
-                  : "text-success"
-              }`}
-            >
-              {c.opponent_signal.direction === "amplifies" ? "↓ " : "↑ "}
-              {c.opponent_signal.note}
-            </span>
-          )}
-          {c.constraint_note && (
-            <span className="text-accent normal-case tracking-normal text-[11px]">
-              ⚠ {c.constraint_note}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+// CandidateCard component deleted 2026-04-27: dead code from the old
+// TOP 3 OPTIONS render that was replaced by the lane grid + standing
+// call band. Survival rendering folded into the lane grid candidates
+// directly. RULE_SHORT lookup removed with it (no other consumer).
 
 /**
  * Compact "OPPONENT BETWEEN PICKS" bar at the top of the Decision
