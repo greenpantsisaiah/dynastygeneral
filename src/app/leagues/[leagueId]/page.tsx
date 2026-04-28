@@ -1115,6 +1115,8 @@ export default async function LeagueHubPage({
                 <DecisionQuadrant
                   candidates={decision.quadrant_candidates}
                   pickLabel={decision.pick_label}
+                  leagueId={leagueId}
+                  currentUserPickNo={decision.pick_no}
                 />
               )}
 

@@ -19,6 +19,7 @@
  */
 
 import type { DecisionQuadrantCandidate } from "@/lib/strategy/decision-synthesis/types";
+import { WatchButton } from "./watch-button";
 
 const W = 480;
 const H = 360;
@@ -215,9 +216,13 @@ function resolveCollisions(labels: PlacedLabel[]): PlacedLabel[] {
 export function DecisionQuadrant({
   candidates,
   pickLabel,
+  leagueId,
+  currentUserPickNo,
 }: {
   candidates: DecisionQuadrantCandidate[];
   pickLabel: string;
+  leagueId?: string;
+  currentUserPickNo?: number;
 }) {
   if (candidates.length === 0) return null;
 
@@ -608,21 +613,36 @@ export function DecisionQuadrant({
                   {i + 1}
                 </span>
                 <span className="flex-1">
-                  <span
-                    className={`font-medium ${
-                      c.is_lean ? "text-accent" : "text-foreground"
-                    }`}
-                  >
-                    {c.name}
+                  <span className="flex flex-wrap items-baseline gap-1.5">
+                    <span
+                      className={`font-medium ${
+                        c.is_lean ? "text-accent" : "text-foreground"
+                      }`}
+                    >
+                      {c.name}
+                    </span>
                     {c.is_lean && (
-                      <span className="ml-1.5 font-mono text-[9px] uppercase tracking-[0.14em]">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
                         standing call
                       </span>
                     )}
+                    {leagueId && (
+                      <WatchButton
+                        leagueId={leagueId}
+                        player={{
+                          player_id: c.player_id,
+                          player_name: c.name,
+                          position: c.position,
+                          team: c.team,
+                        }}
+                        currentUserPickNo={
+                          currentUserPickNo ?? null
+                        }
+                      />
+                    )}
                   </span>
                   <span className="text-muted-2">
-                    {" "}
-                    · {c.position}
+                    {c.position}
                     {c.team ? `-${c.team}` : ""}
                     {c.age != null ? `, age ${c.age}` : ""}
                     {c.adp != null ? ` · ADP ${Math.round(c.adp)}` : ""}
