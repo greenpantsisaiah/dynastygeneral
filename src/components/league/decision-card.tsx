@@ -21,6 +21,7 @@
 import Link from "next/link";
 import { AskCoachButton } from "./ask-coach-button";
 import { DecisionContinuity } from "./decision-continuity";
+import { WatchButton } from "./watch-button";
 import type {
   Decision,
   DecisionRule,
@@ -337,8 +338,22 @@ export function DecisionCard({
           </div>
         </div>
         <div className="mt-1.5 flex items-baseline justify-between gap-3">
-          <div className="text-xl font-semibold text-foreground">
-            {rec.name}
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-semibold text-foreground">
+              {rec.name}
+            </span>
+            {leagueId && (
+              <WatchButton
+                leagueId={leagueId}
+                player={{
+                  player_id: rec.player_id,
+                  player_name: rec.name,
+                  position: rec.position,
+                  team: rec.team,
+                }}
+                currentUserPickNo={decision.pick_no}
+              />
+            )}
           </div>
           <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
             {rec.position}
@@ -503,8 +518,22 @@ export function DecisionCard({
                                 }`}
                               >
                                 <div className="flex items-baseline justify-between gap-2">
-                                  <div className="text-sm font-semibold text-foreground">
-                                    {p.name}
+                                  <div className="flex items-baseline gap-1.5">
+                                    <span className="text-sm font-semibold text-foreground">
+                                      {p.name}
+                                    </span>
+                                    {leagueId && (
+                                      <WatchButton
+                                        leagueId={leagueId}
+                                        player={{
+                                          player_id: p.player_id,
+                                          player_name: p.name,
+                                          position: p.position,
+                                          team: p.team,
+                                        }}
+                                        currentUserPickNo={decision.pick_no}
+                                      />
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em]">
                                     {p.is_lean ? (

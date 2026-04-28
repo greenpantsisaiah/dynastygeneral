@@ -73,6 +73,7 @@ import { DecisionCard } from "@/components/league/decision-card";
 import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
+import { WatchlistStrip } from "@/components/league/watchlist-strip";
 import { resolvePlayers } from "@/lib/players/cache";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
@@ -1005,6 +1006,39 @@ export default async function LeagueHubPage({
 
               {windows && sleeperUser && (
                 <WindowsBar leagueId={leagueId} windows={windows} />
+              )}
+
+              {/* Watchlist strip. Renders only when the user has at
+                  least one watched player; auto-listens to localStorage
+                  changes so adds/removes anywhere update live. Pinned
+                  above Decision so users glance at "their guys" first. */}
+              {leagueSnapshot && (
+                <WatchlistStrip
+                  leagueId={leagueId}
+                  draftedById={(() => {
+                    const ownerByRosterId = new Map(
+                      leagueSnapshot.rosters.map((r) => [
+                        r.roster_id,
+                        r.owner_name,
+                      ]),
+                    );
+                    const map: Record<
+                      string,
+                      { pick_no: number; owner_name: string | null }
+                    > = {};
+                    for (const p of leagueSnapshot.draft.picks_made) {
+                      map[p.player_id] = {
+                        pick_no: p.pick_no,
+                        owner_name:
+                          ownerByRosterId.get(p.roster_id) ?? null,
+                      };
+                    }
+                    return map;
+                  })()}
+                  standingCallId={
+                    decision?.recommendation?.player_id ?? null
+                  }
+                />
               )}
 
               {/* Order per user feedback 2026-04-27: Decision first
