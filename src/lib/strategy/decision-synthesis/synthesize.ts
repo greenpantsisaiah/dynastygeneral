@@ -798,6 +798,57 @@ function buildCandidates(
     });
   }
 
+  // Rule 5: Future stash. Fires when every major position is
+  // saturated (every earned_value candidate eats a 30-point penalty
+  // and every position_steal is capped to ~34). In that fully-
+  // saturated state the existing rule cascade defaults to "saturated
+  // tiebreak by KTC" which surfaced Mac Jones (QB4 saturated, KTC
+  // #196) as the lean over Schultz (TE3 saturated, KTC #221) for a
+  // founder roster with 3 QB / 5 RB / 6 WR / 2 TE in a format with
+  // realistic max ~2/4/5/2. The honest read is "every starter slot
+  // is filled; the right play is a young upside stash, not a
+  // saturated faller." This rule fires exactly that.
+  //
+  // Triggers when ALL of QB / RB / WR / TE return a saturation
+  // penalty for the user's current roster. Surfaces the top young-
+  // or-rookie candidate in the harmonized pool. Score 50 is chosen
+  // to beat saturated position_steal (capped 34) and saturated
+  // earned_value (15 - i*1.5), while losing to any unsaturated
+  // fill_starter (60+) or fill_starter_urgent (100). So the rule is
+  // a fall-through: only fires when nothing else has work to do.
+  const allSaturated = (["QB", "RB", "WR", "TE"] as Position[]).every(
+    (pos) => positionSaturationModifier(snap, pos).penalty > 0,
+  );
+  if (allSaturated) {
+    // Top young/rookie candidate. "Young" = age <= 23. Rookies always
+    // qualify regardless of age (incoming rookies' age is unreliable
+    // pre-NFL-draft per INVARIANTS).
+    const stashPool = available
+      .filter((p) => {
+        const pos = normalizePos(p.position);
+        if (!pos || pos === "K" || pos === "DST") return false;
+        if (p.is_rookie) return true;
+        return p.age != null && p.age <= 23;
+      })
+      .slice(0, 5);
+    for (let i = 0; i < stashPool.length; i++) {
+      const p = stashPool[i];
+      const pos = normalizePos(p.position)!;
+      const ageFrame = p.is_rookie
+        ? "incoming rookie"
+        : `age ${p.age}`;
+      push({
+        player: p,
+        position: pos,
+        rule: "future_stash",
+        // Score 50 for top stash, decay 2 per rank. Beats saturated
+        // earned_value (15-) and saturated position_steal (34-).
+        score: 50 - i * 2,
+        primary_reason: `Every starter slot is filled; surfacing future upside instead. ${p.name} (${ageFrame}, KTC #${p.search_rank}) is the top young/rookie stash on the board. Bench depth that can become a starter or trade asset.`,
+      });
+    }
+  }
+
   candidates.sort((a, b) => b.score - a.score);
   return candidates;
 }
@@ -829,6 +880,11 @@ function buildTradeoff(
     case "earned_value":
       gains.push(
         `Max dynasty value on the board regardless of position.`,
+      );
+      break;
+    case "future_stash":
+      gains.push(
+        `Every starter slot is locked. Stash future upside while saturated assets sit at ceiling.`,
       );
       break;
     default:

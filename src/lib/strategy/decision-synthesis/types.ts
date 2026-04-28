@@ -26,6 +26,7 @@ export type DecisionRule =
   | "fill_starter_urgent" // starter hole AND top option unlikely to survive
   | "fill_starter" // starter hole, no urgency
   | "push_path" // advance a ranked archetype the user is in acquisition phase on
+  | "future_stash" // every position saturated; surface youngest/rookie upside
   | "window_direction" // window is significantly below target, pick skews that way
   | "earned_value" // best dynasty-value available, no stronger signal
   | "position_steal"; // top-N at position fell significantly past ADP

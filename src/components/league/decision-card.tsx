@@ -33,6 +33,7 @@ const RULE_LABEL: Record<DecisionRule, string> = {
   window_direction: "Window direction",
   earned_value: "Earned value",
   position_steal: "Steal · value falling",
+  future_stash: "Future stash",
 };
 
 const RULE_TONE: Record<
@@ -76,6 +77,14 @@ const RULE_TONE: Record<
     border: "border-accent/60",
     bg: "bg-accent/5",
     accent: "text-accent",
+  },
+  // Future stash fires only when every starter slot is filled. Treat
+  // as success-tone (green) because it means the user has finished
+  // the immediate-need phase and is now stockpiling upside.
+  future_stash: {
+    border: "border-success/50",
+    bg: "bg-success/5",
+    accent: "text-success",
   },
 };
 
@@ -329,6 +338,7 @@ const RULE_SHORT: Record<DecisionRule, string> = {
   window_direction: "Window",
   earned_value: "Earned value",
   position_steal: "Steal",
+  future_stash: "Future stash",
 };
 
 function CandidateCard({
