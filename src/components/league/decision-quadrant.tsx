@@ -296,7 +296,7 @@ export function DecisionQuadrant({
       <div className="mt-4 overflow-x-auto">
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="w-full max-w-[560px] text-foreground"
+          className="w-full text-foreground"
           role="img"
           aria-label={`Decision quadrant at pick ${pickLabel}`}
         >
