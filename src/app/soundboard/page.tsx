@@ -28,15 +28,18 @@ export default async function SoundboardPage() {
               Soundboard
             </h1>
             <p className="mt-3 max-w-2xl text-muted">
-              Sixteen dials. Each one is a real lever the engine
-              consults; click ? on any tile to see exactly what it
-              touches. Load a preset or tune your own. Move a dial off
+              Pick a doctrine from the library or tune your own dials.
+              The doctrine you choose weights the Decision card&rsquo;s
+              lanes. Sixteen dials are real engine levers; click ? on
+              any tile to see exactly what it touches. Move a dial off
               default and drop a one-line WHY so we know your reasoning.
-              The doctrine strip synthesizes everything into one line.
             </p>
             <div className="mt-3 flex flex-wrap gap-3 text-xs">
+              <span className="rounded-md border border-success/40 bg-success/10 px-3 py-1 font-mono uppercase tracking-[0.14em] text-success">
+                Horizon dial · wired
+              </span>
               <span className="rounded-md border border-warning/40 bg-warning/10 px-3 py-1 font-mono uppercase tracking-[0.14em] text-warning">
-                Scaffold · engine wiring pending
+                15 dials · pending wiring
               </span>
             </div>
 

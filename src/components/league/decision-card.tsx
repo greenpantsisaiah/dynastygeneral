@@ -18,6 +18,7 @@
  *   - Ask coach entry
  */
 
+import Link from "next/link";
 import { AskCoachButton } from "./ask-coach-button";
 import type {
   Decision,
@@ -476,6 +477,24 @@ export function DecisionCard({
             </div>
           );
         })()}
+
+      {/* Doctrine library entry point. Small affordance pointing the
+          user at the Soundboard preset bar, which is the place to
+          declare a doctrine if the trajectory + dial reads aren't
+          steering hard enough. Inline so it doesn't disrupt the lane
+          grid above. Per founder direction 2026-04-27: presets are
+          the "library of strategies" users pick to weight lanes. */}
+      <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border-soft bg-surface-2 px-3 py-2 text-xs">
+        <span className="text-muted">
+          Want to push the lanes harder one direction?
+        </span>
+        <Link
+          href="/soundboard"
+          className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:text-accent/80"
+        >
+          Open doctrine library →
+        </Link>
+      </div>
 
       {decision.why.length > 0 && (
         <div className="mt-4">
