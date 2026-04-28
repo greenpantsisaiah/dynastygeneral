@@ -287,32 +287,28 @@ export function DecisionCard({
           />
         )}
 
-      {decision.top_candidates.length > 0 && (
-        <div className="mt-4">
-          <div className="flex items-baseline justify-between">
-            <div
-              className={`font-mono text-xs uppercase tracking-[0.16em] ${tone.accent}`}
-            >
-              Top {decision.top_candidates.length}
-              {decision.top_candidates.length > 1 ? " options" : ""}
-            </div>
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-              Lean: {rec.name}
-            </span>
-          </div>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
-            {decision.top_candidates.map((c) => (
-              <CandidateCard key={c.player_id} candidate={c} tone={tone} />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* THE LANES (post-Phase D iteration 2026-04-27).
+          Three timeline lanes side-by-side, each containing the top
+          2-3 picks that advance that direction. Replaces the prior
+          TOP 3 OPTIONS + TOP BY LANE pair (which surfaced the same
+          candidates twice with slightly different framings).
 
-      {/* By-lane view (Phase D piece 5). Three columns showing the top
-          candidate per timeline lane drawn from quadrant_candidates.
-          Top_candidates above is the engine's overall top 3 (rule-
-          chosen); this is "best in each lane" so the user can pick
-          their lane independently of the engine's lean. */}
+          No global "MY LEAN" badge: the engine's rule cascade still
+          produces an internal lean for things like trade-off framing
+          and Coach context, but the UI doesn't claim "the answer."
+          Each lane has its own PRIMARY (top within that lane). The
+          user picks the lane that matches the direction they want.
+
+          Visual emphasis: when Soundboard Horizon is moved to ±40+
+          OR the user's pick trajectory leans strongly, that lane
+          gets a thicker border + glow. Otherwise all three lanes
+          render at equal weight.
+
+          Golden flag: a candidate whose age <= 24 AND KTC rank top
+          of the pool advances BOTH win-now (proven enough to start)
+          AND future (young enough to grow). The pick stays in its
+          primary lane (computed from age) but gets a "GOLDEN" badge
+          so the user sees its cross-lane value. */}
       {decision.quadrant_candidates &&
         decision.quadrant_candidates.length > 0 &&
         (() => {
@@ -332,62 +328,146 @@ export function DecisionCard({
             );
           }
           const lanes = [
-            { id: "win-now" as const, label: "Win-Now lane", tone: "warning" },
-            { id: "balanced" as const, label: "Balanced lane", tone: "muted" },
-            { id: "future" as const, label: "Future lane", tone: "success" },
+            {
+              id: "win-now" as const,
+              label: "Win-Now",
+              blurb: "Proven, starts now",
+              tone: "warning" as const,
+            },
+            {
+              id: "balanced" as const,
+              label: "Balanced",
+              blurb: "Productive across both windows",
+              tone: "neutral" as const,
+            },
+            {
+              id: "future" as const,
+              label: "Future",
+              blurb: "Young upside, building",
+              tone: "success" as const,
+            },
           ];
           const anyHits = lanes.some((l) => byLane[l.id].length > 0);
           if (!anyHits) return null;
+
+          // Determine which lane (if any) gets visual emphasis. Two
+          // signals can promote a lane: Soundboard Horizon dial set
+          // strongly, OR pick trajectory clearly leaning.
+          let emphasisLane: "win-now" | "balanced" | "future" | null = null;
+          if (horizonActive) {
+            emphasisLane = horizonDial! > 0 ? "future" : "win-now";
+          } else if (trajectory && trajectory.pick_count >= 3) {
+            if (trajectory.build_label.includes("Future")) {
+              emphasisLane = "future";
+            } else if (trajectory.build_label.includes("Win-Now")) {
+              emphasisLane = "win-now";
+            }
+          }
+
           return (
             <div className="mt-4">
               <div className="flex items-baseline justify-between">
-                <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2">
-                  Top by lane
+                <div
+                  className={`font-mono text-xs uppercase tracking-[0.16em] ${tone.accent}`}
+                >
+                  Lanes · pick your direction
                 </div>
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                  Pick your timeline
+                  {emphasisLane
+                    ? `Emphasis: ${emphasisLane === "win-now" ? "Win-Now" : emphasisLane === "future" ? "Future" : "Balanced"}`
+                    : "Equal weight"}
                 </span>
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
                 {lanes.map((l) => {
-                  const top = byLane[l.id][0] ?? null;
+                  const picks = byLane[l.id].slice(0, 3);
+                  const isEmphasized = emphasisLane === l.id;
                   const headerColor =
                     l.tone === "warning"
                       ? "text-warning"
                       : l.tone === "success"
                         ? "text-success"
                         : "text-muted-2";
+                  const borderClass = isEmphasized
+                    ? l.tone === "warning"
+                      ? "border-warning/60 shadow-[inset_0_0_24px_rgba(255,180,80,0.12)]"
+                      : l.tone === "success"
+                        ? "border-success/60 shadow-[inset_0_0_24px_rgba(80,200,140,0.12)]"
+                        : "border-accent/60 shadow-[inset_0_0_24px_rgba(245,165,36,0.10)]"
+                    : "border-border-soft";
                   return (
                     <div
                       key={l.id}
-                      className="rounded-md border border-border-soft bg-surface px-3 py-2.5"
+                      className={`rounded-md border ${borderClass} bg-surface px-3 py-2.5`}
                     >
-                      <div
-                        className={`font-mono text-[10px] uppercase tracking-[0.14em] ${headerColor}`}
-                      >
-                        {l.label}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <div
+                          className={`font-mono text-[10px] uppercase tracking-[0.14em] ${headerColor}`}
+                        >
+                          {l.label}
+                        </div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+                          {l.blurb}
+                        </div>
                       </div>
-                      {top ? (
-                        <>
-                          <div className="mt-1 text-sm font-semibold text-foreground">
-                            {top.name}
-                          </div>
-                          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                            {top.position}
-                            {top.team ? `-${top.team}` : ""}
-                            {top.age != null ? ` · age ${top.age}` : ""}
-                            {top.adp != null
-                              ? ` · ADP ${Math.round(top.adp)}`
-                              : ""}
-                          </div>
-                          <p className="mt-1.5 text-xs text-foreground leading-snug">
-                            {top.primary_reason}
-                          </p>
-                        </>
-                      ) : (
-                        <p className="mt-1.5 text-xs text-muted-2">
-                          No qualifying candidate at this slot.
+                      {picks.length === 0 ? (
+                        <p className="mt-2 text-xs text-muted-2">
+                          {emptyLaneCopy(l.id)}
                         </p>
+                      ) : (
+                        <ul className="mt-2 space-y-2">
+                          {picks.map((p, idx) => {
+                            const isPrimary = idx === 0;
+                            const isGolden = isGoldenPick(p);
+                            return (
+                              <li
+                                key={p.player_id}
+                                className={`rounded-sm px-2 py-1.5 ${
+                                  isPrimary
+                                    ? "bg-surface-2"
+                                    : "border-t border-border-soft pt-2"
+                                }`}
+                              >
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <div className="text-sm font-semibold text-foreground">
+                                    {p.name}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em]">
+                                    {isPrimary && (
+                                      <span className={`${headerColor}`}>
+                                        Primary
+                                      </span>
+                                    )}
+                                    {isGolden && (
+                                      <span
+                                        className="rounded-sm border border-accent/60 bg-accent/10 px-1.5 py-0 text-accent"
+                                        title="Advances both win-now and future. Cross-lane value."
+                                      >
+                                        Golden
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                                  {p.position}
+                                  {p.team ? `-${p.team}` : ""}
+                                  {p.age != null ? ` · age ${p.age}` : ""}
+                                  {p.adp != null
+                                    ? ` · ADP ${Math.round(p.adp)}`
+                                    : ""}
+                                  {p.value != null
+                                    ? ` · VAL ${p.value}`
+                                    : ""}
+                                </div>
+                                {isPrimary && (
+                                  <p className="mt-1.5 text-xs text-foreground leading-snug">
+                                    {p.primary_reason}
+                                  </p>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
                     </div>
                   );
@@ -400,7 +480,7 @@ export function DecisionCard({
       {decision.why.length > 0 && (
         <div className="mt-4">
           <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2">
-            Why this lean
+            Why this landscape
           </div>
           <ul className="mt-1 space-y-1 text-sm text-foreground">
             {decision.why.map((line, i) => (
@@ -523,6 +603,36 @@ export function DecisionCard({
       <AskCoachButton prompt={buildCoachPrompt(decision)} />
     </section>
   );
+}
+
+// Cross-lane "Golden" detection. A pick is Golden when it advances
+// both Win-Now and Future at once: young enough to grow (age <= 24)
+// AND established enough to start now (top-of-pool KTC value or
+// rank). Bijan-tier RBs, Garrett Wilson-tier WRs, etc. The pick
+// stays in its primary lane (computed from age via classifyLane);
+// the Golden flag tells the user the cross-lane truth so they don't
+// dismiss a Future pick as "won't help me this year."
+function isGoldenPick(p: {
+  age: number | null;
+  ktc_overall_rank: number | null;
+  value: number | null;
+}): boolean {
+  if (p.age == null || p.age > 24) return false;
+  if (p.ktc_overall_rank != null && p.ktc_overall_rank <= 60) return true;
+  if (p.value != null && p.value >= 70) return true;
+  return false;
+}
+
+// Empty-lane copy. Honest about WHY a lane has no qualifying picks.
+function emptyLaneCopy(lane: "win-now" | "balanced" | "future"): string {
+  switch (lane) {
+    case "win-now":
+      return "No qualifying win-now picks at this slot. Available pool skews young / unproven.";
+    case "balanced":
+      return "No mid-age picks at this slot. Pool clusters in either rookies or veterans.";
+    case "future":
+      return "No qualifying future stash at this slot. Available pool is veteran-heavy.";
+  }
 }
 
 const RULE_SHORT: Record<DecisionRule, string> = {
