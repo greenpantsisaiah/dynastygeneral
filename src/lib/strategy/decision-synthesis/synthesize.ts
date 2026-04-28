@@ -32,6 +32,7 @@ import {
   buildPositionRoomHealth,
   getHardStarterReqs as effectiveStarterReqs,
 } from "@/lib/engine/roster-fit";
+import { classifyLane } from "@/lib/engine/build-trajectory";
 import {
   buildWindowConstraint,
   penalizeForConstraint,
@@ -1405,6 +1406,10 @@ export function synthesizeDecision(args: {
       ...toDecisionCandidate(c.player, playerValues, ktcOverallRanks),
       primary_reason: c.primary_reason,
       rule: c.rule,
+      timeline_lane: classifyLane({
+        age: c.player.age,
+        years_exp: c.player.yearsExp ?? null,
+      }),
       is_lean: c.player.id === winner.player.id,
       availability_next_pick: adjustedAvail,
       survival_pct: survivalPctFor(adjustedAvail, opponentSignal),
@@ -1506,6 +1511,10 @@ export function synthesizeDecision(args: {
       ...toDecisionCandidate(q.player, playerValues, ktcOverallRanks),
       primary_reason: q.primary_reason,
       rule: q.rule,
+      timeline_lane: classifyLane({
+        age: q.player.age,
+        years_exp: q.player.yearsExp ?? null,
+      }),
       is_lean: q.player.id === winner.player.id,
       availability_next_pick: adjustedAvail,
       survival_pct: survivalPctFor(adjustedAvail, oppSignal),

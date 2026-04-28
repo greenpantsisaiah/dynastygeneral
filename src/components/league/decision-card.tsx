@@ -446,10 +446,34 @@ function CandidateCard({
           </span>
         )}
       </div>
-      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-        {c.position}
-        {c.team ? `-${c.team}` : ""}
-        {c.age != null ? ` · age ${c.age}` : ""}
+      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+        <span>
+          {c.position}
+          {c.team ? `-${c.team}` : ""}
+          {c.age != null ? ` · age ${c.age}` : ""}
+        </span>
+        <span
+          className={`rounded-sm border px-1.5 py-0 text-[9px] ${
+            c.timeline_lane === "future"
+              ? "border-success/50 bg-success/10 text-success"
+              : c.timeline_lane === "win-now"
+                ? "border-warning/50 bg-warning/10 text-warning"
+                : "border-border-soft bg-surface-2 text-muted-2"
+          }`}
+          title={
+            c.timeline_lane === "future"
+              ? "Future lane: rookie or age <= 23. Long-term build asset."
+              : c.timeline_lane === "win-now"
+                ? "Win-now lane: age >= 28. Immediate-impact starter."
+                : "Balanced lane: age 24-27. Productive across both windows."
+          }
+        >
+          {c.timeline_lane === "future"
+            ? "Future"
+            : c.timeline_lane === "win-now"
+              ? "Win-Now"
+              : "Balanced"}
+        </span>
       </div>
       <p className="mt-1.5 text-xs text-foreground leading-snug">
         {c.primary_reason}
