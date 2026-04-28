@@ -286,8 +286,18 @@ export function StrategicForks({
     PICKS_PER_FORK + 4,
   );
   const evdEv = evPool.map((p) => ({ p, ev: evFor(p.id) }));
+  // Earned Value and Bargain Hunt must be DISJOINT by tier or they
+  // surface identical lists. Bug 2026-04-28: earned_value previously
+  // accepted "fair OR bargain" (everything not a reach), so in late
+  // rounds where the slot anchor is low and most top-of-board picks
+  // are bargains, both forks showed the same 4 players. Founder:
+  // "that caused me to doubt it." Fix: earned_value is fair-tier
+  // only (value matches what you're paying); bargain_hunt is bargain-
+  // tier only (value exceeds what you're paying). Disjoint by
+  // definition. In late rounds when there are no fair-tier picks,
+  // earned_value drops out honestly rather than duplicating bargain.
   const earnedFiltered = evdEv.filter(
-    (x) => x.ev.ev_tier !== "reach" || x.ev.ev_delta == null,
+    (x) => x.ev.ev_tier === "fair" || x.ev.ev_delta == null,
   );
   const earnedTrimmed = earnedFiltered.slice(0, PICKS_PER_FORK);
 
