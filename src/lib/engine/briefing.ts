@@ -25,6 +25,7 @@
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { Position } from "@/lib/strategy/archetypes/schema";
 import { buildPositionRoomHealth, type RoomHealth } from "./roster-fit";
+import { buildTrajectory, type BuildTrajectory } from "./build-trajectory";
 
 const POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
 
@@ -40,6 +41,13 @@ export type LeagueBriefing = {
    * framing. Same data, different lens.
    */
   position_health: Record<Position, RoomHealth>;
+  /**
+   * Emergent build trajectory derived from the user's actual picks
+   * this draft. Composition (full picks) + trend (last 3). Replaces
+   * the declared-window framing as the primary read of "where the
+   * user's build is going."
+   */
+  trajectory: BuildTrajectory;
 };
 
 export function buildLeagueBriefing(snap: LeagueSnapshot): LeagueBriefing {
@@ -47,5 +55,8 @@ export function buildLeagueBriefing(snap: LeagueSnapshot): LeagueBriefing {
   for (const pos of POSITIONS) {
     position_health[pos] = buildPositionRoomHealth(snap, pos);
   }
-  return { position_health };
+  return {
+    position_health,
+    trajectory: buildTrajectory(snap),
+  };
 }

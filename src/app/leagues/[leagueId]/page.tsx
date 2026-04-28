@@ -947,7 +947,12 @@ export default async function LeagueHubPage({
                   League Shape (scatter) and Contender Outlook (trajectory)
                   removed: clustered league data made them low-signal at
                   this stage of league formation. */}
-              {decision && <DecisionCard decision={decision} />}
+              {decision && (
+                <DecisionCard
+                  decision={decision}
+                  trajectory={leagueBriefing?.trajectory}
+                />
+              )}
 
               {decision && decision.quadrant_candidates.length > 0 && (
                 <DecisionQuadrant
