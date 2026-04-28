@@ -174,8 +174,8 @@ export type DecisionTopCandidate = DecisionCandidate & {
   primary_reason: string;
   rule: DecisionRule;
   // Timeline lane. Independent of the rule that surfaced the
-  // candidate. "future" for rookies / age <= 23; "win-now" for age
-  // >= 28; "balanced" otherwise. Lets the UI badge each candidate
+  // candidate. "future" for rookies / age <= 23; "win-now" for age >=
+  // 27; "balanced" for age 24-26. Lets the UI badge each candidate
   // with its lane so the user sees at a glance which timeline each
   // option represents. Per founder ultrathink 2026-04-27 (lanes-not-
   // declarations reframe).

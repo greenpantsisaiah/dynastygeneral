@@ -12,8 +12,19 @@
  *
  * Lane classification per pick:
  *   future    is_rookie, years_exp <= 1, OR age <= 23
- *   win-now   age >= 28
- *   balanced  otherwise
+ *   win-now   age >= 27
+ *   balanced  age 24-26
+ *
+ * Boundary set at 27 (not 28) per founder feedback 2026-04-27 live
+ * draft pick 19.11: a 27yo established starter (Jerry Jeudy) was
+ * being bucketed to "balanced" while a 37yo backup QB (Kirk Cousins)
+ * was the only candidate populating "win-now." Win-now should mean
+ * "starts now, declining future runway" not just "old"; most NFL
+ * skill positions are in mild decline by 27 (RB peak ~24-25, WR peak
+ * ~26), so 27+ captures veterans whose 2025 contribution is the
+ * primary asset and whose dynasty horizon is shorter than the
+ * already-played career length. Age 24-26 stays in balanced as the
+ * actual "prime + future runway" cohort.
  *
  * Output shape replaces "LEAN HEAVILY WIN-NOW · 16 below win-now
  * target" with something like "BUILD: Future Lean · Last 3: future,
@@ -57,7 +68,7 @@ export function classifyLane(pick: {
 }): TimelineLane {
   if (pick.years_exp != null && pick.years_exp <= 1) return "future";
   if (pick.age != null && pick.age <= 23) return "future";
-  if (pick.age != null && pick.age >= 28) return "win-now";
+  if (pick.age != null && pick.age >= 27) return "win-now";
   return "balanced";
 }
 
