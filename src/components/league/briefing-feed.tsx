@@ -35,6 +35,7 @@ import {
   readPaywallReason,
   type PaywallReason,
 } from "@/components/billing/paywall-modal";
+import { track } from "@/lib/analytics";
 
 // Stable empty references for SSR snapshots. useSyncExternalStore
 // requires server snapshots to return the SAME reference each call.
@@ -203,6 +204,7 @@ export function BriefingFeed({
       }
       const data = (await res.json()) as { briefings: Briefing[] };
       appendBriefings(leagueId, data.briefings);
+      track({ event: "briefing_generated", league_id: leagueId });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

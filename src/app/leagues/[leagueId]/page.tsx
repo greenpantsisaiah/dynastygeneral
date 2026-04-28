@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { TrackEvent } from "@/components/track-event";
 
 export const metadata: Metadata = {
   title: "League Hub",
@@ -689,6 +690,14 @@ export default async function LeagueHubPage({
   return (
     <>
       <SiteNav />
+      <TrackEvent
+        payload={{
+          event: "league_opened",
+          league_id: league.league_id,
+          season: Number(league.season),
+          dynasty: isDynastyLeague(league),
+        }}
+      />
       <main className="flex-1 bg-grid">
         <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 sm:py-12">
           <Ticker

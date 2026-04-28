@@ -23,6 +23,7 @@ import {
   LeagueListGroup,
   type LeagueListItem,
 } from "@/components/league/league-list";
+import { TrackEvent } from "@/components/track-event";
 
 export const dynamic = "force-dynamic";
 
@@ -165,6 +166,21 @@ export default async function ConnectPage({ searchParams }: PageProps) {
             </div>
           )}
 
+          {cleaned && (
+            <TrackEvent
+              payload={{ event: "sleeper_username_submit", username: cleaned }}
+            />
+          )}
+          {sleeperUser && !errorMessage && (
+            <TrackEvent
+              payload={{
+                event: "leagues_fetched",
+                username: cleaned,
+                dynasty_count: dynastyLeagues.length,
+                other_count: otherLeagues.length,
+              }}
+            />
+          )}
           {sleeperUser && !errorMessage && (
             <div className="mt-10 space-y-8">
               <div className="rounded-lg border border-border-soft bg-surface px-5 py-4 text-sm">

@@ -16,6 +16,7 @@ import {
   getNflState,
   isDynastyLeague,
 } from "@/lib/sleeper";
+import { TrackEvent } from "@/components/track-event";
 
 export const metadata = {
   title: "Account",
@@ -25,7 +26,7 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{ checkout?: string; upgraded?: string }>;
+type SearchParams = Promise<{ checkout?: string; upgraded?: string; plan?: string }>;
 
 export default async function AccountPage({
   searchParams,
@@ -82,6 +83,29 @@ export default async function AccountPage({
                   ? "You\u2019re on Pro! Your subscription is active. Manage billing below anytime."
                   : "Payment received. Your account is being upgraded; refresh in a moment."}
               </div>
+            )}
+            {params.checkout === "success" && params.plan === "day_pass" && (
+              <TrackEvent
+                payload={{ event: "day_pass_purchased", value: 5, currency: "USD" }}
+              />
+            )}
+            {params.checkout === "success" && params.plan === "pro_annual" && (
+              <TrackEvent
+                payload={
+                  user.is_trialing
+                    ? { event: "trial_started", plan: "pro" }
+                    : { event: "pro_subscribed", plan: "pro_annual", value: 99, currency: "USD" }
+                }
+              />
+            )}
+            {params.checkout === "success" && params.plan === "pro_monthly" && (
+              <TrackEvent
+                payload={
+                  user.is_trialing
+                    ? { event: "trial_started", plan: "pro" }
+                    : { event: "pro_subscribed", plan: "pro_monthly", value: 14, currency: "USD" }
+                }
+              />
             )}
 
             <div className="mt-8 rounded-lg border border-border-strong bg-surface px-5 py-5">

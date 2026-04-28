@@ -31,6 +31,7 @@ import {
   type PaywallReason,
 } from "@/components/billing/paywall-modal";
 import { UsageChip } from "@/components/billing/usage-meter";
+import { track } from "@/lib/analytics";
 
 type Role = "user" | "assistant";
 type ChatMessage = { role: Role; content: string; ts: number };
@@ -328,7 +329,13 @@ export function CoachChat({
           content: data.reply,
           ts: Date.now(),
         };
-        writeHistory(leagueId, [...updated, reply].slice(-MAX_HISTORY));
+        const final = [...updated, reply].slice(-MAX_HISTORY);
+        writeHistory(leagueId, final);
+        track({
+          event: "coach_message_sent",
+          league_id: leagueId,
+          turn_count: final.filter((m) => m.role === "user").length,
+        });
       } catch (err) {
         // Network / unexpected error path. Idempotent if already
         // restored above. The user's question text is their WORK.

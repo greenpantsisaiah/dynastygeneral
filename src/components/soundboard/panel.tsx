@@ -31,6 +31,7 @@ import {
   type PresetId,
 } from "@/lib/soundboard/presets";
 import { deriveDoctrine } from "@/lib/soundboard/doctrine";
+import { track } from "@/lib/analytics";
 
 export function SoundboardPanel({
   initialProfile,
@@ -93,6 +94,7 @@ export function SoundboardPanel({
       }
       const data = (await res.json()) as { profile: JudgmentProfile };
       setSavedAt(data.profile.last_edited_at);
+      track({ event: "soundboard_doctrine_saved", doctrine: doctrine.build });
     } catch (err) {
       console.error("[soundboard:save]", err);
       setError("Network error.");

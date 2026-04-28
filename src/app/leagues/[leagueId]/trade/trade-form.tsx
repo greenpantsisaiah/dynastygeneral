@@ -16,6 +16,7 @@ import {
   readPaywallReason,
   type PaywallReason,
 } from "@/components/billing/paywall-modal";
+import { track } from "@/lib/analytics";
 
 type ApiResponse =
   | {
@@ -93,6 +94,28 @@ export function TradeForm({
       }
       const json = (await res.json()) as ApiResponse;
       setResult(json);
+      if (json.ok) {
+        if (json.mode === "incoming") {
+          track({
+            event: "trade_evaluated",
+            league_id: leagueId,
+            verdict: json.output.action as
+              | "accept"
+              | "counter"
+              | "decline"
+              | "wait"
+              | undefined,
+          });
+        } else {
+          track({
+            event: "trade_attack_built",
+            league_id: leagueId,
+            target_type:
+              (body as { target_kind?: "player" | "manager" }).target_kind ??
+              "player",
+          });
+        }
+      }
     } catch (err) {
       setResult({
         ok: false,

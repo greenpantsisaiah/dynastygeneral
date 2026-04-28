@@ -21,6 +21,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
+import { TrackEvent } from "@/components/track-event";
 import { Ticker } from "@/components/ui/ticker";
 import { ShareButton } from "@/components/share/share-button";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/ratelimit";
@@ -243,6 +244,9 @@ export default async function ScoutPage({ params, searchParams }: PageProps) {
       displayName={sleeperUser.display_name ?? cleaned}
       season={resolvedSeason}
     >
+      <TrackEvent
+        payload={{ event: "scout_report_run", scouted_username: cleaned }}
+      />
       {claim && (
         <div className="mt-6 rounded-md border border-border-soft bg-surface px-4 py-3 text-sm text-muted">
           <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
