@@ -256,172 +256,24 @@ export function StrategicForks({
       competitorCountByArchetype.set(p.archetype_id, p.threats.length);
     }
   }
-  const me = snapshot?.rosters.find((r) => r.is_me) ?? null;
-  const reqs = snapshot ? starterNeeds(snapshot) : null;
-  const positionState = (pos: Position): { have: number; need: number } => {
-    const have = me?.position_counts[pos] ?? 0;
-    const need = reqs?.[pos] ?? 0;
-    return { have, need };
-  };
-  const isStarterNeed = (pos: Position): boolean => {
-    const { have, need } = positionState(pos);
-    return need > 0 && have < need;
-  };
+  // VALUE PLAYS REFOCUS (2026-04-27 founder direction): position-
+  // forks (starter_need, path, depth) deleted. Their content is
+  // duplicated by the Decision card lane grid which is timeline-
+  // grouped and richer. Kept on this surface: earned_value and
+  // bargain_hunt. They answer "value vs slot anchor" which is
+  // distinct from lanes' "value vs my roster fit." Founder said:
+  // "I'm in love with the max dynasty value and buy low, flip
+  // later boxes."
 
-  // Group ranked archetypes by position. Multiple paths can share a
-  // position (QB Cartel + QB Volume Replacement); we surface up to 2
-  // path forks per position so the user sees the strategic split
-  // without one position dominating the row.
-  const pathsByPosition: Record<Position, RankedArchetype[]> = {
-    QB: [],
-    RB: [],
-    WR: [],
-    TE: [],
-    K: [],
-    DST: [],
-  };
-  for (const r of ranked) {
-    const pos = inferPrimaryPosition(r);
-    if (
-      !pos ||
-      !r.top_candidates ||
-      r.top_candidates.length === 0 ||
-      pathsByPosition[pos].length >= 2
-    )
-      continue;
-    pathsByPosition[pos].push(r);
-  }
-
-  // Build forks in position order, applying EV-band filtering per
-  // fork kind. Per user feedback 2026-04-24: forks should respect
-  // EV band (ZOPA-style) rather than blindly surfacing top-3.
-  //
-  //   starter_need: keep all in-band; if none in-band, surface best
-  //                 reach with explicit "forced reach" magnitude.
-  //                 Drop deep reaches even from starter-need (those
-  //                 are punts, not picks).
-  //   path / depth: drop deep reaches outright. Path forks have no
-  //                 need-driven argument for reaching.
+  // EV-band filtering rules retained for the two surviving forks:
   //   earned_value: only fair-or-bargain. "Earned" means at-or-above
   //                 slot value by definition.
   //   bargain_hunt: top players whose value > slot anchor by the
   //                 bargain threshold. Cross-position. Surfaces
   //                 future-leverage picks (buy low, flip later).
-  const positionForks: Fork[] = [];
-  for (const pos of POSITION_ORDER) {
-    const { have, need } = positionState(pos);
-    const paths = pathsByPosition[pos];
-    const positionPool = available.filter(
-      (p) => (p.position ?? "").toUpperCase() === pos,
-    );
-
-    if (isStarterNeed(pos) && positionPool.length > 0) {
-      // Pull a wide window, re-rank by KTC (when values present) so
-      // market-priced order wins over Sleeper-dynasty heuristic, then
-      // trim to PICKS_PER_FORK.
-      const window = rerank(positionPool).slice(0, 8);
-      const evd = window.map((p) => ({ p, ev: evFor(p.id) }));
-      const inBand = evd.filter(
-        (x) => x.ev.ev_tier !== "reach" || x.ev.ev_delta == null,
-      );
-      const reaches = evd
-        .filter(
-          (x) =>
-            x.ev.ev_tier === "reach" &&
-            x.ev.ev_delta != null &&
-            -x.ev.ev_delta < EV_DEEP_REACH_DELTA,
-        )
-        .sort(
-          (a, b) =>
-            (b.ev.ev_delta ?? -99) - (a.ev.ev_delta ?? -99),
-        );
-      // Prefer in-band; if none, take the best non-deep reaches.
-      // Forced reach magnitude = how far below slot value the user
-      // would have to dip (best case) to fill this hole.
-      const chosen =
-        inBand.length > 0
-          ? inBand.slice(0, PICKS_PER_FORK)
-          : reaches.slice(0, PICKS_PER_FORK);
-      const forcedReach =
-        inBand.length === 0 && chosen.length > 0
-          ? Math.round(Math.abs(chosen[0].ev.ev_delta ?? 0))
-          : null;
-      positionForks.push({
-        kind: "starter_need",
-        position: pos,
-        have,
-        need,
-        candidates: chosen.map((x) => x.p),
-        candidate_ev: chosen.map((x) => x.ev),
-        forced_reach_magnitude: forcedReach,
-      });
-      continue;
-    }
-
-    if (paths.length > 0) {
-      for (const r of paths) {
-        // EXECUTING-PHASE GATE (2026-04-27): mirrors the suppression
-        // already applied in decision-synthesis/synthesize.ts:731. A
-        // path whose primary position is saturated (`phase ===
-        // "executing"`) is finished acquiring; surfacing it as a fork
-        // contradicts the architecture pillar that EXECUTING means
-        // "stop acquiring at this position." Without this gate, the
-        // user saw "PUSH BALANCED · TE Tandem · EXECUTING · drifting
-        // 100% toward this path" promoting a path the engine
-        // explicitly classified as completed.
-        if (r.phase === "executing") continue;
-        // KTC re-rank applies to path candidates too, otherwise the
-        // primary in a path fork can disagree with the same player's
-        // ordering in starter-need/depth at the same position.
-        const cands = rerank(r.top_candidates!).slice(
-          0,
-          PICKS_PER_FORK + 2,
-        );
-        const evd = cands.map((c) => ({ c, ev: evFor(c.player_id) }));
-        // Drop deep reaches from path forks. A path fork is about
-        // pushing direction, not filling a hole; reaching defeats
-        // the purpose.
-        const filtered = evd.filter(
-          (x) =>
-            x.ev.ev_tier !== "reach" ||
-            x.ev.ev_delta == null ||
-            -x.ev.ev_delta < EV_DEEP_REACH_DELTA,
-        );
-        const chosen =
-          filtered.length > 0 ? filtered : evd; // graceful degrade
-        const trimmed = chosen.slice(0, PICKS_PER_FORK);
-        positionForks.push({
-          kind: "path",
-          position: pos,
-          ranked: r,
-          candidates: trimmed.map((x) => x.c),
-          candidate_ev: trimmed.map((x) => x.ev),
-          competitor_count:
-            competitorCountByArchetype.get(r.archetype.id) ?? null,
-        });
-      }
-    } else if (positionPool.length > 0) {
-      const window = rerank(positionPool).slice(
-        0,
-        PICKS_PER_FORK + 2,
-      );
-      const evd = window.map((p) => ({ p, ev: evFor(p.id) }));
-      const filtered = evd.filter(
-        (x) =>
-          x.ev.ev_tier !== "reach" ||
-          x.ev.ev_delta == null ||
-          -x.ev.ev_delta < EV_DEEP_REACH_DELTA,
-      );
-      const chosen = filtered.length > 0 ? filtered : evd;
-      const trimmed = chosen.slice(0, PICKS_PER_FORK);
-      positionForks.push({
-        kind: "depth",
-        position: pos,
-        candidates: trimmed.map((x) => x.p),
-        candidate_ev: trimmed.map((x) => x.ev),
-      });
-    }
-  }
+  // (Position fork loop deleted; see VALUE PLAYS REFOCUS comment
+  // above. The `forks` array starts empty and gets the EV +
+  // bargain entries appended below.)
 
   // Earned Value fork: top dynasty-value players regardless of
   // position, AT-OR-ABOVE slot anchor. "Earned" by definition excludes
@@ -452,7 +304,7 @@ export function StrategicForks({
     .sort((a, b) => (b.ev.ev_delta ?? 0) - (a.ev.ev_delta ?? 0))
     .slice(0, PICKS_PER_FORK);
 
-  const forks: Fork[] = [...positionForks];
+  const forks: Fork[] = [];
   if (earnedTrimmed.length > 0) {
     forks.push({
       kind: "earned_value",
@@ -471,22 +323,20 @@ export function StrategicForks({
 
   // Layout: 4 across on lg (so the rows stay balanced even with 5-7
   // forks; extra forks wrap to a second row), 2 across on md, 1 on mobile.
-  const cols =
-    forks.length >= 4
-      ? "md:grid-cols-2 lg:grid-cols-4"
-      : forks.length === 3
-        ? "md:grid-cols-3"
-        : "md:grid-cols-2";
+  // Two forks max on this surface (earned_value, bargain_hunt). Two
+  // columns on md+, single on mobile.
+  const cols = "md:grid-cols-2";
 
   return (
     <section className="mt-8">
       <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
-        Strategic forks
+        Value plays
         {myPickLabel ? ` at ${myPickLabel}` : ""}
       </div>
       <p className="mt-1 text-sm text-muted">
-        Each pick pushes a different path. Pick the one that matches the
-        direction you want.
+        Cross-position value vs your slot anchor. Lanes (above) tell
+        you what fits your roster; this tells you what the market is
+        mispricing right now.
       </p>
       {slotAnchor != null && (
         <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
