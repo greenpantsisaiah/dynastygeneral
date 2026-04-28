@@ -5,6 +5,7 @@ import { FeedbackWidget } from "@/components/feedback/feedback-widget";
 import { WhatsNewRibbon } from "@/components/whats-new-ribbon";
 import { CookieBanner } from "@/components/cookie-banner";
 import { getOptionalUser } from "@/lib/auth/session";
+import { GoogleTagManager } from "@next/third-parties/google";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -80,6 +81,7 @@ export default async function RootLayout({
         <FeedbackWidget signedInEmail={user?.email ?? null} />
         {cookieBannerOn && <CookieBanner />}
       </body>
+      <GoogleTagManager gtmId="GTM-5G2SWSNS" />
     </html>
   );
 }
