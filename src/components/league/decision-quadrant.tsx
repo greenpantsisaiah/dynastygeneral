@@ -51,22 +51,88 @@ function colorForPosition(pos: string | null): string {
   return POSITION_COLOR[pos.toUpperCase()] ?? FALLBACK_COLOR;
 }
 
-// Map a -100..+100 horizon to an SVG x coord.
-function xFor(h: number): number {
+// Absolute-scale mappers. Used when candidate spread is wide enough
+// that the absolute -100..+100 / 0..100 scale conveys meaning.
+function xForAbsolute(h: number): number {
   const clamped = Math.max(-100, Math.min(100, h));
   return PAD_LEFT + ((clamped + 100) / 200) * PLOT_W;
 }
-// Map a 0..100 confidence to an SVG y coord (inverted since SVG y goes down).
-function yFor(c: number): number {
+function yForAbsolute(c: number): number {
   const clamped = Math.max(0, Math.min(100, c));
   return PAD_TOP + (1 - clamped / 100) * PLOT_H;
 }
 
 // Dot radius scales gently with confidence so the lean visually pops.
-// Larger range than v1 (was 4-9) so the legend number inside the dot
-// is comfortably readable without forcing the user back to the legend.
 function rFor(c: number): number {
   return 8 + (c / 100) * 5;
+}
+
+// Stretch thresholds. When candidate spread on an axis is narrower
+// than these, the axis auto-stretches so min pegs near the axis
+// minimum and max pegs near the maximum, with 10 percent inset on
+// each end. Founder feedback 2026-04-28: with all 13 dots clustered
+// in a 20-point confidence band, the chart looked like a horizontal
+// line. Stretching restores the relative spread that's actually
+// meaningful at this point in the draft.
+const STRETCH_X_THRESHOLD = 60; // horizon points
+const STRETCH_Y_THRESHOLD = 30; // confidence points
+const STRETCH_INSET = 0.1; // 10 percent inset at each end
+
+// Dot-collision avoidance. Min center-to-center distance between any
+// two dots is r1 + r2 + DOT_PADDING. Standing-call dot is locked
+// (anchored at its true position); other dots get nudged.
+const DOT_PADDING = 10;
+const COLLISION_MAX_ITER = 60;
+
+type DotPos = {
+  id: string;
+  cx: number;
+  cy: number;
+  r: number;
+  locked: boolean;
+};
+
+function resolveDotCollisions(dots: DotPos[]): DotPos[] {
+  const result = dots.map((d) => ({ ...d }));
+  for (let iter = 0; iter < COLLISION_MAX_ITER; iter++) {
+    let moved = false;
+    for (let i = 0; i < result.length; i++) {
+      for (let j = i + 1; j < result.length; j++) {
+        const a = result[i];
+        const b = result[j];
+        const dx = b.cx - a.cx;
+        const dy = b.cy - a.cy;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+        const minDist = a.r + b.r + DOT_PADDING;
+        if (dist < minDist) {
+          const overlap = minDist - dist;
+          const ux = dx / dist;
+          const uy = dy / dist;
+          if (a.locked && b.locked) continue;
+          if (a.locked) {
+            b.cx += ux * overlap;
+            b.cy += uy * overlap;
+          } else if (b.locked) {
+            a.cx -= ux * overlap;
+            a.cy -= uy * overlap;
+          } else {
+            a.cx -= ux * overlap * 0.5;
+            a.cy -= uy * overlap * 0.5;
+            b.cx += ux * overlap * 0.5;
+            b.cy += uy * overlap * 0.5;
+          }
+          moved = true;
+        }
+      }
+    }
+    // Clamp to plot area (with dot-radius inset)
+    for (const d of result) {
+      d.cx = Math.max(PAD_LEFT + d.r, Math.min(PAD_LEFT + PLOT_W - d.r, d.cx));
+      d.cy = Math.max(PAD_TOP + d.r, Math.min(PAD_TOP + PLOT_H - d.r, d.cy));
+    }
+    if (!moved) break;
+  }
+  return result;
 }
 
 // Pull a compact surname for on-chart labeling. Just the last token:
@@ -167,6 +233,46 @@ export function DecisionQuadrant({
   });
   const lean = candidates.find((c) => c.is_lean);
 
+  // Auto-stretch decision per axis. When the candidate spread is too
+  // narrow for absolute-scale plotting to convey meaning, remap so
+  // min pegs near axis minimum and max pegs near maximum, with a
+  // 10 percent inset on each end. Founder feedback 2026-04-28.
+  const horizons = candidates.map((c) => c.horizon_pct);
+  const confidences = candidates.map((c) => c.confidence_pct);
+  const hMin = Math.min(...horizons);
+  const hMax = Math.max(...horizons);
+  const cMin = Math.min(...confidences);
+  const cMax = Math.max(...confidences);
+  const stretchX = hMax - hMin < STRETCH_X_THRESHOLD;
+  const stretchY = cMax - cMin < STRETCH_Y_THRESHOLD;
+
+  const xFor = (h: number): number => {
+    if (stretchX && hMax > hMin) {
+      const t = (h - hMin) / (hMax - hMin);
+      return PAD_LEFT + PLOT_W * (STRETCH_INSET + (1 - 2 * STRETCH_INSET) * t);
+    }
+    return xForAbsolute(h);
+  };
+  const yFor = (c: number): number => {
+    if (stretchY && cMax > cMin) {
+      const t = (c - cMin) / (cMax - cMin);
+      // High confidence pegs to TOP (low y), low pegs to BOTTOM (high y).
+      return PAD_TOP + PLOT_H * (1 - STRETCH_INSET - (1 - 2 * STRETCH_INSET) * t);
+    }
+    return yForAbsolute(c);
+  };
+
+  // Compute initial dot positions, then resolve collisions.
+  const initialDots: DotPos[] = candidates.map((c) => ({
+    id: c.player_id,
+    cx: xFor(c.horizon_pct),
+    cy: yFor(c.confidence_pct),
+    r: rFor(c.confidence_pct),
+    locked: c.is_lean === true,
+  }));
+  const positionedDots = resolveDotCollisions(initialDots);
+  const dotById = new Map(positionedDots.map((d) => [d.id, d]));
+
   return (
     <section className="mt-8 rounded-lg border border-border-soft bg-surface px-5 py-5">
       <div className="flex items-baseline justify-between">
@@ -205,42 +311,47 @@ export function DecisionQuadrant({
             strokeOpacity={0.08}
           />
 
-          {/* Confidence gridlines at 25/50/75 */}
-          {[25, 50, 75].map((c) => (
+          {/* Gridlines: only when NOT stretched. When stretched the
+              25/50/75 lines would map to misleading positions because
+              the visible range no longer represents 0-100. */}
+          {!stretchY &&
+            [25, 50, 75].map((c) => (
+              <line
+                key={c}
+                x1={PAD_LEFT}
+                x2={PAD_LEFT + PLOT_W}
+                y1={yForAbsolute(c)}
+                y2={yForAbsolute(c)}
+                stroke="currentColor"
+                strokeOpacity={0.06}
+                strokeDasharray="2 4"
+              />
+            ))}
+          {/* Center horizon line (balanced): only when NOT stretched. */}
+          {!stretchX && (
             <line
-              key={c}
-              x1={PAD_LEFT}
-              x2={PAD_LEFT + PLOT_W}
-              y1={yFor(c)}
-              y2={yFor(c)}
+              x1={xForAbsolute(0)}
+              x2={xForAbsolute(0)}
+              y1={PAD_TOP}
+              y2={PAD_TOP + PLOT_H}
               stroke="currentColor"
-              strokeOpacity={0.06}
-              strokeDasharray="2 4"
+              strokeOpacity={0.18}
+              strokeDasharray="3 3"
             />
-          ))}
-          {/* Center horizon line (balanced) */}
-          <line
-            x1={xFor(0)}
-            x2={xFor(0)}
-            y1={PAD_TOP}
-            y2={PAD_TOP + PLOT_H}
-            stroke="currentColor"
-            strokeOpacity={0.18}
-            strokeDasharray="3 3"
-          />
+          )}
 
           {/* Axis labels */}
           <text
             x={PAD_LEFT - 8}
-            y={yFor(50)}
+            y={PAD_TOP + PLOT_H / 2}
             textAnchor="end"
             fontSize="10"
             fontFamily="var(--font-mono, monospace)"
             fill="currentColor"
             opacity="0.5"
-            transform={`rotate(-90 ${PAD_LEFT - 8} ${yFor(50)})`}
+            transform={`rotate(-90 ${PAD_LEFT - 8} ${PAD_TOP + PLOT_H / 2})`}
           >
-            CONFIDENCE
+            CONFIDENCE{stretchY ? " (stretched)" : ""}
           </text>
           <text
             x={PAD_LEFT}
@@ -250,7 +361,7 @@ export function DecisionQuadrant({
             fill="currentColor"
             opacity="0.5"
           >
-            ← WIN-NOW
+            ← WIN-NOW{stretchX ? " (stretched)" : ""}
           </text>
           <text
             x={PAD_LEFT + PLOT_W}
@@ -263,17 +374,75 @@ export function DecisionQuadrant({
           >
             FUTURE →
           </text>
-          <text
-            x={xFor(0)}
-            y={PAD_TOP - 8}
-            textAnchor="middle"
-            fontSize="9"
-            fontFamily="var(--font-mono, monospace)"
-            fill="currentColor"
-            opacity="0.4"
-          >
-            BALANCED
-          </text>
+          {!stretchX && (
+            <text
+              x={xForAbsolute(0)}
+              y={PAD_TOP - 8}
+              textAnchor="middle"
+              fontSize="9"
+              fontFamily="var(--font-mono, monospace)"
+              fill="currentColor"
+              opacity="0.4"
+            >
+              BALANCED
+            </text>
+          )}
+
+          {/* Numeric tick labels at axis ends when stretched. Tells
+              the user the actual range the visible spread represents,
+              so the chart isn't lying about absolute confidence /
+              horizon. */}
+          {stretchY && (
+            <>
+              <text
+                x={PAD_LEFT - 4}
+                y={PAD_TOP + 4}
+                textAnchor="end"
+                fontSize="9"
+                fontFamily="var(--font-mono, monospace)"
+                fill="currentColor"
+                opacity="0.55"
+              >
+                {Math.round(cMax)}
+              </text>
+              <text
+                x={PAD_LEFT - 4}
+                y={PAD_TOP + PLOT_H - 1}
+                textAnchor="end"
+                fontSize="9"
+                fontFamily="var(--font-mono, monospace)"
+                fill="currentColor"
+                opacity="0.55"
+              >
+                {Math.round(cMin)}
+              </text>
+            </>
+          )}
+          {stretchX && (
+            <>
+              <text
+                x={PAD_LEFT + 2}
+                y={PAD_TOP + PLOT_H - 4}
+                fontSize="9"
+                fontFamily="var(--font-mono, monospace)"
+                fill="currentColor"
+                opacity="0.55"
+              >
+                {Math.round(hMin)}
+              </text>
+              <text
+                x={PAD_LEFT + PLOT_W - 2}
+                y={PAD_TOP + PLOT_H - 4}
+                textAnchor="end"
+                fontSize="9"
+                fontFamily="var(--font-mono, monospace)"
+                fill="currentColor"
+                opacity="0.55"
+              >
+                {Math.round(hMax)}
+              </text>
+            </>
+          )}
 
           {/* Candidate dots + on-chart short labels. Each label is
               placed to the right of its dot by default; flipped left
@@ -286,9 +455,14 @@ export function DecisionQuadrant({
             // lower-confidence labels around higher-confidence ones.
             const FLIP_X_THRESHOLD = PAD_LEFT + PLOT_W * 0.7;
             const labelSpecs: PlacedLabel[] = legendOrder.map((c) => {
-              const cx = xFor(c.horizon_pct);
-              const cy = yFor(c.confidence_pct);
-              const r = rFor(c.confidence_pct);
+              // Use the collision-resolved positions, NOT the raw
+              // xFor/yFor outputs. After the dot-collision pass,
+              // overlapping dots have been nudged apart; labels must
+              // follow the dots, not the original positions.
+              const dot = dotById.get(c.player_id)!;
+              const cx = dot.cx;
+              const cy = dot.cy;
+              const r = dot.r;
               const text = c.is_lean
                 ? c.name
                 : `${c.position ?? "?"} · ${surnameOf(c.name)}`;
@@ -332,9 +506,10 @@ export function DecisionQuadrant({
             );
             // Now render dots in renderOrder so lean paints on top.
             return renderOrder.map((c) => {
-              const cx = xFor(c.horizon_pct);
-              const cy = yFor(c.confidence_pct);
-              const r = rFor(c.confidence_pct);
+              const dot = dotById.get(c.player_id)!;
+              const cx = dot.cx;
+              const cy = dot.cy;
+              const r = dot.r;
               const dotColor = c.is_lean
                 ? "var(--color-accent, #f5a524)"
                 : colorForPosition(c.position);
