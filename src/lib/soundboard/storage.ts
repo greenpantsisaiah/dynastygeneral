@@ -77,41 +77,53 @@ function safeParseProfile(raw: string | undefined): JudgmentProfile | null {
 }
 
 /**
- * Read the current user's profile. Cookie is checked first (no DB
- * round-trip on the hot path); falls through to Supabase for signed-in
- * users when the cookie is absent. Returns the default profile when
- * neither layer has a value.
+ * Read the current user's profile.
+ *
+ * For SIGNED-IN users: Supabase is the cross-device source of truth.
+ * Cookie is ignored entirely on read so two devices NEVER show
+ * different recommendations for the same user. Bug 2026-04-28: prior
+ * cookie-first read produced "mobile says Arroyo, desktop says Mason
+ * Taylor" because each device's local cookie diverged from the
+ * server-of-truth Supabase row.
+ *
+ * For ANONYMOUS users: cookie is the only persistence layer, so we
+ * read it. Anonymous users have no cross-device identity to reconcile.
+ *
+ * Cookie writes still happen on save for both populations (write path
+ * unchanged). For signed-in users the cookie becomes a dead fallback
+ * that the read path ignores; harmless but explicit.
  */
 export async function readProfileServer(): Promise<JudgmentProfile> {
-  const store = await cookies();
-  const fromCookie = safeParseProfile(store.get(COOKIE_NAME)?.value);
-  if (fromCookie) return fromCookie;
   try {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return defaultProfile();
-    const { data } = await supabase
-      .from("judgment_profiles")
-      .select("dials, notes, last_edited_at")
-      .eq("user_id", auth.user.id)
-      .maybeSingle();
-    if (!data) return defaultProfile();
-    const merged = defaultProfile();
-    const incoming = (data.dials as Record<string, unknown>) ?? {};
-    const validIds = new Set<DialId>(DIAL_SPECS.map((s) => s.id));
-    for (const [k, v] of Object.entries(incoming)) {
-      if (!validIds.has(k as DialId)) continue;
-      const coerced = coerceDialValue(v);
-      if (coerced !== undefined) merged.dials[k as DialId] = coerced;
+    if (auth.user) {
+      const { data } = await supabase
+        .from("judgment_profiles")
+        .select("dials, notes, last_edited_at")
+        .eq("user_id", auth.user.id)
+        .maybeSingle();
+      if (!data) return defaultProfile();
+      const merged = defaultProfile();
+      const incoming = (data.dials as Record<string, unknown>) ?? {};
+      const validIds = new Set<DialId>(DIAL_SPECS.map((s) => s.id));
+      for (const [k, v] of Object.entries(incoming)) {
+        if (!validIds.has(k as DialId)) continue;
+        const coerced = coerceDialValue(v);
+        if (coerced !== undefined) merged.dials[k as DialId] = coerced;
+      }
+      merged.notes = sanitizeNotes(data.notes, validIds);
+      merged.last_edited_at =
+        (data.last_edited_at as string | null) ?? null;
+      return merged;
     }
-    merged.notes = sanitizeNotes(data.notes, validIds);
-    merged.last_edited_at =
-      (data.last_edited_at as string | null) ?? null;
-    return merged;
   } catch (err) {
     console.error("[soundboard:read]", err);
-    return defaultProfile();
   }
+  const store = await cookies();
+  const fromCookie = safeParseProfile(store.get(COOKIE_NAME)?.value);
+  if (fromCookie) return fromCookie;
+  return defaultProfile();
 }
 
 /**
