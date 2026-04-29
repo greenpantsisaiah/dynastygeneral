@@ -169,6 +169,44 @@ export type AdpFormatKey = {
 // actual TE-premium league draft order.
 const TE_PREMIUM_ADP_MULTIPLIER = 0.90;
 
+/**
+ * Pick the REDRAFT ADP variant for a league format. Redraft ADP is
+ * literally purpose-built for "expected production this season" -
+ * the entire fantasy industry's collective opinion on who will score
+ * the most points in a single year. Used as the talent half of the
+ * starter_talent signal: redraft ADP captures trades (Mike Evans
+ * to a new team gets repriced), injury comebacks (market reflects
+ * post-injury outlook), role promotions (WR2 to WR1 lifts ADP), and
+ * rookies' year-1 outlook in one signal.
+ *
+ * Falls through SF -> scoring-specific -> PPR -> any-ppr. Returns
+ * null when no redraft variant is populated for the player.
+ */
+export function pickRedraftAdpFromVariants(
+  adp: PlayerAdp | undefined,
+  fmt: AdpFormatKey,
+): { value: number | null; variant: string } {
+  if (!adp) return { value: null, variant: "none" };
+  const candidates: Array<[number | null, string]> = [];
+  if (fmt.isSuperflex) candidates.push([adp.adp_2qb, "redraft_2qb"]);
+  if (fmt.isPpr) {
+    candidates.push([adp.adp_ppr, "redraft_ppr"]);
+  } else if (fmt.isHalfPpr) {
+    candidates.push([adp.adp_half_ppr, "redraft_half_ppr"]);
+  } else {
+    candidates.push([adp.adp_std, "redraft_std"]);
+  }
+  // Final fallback: PPR is the most common scoring; if our
+  // format-specific lookup missed, try PPR before giving up.
+  candidates.push([adp.adp_ppr, "redraft_ppr_fallback"]);
+  for (const [v, variant] of candidates) {
+    if (v != null && Number.isFinite(v) && v < 999) {
+      return { value: v, variant };
+    }
+  }
+  return { value: null, variant: "none" };
+}
+
 export function pickAdpFromVariants(
   adp: PlayerAdp | undefined,
   fmt: AdpFormatKey,

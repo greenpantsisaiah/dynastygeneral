@@ -19,6 +19,10 @@ import {
   productionScore,
   type PlayerSeasonStats,
 } from "@/lib/players/season-stats";
+import {
+  pickRedraftAdpFromVariants,
+  type PlayerAdp,
+} from "@/lib/players/projections";
 import { pickNoForSlot } from "@/lib/sleeper/snake";
 import type {
   LeagueFormat,
@@ -371,6 +375,13 @@ export async function buildLeagueSnapshot(args: {
   // rank for a more honest expected-2026 signal. Falls back to
   // rank-only when absent.
   lastSeasonStats?: Map<string, PlayerSeasonStats>;
+  // Optional: per-player ADP across all variants (Sleeper /projections
+  // endpoint). When provided, the starter_talent_score uses redraft
+  // ADP as the primary "expected this season" signal. Redraft ADP is
+  // purpose-built for single-season production and captures trades,
+  // injury comebacks, role promotions, and rookies' year-1 outlook
+  // automatically. Falls back to search_rank when absent.
+  projections?: Map<string, PlayerAdp>;
 }): Promise<LeagueSnapshot> {
   const {
     league,
@@ -379,6 +390,7 @@ export async function buildLeagueSnapshot(args: {
     draftState,
     mySleeperUserId,
     lastSeasonStats,
+    projections,
   } = args;
 
   // Gather every player ID we need to resolve (rostered + drafted)
@@ -441,21 +453,34 @@ export async function buildLeagueSnapshot(args: {
         ? "half_ppr"
         : "std";
 
+  // Format key for redraft ADP picker. Mirrors the AdpFormatKey shape
+  // used by available.ts; we only need the redraft-relevant subset
+  // (isSuperflex + scoring) since redraft ADP variants are scoring-
+  // specific, not dynasty-specific.
+  const positions = league.roster_positions ?? [];
+  const isSuperflex = positions.includes("SUPER_FLEX");
+  const adpFormatKey = {
+    isSuperflex,
+    isPpr: scoringVariant === "ppr",
+    isHalfPpr: scoringVariant === "half_ppr",
+    isTePremium: false,
+  };
+
   // Per-roster snapshots
   const rosterSnapshots: RosterSnapshot[] = rosters.map((r) => {
     const counts = emptyPositionCounts();
     const ranks = emptyPositionRanks();
     const ages: number[] = [];
-    // Per-player (rank, age, position, prodScore) tuples for starter
-    // selection. Players without rank+age are excluded (cannot
-    // contribute a defensible starter average); prodScore is null
-    // when no last-season stats exist (rookies, players who didn't
-    // play, or stats unavailable).
+    // Per-player (rank, age, position, prodScore, redraftAdp) tuples
+    // for starter selection. Players without rank+age are excluded
+    // (cannot contribute a defensible starter average); prodScore and
+    // redraftAdp are null when their respective data is missing.
     const rankedPlayers: Array<{
       rank: number;
       age: number;
       position: Position;
       prodScore: number | null;
+      redraftAdp: number | null;
     }> = [];
     const merged = new Set<string>([
       ...(r.players ?? []),
@@ -477,11 +502,17 @@ export async function buildLeagueSnapshot(args: {
         ranks[pos].push(p.search_rank);
         if (typeof p.age === "number") {
           const stats = lastSeasonStats?.get(id);
+          const adpEntry = projections?.get(id);
+          const { value: redraftAdp } = pickRedraftAdpFromVariants(
+            adpEntry,
+            adpFormatKey,
+          );
           rankedPlayers.push({
             rank: p.search_rank,
             age: p.age,
             position: pos,
             prodScore: productionScore(stats, pos, scoringVariant),
+            redraftAdp,
           });
         }
       }
@@ -512,41 +543,54 @@ export async function buildLeagueSnapshot(args: {
         ? starterPool.reduce((a, b) => a + b.age, 0) / starterPool.length
         : avg_age;
     // Starter talent score: composite of last-season production +
-    // current rank, averaged across top-N starters.
+    // redraft ADP, averaged across top-N starters.
     //
-    // Per starter, blend:
+    // Per starter, three possible signals:
     //   - prodScore: 0-1 from last-season PPG (position-aware
     //     normalization). Null for rookies / no-history.
-    //   - rankScore: 0-1 from Sleeper search_rank (1 - r/200, clamped).
+    //   - redraftScore: 0-1 from redraft ADP (1 - adp/200, clamped).
+    //     Redraft ADP is purpose-built for THIS season's expected
+    //     production. It captures trades (Mike Evans-to-SF gets
+    //     repriced), injury comebacks (market post-injury outlook),
+    //     role promotions (WR2 to WR1 lifts ADP), and rookies'
+    //     year-1 outlook in a single signal.
+    //   - rankScore: 0-1 from dynasty search_rank. Last-resort
+    //     fallback when neither prod nor redraft is available.
     //
-    // When both signals exist: 0.6 * prodScore + 0.4 * rankScore
-    //   Production is the dominant signal (real fantasy points
-    //   produced > market rank). Rank is the situation modifier:
-    //   when a player's role changes (Mike Evans traded to SF as
-    //   WR1, WR2 promoted because WR1 left), the market reprices
-    //   ADP/rank before the season; the rank component captures
-    //   that delta.
+    // When prod + redraft both exist: 0.5 * prod + 0.5 * redraft.
+    //   Production confirms what they did; redraft confirms what the
+    //   market expects this season. Both pointing at "expected 2026
+    //   points" from different angles. They double-confirm when
+    //   aligned and surface situation changes when divergent.
     //
-    // When only rankScore exists (rookies, no-history players):
-    //   use rankScore directly. A round-1 rookie with rank 60
-    //   reads as 0.7, properly indicating expected starter status.
+    // When only redraft exists (rookies, players who missed last
+    //   season): use redraft directly. A rookie with redraft ADP 30
+    //   reads as 0.85, properly capturing year-1 starter expectation.
     //
-    // When only prodScore exists (rare; means rank missing):
-    //   use prodScore directly.
+    // When only prod exists (rare; redraft missing for an active
+    //   producer): use prod directly.
     //
-    // Per founder direction 2026-04-29: the talent signal must
-    // capture "lead at position" not just "veteran." A player who
-    // starred last season AND is rated as starter this season hits
-    // both signals and reads correctly.
+    // When neither exists: fall back to dynasty rank score.
+    //
+    // Per founder direction 2026-04-29: redraft ADP is purpose-built
+    // for win-now ("they're already based on win-now, straight
+    // down"). Using it as the primary market signal aligns the
+    // talent score with what the chart is actually claiming to
+    // measure.
     const starter_talent_score =
       starterPool.length > 0
         ? starterPool
             .map((x) => {
-              const rankScore = Math.max(0, 1 - x.rank / 200);
-              if (x.prodScore != null) {
-                return 0.6 * x.prodScore + 0.4 * rankScore;
+              const redraftScore =
+                x.redraftAdp != null
+                  ? Math.max(0, 1 - x.redraftAdp / 200)
+                  : null;
+              if (x.prodScore != null && redraftScore != null) {
+                return 0.5 * x.prodScore + 0.5 * redraftScore;
               }
-              return rankScore;
+              if (redraftScore != null) return redraftScore;
+              if (x.prodScore != null) return x.prodScore;
+              return Math.max(0, 1 - x.rank / 200);
             })
             .reduce((a, b) => a + b, 0) / starterPool.length
         : null;

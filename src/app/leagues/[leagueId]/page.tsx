@@ -76,6 +76,7 @@ import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
 import { resolvePlayers } from "@/lib/players/cache";
 import { getSeasonStats } from "@/lib/players/season-stats";
+import { getProjections } from "@/lib/players/projections";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
@@ -296,13 +297,16 @@ export default async function LeagueHubPage({
   if (draftState) {
     try {
       // Last-season stats power the production half of the
-      // starter_talent signal. Non-fatal: if the fetch fails the
-      // module returns an empty map and snapshot falls back to
-      // rank-only scoring.
+      // starter_talent signal. Projections power the redraft-ADP
+      // half. Both non-fatal: failures return empty maps and the
+      // snapshot falls back to dynasty rank-only scoring.
       const prevSeason = String(Number(league.season) - 1);
-      const lastSeasonStats = await getSeasonStats(prevSeason).catch(
-        () => new Map(),
-      );
+      const [lastSeasonStats, projectionsCache] = await Promise.all([
+        getSeasonStats(prevSeason).catch(() => new Map()),
+        getProjections(league.season).catch(
+          () => ({ byPlayerId: new Map(), fetchedAt: 0 }),
+        ),
+      ]);
       leagueSnapshot = await buildLeagueSnapshot({
         league,
         rosters,
@@ -310,6 +314,7 @@ export default async function LeagueHubPage({
         draftState,
         mySleeperUserId: sleeperUser?.user_id ?? null,
         lastSeasonStats,
+        projections: projectionsCache.byPlayerId,
       });
       const snapshot = leagueSnapshot;
       rankedArchetypes = rankArchetypes(snapshot);
