@@ -543,7 +543,22 @@ export async function buildLeagueSnapshot(args: {
         ? starterPool.reduce((a, b) => a + b.age, 0) / starterPool.length
         : avg_age;
     // Starter talent score: composite of last-season production +
-    // redraft ADP, averaged across top-N starters.
+    // redraft ADP, SLOT-WEIGHTED across top-N starters.
+    //
+    // Founder feedback 2026-04-29: simple-mean averaging treated
+    // "5 elite + 4 mid" the same as "9 balanced mid" which doesn't
+    // match how fantasy seasons actually play out. Top-of-lineup
+    // ceiling drives weekly delta more than depth does. Slot weights
+    // amplify the top starters' contribution:
+    //   slot 0 (top rank): 1.5x
+    //   slots 1-2:         1.3x
+    //   slots 3-5:         1.0x
+    //   slots 6+:          0.7x
+    //
+    // Net effect: a team with Jefferson + McCaffrey + Lamb at top-3
+    // gets meaningful credit for that ceiling vs a team whose
+    // top-3 are all mid-tier starters, even when their bottom-of-
+    // lineup pulls the simple mean toward each other.
     //
     // Per starter, three possible signals:
     //   - prodScore: 0-1 from last-season PPG (position-aware
@@ -577,22 +592,34 @@ export async function buildLeagueSnapshot(args: {
     // down"). Using it as the primary market signal aligns the
     // talent score with what the chart is actually claiming to
     // measure.
+    const slotWeight = (slot: number): number => {
+      if (slot === 0) return 1.5;
+      if (slot < 3) return 1.3;
+      if (slot < 6) return 1.0;
+      return 0.7;
+    };
+    const perSlotScores = starterPool.map((x) => {
+      const redraftScore =
+        x.redraftAdp != null
+          ? Math.max(0, 1 - x.redraftAdp / 200)
+          : null;
+      if (x.prodScore != null && redraftScore != null) {
+        return 0.5 * x.prodScore + 0.5 * redraftScore;
+      }
+      if (redraftScore != null) return redraftScore;
+      if (x.prodScore != null) return x.prodScore;
+      return Math.max(0, 1 - x.rank / 200);
+    });
     const starter_talent_score =
-      starterPool.length > 0
-        ? starterPool
-            .map((x) => {
-              const redraftScore =
-                x.redraftAdp != null
-                  ? Math.max(0, 1 - x.redraftAdp / 200)
-                  : null;
-              if (x.prodScore != null && redraftScore != null) {
-                return 0.5 * x.prodScore + 0.5 * redraftScore;
-              }
-              if (redraftScore != null) return redraftScore;
-              if (x.prodScore != null) return x.prodScore;
-              return Math.max(0, 1 - x.rank / 200);
-            })
-            .reduce((a, b) => a + b, 0) / starterPool.length
+      perSlotScores.length > 0
+        ? perSlotScores.reduce(
+            (acc, score, idx) => acc + score * slotWeight(idx),
+            0,
+          ) /
+          perSlotScores.reduce(
+            (acc, _, idx) => acc + slotWeight(idx),
+            0,
+          )
         : null;
     const settings = (r.settings ?? {}) as Record<string, unknown>;
     return {

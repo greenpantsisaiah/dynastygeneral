@@ -1,90 +1,141 @@
 /**
- * Divergence from League Mean. For each team, two horizontal bars
- * showing how their win-now and future scores diverge from the league
- * mean. Bars left of zero = below average, right = above. User's bars
- * in accent gold.
+ * League Standings (win-now + future). Renders teams sorted by win-now
+ * score with explicit ordinal rank, contender tier label, and bars
+ * scaled to the actual league range so differentiation is visible to
+ * a casual reader.
  *
- * The point: when absolute scores cluster (everyone 75-90), abs values
- * obscure differentiation. Centering on league mean makes a +3 vs -2
- * pop visually even though both are within 5 points of average.
+ * Founder feedback 2026-04-29: prior divergence-from-mean visualization
+ * compressed small differences and did not lead the eye to the
+ * contender hierarchy. New view: sorted-by-win-now ranked rows with
+ * absolute-score bars + tier labels (CONTENDER / IN THE MIX / LONG
+ * SHOT). Eye reads the standings in two seconds.
+ *
+ * Future score still shown as a secondary axis per row so the user
+ * can spot teams whose now-strength is propped up by aging assets vs
+ * teams whose future hedges their now.
  */
 
 import type { LeagueOutlook } from "@/lib/strategy/league-outlook/compute";
+
+type TeamRow = LeagueOutlook["teams"][number];
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+}
+
+function tierFor(rank: number, total: number): {
+  label: string;
+  tone: "contender" | "mix" | "longshot";
+} {
+  if (rank <= Math.max(1, Math.floor(total / 4))) {
+    return { label: "Contender", tone: "contender" };
+  }
+  if (rank <= Math.ceil(total * 0.66)) {
+    return { label: "In the mix", tone: "mix" };
+  }
+  return { label: "Long shot", tone: "longshot" };
+}
 
 export function LeagueDivergence({
   outlook,
 }: {
   outlook: LeagueOutlook;
 }) {
+  const teams = outlook.teams;
   const meanWinNow =
-    outlook.teams.reduce((s, t) => s + t.win_now, 0) /
-    Math.max(1, outlook.teams.length);
+    teams.reduce((s, t) => s + t.win_now, 0) / Math.max(1, teams.length);
   const meanFuture =
-    outlook.teams.reduce((s, t) => s + t.future, 0) /
-    Math.max(1, outlook.teams.length);
+    teams.reduce((s, t) => s + t.future, 0) / Math.max(1, teams.length);
 
-  // Find max absolute deviation across both axes for consistent scale.
-  const maxDev = Math.max(
-    1,
-    ...outlook.teams.flatMap((t) => [
-      Math.abs(t.win_now - meanWinNow),
-      Math.abs(t.future - meanFuture),
-    ]),
-  );
+  // Score range across the league. Bars scale to this range so the
+  // visual gap between best and worst is real, not compressed by an
+  // arbitrary 0-100 fill.
+  const allScores = [
+    ...teams.map((t) => t.win_now),
+    ...teams.map((t) => t.future),
+  ];
+  const minScore = Math.min(...allScores);
+  const maxScore = Math.max(...allScores);
+  const scoreRange = Math.max(1, maxScore - minScore);
 
-  const sorted = [...outlook.teams].sort(
-    (a, b) =>
-      b.win_now + b.future - (a.win_now + a.future),
-  );
+  // Sort by win-now (the headline view).
+  const ranked = [...teams].sort((a, b) => b.win_now - a.win_now);
+  // Per-team future rank for the secondary label.
+  const byFuture = [...teams].sort((a, b) => b.future - a.future);
+  const futureRankById = new Map<number, number>();
+  byFuture.forEach((t, idx) => futureRankById.set(t.roster_id, idx + 1));
 
   return (
     <section className="rounded-lg border border-border-soft bg-surface px-5 py-5">
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          Divergence from league mean
+          League standings · win-now + future
         </div>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground">
-          Above or below the field
+          Who is the team to beat?
         </h2>
       </div>
       <p className="mt-2 max-w-prose text-xs text-muted">
-        Each team's win-now and future centered on the league mean
-        (win-now {meanWinNow.toFixed(1)}, future {meanFuture.toFixed(1)}).
-        Bars left of center = below average; right = above. Surfaces
-        small absolute differences as visible spatial divergence.
+        Sorted by 2026 win-now strength. Tier label reflects win-now
+        contender odds; future column shows multi-year value separately
+        so a "Contender now" with weak future reads as the team to beat
+        this season but a sell-window candidate. League means: now{" "}
+        {meanWinNow.toFixed(1)}, future {meanFuture.toFixed(1)}.
       </p>
-      <div className="mt-4 space-y-3">
-        {sorted.map((t) => {
-          const devNow = t.win_now - meanWinNow;
-          const devFut = t.future - meanFuture;
+      <div className="mt-4 space-y-2">
+        {ranked.map((t, idx) => {
+          const rank = idx + 1;
+          const tier = tierFor(rank, teams.length);
+          const futureRank =
+            futureRankById.get(t.roster_id) ?? teams.length;
           return (
             <div
               key={t.roster_id}
-              className={`grid grid-cols-[120px_1fr_1fr] items-center gap-3 rounded-sm px-2 py-1.5 ${
+              className={`grid grid-cols-[28px_140px_72px_1fr_72px_1fr] items-center gap-2 rounded-sm px-2 py-1.5 ${
                 t.is_me ? "bg-accent/5" : ""
               }`}
             >
               <div
-                className={`truncate text-sm ${
-                  t.is_me ? "font-semibold text-accent" : "text-foreground"
+                className={`font-mono text-[11px] uppercase tracking-[0.14em] ${
+                  rank === 1 ? "text-accent" : "text-muted-2"
                 }`}
               >
-                {t.is_me && <span className="mr-1">▸</span>}
-                {t.owner_name ?? "?"}
+                {ordinal(rank)}
               </div>
-              <DivergenceBar
-                label="now"
-                value={devNow}
-                maxDev={maxDev}
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <div
+                  className={`truncate text-sm ${
+                    t.is_me ? "font-semibold text-accent" : "text-foreground"
+                  }`}
+                >
+                  {t.is_me && <span className="mr-1">▸</span>}
+                  {t.owner_name ?? "?"}
+                </div>
+                <TierBadge tone={tier.tone} label={tier.label} />
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                Now {t.win_now}
+              </div>
+              <ScoreBar
+                value={t.win_now}
+                min={minScore}
+                max={maxScore}
+                range={scoreRange}
                 isMe={t.is_me}
-                rawValue={t.win_now}
+                tone="now"
               />
-              <DivergenceBar
-                label="future"
-                value={devFut}
-                maxDev={maxDev}
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                Future {t.future} · {ordinal(futureRank)}
+              </div>
+              <ScoreBar
+                value={t.future}
+                min={minScore}
+                max={maxScore}
+                range={scoreRange}
                 isMe={t.is_me}
-                rawValue={t.future}
+                tone="future"
               />
             </div>
           );
@@ -94,51 +145,61 @@ export function LeagueDivergence({
   );
 }
 
-function DivergenceBar({
+function TierBadge({
+  tone,
   label,
-  value,
-  maxDev,
-  isMe,
-  rawValue,
 }: {
+  tone: "contender" | "mix" | "longshot";
   label: string;
-  value: number;
-  maxDev: number;
-  isMe: boolean;
-  rawValue: number;
 }) {
-  const pct = (Math.abs(value) / maxDev) * 50; // 0-50%, fills half-track max
-  const isPos = value >= 0;
+  const cls =
+    tone === "contender"
+      ? "border-accent/60 bg-accent/15 text-accent"
+      : tone === "mix"
+        ? "border-success/40 bg-success/10 text-success"
+        : "border-border-soft bg-surface-2 text-muted-2";
   return (
-    <div className="relative h-5 rounded-sm bg-surface-2">
-      {/* Center line */}
-      <div className="absolute left-1/2 top-0 h-full w-px bg-border-strong" />
-      {/* Bar */}
+    <span
+      className={`inline-flex w-fit rounded-sm border px-1.5 py-0 font-mono text-[9px] uppercase tracking-[0.14em] ${cls}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function ScoreBar({
+  value,
+  min,
+  max: _max,
+  range,
+  isMe,
+  tone,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  range: number;
+  isMe: boolean;
+  tone: "now" | "future";
+}) {
+  // Bar fill maps absolute score onto the league range. Best-in-league
+  // pegs at 100% width; worst pegs near 0%.
+  const pct = Math.max(2, Math.min(100, ((value - min) / range) * 100));
+  return (
+    <div className="relative h-4 rounded-sm bg-surface-2">
       <div
-        className={`absolute top-0 h-full ${
-          isMe ? "bg-accent" : isPos ? "bg-success/60" : "bg-danger/60"
+        className={`absolute left-0 top-0 h-full rounded-sm ${
+          isMe
+            ? "bg-accent"
+            : tone === "now"
+              ? "bg-success/60"
+              : "bg-success/30"
         }`}
-        style={{
-          left: isPos ? "50%" : `${50 - pct}%`,
-          width: `${pct}%`,
-        }}
+        style={{ width: `${pct}%` }}
       />
-      {/* Numeric labels */}
-      <div className="pointer-events-none absolute inset-0 flex items-center px-2 font-mono text-[10px]">
-        <span className="text-muted-2">{label}</span>
-        <span
-          className={`ml-auto ${
-            isMe
-              ? "text-accent font-semibold"
-              : isPos
-                ? "text-success"
-                : "text-danger"
-          }`}
-        >
-          {isPos ? "+" : ""}
-          {value.toFixed(1)} ({rawValue})
-        </span>
-      </div>
     </div>
   );
 }
+
+// Re-export the prior name in case anything else imports it.
+export { LeagueDivergence as LeagueStandings };
