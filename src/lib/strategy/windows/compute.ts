@@ -222,15 +222,15 @@ export function scoreWinNowFor(
     {
       label: "Starter talent (production + redraft ADP)",
       value: me?.starter_talent_score ?? 0.5,
-      weight: 0.3,
+      weight: 0.45,
       blurb: me?.starter_talent_score != null
-        ? `composite ${(me.starter_talent_score * 100).toFixed(0)}/100 (last-season PPG + redraft ADP)`
+        ? `composite ${(me.starter_talent_score * 100).toFixed(0)}/100 (last-season PPG + redraft ADP, top-3 weighted)`
         : "no production / redraft data yet",
     },
     {
       label: "Starter age (proven production)",
       value: ageWinNowSignal(me),
-      weight: 0.25,
+      weight: 0.2,
       blurb: (() => {
         const starter = me?.starter_avg_age;
         const whole = me?.avg_age;
@@ -245,7 +245,7 @@ export function scoreWinNowFor(
     {
       label: "Starting positions filled",
       value: positionCompleteness(me),
-      weight: 0.2,
+      weight: 0.15,
       blurb: me
         ? `${SCORING_POSITIONS.filter((p) => me.position_counts[p] >= 1).length}/4 scoring positions covered`
         : "",
@@ -253,7 +253,7 @@ export function scoreWinNowFor(
     {
       label: "Roster fullness",
       value: rosterDepth(me, targetDepth),
-      weight: 0.1,
+      weight: 0.05,
       blurb: me ? `${me.player_ids.length}/${targetDepth} slots` : "",
     },
   ];

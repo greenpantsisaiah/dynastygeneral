@@ -592,11 +592,18 @@ export async function buildLeagueSnapshot(args: {
     // down"). Using it as the primary market signal aligns the
     // talent score with what the chart is actually claiming to
     // measure.
+    // Aggressive peak-heavy weighting: top starters dominate the
+    // talent score because fantasy weeks are won by ceiling, not
+    // depth. 2.5 + 1.8 + 1.8 = 6.1 weight on top-3 vs 0.6*3 + 0.4*3
+    // = 3.0 on slots 4-9, so top-3 carry 67 percent of the talent
+    // average. Founder feedback 2026-04-29: prior 1.5/1.3 weighting
+    // was too gentle; loaded contenders still read as middle of pack
+    // because aged mid-tier slot fillers dragged the average down.
     const slotWeight = (slot: number): number => {
-      if (slot === 0) return 1.5;
-      if (slot < 3) return 1.3;
-      if (slot < 6) return 1.0;
-      return 0.7;
+      if (slot === 0) return 2.5;
+      if (slot < 3) return 1.8;
+      if (slot < 6) return 0.6;
+      return 0.4;
     };
     const perSlotScores = starterPool.map((x) => {
       const redraftScore =
