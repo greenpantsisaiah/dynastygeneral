@@ -15,6 +15,10 @@ import type {
   SleeperLeagueUser,
 } from "@/lib/sleeper/schemas";
 import { resolvePlayers } from "@/lib/players/cache";
+import {
+  productionScore,
+  type PlayerSeasonStats,
+} from "@/lib/players/season-stats";
 import { pickNoForSlot } from "@/lib/sleeper/snake";
 import type {
   LeagueFormat,
@@ -362,8 +366,20 @@ export async function buildLeagueSnapshot(args: {
   users: SleeperLeagueUser[];
   draftState: DraftState;
   mySleeperUserId: string | null;
+  // Optional: per-player last-season stats (Sleeper /stats endpoint).
+  // When provided, the starter_talent_score blends production with
+  // rank for a more honest expected-2026 signal. Falls back to
+  // rank-only when absent.
+  lastSeasonStats?: Map<string, PlayerSeasonStats>;
 }): Promise<LeagueSnapshot> {
-  const { league, rosters, users, draftState, mySleeperUserId } = args;
+  const {
+    league,
+    rosters,
+    users,
+    draftState,
+    mySleeperUserId,
+    lastSeasonStats,
+  } = args;
 
   // Gather every player ID we need to resolve (rostered + drafted)
   const allPlayerIds = new Set<string>();
@@ -409,15 +425,38 @@ export async function buildLeagueSnapshot(args: {
     starterSlotsParsed.superflex +
     starterSlotsParsed.rec_flex;
 
+  // Pick the scoring variant matching this league for last-season
+  // production lookup. Defaults to PPR which is the most common
+  // dynasty scoring; std/half-PPR variants used when explicitly set.
+  const scoringStr = (league.scoring_settings ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const recPoints =
+    typeof scoringStr.rec === "number" ? scoringStr.rec : 1;
+  const scoringVariant: "ppr" | "half_ppr" | "std" =
+    recPoints >= 0.9
+      ? "ppr"
+      : recPoints >= 0.4
+        ? "half_ppr"
+        : "std";
+
   // Per-roster snapshots
   const rosterSnapshots: RosterSnapshot[] = rosters.map((r) => {
     const counts = emptyPositionCounts();
     const ranks = emptyPositionRanks();
     const ages: number[] = [];
-    // Per-player (rank, age) tuples for starter selection. Players
-    // without both fields are excluded from this list (they cannot
-    // contribute to a defensible starter average).
-    const rankedPlayers: Array<{ rank: number; age: number }> = [];
+    // Per-player (rank, age, position, prodScore) tuples for starter
+    // selection. Players without rank+age are excluded (cannot
+    // contribute a defensible starter average); prodScore is null
+    // when no last-season stats exist (rookies, players who didn't
+    // play, or stats unavailable).
+    const rankedPlayers: Array<{
+      rank: number;
+      age: number;
+      position: Position;
+      prodScore: number | null;
+    }> = [];
     const merged = new Set<string>([
       ...(r.players ?? []),
       ...(draftedByRoster.get(r.roster_id) ?? []),
@@ -437,7 +476,13 @@ export async function buildLeagueSnapshot(args: {
       ) {
         ranks[pos].push(p.search_rank);
         if (typeof p.age === "number") {
-          rankedPlayers.push({ rank: p.search_rank, age: p.age });
+          const stats = lastSeasonStats?.get(id);
+          rankedPlayers.push({
+            rank: p.search_rank,
+            age: p.age,
+            position: pos,
+            prodScore: productionScore(stats, pos, scoringVariant),
+          });
         }
       }
       if (p && typeof p.age === "number") ages.push(p.age);
@@ -466,14 +511,43 @@ export async function buildLeagueSnapshot(args: {
       starterPool.length > 0
         ? starterPool.reduce((a, b) => a + b.age, 0) / starterPool.length
         : avg_age;
-    // Starter talent score: average normalized rank across the top-N
-    // starters. normalize_rank(r) = max(0, 1 - r/200): rank 1 = 0.995,
-    // rank 100 = 0.5, rank 200+ = 0. Higher score = more talent. Null
-    // when the roster has no rank-and-age data yet (pre-draft).
+    // Starter talent score: composite of last-season production +
+    // current rank, averaged across top-N starters.
+    //
+    // Per starter, blend:
+    //   - prodScore: 0-1 from last-season PPG (position-aware
+    //     normalization). Null for rookies / no-history.
+    //   - rankScore: 0-1 from Sleeper search_rank (1 - r/200, clamped).
+    //
+    // When both signals exist: 0.6 * prodScore + 0.4 * rankScore
+    //   Production is the dominant signal (real fantasy points
+    //   produced > market rank). Rank is the situation modifier:
+    //   when a player's role changes (Mike Evans traded to SF as
+    //   WR1, WR2 promoted because WR1 left), the market reprices
+    //   ADP/rank before the season; the rank component captures
+    //   that delta.
+    //
+    // When only rankScore exists (rookies, no-history players):
+    //   use rankScore directly. A round-1 rookie with rank 60
+    //   reads as 0.7, properly indicating expected starter status.
+    //
+    // When only prodScore exists (rare; means rank missing):
+    //   use prodScore directly.
+    //
+    // Per founder direction 2026-04-29: the talent signal must
+    // capture "lead at position" not just "veteran." A player who
+    // starred last season AND is rated as starter this season hits
+    // both signals and reads correctly.
     const starter_talent_score =
       starterPool.length > 0
         ? starterPool
-            .map((x) => Math.max(0, 1 - x.rank / 200))
+            .map((x) => {
+              const rankScore = Math.max(0, 1 - x.rank / 200);
+              if (x.prodScore != null) {
+                return 0.6 * x.prodScore + 0.4 * rankScore;
+              }
+              return rankScore;
+            })
             .reduce((a, b) => a + b, 0) / starterPool.length
         : null;
     const settings = (r.settings ?? {}) as Record<string, unknown>;

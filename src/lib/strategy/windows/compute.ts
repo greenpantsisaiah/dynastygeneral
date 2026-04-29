@@ -220,12 +220,12 @@ export function scoreWinNowFor(
 
   const components: WindowComponent[] = [
     {
-      label: "Starter talent",
+      label: "Starter talent (production + rank)",
       value: me?.starter_talent_score ?? 0.5,
       weight: 0.3,
       blurb: me?.starter_talent_score != null
-        ? `starter rank composite ${(me.starter_talent_score * 100).toFixed(0)}/100`
-        : "no rank data yet",
+        ? `composite ${(me.starter_talent_score * 100).toFixed(0)}/100 (last-season PPG + market rank)`
+        : "no production / rank data yet",
     },
     {
       label: "Starter age (proven production)",

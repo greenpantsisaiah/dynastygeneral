@@ -75,6 +75,7 @@ import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
 import { resolvePlayers } from "@/lib/players/cache";
+import { getSeasonStats } from "@/lib/players/season-stats";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
@@ -294,12 +295,21 @@ export default async function LeagueHubPage({
   const tierState = await getTier();
   if (draftState) {
     try {
+      // Last-season stats power the production half of the
+      // starter_talent signal. Non-fatal: if the fetch fails the
+      // module returns an empty map and snapshot falls back to
+      // rank-only scoring.
+      const prevSeason = String(Number(league.season) - 1);
+      const lastSeasonStats = await getSeasonStats(prevSeason).catch(
+        () => new Map(),
+      );
       leagueSnapshot = await buildLeagueSnapshot({
         league,
         rosters,
         users,
         draftState,
         mySleeperUserId: sleeperUser?.user_id ?? null,
+        lastSeasonStats,
       });
       const snapshot = leagueSnapshot;
       rankedArchetypes = rankArchetypes(snapshot);
