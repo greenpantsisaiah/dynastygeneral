@@ -76,8 +76,15 @@ function clamp01(n: number): number {
 // Sample values: 22→0.49, 25→0.86, 27→1.00, 30→0.89, 33→0.65, 36→0.36.
 // Continuous in value AND derivative everywhere.
 function ageWinNowSignal(me: RosterSnapshot | null): number {
-  if (!me || me.avg_age == null) return 0.5;
-  const age = me.avg_age;
+  // Use STARTER avg age, not whole-roster avg. The win-now question
+  // is "how strong is the lineup you actually deploy on Sundays?"
+  // Bench depth (where rookie stashes live) belongs in the future
+  // signal. Bug 2026-04-29: prior version used me.avg_age which
+  // pulled win-now low for users who built proven-veteran starters
+  // early then stashed rookies on the bench. Falls back to avg_age
+  // for rosters too thin to have a starter pool yet (pre-draft).
+  const age = me?.starter_avg_age ?? me?.avg_age ?? null;
+  if (age == null) return 0.5;
   const peakAge = 27;
   const sigma = age < peakAge ? 3.5 : 5.5;
   const baseline = 0.2;
@@ -213,12 +220,19 @@ export function scoreWinNowFor(
 
   const components: WindowComponent[] = [
     {
-      label: "Roster age (proven production)",
+      label: "Starter age (proven production)",
       value: ageWinNowSignal(me),
       weight: 0.35,
-      blurb: me?.avg_age
-        ? `avg age ${me.avg_age.toFixed(1)}`
-        : "no age data yet",
+      blurb: (() => {
+        const starter = me?.starter_avg_age;
+        const whole = me?.avg_age;
+        if (starter != null && whole != null) {
+          return `starters avg ${starter.toFixed(1)} (roster avg ${whole.toFixed(1)})`;
+        }
+        if (starter != null) return `starters avg ${starter.toFixed(1)}`;
+        if (whole != null) return `roster avg ${whole.toFixed(1)}`;
+        return "no age data yet";
+      })(),
     },
     {
       label: "Starting positions filled",

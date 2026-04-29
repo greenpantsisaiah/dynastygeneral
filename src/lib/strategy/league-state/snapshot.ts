@@ -39,7 +39,19 @@ export type RosterSnapshot = {
   // future quality lift.
   position_ranks: Record<Position, number[]>;
   player_ids: string[];
+  // Whole-roster mean age across all players with known age. Use for
+  // longevity / future signals. NOT for win-now signals; see
+  // starter_avg_age below.
   avg_age: number | null;
+  // Mean age across the players who would START in this league's
+  // format (top N by Sleeper search_rank, where N is the total
+  // starter slot count). Bug 2026-04-29: prior win-now math used
+  // avg_age (whole roster), which dragged win-now low for users who
+  // built proven-veteran starters early then stashed rookies on the
+  // bench. The starter average reflects what's actually deployed in
+  // a Sunday lineup; the bench-stash youth belongs in the future
+  // signal, not the win-now signal.
+  starter_avg_age: number | null;
   wins: number;
   losses: number;
   ties: number;
@@ -378,11 +390,25 @@ export async function buildLeagueSnapshot(args: {
     draftedByRoster.set(p.roster_id, list);
   }
 
+  // Total starter slot count for this league's format. Used to size
+  // the starter window when computing starter_avg_age per roster
+  // (top-N by Sleeper search_rank approximates the deployed lineup).
+  const starterSlotsParsed = parseStarterSlots(league);
+  const totalStarters =
+    Object.values(starterSlotsParsed.hard).reduce((a, b) => a + b, 0) +
+    starterSlotsParsed.flex +
+    starterSlotsParsed.superflex +
+    starterSlotsParsed.rec_flex;
+
   // Per-roster snapshots
   const rosterSnapshots: RosterSnapshot[] = rosters.map((r) => {
     const counts = emptyPositionCounts();
     const ranks = emptyPositionRanks();
     const ages: number[] = [];
+    // Per-player (rank, age) tuples for starter selection. Players
+    // without both fields are excluded from this list (they cannot
+    // contribute to a defensible starter average).
+    const rankedPlayers: Array<{ rank: number; age: number }> = [];
     const merged = new Set<string>([
       ...(r.players ?? []),
       ...(draftedByRoster.get(r.roster_id) ?? []),
@@ -401,6 +427,9 @@ export async function buildLeagueSnapshot(args: {
         p.search_rank > 0
       ) {
         ranks[pos].push(p.search_rank);
+        if (typeof p.age === "number") {
+          rankedPlayers.push({ rank: p.search_rank, age: p.age });
+        }
       }
       if (p && typeof p.age === "number") ages.push(p.age);
     }
@@ -411,6 +440,23 @@ export async function buildLeagueSnapshot(args: {
     }
     const avg_age =
       ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : null;
+    // Starter average age: top-N by Sleeper search_rank where N is
+    // the league's total starter slot count. Bug 2026-04-29: win-now
+    // signal was using whole-roster avg_age, which understated the
+    // win-now strength of users who built proven-veteran starters
+    // early then stashed rookies on the bench. Top-N-by-rank
+    // approximates the deployed lineup; bench rookies don't drag the
+    // win-now math down. Falls back to avg_age when a roster has
+    // fewer ranked-and-aged players than the starter slot count.
+    rankedPlayers.sort((a, b) => a.rank - b.rank);
+    const starterPool = rankedPlayers.slice(
+      0,
+      Math.max(1, totalStarters),
+    );
+    const starter_avg_age =
+      starterPool.length > 0
+        ? starterPool.reduce((a, b) => a + b.age, 0) / starterPool.length
+        : avg_age;
     const settings = (r.settings ?? {}) as Record<string, unknown>;
     return {
       roster_id: r.roster_id,
@@ -421,6 +467,7 @@ export async function buildLeagueSnapshot(args: {
       position_ranks: ranks,
       player_ids: [...merged],
       avg_age,
+      starter_avg_age,
       wins: asNumber(settings.wins),
       losses: asNumber(settings.losses),
       ties: asNumber(settings.ties),
