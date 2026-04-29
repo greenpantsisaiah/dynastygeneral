@@ -52,6 +52,15 @@ export type RosterSnapshot = {
   // a Sunday lineup; the bench-stash youth belongs in the future
   // signal, not the win-now signal.
   starter_avg_age: number | null;
+  // Talent score for the deployed starting lineup. Average normalized
+  // search_rank across the top-N players (N = total starter slots).
+  // 0-1 scale, higher = more talent. Bug 2026-04-29: prior win-now
+  // math had ZERO talent weighting; an elite-loaded contender
+  // (Jefferson + Lamb + McCaffrey starters) read as "average" because
+  // age + completeness + depth couldn't differentiate them from a
+  // roster of late-round bodies. starter_talent_score gives the
+  // win-now meter a real talent dimension.
+  starter_talent_score: number | null;
   wins: number;
   losses: number;
   ties: number;
@@ -457,6 +466,16 @@ export async function buildLeagueSnapshot(args: {
       starterPool.length > 0
         ? starterPool.reduce((a, b) => a + b.age, 0) / starterPool.length
         : avg_age;
+    // Starter talent score: average normalized rank across the top-N
+    // starters. normalize_rank(r) = max(0, 1 - r/200): rank 1 = 0.995,
+    // rank 100 = 0.5, rank 200+ = 0. Higher score = more talent. Null
+    // when the roster has no rank-and-age data yet (pre-draft).
+    const starter_talent_score =
+      starterPool.length > 0
+        ? starterPool
+            .map((x) => Math.max(0, 1 - x.rank / 200))
+            .reduce((a, b) => a + b, 0) / starterPool.length
+        : null;
     const settings = (r.settings ?? {}) as Record<string, unknown>;
     return {
       roster_id: r.roster_id,
@@ -468,6 +487,7 @@ export async function buildLeagueSnapshot(args: {
       player_ids: [...merged],
       avg_age,
       starter_avg_age,
+      starter_talent_score,
       wins: asNumber(settings.wins),
       losses: asNumber(settings.losses),
       ties: asNumber(settings.ties),

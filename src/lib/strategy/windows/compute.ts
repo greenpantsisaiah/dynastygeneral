@@ -220,9 +220,17 @@ export function scoreWinNowFor(
 
   const components: WindowComponent[] = [
     {
+      label: "Starter talent",
+      value: me?.starter_talent_score ?? 0.5,
+      weight: 0.3,
+      blurb: me?.starter_talent_score != null
+        ? `starter rank composite ${(me.starter_talent_score * 100).toFixed(0)}/100`
+        : "no rank data yet",
+    },
+    {
       label: "Starter age (proven production)",
       value: ageWinNowSignal(me),
-      weight: 0.35,
+      weight: 0.25,
       blurb: (() => {
         const starter = me?.starter_avg_age;
         const whole = me?.avg_age;
@@ -237,7 +245,7 @@ export function scoreWinNowFor(
     {
       label: "Starting positions filled",
       value: positionCompleteness(me),
-      weight: 0.3,
+      weight: 0.2,
       blurb: me
         ? `${SCORING_POSITIONS.filter((p) => me.position_counts[p] >= 1).length}/4 scoring positions covered`
         : "",
@@ -245,7 +253,7 @@ export function scoreWinNowFor(
     {
       label: "Roster fullness",
       value: rosterDepth(me, targetDepth),
-      weight: 0.2,
+      weight: 0.1,
       blurb: me ? `${me.player_ids.length}/${targetDepth} slots` : "",
     },
   ];
