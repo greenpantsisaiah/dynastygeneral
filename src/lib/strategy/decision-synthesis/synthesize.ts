@@ -298,9 +298,43 @@ function availabilityAt(
   if (player.adp == null) return null;
   const gap = player.adp - slot;
   const t = availabilityThresholdsFor(slot);
+
+  // Forward gap (ADP later than user's next pick): player typically
+  // drafted after user picks; survival is high.
   if (gap >= t.here) return "likely_here";
-  if (gap <= t.gone) return "probably_gone";
-  return "coin_flip";
+
+  // At-or-near consensus (gap in [0, t.here)): real coin flip; the
+  // player is being drafted right around now.
+  if (gap >= 0) return "coin_flip";
+
+  // Backward gap (ADP in the past): the player has ALREADY survived
+  // past consensus AND is still in the available pool. Survival of
+  // one more pick is conditional on this prior survival, which the
+  // naive ADP-vs-slot math does not capture. Three regimes:
+  //
+  //   slightly past consensus (gap in (t.gone, 0)): market is
+  //   reaching past this player right now; coin flip either way.
+  //
+  //   far past consensus AND late draft (gap <= t.gone, slot > 100):
+  //   market has demonstrably dropped them, draft depth makes
+  //   "still here" the expected state; survival is HIGH.
+  //
+  //   far past consensus AND early/mid draft (gap <= t.gone, slot
+  //   <= 100): anomalous (top-tier player skipped through tight
+  //   early ADP), the next opponent may correct the anomaly. Coin
+  //   flip is the cautious call rather than "likely here."
+  //
+  // Bug 2026-04-29: prior version returned "probably_gone" for the
+  // far-past branch unconditionally. At pick 25.11 with one opponent
+  // before user's turn, every candidate with ADP 248-298 (already
+  // past consensus by 30-50 picks) rendered 15 percent survival.
+  // The available pool IS the conditional event; "still here past
+  // consensus" means the market dropped them, not that they will
+  // be drafted imminently. The opponent-signal layer downstream
+  // can still amplify a coin flip to probably_gone when a specific
+  // gap opponent has positional demand for the player.
+  if (gap > t.gone) return "coin_flip";
+  return slot > 100 ? "likely_here" : "coin_flip";
 }
 
 // Game-theory layer over the ADP-based survival predictor. The pure
