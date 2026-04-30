@@ -1,0 +1,296 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { SiteNav } from "@/components/site-nav";
+import { Footer } from "@/components/landing/footer";
+import { Ticker } from "@/components/ui/ticker";
+import {
+  getLeague,
+  getLeagueUsers,
+  getRosters,
+  getUserByUsername,
+} from "@/lib/sleeper";
+import { resolveDraftState } from "@/lib/sleeper/draft-state";
+import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { computeWindows } from "@/lib/strategy/windows/compute";
+import { computeLeagueOutlook } from "@/lib/strategy/league-outlook/compute";
+import { buildLeagueBriefing } from "@/lib/engine/briefing";
+import { readProfileServer } from "@/lib/soundboard/storage";
+import { getSeasonStats } from "@/lib/players/season-stats";
+import {
+  getProjections,
+  pickAdpFromVariants,
+} from "@/lib/players/projections";
+import { resolvePlayers } from "@/lib/players/cache";
+import { getOptionalUser } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
+import { AarReport } from "@/components/league/aar-report";
+import type { AarPick, AarServerData } from "@/components/league/aar-report";
+
+export const metadata: Metadata = {
+  title: "After-Action Report",
+  robots: { index: false, follow: false },
+};
+
+export const dynamic = "force-dynamic";
+
+type PageProps = {
+  params: Promise<{ leagueId: string }>;
+  searchParams: Promise<{ username?: string }>;
+};
+
+export default async function AarPage({ params, searchParams }: PageProps) {
+  const { leagueId } = await params;
+  const { username = "" } = await searchParams;
+
+  // Resolve user identity. Falls through to saved sleeper username
+  // for signed-in users; same pattern as the league hub.
+  let resolvedUsername = username.trim().replace(/^@/, "");
+  let savedSleeperUsername: string | null = null;
+  try {
+    const authUser = await getOptionalUser();
+    if (authUser) {
+      const supabase = await createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("sleeper_username")
+        .eq("user_id", authUser.id)
+        .maybeSingle();
+      savedSleeperUsername =
+        (data?.sleeper_username as string | null) ?? null;
+      if (!resolvedUsername && savedSleeperUsername) {
+        resolvedUsername = savedSleeperUsername;
+      }
+    }
+  } catch {
+    // Auth failure is non-fatal; AAR can still render with URL username.
+  }
+  const sleeperUser = resolvedUsername
+    ? await getUserByUsername(resolvedUsername).catch(() => null)
+    : null;
+
+  const [league, rosters, users] = await Promise.all([
+    getLeague(leagueId),
+    getRosters(leagueId),
+    getLeagueUsers(leagueId),
+  ]);
+  if (!league) notFound();
+
+  const draftState = await resolveDraftState(
+    leagueId,
+    sleeperUser?.user_id ?? null,
+  );
+
+  // AAR is gated on draft completion. Pre-draft / mid-draft show a
+  // friendly "not yet" view rather than a half-baked report.
+  if (!draftState || draftState.status !== "complete") {
+    return (
+      <>
+        <SiteNav />
+        <main className="flex-1 bg-background">
+          <section className="border-b border-border-soft">
+            <div className="mx-auto max-w-3xl px-6 py-16">
+              <Ticker label={`After-Action Report · ${league.name}`} />
+              <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                The draft is still live.
+              </h1>
+              <p className="mt-3 text-muted">
+                Your After-Action Report unlocks when the draft is
+                marked complete on Sleeper. Until then, the league
+                hub is your live workbench.
+              </p>
+              <div className="mt-6">
+                <Link
+                  href={`/leagues/${leagueId}`}
+                  className="rounded-md border border-accent/60 bg-accent/15 px-4 py-2 font-mono text-xs uppercase tracking-[0.16em] text-accent hover:bg-accent/25"
+                >
+                  Back to league hub →
+                </Link>
+              </div>
+            </div>
+          </section>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  // Build snapshot + outlook + doctrine. Same pattern as the hub but
+  // distilled to what the AAR needs.
+  const prevSeason = String(Number(league.season) - 1);
+  const [lastSeasonStats, projectionsCache] = await Promise.all([
+    getSeasonStats(prevSeason).catch(() => new Map()),
+    getProjections(league.season).catch(() => ({
+      byPlayerId: new Map(),
+      fetchedAt: 0,
+    })),
+  ]);
+
+  const snapshot = await buildLeagueSnapshot({
+    league,
+    rosters,
+    users,
+    draftState,
+    mySleeperUserId: sleeperUser?.user_id ?? null,
+    lastSeasonStats,
+    projections: projectionsCache.byPlayerId,
+  });
+  const windows = computeWindows(snapshot);
+  const outlook = await computeLeagueOutlook(snapshot);
+  const judgmentProfile = await readProfileServer().catch(() => null);
+  const briefing = buildLeagueBriefing(snapshot, judgmentProfile);
+
+  const me = snapshot.rosters.find((r) => r.is_me);
+  if (!me) {
+    return (
+      <>
+        <SiteNav />
+        <main className="flex-1 bg-background">
+          <section className="border-b border-border-soft">
+            <div className="mx-auto max-w-3xl px-6 py-16">
+              <h1 className="text-2xl font-semibold text-foreground">
+                We could not identify your roster in this league.
+              </h1>
+              <p className="mt-3 text-muted">
+                Add your Sleeper username to the URL or to your account
+                settings, then revisit this page.
+              </p>
+              <div className="mt-6">
+                <Link
+                  href={`/leagues/${leagueId}`}
+                  className="rounded-md border border-accent/60 bg-accent/15 px-4 py-2 font-mono text-xs uppercase tracking-[0.16em] text-accent hover:bg-accent/25"
+                >
+                  Back to league hub →
+                </Link>
+              </div>
+            </div>
+          </section>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  // Gather user picks + ADP/KTC for each.
+  const myPicks = snapshot.draft.picks_made
+    .filter((p) => p.roster_id === me.roster_id)
+    .sort((a, b) => a.pick_no - b.pick_no);
+  const totalTeams = snapshot.rosters.length;
+
+  const playerIds = myPicks.map((p) => p.player_id);
+  const playerMap = await resolvePlayers(playerIds);
+
+  const isSuperflex =
+    snapshot.format === "superflex" || snapshot.format === "2qb";
+  const isPpr = snapshot.scoring.includes("PPR");
+  const isHalfPpr = snapshot.scoring.includes("half-PPR");
+  const isTePremium = snapshot.scoring.includes("TE-premium");
+
+  const aarPicks: AarPick[] = myPicks.map((p) => {
+    const player = playerMap.get(p.player_id);
+    const adpEntry = projectionsCache.byPlayerId.get(p.player_id);
+    const adpResult = pickAdpFromVariants(adpEntry, {
+      isSuperflex,
+      isPpr,
+      isHalfPpr,
+      isTePremium,
+      isRookie: player?.years_exp === 0,
+      position: player?.position ?? null,
+    });
+    const round = Math.ceil(p.pick_no / totalTeams);
+    const within = ((p.pick_no - 1) % totalTeams) + 1;
+    const combined = [player?.first_name, player?.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const playerName = player?.full_name ?? (combined || p.player_id);
+    return {
+      pick_no: p.pick_no,
+      pick_label: `${round}.${within}`,
+      round,
+      player_id: p.player_id,
+      player_name: playerName,
+      position: player?.position ?? null,
+      team: player?.team ?? null,
+      age: player?.age ?? null,
+      is_rookie: player?.years_exp === 0,
+      adp: adpResult.value,
+      adp_delta: adpResult.value != null ? adpResult.value - p.pick_no : null,
+    };
+  });
+
+  // League-wide ranks for the relative-grade computation. Higher
+  // win_now rank = better win-now team. Same for future.
+  const teamsByWinNow = [...outlook.teams].sort(
+    (a, b) => b.win_now - a.win_now,
+  );
+  const myWinNowRank =
+    teamsByWinNow.findIndex((t) => t.roster_id === me.roster_id) + 1;
+  const teamsByFuture = [...outlook.teams].sort(
+    (a, b) => b.future - a.future,
+  );
+  const myFutureRank =
+    teamsByFuture.findIndex((t) => t.roster_id === me.roster_id) + 1;
+
+  const horizonRaw = judgmentProfile?.dials.horizon;
+  const declaredHorizon = typeof horizonRaw === "number" ? horizonRaw : 0;
+
+  const serverData: AarServerData = {
+    leagueId,
+    leagueName: league.name,
+    ownerName: me.owner_name ?? sleeperUser?.display_name ?? "you",
+    totalTeams,
+    picks: aarPicks,
+    starter_avg_age: me.starter_avg_age,
+    starter_talent_score: me.starter_talent_score,
+    win_now_rank: myWinNowRank,
+    future_rank: myFutureRank,
+    win_now_score: windows.win_now.score,
+    future_score: windows.future_value.score,
+    league_mean_win_now:
+      outlook.teams.reduce((s, t) => s + t.win_now, 0) /
+      Math.max(1, outlook.teams.length),
+    league_mean_future:
+      outlook.teams.reduce((s, t) => s + t.future, 0) /
+      Math.max(1, outlook.teams.length),
+    declared_horizon: declaredHorizon,
+    build_label: briefing?.trajectory.build_label ?? "Pre-Draft",
+    build_composition: briefing?.trajectory.composition ?? {
+      winNow: 0,
+      balanced: 0,
+      future: 0,
+    },
+    is_superflex: isSuperflex,
+  };
+
+  return (
+    <>
+      <SiteNav />
+      <main className="flex-1 bg-background">
+        <section className="border-b border-border-soft">
+          <div className="mx-auto max-w-4xl px-6 py-12">
+            <Ticker
+              label={`After-Action Report · ${league.name} · ${league.season}`}
+            />
+            <AarReport data={serverData} />
+            <div className="mt-12 flex flex-wrap items-center gap-4 text-xs text-muted-2">
+              <Link
+                href={`/leagues/${leagueId}`}
+                className="hover:text-accent"
+              >
+                ← League hub
+              </Link>
+              <Link
+                href={`/leagues/${leagueId}/coach`}
+                className="hover:text-accent"
+              >
+                Open coach chat →
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </>
+  );
+}

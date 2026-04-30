@@ -1010,6 +1010,28 @@ export default async function LeagueHubPage({
                 <DraftBanner state={draftState} />
               )}
 
+              {draftState?.status === "complete" && (
+                <div className="mt-6 rounded-lg border-2 border-accent/60 bg-accent/10 px-5 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                        After-Action Report ready
+                      </div>
+                      <p className="mt-1 text-sm text-foreground">
+                        Your draft is complete. The full breakdown,
+                        grade, and 90-day playbook are waiting.
+                      </p>
+                    </div>
+                    <Link
+                      href={`/leagues/${leagueId}/aar`}
+                      className="rounded-md border border-accent/60 bg-accent/15 px-4 py-2 font-mono text-xs uppercase tracking-[0.16em] text-accent hover:bg-accent/25"
+                    >
+                      Read your report →
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               {/* WindowWeightingPrompt removed 2026-04-27. Lanes-as-
                   emergent-direction (Decision card lane grid + Soundboard
                   Horizon dial) replaced the win-now/future declaration
