@@ -36,12 +36,13 @@ export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ leagueId: string }>;
-  searchParams: Promise<{ username?: string }>;
+  searchParams: Promise<{ username?: string; diagnose?: string }>;
 };
 
 export default async function AarPage({ params, searchParams }: PageProps) {
   const { leagueId } = await params;
-  const { username = "" } = await searchParams;
+  const { username = "", diagnose: diagnoseParam } = await searchParams;
+  const diagnose = diagnoseParam === "1";
 
   // Resolve user identity. Falls through to saved sleeper username
   // for signed-in users; same pattern as the league hub.
@@ -438,7 +439,7 @@ export default async function AarPage({ params, searchParams }: PageProps) {
             <Ticker
               label={`After-Action Report · ${league.name} · ${league.season}`}
             />
-            <AarReport data={serverData} />
+            <AarReport data={serverData} diagnose={diagnose} />
             <div className="mt-12 flex flex-wrap items-center gap-4 text-xs text-muted-2">
               <Link
                 href={`/leagues/${leagueId}`}

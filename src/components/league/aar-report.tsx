@@ -85,9 +85,24 @@ function readHistory(leagueId: string): StoredHistory {
   }
 }
 
-function computeGrade(
-  data: AarServerData,
-): { letter: string; score: number; tagline: string } {
+type GradeBreakdown = {
+  letter: string;
+  score: number;
+  tagline: string;
+  components: {
+    talent: number;
+    win_now_pct: number;
+    future_pct: number;
+    coherence: number;
+    drift: number;
+    pickValue: number;
+    totalAdpDelta: number;
+    completeness: number;
+    missingPositions: number;
+  };
+};
+
+function computeGrade(data: AarServerData): GradeBreakdown {
   // Talent percentile combines win-now AND future ranks. A team
   // that's elite across both windows (top of league in both)
   // outperforms a team that's elite in one and weak in the other.
@@ -180,7 +195,22 @@ function computeGrade(
     if (tier > half) return "Mid-Pack, Real Path Forward";
     return "Balanced Build";
   })();
-  return { letter, score: composite, tagline };
+  return {
+    letter,
+    score: composite,
+    tagline,
+    components: {
+      talent,
+      win_now_pct: winNowPct,
+      future_pct: futurePct,
+      coherence,
+      drift,
+      pickValue,
+      totalAdpDelta: totalDelta,
+      completeness,
+      missingPositions: missingCount,
+    },
+  };
 }
 
 function pickEngineCallFor(
@@ -309,7 +339,13 @@ function heroVerdictCopy(
   return `${positionLine}${futureLine}${doctrineLine} You ${valueLine} given the league you drew. The next 4 months are about converting variance into floor.`;
 }
 
-export function AarReport({ data }: { data: AarServerData }) {
+export function AarReport({
+  data,
+  diagnose = false,
+}: {
+  data: AarServerData;
+  diagnose?: boolean;
+}) {
   const [history, setHistory] = useState<StoredHistory>({
     league_id: data.leagueId,
     entries: [],
@@ -365,6 +401,53 @@ export function AarReport({ data }: { data: AarServerData }) {
           {heroVerdictCopy(data, grade)}
         </p>
       </section>
+
+      {diagnose && (
+        <section className="rounded-md border border-warning/40 bg-warning/5 px-5 py-4">
+          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
+            Diagnose · grade math
+          </div>
+          <div className="mt-3 grid gap-1 font-mono text-[11px] text-foreground sm:grid-cols-2">
+            <div>
+              composite score:{" "}
+              <span className="text-accent">
+                {grade.score.toFixed(3)}
+              </span>{" "}
+              → {grade.letter}
+            </div>
+            <div>
+              talent: {grade.components.talent.toFixed(3)} (win-now{" "}
+              {grade.components.win_now_pct.toFixed(2)} | future{" "}
+              {grade.components.future_pct.toFixed(2)})
+            </div>
+            <div>
+              pickValue: {grade.components.pickValue.toFixed(3)} (total
+              ADP delta {grade.components.totalAdpDelta.toFixed(0)})
+            </div>
+            <div>
+              coherence: {grade.components.coherence.toFixed(3)} (drift{" "}
+              {grade.components.drift.toFixed(0)} pts)
+            </div>
+            <div>
+              completeness: {grade.components.completeness.toFixed(3)}{" "}
+              (missing {grade.components.missingPositions} pos)
+            </div>
+            <div>
+              declared horizon: {data.declared_horizon} · build:{" "}
+              {data.build_label}
+            </div>
+          </div>
+          <div className="mt-3 font-mono text-[10px] text-muted-2">
+            weighted contributions · talent 0.55 ·{" "}
+            {(0.55 * grade.components.talent).toFixed(3)} | pickValue 0.25 ·{" "}
+            {(0.25 * grade.components.pickValue).toFixed(3)} |
+            coherence 0.10 ·{" "}
+            {(0.1 * grade.components.coherence).toFixed(3)} |
+            completeness 0.10 ·{" "}
+            {(0.1 * grade.components.completeness).toFixed(3)}
+          </div>
+        </section>
+      )}
 
       <section>
         <div className="font-mono text-xs uppercase tracking-[0.18em] text-success">
