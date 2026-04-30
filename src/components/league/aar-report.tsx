@@ -88,10 +88,28 @@ function readHistory(leagueId: string): StoredHistory {
 function computeGrade(
   data: AarServerData,
 ): { letter: string; score: number; tagline: string } {
-  const talent =
+  // Talent percentile combines win-now AND future ranks. A team
+  // that's elite across both windows (top of league in both)
+  // outperforms a team that's elite in one and weak in the other.
+  // Win-now weighted slightly more (60/40) since the immediate
+  // season is what the user feels most.
+  const winNowPct =
     data.totalTeams > 1
       ? 1 - (data.win_now_rank - 1) / (data.totalTeams - 1)
       : 0.5;
+  const futurePct =
+    data.totalTeams > 1
+      ? 1 - (data.future_rank - 1) / (data.totalTeams - 1)
+      : 0.5;
+  const talent = 0.6 * winNowPct + 0.4 * futurePct;
+
+  // Doctrine coherence. Reduced weight per founder feedback
+  // 2026-04-30: a 3rd-of-12 win-now / 2nd-of-12 future team should
+  // not get dropped a full grade tier just because their late-round
+  // bench skewed the trajectory chip toward "Future Build" while
+  // the dial said "Win-Now." The trajectory algorithm counts every
+  // pick equally, which over-rotates in 25-round drafts where
+  // late picks are heavily rookie/young by design.
   const buildHorizon =
     data.build_label === "Future Build"
       ? 60
@@ -104,11 +122,13 @@ function computeGrade(
             : 0;
   const drift = Math.abs(data.declared_horizon - buildHorizon);
   const coherence = Math.max(0, 1 - drift / 150);
+
   const totalDelta = data.picks.reduce(
     (s, p) => s + (p.adp_delta ?? 0),
     0,
   );
   const pickValue = 1 / (1 + Math.exp(-totalDelta / 50));
+
   const hasQB = data.picks.some((p) => p.position === "QB");
   const hasRB = data.picks.some((p) => p.position === "RB");
   const hasWR = data.picks.some((p) => p.position === "WR");
@@ -116,11 +136,15 @@ function computeGrade(
   const missingCount =
     (hasQB ? 0 : 1) + (hasRB ? 0 : 1) + (hasWR ? 0 : 1) + (hasTE ? 0 : 1);
   const completeness = Math.max(0, 1 - missingCount * 0.25);
+
+  // Weight rebalance 2026-04-30: result (talent) is the dominant
+  // signal. Pick value comes second. Coherence and completeness
+  // are situational modifiers. Total = 1.0.
   const composite =
-    0.45 * talent +
-    0.2 * coherence +
-    0.2 * pickValue +
-    0.15 * completeness;
+    0.55 * talent +
+    0.25 * pickValue +
+    0.1 * coherence +
+    0.1 * completeness;
   const letter =
     composite >= 0.9
       ? "A"

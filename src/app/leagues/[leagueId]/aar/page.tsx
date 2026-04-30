@@ -348,12 +348,19 @@ export default async function AarPage({ params, searchParams }: PageProps) {
   const aarPicks: AarPick[] = myPicks.map((p) => {
     const player = playerMap.get(p.player_id);
     const adpEntry = projectionsCache.byPlayerId.get(p.player_id);
+    // For AAR grading we always want startup-scale ADP (dynasty
+    // variants run 1-300 across a 25-round draft) so adp_delta is
+    // comparable to pick_no. Bug 2026-04-30: passing isRookie=true
+    // pulled adp_rookie which is on a 1-50 scale (rookie-only
+    // drafts are 4 rounds). That made every late-round rookie pick
+    // log as a massive "reach" of -150+ that wasn't real, tanking
+    // the pick_value grade component.
     const adpResult = pickAdpFromVariants(adpEntry, {
       isSuperflex,
       isPpr,
       isHalfPpr,
       isTePremium,
-      isRookie: player?.years_exp === 0,
+      isRookie: false,
       position: player?.position ?? null,
     });
     const round = Math.ceil(p.pick_no / totalTeams);
