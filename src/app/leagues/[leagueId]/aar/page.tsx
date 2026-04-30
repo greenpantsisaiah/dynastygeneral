@@ -244,25 +244,82 @@ export default async function AarPage({ params, searchParams }: PageProps) {
 
   const me = snapshot.rosters.find((r) => r.is_me);
   if (!me) {
+    // Diagnostic detail surfaces what we know to help the user
+    // self-recover. The hub usually carries ?username= forward; if
+    // we got here without it AND no saved username is on file, the
+    // input below lets them recover in one step.
+    const ownerOptions = snapshot.rosters
+      .filter((r) => r.owner_name != null)
+      .map((r) => r.owner_name as string);
     return (
       <>
         <SiteNav />
         <main className="flex-1 bg-background">
           <section className="border-b border-border-soft">
             <div className="mx-auto max-w-3xl px-6 py-16">
-              <h1 className="text-2xl font-semibold text-foreground">
+              <Ticker label={`After-Action Report · ${league.name}`} />
+              <h1 className="mt-6 text-2xl font-semibold text-foreground">
                 We could not identify your roster in this league.
               </h1>
               <p className="mt-3 text-muted">
-                Add your Sleeper username to the URL or to your account
-                settings, then revisit this page.
+                The AAR needs to know which roster is yours. Two ways
+                to fix this in 10 seconds:
               </p>
-              <div className="mt-6">
+              <ol className="mt-4 space-y-2 text-sm text-foreground">
+                <li className="rounded-md border border-border-soft bg-surface px-4 py-3">
+                  <span className="font-semibold">Add your Sleeper handle to the URL.</span>{" "}
+                  Append <code className="rounded bg-surface-2 px-1 font-mono text-[11px]">?username=YOUR_SLEEPER_HANDLE</code>{" "}
+                  to this page&rsquo;s URL and reload. That tells the
+                  report which manager you are.
+                </li>
+                <li className="rounded-md border border-border-soft bg-surface px-4 py-3">
+                  <span className="font-semibold">Save your handle on your account.</span>{" "}
+                  Set it once at{" "}
+                  <Link
+                    href="/account"
+                    className="text-accent hover:underline"
+                  >
+                    /account
+                  </Link>
+                  ; the AAR will pick it up automatically next time.
+                </li>
+              </ol>
+              {ownerOptions.length > 0 && (
+                <div className="mt-6 rounded-md border border-border-soft bg-surface px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
+                    Managers in this league
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    {ownerOptions.map((name) => (
+                      <span
+                        key={name}
+                        className="rounded-sm border border-border-soft bg-surface-2 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2"
+                      >
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-2">
+                    Use the Sleeper handle that matches one of these.
+                  </p>
+                </div>
+              )}
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Link
-                  href={`/leagues/${leagueId}`}
+                  href={`/leagues/${leagueId}${
+                    resolvedUsername
+                      ? `?username=${encodeURIComponent(resolvedUsername)}`
+                      : ""
+                  }`}
                   className="rounded-md border border-accent/60 bg-accent/15 px-4 py-2 font-mono text-xs uppercase tracking-[0.16em] text-accent hover:bg-accent/25"
                 >
                   Back to league hub →
+                </Link>
+                <Link
+                  href="/account"
+                  className="rounded-md border border-border-soft bg-surface px-4 py-2 font-mono text-xs uppercase tracking-[0.16em] text-muted-2 hover:text-accent"
+                >
+                  Account settings →
                 </Link>
               </div>
             </div>

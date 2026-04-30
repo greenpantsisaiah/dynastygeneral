@@ -1041,7 +1041,11 @@ export default async function LeagueHubPage({
                           </span>
                         </div>
                         <Link
-                          href={`/leagues/${leagueId}/aar`}
+                          href={`/leagues/${leagueId}/aar${
+                            username
+                              ? `?username=${encodeURIComponent(username)}`
+                              : ""
+                          }`}
                           className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:underline"
                         >
                           Preview what's coming →
@@ -1064,7 +1068,11 @@ export default async function LeagueHubPage({
                       </p>
                     </div>
                     <Link
-                      href={`/leagues/${leagueId}/aar`}
+                      href={`/leagues/${leagueId}/aar${
+                        username
+                          ? `?username=${encodeURIComponent(username)}`
+                          : ""
+                      }`}
                       className="rounded-md border border-accent/60 bg-accent/15 px-4 py-2 font-mono text-xs uppercase tracking-[0.16em] text-accent hover:bg-accent/25"
                     >
                       Read your report →
