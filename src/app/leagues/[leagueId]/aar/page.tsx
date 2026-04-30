@@ -382,7 +382,17 @@ export default async function AarPage({ params, searchParams }: PageProps) {
       age: player?.age ?? null,
       is_rookie: player?.years_exp === 0,
       adp: adpResult.value,
-      adp_delta: adpResult.value != null ? adpResult.value - p.pick_no : null,
+      // adp_delta uses (pick - adp) so the sign is intuitive:
+      //   positive = pick number is LATER than ADP = player fell past
+      //   consensus = VALUE pick
+      //   negative = pick number is EARLIER than ADP = REACH
+      // Bug 2026-04-30: original had (adp - pick) which inverted the
+      // sign. The sigmoid pickValue formula and the top/whiff sort
+      // logic both expected the natural sign convention; the
+      // commentary copy ("fell N picks past consensus") implies the
+      // natural convention too. Flipping here propagates the fix
+      // cleanly through all consumers.
+      adp_delta: adpResult.value != null ? p.pick_no - adpResult.value : null,
     };
   });
 
