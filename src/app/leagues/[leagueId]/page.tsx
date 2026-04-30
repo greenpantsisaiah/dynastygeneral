@@ -1010,6 +1010,47 @@ export default async function LeagueHubPage({
                 <DraftBanner state={draftState} />
               )}
 
+              {/* AAR pre-launch banner. Surfaces at 75 percent draft
+                  completion so the user knows their After-Action
+                  Report is being prepped and where to find it. Stays
+                  visible through to draft-complete, then yields to
+                  the AAR-ready banner below. */}
+              {draftActive &&
+                draftState &&
+                draftState.total_teams > 0 &&
+                draftState.rounds > 0 &&
+                (() => {
+                  const totalPicks =
+                    draftState.total_teams * draftState.rounds;
+                  const picksMade = draftState.picks_so_far.length;
+                  const progressPct =
+                    totalPicks > 0
+                      ? Math.round((picksMade / totalPicks) * 100)
+                      : 0;
+                  if (progressPct < 75) return null;
+                  return (
+                    <div className="mt-6 rounded-md border border-accent/40 bg-accent/5 px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+                            After-Action Report ·{" "}
+                          </span>
+                          <span className="text-sm text-foreground">
+                            Being prepped. Available the moment your
+                            draft ends ({progressPct}% complete).
+                          </span>
+                        </div>
+                        <Link
+                          href={`/leagues/${leagueId}/aar`}
+                          className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:underline"
+                        >
+                          Preview what's coming →
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })()}
+
               {draftState?.status === "complete" && (
                 <div className="mt-6 rounded-lg border-2 border-accent/60 bg-accent/10 px-5 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">

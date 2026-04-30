@@ -81,9 +81,21 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     sleeperUser?.user_id ?? null,
   );
 
-  // AAR is gated on draft completion. Pre-draft / mid-draft show a
-  // friendly "not yet" view rather than a half-baked report.
+  // AAR is gated on draft completion. Pre-draft / mid-draft show an
+  // anticipation view that previews what's coming and shows draft
+  // progress, so the URL is meaningful before the draft ends rather
+  // than a dead-end "not yet."
   if (!draftState || draftState.status !== "complete") {
+    const totalPicks =
+      draftState && draftState.total_teams > 0 && draftState.rounds > 0
+        ? draftState.total_teams * draftState.rounds
+        : null;
+    const picksMade = draftState?.picks_so_far?.length ?? 0;
+    const progressPct =
+      totalPicks && totalPicks > 0
+        ? Math.min(100, Math.round((picksMade / totalPicks) * 100))
+        : 0;
+    const isPreDraft = !draftState || draftState.status === "pre_draft";
     return (
       <>
         <SiteNav />
@@ -92,19 +104,109 @@ export default async function AarPage({ params, searchParams }: PageProps) {
             <div className="mx-auto max-w-3xl px-6 py-16">
               <Ticker label={`After-Action Report · ${league.name}`} />
               <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                The draft is still live.
+                Your After-Action Report is being prepped.
               </h1>
-              <p className="mt-3 text-muted">
-                Your After-Action Report unlocks when the draft is
+              <p className="mt-3 max-w-prose text-muted">
+                The full breakdown unlocks the moment your draft is
                 marked complete on Sleeper. Until then, the league
-                hub is your live workbench.
+                hub is your live workbench. This page is your
+                bookmark for what's coming.
               </p>
-              <div className="mt-6">
+
+              {!isPreDraft && totalPicks && (
+                <div className="mt-8 rounded-lg border border-border-soft bg-surface px-5 py-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+                      Draft progress
+                    </div>
+                    <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-foreground">
+                      {picksMade} of {totalPicks} picks · {progressPct}%
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  {progressPct >= 75 && (
+                    <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-success">
+                      Final stretch. Report unlocks soon.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-10">
+                <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
+                  What's coming
+                </div>
+                <ul className="mt-3 space-y-2 text-sm text-foreground">
+                  <li className="rounded-md border border-border-soft bg-surface px-4 py-3">
+                    <span className="font-semibold">The verdict.</span>{" "}
+                    A relative grade across your league with a tagline
+                    naming what kind of team you actually built.
+                  </li>
+                  <li className="rounded-md border border-border-soft bg-surface px-4 py-3">
+                    <span className="font-semibold">
+                      Best picks of your draft.
+                    </span>{" "}
+                    Three calls where you crushed the value the market
+                    left on the board.
+                  </li>
+                  <li className="rounded-md border border-border-soft bg-surface px-4 py-3">
+                    <span className="font-semibold">
+                      Picks to make pay off.
+                    </span>{" "}
+                    Three reaches with the trade-window plan to convert
+                    them into floor.
+                  </li>
+                  <li className="rounded-md border border-border-soft bg-surface px-4 py-3">
+                    <span className="font-semibold">Pattern read.</span>{" "}
+                    The shape of your team. Doctrine vs behavior.
+                    Win-now and future ranks vs the league.
+                  </li>
+                  <li className="rounded-md border border-border-soft bg-surface px-4 py-3">
+                    <span className="font-semibold">
+                      90-day playbook.
+                    </span>{" "}
+                    Trade-window strategy from now through week 1, with
+                    specific timeline blocks (May rookie sells, June
+                    dead zone, July-August camp moves).
+                  </li>
+                  <li className="rounded-md border border-border-soft bg-surface px-4 py-3">
+                    <span className="font-semibold">Full journey.</span>{" "}
+                    Every pick you made, tagged against ADP and the
+                    engine's standing call at that moment.
+                  </li>
+                </ul>
+              </div>
+
+              <div className="mt-10 rounded-md border border-accent/40 bg-accent/5 px-5 py-4 text-sm">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+                  Notify me when the draft ends
+                </div>
+                <p className="mt-2 text-foreground">
+                  Email alerts on draft-complete are coming. The moment
+                  your draft is marked complete, you'll get a one-line
+                  email with the link to your full report. Until that
+                  ships, bookmark this page or check back when you take
+                  your last pick.
+                </p>
+              </div>
+
+              <div className="mt-8 flex flex-wrap items-center gap-4 text-xs text-muted-2">
                 <Link
                   href={`/leagues/${leagueId}`}
-                  className="rounded-md border border-accent/60 bg-accent/15 px-4 py-2 font-mono text-xs uppercase tracking-[0.16em] text-accent hover:bg-accent/25"
+                  className="hover:text-accent"
                 >
-                  Back to league hub →
+                  ← Back to league hub
+                </Link>
+                <Link
+                  href={`/leagues/${leagueId}/coach`}
+                  className="hover:text-accent"
+                >
+                  Open coach chat →
                 </Link>
               </div>
             </div>
