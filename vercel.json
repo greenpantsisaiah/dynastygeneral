@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/aar-notifications",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

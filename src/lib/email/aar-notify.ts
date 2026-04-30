@@ -54,24 +54,31 @@ export type AarNotifyArgs = {
 export async function sendAarReadyEmail(
   args: AarNotifyArgs,
 ): Promise<{ ok: boolean; reason?: string }> {
-  // TODO(2026-04-30, post-Resend-provisioning): wire actual send.
-  // For now this is a no-op so callers compile and we can stub the
-  // trigger logic without blocking the build.
-  if (!process.env.RESEND_API_KEY) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
     return { ok: false, reason: "RESEND_API_KEY not configured" };
   }
-  // Pseudo-impl below. Replace when provisioning lands:
-  //
-  // const resend = new Resend(process.env.RESEND_API_KEY);
-  // const result = await resend.emails.send({
-  //   from: process.env.EMAIL_FROM ?? "alerts@dynastygeneral.app",
-  //   to: args.to,
-  //   subject: `Your After-Action Report is ready: ${args.leagueName}`,
-  //   html: renderAarEmailHtml(args),
-  //   text: renderAarEmailText(args),
-  // });
-  // return { ok: result.error == null, reason: result.error?.message };
-  return { ok: false, reason: "email send not yet implemented" };
+  const from = process.env.EMAIL_FROM ?? "alerts@dynastygeneral.app";
+  try {
+    const { Resend } = await import("resend");
+    const resend = new Resend(apiKey);
+    const { error } = await resend.emails.send({
+      from,
+      to: args.to,
+      subject: `Your After-Action Report is ready: ${args.leagueName}`,
+      html: renderAarEmailHtml(args),
+      text: renderAarEmailText(args),
+    });
+    if (error) {
+      return { ok: false, reason: error.message ?? "resend_error" };
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 export function renderAarEmailText(args: AarNotifyArgs): string {
