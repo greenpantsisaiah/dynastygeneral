@@ -20,6 +20,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+export type LeagueMoment = {
+  pick_no: number;
+  pick_label: string;
+  player_name: string;
+  position: string | null;
+  team: string | null;
+  manager_name: string | null;
+  is_me: boolean;
+  adp: number;
+  adp_delta: number;
+};
+
 export type AarPick = {
   pick_no: number;
   pick_label: string;
@@ -52,6 +64,8 @@ export type AarServerData = {
   build_label: string;
   build_composition: { winNow: number; balanced: number; future: number };
   is_superflex: boolean;
+  league_steals: LeagueMoment[];
+  league_swings: LeagueMoment[];
 };
 
 type HistoryEntry = {
@@ -547,6 +561,51 @@ export function AarReport({
         </div>
       </section>
 
+      {(data.league_steals.length > 0 || data.league_swings.length > 0) && (
+        <section>
+          <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
+            League moments
+          </div>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+            Notable picks across the draft
+          </h2>
+          <p className="mt-2 max-w-prose text-sm text-muted">
+            Steals and swings from every manager. Your name in green is
+            your moment; everyone else's is content for the group chat.
+          </p>
+
+          {data.league_steals.length > 0 && (
+            <div className="mt-5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-success">
+                Steals of the draft
+              </div>
+              <div className="mt-2 space-y-2">
+                {data.league_steals.map((m) => (
+                  <MomentRow key={`steal-${m.pick_no}`} moment={m} kind="steal" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {data.league_swings.length > 0 && (
+            <div className="mt-5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
+                Biggest swings
+              </div>
+              <p className="mt-1 text-xs text-muted-2">
+                Picks taken well before consensus. Could be conviction;
+                could be a stretch. The next 4 months tell.
+              </p>
+              <div className="mt-2 space-y-2">
+                {data.league_swings.map((m) => (
+                  <MomentRow key={`swing-${m.pick_no}`} moment={m} kind="swing" />
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       <section>
         <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
           Pattern read
@@ -781,6 +840,61 @@ export function AarReport({
           </Link>
         </p>
       </section>
+    </div>
+  );
+}
+
+function MomentRow({
+  moment,
+  kind,
+}: {
+  moment: LeagueMoment;
+  kind: "steal" | "swing";
+}) {
+  const delta = Math.round(moment.adp_delta);
+  const absDelta = Math.abs(delta);
+  const ownerLabel = moment.manager_name ?? "?";
+  const tone =
+    kind === "steal"
+      ? moment.is_me
+        ? "border-success/60 bg-success/15"
+        : "border-success/30 bg-success/5"
+      : moment.is_me
+        ? "border-warning/60 bg-warning/15"
+        : "border-warning/30 bg-warning/5";
+  const accent =
+    kind === "steal"
+      ? "text-success"
+      : "text-warning";
+  return (
+    <div className={`rounded-md border ${tone} px-3 py-2`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+            {moment.pick_label}
+          </span>
+          <span className="text-sm font-semibold text-foreground">
+            {moment.player_name}
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+            {moment.position}
+            {moment.team ? `-${moment.team}` : ""}
+          </span>
+        </div>
+        <div className={`font-mono text-[10px] uppercase tracking-[0.14em] ${accent}`}>
+          {kind === "steal"
+            ? `+${absDelta} past ADP`
+            : `${absDelta} before ADP`}
+        </div>
+      </div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-2 font-mono text-[10px] uppercase tracking-[0.14em]">
+        <span className={moment.is_me ? "text-accent font-semibold" : "text-muted-2"}>
+          {moment.is_me ? `▸ ${ownerLabel} (you)` : ownerLabel}
+        </span>
+        <span className="text-muted-2">
+          · ADP {Math.round(moment.adp)}
+        </span>
+      </div>
     </div>
   );
 }

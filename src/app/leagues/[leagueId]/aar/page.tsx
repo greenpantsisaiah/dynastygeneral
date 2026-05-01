@@ -25,7 +25,11 @@ import { resolvePlayers } from "@/lib/players/cache";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { AarReport } from "@/components/league/aar-report";
-import type { AarPick, AarServerData } from "@/components/league/aar-report";
+import type {
+  AarPick,
+  AarServerData,
+  LeagueMoment,
+} from "@/components/league/aar-report";
 
 export const metadata: Metadata = {
   title: "After-Action Report",
@@ -337,8 +341,11 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     .sort((a, b) => a.pick_no - b.pick_no);
   const totalTeams = snapshot.rosters.length;
 
-  const playerIds = myPicks.map((p) => p.player_id);
-  const playerMap = await resolvePlayers(playerIds);
+  // Resolve ALL drafted players (not just the user's) so the
+  // league-wide notable-moments section can name every steal and
+  // reach across the league. One batch call.
+  const allPlayerIds = snapshot.draft.picks_made.map((p) => p.player_id);
+  const playerMap = await resolvePlayers(allPlayerIds);
 
   const isSuperflex =
     snapshot.format === "superflex" || snapshot.format === "2qb";
@@ -412,6 +419,62 @@ export default async function AarPage({ params, searchParams }: PageProps) {
   const horizonRaw = judgmentProfile?.dials.horizon;
   const declaredHorizon = typeof horizonRaw === "number" ? horizonRaw : 0;
 
+  // League-wide notable moments: biggest steals (player fell furthest
+  // past ADP) and biggest swings (taken furthest before ADP) across
+  // all 12 managers. Adds emotional payoff: user spots their own
+  // name (or a friend's) in the highlights, has content to share
+  // with the league.
+  const ownerByRosterId = new Map(
+    snapshot.rosters.map((r) => [r.roster_id, r]),
+  );
+  const allMoments: LeagueMoment[] = [];
+  for (const pick of snapshot.draft.picks_made) {
+    const player = playerMap.get(pick.player_id);
+    if (!player) continue;
+    const adpEntry = projectionsCache.byPlayerId.get(pick.player_id);
+    const adpResult = pickAdpFromVariants(adpEntry, {
+      isSuperflex,
+      isPpr,
+      isHalfPpr,
+      isTePremium,
+      isRookie: false,
+      position: player.position ?? null,
+    });
+    if (adpResult.value == null) continue;
+    const round = Math.ceil(pick.pick_no / totalTeams);
+    const within = ((pick.pick_no - 1) % totalTeams) + 1;
+    const roster = ownerByRosterId.get(pick.roster_id);
+    const playerCombined = [player.first_name, player.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const playerName =
+      player.full_name ?? (playerCombined || pick.player_id);
+    allMoments.push({
+      pick_no: pick.pick_no,
+      pick_label: `${round}.${within}`,
+      player_name: playerName,
+      position: player.position ?? null,
+      team: player.team ?? null,
+      manager_name: roster?.owner_name ?? null,
+      is_me: roster?.is_me ?? false,
+      adp: adpResult.value,
+      adp_delta: pick.pick_no - adpResult.value,
+    });
+  }
+  // Top 3 steals (biggest positive delta = fell furthest past ADP).
+  // Threshold: only count moments with delta >= 15 picks; smaller
+  // values are noise from ADP variance, not narrative-worthy.
+  const steals = [...allMoments]
+    .filter((m) => m.adp_delta >= 15)
+    .sort((a, b) => b.adp_delta - a.adp_delta)
+    .slice(0, 3);
+  // Top 3 swings (biggest negative delta = reached furthest before ADP).
+  const swings = [...allMoments]
+    .filter((m) => m.adp_delta <= -15)
+    .sort((a, b) => a.adp_delta - b.adp_delta)
+    .slice(0, 3);
+
   const serverData: AarServerData = {
     leagueId,
     leagueName: league.name,
@@ -438,6 +501,8 @@ export default async function AarPage({ params, searchParams }: PageProps) {
       future: 0,
     },
     is_superflex: isSuperflex,
+    league_steals: steals,
+    league_swings: swings,
   };
 
   return (
