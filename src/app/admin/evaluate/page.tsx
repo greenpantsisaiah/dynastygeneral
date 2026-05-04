@@ -31,6 +31,12 @@ import {
 } from "@/lib/players/projections";
 import { getNflState } from "@/lib/sleeper/client";
 import { evaluate } from "@/lib/engine/evaluation";
+import {
+  computeTiers,
+  classifyTierScarcity,
+  type TierAssignment,
+  type TierMetadata,
+} from "@/lib/engine/evaluation/tiers";
 import type {
   PlayerSignalsRow,
   TeamSignalsRow,
@@ -235,6 +241,16 @@ export default async function AdminEvaluatePage({
     (a, b) => b.result.point_estimate - a.result.point_estimate,
   );
 
+  // Tier computation: tiers from variance-band overlap. See
+  // tiers.ts for the framework rationale (VBD / VONA / single-linkage).
+  const tierResult = computeTiers(
+    rows.map((r) => ({
+      player_id: r.player_id,
+      point_estimate: r.result.point_estimate,
+      variance_band: r.result.variance_band,
+    })),
+  );
+
   return (
     <>
       <SiteNav />
@@ -307,14 +323,56 @@ export default async function AdminEvaluatePage({
               </Link>
             </div>
 
-            <div className="mt-8 space-y-2">
-              {rows.map((r, i) => (
-                <EvaluateRow
-                  key={r.player_id}
-                  row={r}
-                  engineRank={i + 1}
-                />
-              ))}
+            {/* Tier summary strip: at-a-glance shape of the position */}
+            <div className="mt-6 rounded-md border border-border-soft bg-surface px-3 py-2.5">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                  {positionFilter} tiers (within shown {rows.length})
+                </span>
+                {tierResult.tiers.map((t) => {
+                  const scarcity = classifyTierScarcity(t.count);
+                  const tone =
+                    scarcity === "critical"
+                      ? "border-danger/40 bg-danger/10 text-danger"
+                      : scarcity === "scarce"
+                        ? "border-accent/40 bg-accent/10 text-accent"
+                        : scarcity === "moderate"
+                          ? "border-border-soft bg-surface-2 text-foreground"
+                          : "border-border-soft bg-surface-2 text-muted-2";
+                  return (
+                    <span
+                      key={t.tier}
+                      className={`rounded-md border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${tone}`}
+                      title={`Tier ${t.tier}: ${t.count} players, range ${t.rangeLo.toFixed(0)}-${t.rangeHi.toFixed(0)}. ${scarcity}.`}
+                    >
+                      T{t.tier}: {t.count} · {scarcity}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {rows.map((r, i) => {
+                const assignment = tierResult.assignments.get(r.player_id);
+                const showTierHeader =
+                  assignment?.isFirstInTier === true && i > 0;
+                const tier = assignment
+                  ? tierResult.tiers.find((t) => t.tier === assignment.tier)
+                  : undefined;
+                return (
+                  <div key={r.player_id}>
+                    {showTierHeader && tier && (
+                      <TierDivider tier={tier} />
+                    )}
+                    <EvaluateRow
+                      row={r}
+                      engineRank={i + 1}
+                      assignment={assignment}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -344,12 +402,35 @@ function adpToVisualScore(adp: number | null): number | null {
   return Math.max(0, Math.min(100, 95 - (adp / 200) * 95));
 }
 
+function TierDivider({ tier }: { tier: TierMetadata }) {
+  const scarcity = classifyTierScarcity(tier.count);
+  const tone =
+    scarcity === "critical"
+      ? "text-danger border-danger/30"
+      : scarcity === "scarce"
+        ? "text-accent border-accent/30"
+        : "text-muted-2 border-border-soft";
+  return (
+    <div className={`my-3 flex items-center gap-2 ${tone}`}>
+      <div className={`h-px flex-1 border-t ${tone}`} />
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em]">
+        tier {tier.tier} · {tier.count} player{tier.count === 1 ? "" : "s"}{" "}
+        · range {tier.rangeLo.toFixed(0)}-{tier.rangeHi.toFixed(0)} ·{" "}
+        {scarcity}
+      </span>
+      <div className={`h-px flex-1 border-t ${tone}`} />
+    </div>
+  );
+}
+
 function EvaluateRow({
   row,
   engineRank,
+  assignment,
 }: {
   row: Row;
   engineRank: number;
+  assignment: TierAssignment | undefined;
 }) {
   const r = row.result;
   const point = r.point_estimate;
@@ -389,6 +470,14 @@ function EvaluateRow({
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
             #{engineRank}
           </span>
+          {assignment && (
+            <span
+              className="rounded-sm border border-border-soft bg-surface-2 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted"
+              title={`Tier ${assignment.tier}`}
+            >
+              T{assignment.tier}
+            </span>
+          )}
           <span className="text-sm font-semibold text-foreground">
             {row.name}
           </span>
@@ -396,6 +485,14 @@ function EvaluateRow({
             {row.team ?? "FA"}
             {row.age != null ? ` · age ${row.age}` : ""}
           </span>
+          {assignment?.isLastInTier === true && (
+            <span
+              className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-accent"
+              title="Last player in this tier. Tier break (cliff) below."
+            >
+              last in tier
+            </span>
+          )}
           {consensusTag && (
             <span
               className={`font-mono text-[9px] uppercase tracking-[0.14em] ${consensusTag.tone}`}

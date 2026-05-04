@@ -17,6 +17,10 @@
  */
 
 import { evaluate } from "../src/lib/engine/evaluation";
+import {
+  computeTiers,
+  classifyTierScarcity,
+} from "../src/lib/engine/evaluation/tiers";
 import type {
   PlayerSignalsRow,
   TeamSignalsRow,
@@ -438,6 +442,116 @@ console.log("\n  Evidence stack contract:");
     "evidence_stack carries source citations",
     out.evidence_stack.every((e) => e.source.length > 0),
     "all sources non-empty",
+  );
+}
+
+// === Tier math ===
+console.log("\n  Tier computation (variance-band overlap):");
+{
+  // Two clear tiers: Bijan-Gibbs at top, then a cliff to Jeanty-Love
+  const result = computeTiers([
+    {
+      player_id: "bijan",
+      point_estimate: 100,
+      variance_band: { lo: 93, hi: 100 },
+    },
+    {
+      player_id: "gibbs",
+      point_estimate: 95,
+      variance_band: { lo: 88, hi: 100 },
+    },
+    {
+      player_id: "jeanty",
+      point_estimate: 69,
+      variance_band: { lo: 62, hi: 76 },
+    },
+    {
+      player_id: "love",
+      point_estimate: 65,
+      variance_band: { lo: 58, hi: 72 },
+    },
+  ]);
+  check(
+    "Bijan and Gibbs in tier 1 (bands overlap)",
+    result.assignments.get("bijan")?.tier === 1 &&
+      result.assignments.get("gibbs")?.tier === 1,
+    `bijan=${result.assignments.get("bijan")?.tier} gibbs=${result.assignments.get("gibbs")?.tier}`,
+  );
+  check(
+    "Jeanty and Love drop to tier 2 (no overlap with tier 1)",
+    result.assignments.get("jeanty")?.tier === 2 &&
+      result.assignments.get("love")?.tier === 2,
+    `jeanty=${result.assignments.get("jeanty")?.tier} love=${result.assignments.get("love")?.tier}`,
+  );
+  check(
+    "Gibbs is last-in-tier 1",
+    result.assignments.get("gibbs")?.isLastInTier === true,
+    `gibbs.isLastInTier=${result.assignments.get("gibbs")?.isLastInTier}`,
+  );
+  check(
+    "Bijan is first-in-tier 1",
+    result.assignments.get("bijan")?.isFirstInTier === true,
+    `bijan.isFirstInTier=${result.assignments.get("bijan")?.isFirstInTier}`,
+  );
+  check(
+    "Tier 1 metadata: count 2, range 95-100",
+    result.tiers[0].count === 2 &&
+      result.tiers[0].rangeHi === 100 &&
+      result.tiers[0].rangeLo === 95,
+    `tier1: count=${result.tiers[0].count} range=${result.tiers[0].rangeLo}-${result.tiers[0].rangeHi}`,
+  );
+}
+{
+  // Single-linkage transitivity: P1-P2 overlap, P2-P3 overlap, but
+  // P1-P3 don't overlap. All three should still be tier 1.
+  const result = computeTiers([
+    {
+      player_id: "p1",
+      point_estimate: 100,
+      variance_band: { lo: 93, hi: 100 },
+    },
+    {
+      player_id: "p2",
+      point_estimate: 88,
+      variance_band: { lo: 82, hi: 95 },
+    },
+    {
+      player_id: "p3",
+      point_estimate: 78,
+      variance_band: { lo: 72, hi: 84 },
+    },
+  ]);
+  check(
+    "single-linkage transitivity: chained overlaps form one tier",
+    result.assignments.get("p1")?.tier === 1 &&
+      result.assignments.get("p2")?.tier === 1 &&
+      result.assignments.get("p3")?.tier === 1,
+    "all three in tier 1",
+  );
+}
+{
+  const result = computeTiers([]);
+  check(
+    "empty input returns empty result",
+    result.assignments.size === 0 && result.tiers.length === 0,
+    "no crash",
+  );
+}
+{
+  check(
+    "scarcity: 0-1 = critical",
+    classifyTierScarcity(1) === "critical",
+    `got ${classifyTierScarcity(1)}`,
+  );
+  check(
+    "scarcity: 2-3 = scarce",
+    classifyTierScarcity(3) === "scarce",
+    `got ${classifyTierScarcity(3)}`,
+  );
+  check(
+    "scarcity: 7+ = deep",
+    classifyTierScarcity(10) === "deep",
+    `got ${classifyTierScarcity(10)}`,
   );
 }
 

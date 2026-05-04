@@ -74,6 +74,13 @@ import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
+import { TierMap } from "@/components/league/tier-map";
+import { buildTierMap, type TierMap as TierMapData } from "@/lib/engine/evaluation/tier-map";
+import type {
+  PlayerSignalsRow,
+  TeamSignalsRow,
+} from "@/lib/signals/schema";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { resolvePlayers } from "@/lib/players/cache";
 import { getSeasonStats } from "@/lib/players/season-stats";
 import { getProjections } from "@/lib/players/projections";
@@ -271,6 +278,11 @@ export default async function LeagueHubPage({
   // that needs cross-position value comparison. Cached server-side
   // (24h FantasyCalc fetch). Best-effort; non-fatal if it fails.
   let playerValuesByIdJson: Record<string, number> = {};
+  // Multi-position tier map: scarcity + cliff signals across RB / WR /
+  // TE / QB. Powers the Tier Map panel rendered during active drafts.
+  // Built from the engine's variance-band overlap method (see
+  // src/lib/engine/evaluation/tiers.ts). Best-effort; non-fatal.
+  let tierMap: TierMapData | null = null;
   // KTC overall_rank per player_id, surfaced on Top 3 cards alongside
   // ADP so users see both the Sleeper-UI signal and the dynasty-pro
   // signal. Drives the trust-hierarchy callout when the two diverge.
@@ -399,6 +411,63 @@ export default async function LeagueHubPage({
         }
         playerValuesByIdJson = out;
         ktcOverallRanksByIdJson = ranksOut;
+
+        // Build the multi-position tier map from the engine. Loads
+        // signals tables (best-effort) so coded RB role tier / scheme
+        // tag / etc. flow into evaluate() and shape the tier breaks.
+        // Falls through to KTC-only-based tiers if the signals tables
+        // are unreachable.
+        try {
+          const admin = getAdminClient();
+          const candidateIds = availablePlayers.map((p) => p.id);
+          const [playerSignalsRes, teamSignalsRes] = await Promise.all([
+            admin
+              .from("player_signals")
+              .select("*")
+              .in("player_id", candidateIds),
+            admin.from("team_signals").select("*"),
+          ]);
+          const playerSignalsById = new Map<
+            string,
+            Partial<PlayerSignalsRow>
+          >();
+          for (const row of (playerSignalsRes.data ??
+            []) as Partial<PlayerSignalsRow>[]) {
+            if (typeof row.player_id === "string") {
+              playerSignalsById.set(row.player_id, row);
+            }
+          }
+          const teamSignalsByTeam = new Map<
+            string,
+            Partial<TeamSignalsRow>
+          >();
+          for (const row of (teamSignalsRes.data ??
+            []) as Partial<TeamSignalsRow>[]) {
+            if (typeof row.team === "string") {
+              teamSignalsByTeam.set(row.team, row);
+            }
+          }
+          tierMap = buildTierMap({
+            players: availablePlayers.map((p) => {
+              const v = valueMap?.get(p.id);
+              return {
+                player_id: p.id,
+                name: p.name,
+                team: p.team ?? null,
+                position: p.position ?? null,
+                age: p.age,
+                years_exp: p.yearsExp ?? null,
+                search_rank: p.search_rank ?? null,
+                ktc_value: v?.value ?? null,
+                adp: p.adp,
+              };
+            }),
+            playerSignalsById,
+            teamSignalsByTeam,
+          });
+        } catch (err) {
+          captureError(issues, "hub:tier-map", err);
+        }
 
         // Harmonize the available-pool ordering by the consensus
         // cascade (KTC value > ADP > heuristic dynasty_rank). Per
@@ -1182,6 +1251,12 @@ export default async function LeagueHubPage({
                     }
                     pathCompetition={pathCompetition}
                   />
+
+                  {tierMap && draftActive && (
+                    <div className="mt-4">
+                      <TierMap data={tierMap} />
+                    </div>
+                  )}
 
                   {pickApproach && (
                     <div className="mt-3 text-right text-xs text-muted">
