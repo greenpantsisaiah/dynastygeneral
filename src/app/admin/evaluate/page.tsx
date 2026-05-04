@@ -475,13 +475,8 @@ function EvaluateRow({
                   width: `${spreadVisualWidth}%`,
                 }}
               />
-              {/* Engine point estimate (vertical line, accent gold) */}
-              <div
-                className="absolute inset-y-0 w-0.5 bg-accent"
-                style={{ left: `${enginePct}%` }}
-                title={`Engine: ${point.toFixed(0)}`}
-              />
-              {/* Market marker (green dot) */}
+              {/* Market marker (green dot, render before engine so
+                  the larger engine dot stacks on top if they overlap) */}
               {mktPct != null && (
                 <div
                   className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-success ring-1 ring-background"
@@ -497,12 +492,20 @@ function EvaluateRow({
                   title={`ADP: ${adpPct.toFixed(0)}`}
                 />
               )}
+              {/* Engine marker. Largest dot, accent gold, double ring
+                  so it reads as the primary call ("our" recommendation)
+                  rather than as a structural tick mark. */}
+              <div
+                className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent ring-2 ring-background"
+                style={{ left: `${enginePct}%` }}
+                title={`Engine: ${point.toFixed(0)} (our call)`}
+              />
             </div>
             <div className="mt-1 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
               <span>0</span>
               <span className="flex items-center gap-3">
                 <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-0.5 bg-accent" />{" "}
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-accent" />{" "}
                   engine
                 </span>
                 <span className="flex items-center gap-1">
