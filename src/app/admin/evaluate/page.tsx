@@ -439,8 +439,7 @@ function EvaluateRow({
 
       {(() => {
         // Compute spread bar from min to max of the three sources.
-        // The shaded segment is the disagreement, not the engine's
-        // confidence. Long bar = sources disagree; short bar = consensus.
+        // Bar = disagreement. Long = sources disagree, short = consensus.
         const sourceVals = [
           enginePct,
           ...(mktPct != null ? [mktPct] : []),
@@ -448,32 +447,33 @@ function EvaluateRow({
         ];
         const sourceMin = Math.min(...sourceVals);
         const sourceMax = Math.max(...sourceVals);
-        const spreadVisualWidth = Math.max(sourceMax - sourceMin, 0.5);
+        const spreadAmt = sourceMax - sourceMin;
+        // Tone the spread bar by magnitude: faint when consensus, more
+        // visible when divergent. Floors at 4 px so a perfect-consensus
+        // row still has a tiny anchor between the markers.
+        const spreadVisualWidth = Math.max(spreadAmt, 0.5);
+        const spreadFill =
+          spreadAmt >= 15
+            ? "bg-accent/35 ring-1 ring-accent/40"
+            : spreadAmt >= 6
+              ? "bg-foreground/20 ring-1 ring-foreground/15"
+              : "bg-foreground/10 ring-1 ring-foreground/10";
         return (
           <div
             className="mt-2"
-            title={`Engine ${point.toFixed(0)} (conf range ${lo.toFixed(0)}-${hi.toFixed(0)}). Market ${fallbackNum(mktPct)}. ADP-derived ${fallbackNum(adpPct)}. Source spread ${(sourceMax - sourceMin).toFixed(0)}.`}
+            title={`Engine ${point.toFixed(0)} (conf range ${lo.toFixed(0)}-${hi.toFixed(0)}). Market ${fallbackNum(mktPct)}. ADP-derived ${fallbackNum(adpPct)}. Source spread ${spreadAmt.toFixed(0)}.`}
           >
             <div className="relative h-4 w-full rounded-full bg-surface-2">
               <div className="pointer-events-none absolute inset-y-0 left-1/4 w-px bg-border-soft/60" />
               <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-border-soft/60" />
               <div className="pointer-events-none absolute inset-y-0 left-3/4 w-px bg-border-soft/60" />
-              {/* Source-spread bar (neutral gray, the visual disagreement) */}
+              {/* Source-spread bar. Stronger fill when divergent. */}
               <div
-                className="absolute inset-y-0 rounded-full bg-muted/25"
+                className={`absolute inset-y-0 rounded-full ${spreadFill}`}
                 style={{
                   left: `${sourceMin}%`,
                   width: `${spreadVisualWidth}%`,
                 }}
-              />
-              {/* Engine confidence range as a thinner outline below */}
-              <div
-                className="absolute bottom-0 h-0.5 rounded-full bg-accent/40"
-                style={{
-                  left: `${rangeLeftPct}%`,
-                  width: `${rangeWidthPct}%`,
-                }}
-                title={`Engine confidence range ${lo.toFixed(0)}-${hi.toFixed(0)}`}
               />
               {/* Engine point estimate (vertical line, accent gold) */}
               <div
@@ -513,8 +513,16 @@ function EvaluateRow({
                   <span className="inline-block h-2 w-2 rounded-full bg-foreground" />{" "}
                   adp
                 </span>
-                <span className="text-muted-2/70">
-                  spread {(sourceMax - sourceMin).toFixed(0)}
+                <span
+                  className={
+                    spreadAmt >= 15
+                      ? "text-accent"
+                      : spreadAmt >= 6
+                        ? "text-foreground/70"
+                        : "text-muted-2/70"
+                  }
+                >
+                  spread {spreadAmt.toFixed(0)}
                 </span>
               </span>
               <span>100</span>
