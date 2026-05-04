@@ -36,6 +36,14 @@ export type RecentPickForContinuity = {
   owner_name: string | null;
 };
 
+export type TierAnnotation = {
+  tier: number;
+  isLastInTier: boolean;
+  // Position-level scarcity below this player's tier. Used for the
+  // "next tier deep / scarce / critical" framing on candidate rows.
+  nextTierCount: number | null;
+};
+
 const RULE_LABEL: Record<DecisionRule, string> = {
   fill_starter_urgent: "Fill starter · urgent",
   fill_starter: "Fill starter",
@@ -133,12 +141,18 @@ export function DecisionCard({
   horizonDial,
   leagueId,
   recentPicks,
+  tierAnnotations,
 }: {
   decision: Decision;
   trajectory?: BuildTrajectory;
   horizonDial?: number;
   leagueId?: string;
   recentPicks?: RecentPickForContinuity[];
+  // Per-player tier context from the engine's tier map. When present,
+  // each candidate row shows tier number + "last in tier" cliff
+  // signal + next-tier scarcity. Best-effort: card renders fine
+  // without it.
+  tierAnnotations?: ReadonlyMap<string, TierAnnotation>;
 }) {
   const tone = RULE_TONE[decision.recommendation.rule];
   const rec = decision.recommendation;
@@ -508,6 +522,7 @@ export function DecisionCard({
                           {picks.map((p, idx) => {
                             const isPrimary = idx === 0;
                             const isGolden = isGoldenPick(p);
+                            const tierAnn = tierAnnotations?.get(p.player_id);
                             return (
                               <li
                                 key={p.player_id}
@@ -556,6 +571,14 @@ export function DecisionCard({
                                         Golden
                                       </span>
                                     )}
+                                    {tierAnn?.isLastInTier && (
+                                      <span
+                                        className="rounded-sm border border-accent/60 bg-accent/10 px-1.5 py-0 text-accent"
+                                        title={`Last player in tier ${tierAnn.tier}. The cliff to tier ${tierAnn.tier + 1} sits below; grab now or accept the drop.`}
+                                      >
+                                        Last in T{tierAnn.tier}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
@@ -567,6 +590,13 @@ export function DecisionCard({
                                     : ""}
                                   {p.value != null
                                     ? ` · VAL ${p.value}`
+                                    : ""}
+                                  {tierAnn != null
+                                    ? ` · T${tierAnn.tier}`
+                                    : ""}
+                                  {tierAnn?.nextTierCount != null &&
+                                  tierAnn.nextTierCount > 0
+                                    ? ` · next tier: ${tierAnn.nextTierCount}`
                                     : ""}
                                 </div>
                                 {p.availability_next_pick && (

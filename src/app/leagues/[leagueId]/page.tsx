@@ -1224,6 +1224,31 @@ export default async function LeagueHubPage({
                         ownerByRosterId.get(p.roster_id) ?? null,
                     }));
                   })()}
+                  tierAnnotations={(() => {
+                    if (!tierMap) return undefined;
+                    const m = new Map<
+                      string,
+                      import("@/components/league/decision-card").TierAnnotation
+                    >();
+                    for (const pos of tierMap.positions) {
+                      // Build a per-tier metadata lookup so each player
+                      // can know how many players sit in the tier just
+                      // below them. Critical for "next tier deep / scarce"
+                      // framing.
+                      const byTierNum = new Map(
+                        pos.tiers.map((t) => [t.tier, t]),
+                      );
+                      for (const player of pos.top_tier_players) {
+                        const nextTier = byTierNum.get(player.tier + 1);
+                        m.set(player.player_id, {
+                          tier: player.tier,
+                          isLastInTier: player.is_last_in_tier,
+                          nextTierCount: nextTier?.count ?? null,
+                        });
+                      }
+                    }
+                    return m;
+                  })()}
                 />
               )}
 
