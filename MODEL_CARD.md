@@ -1,9 +1,10 @@
 # Dynasty General Model Card
 
-**Version**: v0 (framework + initial signal stack)
-**Last updated**: 2026-04-28
+**Version**: v1 (framework + signal stack + offseason-transition signals)
+**Last updated**: 2026-05-03
 **Maintainer**: dynasty-canon-keeper subagent + founder
 **Companion document**: `web/RESEARCH_CORPUS.md` (every citation in this card resolves there)
+**Build plan**: `web/BUILD_PLAN.md` (Phase 1 actionable spec, what to build first)
 
 This model card follows the Mitchell et al. 2019 "Model Cards for Model Reporting" structure (Mitchell, Wu, Zaldivar, Barnes, Vasserman, Hutchinson, Spitzer, Raji, Gebru. ACM FAccT 2019). It is the operational translation of `RESEARCH_CORPUS.md` into a per-signal, per-weight specification the engine implements. Every constant in production code traces back to a row in this card; every row in this card traces back to either a corpus citation or an explicit internal-heuristic tag with a planned backtest.
 
@@ -164,6 +165,32 @@ Master signal list. Every signal has a citation reference (resolves to `RESEARCH
 
 Signals not in v0 (deferred to maintenance passes): weather/temperature per-game projection (corpus > debunks: 1.8-3.1 percent effect, too small to weight in v0); divisional strength (overlaps with SOS, no marginal value in v0); concussion-recovery curves (corpus open question 8).
 
+### 3.9 Offseason transition signals (v1, added per founder direction 2026-05-03)
+
+These signals operate on the team and player at the START of each season (or as updates fire mid-offseason). They're the engine's prediction-business layer: they capture what changed about a player's situation BEFORE the data arrives. Most are CONTEXT signals that widen variance bands rather than shift point estimates; the corpus is unambiguous that individual-level transition effects are noisy at the point-estimate level but real at the variance level.
+
+| Signal | Source | Refresh | Confidence | Corpus ref |
+|---|---|---|---|---|
+| `ol_continuity_score` (team) | Football Outsiders methodology, computed from starter changes | Pre-season + week 1 | High | Corpus v2 > Cluster 1 (r=0.440 to offensive DVOA) |
+| `ol_grade_run` (team) | PFF run-blocking grade or Football Outsiders ALY | Weekly in-season | High | Corpus v2 > Cluster 1 (PFF: 0.50 correlation to YPA) |
+| `rookie_ol_starters_count` (team: number of rookie starters on OL) | Manual coding from depth charts | Pre-season + roster moves | High (factual) | Corpus v2 > Cluster 1 (rookie OL year-1-to-year-2 r=0.56) |
+| `rookie_ol_position_breakdown` (team: which OL positions are rookie) | Manual coding | Pre-season | High | Corpus v2 > Cluster 1 (tackles 0.67 stable, centers 0.38) |
+| `hc_first_time_flag` (team) | Manual coding | Per coaching change | High | Corpus v2 > Cluster 2 (first-time HC win pct 0.447) |
+| `hc_tenure_yrs` (team) | Manual coding | Per coaching change | High | Corpus v2 > Cluster 2 |
+| `hc_background_tag` (offensive_coordinator / defensive_coordinator / college / position_coach) | Manual coding | Per coaching change | High | Corpus v2 > Cluster 2 |
+| `oc_id`, `oc_tenure_yrs`, `oc_first_year_with_team_flag` (team) | Manual coding | Per coaching change | High | Corpus v2 > Cluster 2 (OC tenure dominant signal for scheme persistence) |
+| `scheme_tag` (team: shanahan / mcvay / reid / air_raid / spread / pro_style / west_coast / erhardt_perkins / other) | Manual coding | Per coaching change | Medium (subjective) | Corpus v2 > Cluster 2 |
+| `staff_novelty_composite` (team: 0-3 score across new HC + new OC + new GM) | Computed from above | Per coaching change | High | Corpus v2 > Cluster 2 (compounding risk) |
+| `rb_role_tier` (player: lead_back / bellcow / strict_bellcow / committee_member / passdown / starter_uncertain) | Computed from snap_share + manual coding | Pre-season + weekly | High | Corpus v2 > Cluster 3 (60/67/75 percent snap-share thresholds) |
+| `rb_traded_offseason_flag` (player) | Manual coding from transactions feed | Per trade | High | Corpus v2 > Cluster 3 (Stats with Sasa: 64 percent improve, +6.8 percent median) |
+| `rb_role_at_new_team_projected` (when traded: featured / committee / passdown_complement) | Manual coding | Per trade | Medium (subjective) | Corpus v2 > Cluster 3 (three-role taxonomy) |
+| `rb_passdown_share_priorYear` (player: percent of team RB targets) | nflfastR + Pro Football Reference | Season-end + offseason | High | Corpus v2 > Cluster 3 (passdown stickier than early-down) |
+| `compounding_news_count` (player: number of distinct offseason transitions affecting this player) | Computed from team-level signals | Per news event | Medium | Corpus v2 > Cluster 4 (compounding-news cases mis-priced) |
+| `ktc_value_30day_delta` (player: change in KTC over last 30 days) | KeepTradeCut historical | Daily | High | Corpus v2 > Cluster 4 (market reprice latency = news cycle) |
+| `news_signal_count_30d` (player: count of beat-reporter mentions over 30 days, sentiment-tagged) | News-watcher subagent (planned) | Daily | Medium | Corpus v2 > Cluster 4 (training-camp announcement reliability open question) |
+
+**Critical interpretive note for v1**: most signals in this category are SUBJECTIVE (manual coding required) because the published research is heavy on industry-tier sources rather than peer-reviewed quantification. Per the v2 corpus maintenance notes, peer-reviewed offseason-transition work is rare. The engine treats this honestly: subjective signals are explicitly tagged as confidence MEDIUM, and a transition signal is allowed to widen a variance band but NOT to shift a point estimate alone. The exception is `rb_role_tier`, which has clear quantitative thresholds (60/67/75 percent snap share) that the corpus cites directly.
+
 ## 4. Position rubrics
 
 Each rubric is a weighted aggregation `score = sum(w_i * signal_i)` with weights in [0, 1] summing to 1.0 per rubric. Weights are v0 proposals; final values come from the backtest in Section 9. Each weight has a source tag: CORPUS (derivable from research effect sizes), MARKET_PRIOR (mirrors KTC market structure for positions where research is thin), or INTERNAL.
@@ -202,6 +229,15 @@ Designed around weighted-opportunity dominance, OL impact, and the named cliff-b
 | `frame_score` (weight + height composite vs RB cohort) | 0.05 | INTERNAL_HEURISTIC | Cliff-breaker condition input; no peer-reviewed framework. Backtest required. |
 | `ras` | 0.04 | CORPUS (Platte RAS) | Composite athletic profile. |
 | `ktc_prior` | 0.05 | MARKET_PRIOR | |
+
+**RB rubric v1 additions (2026-05-03)** based on v2 corpus cluster 3. The RB position is the most affected by offseason transitions. New signals layered on top of the v0 stack:
+
+- `rb_role_tier` becomes a HARD GATE on the rubric output: a player coded `committee_member` or `starter_uncertain` cannot score above 0.60 on the rubric until the role clarifies. Lead-back / bellcow / strict-bellcow tiers use the v0 weight stack as-is.
+- `ol_continuity_score` and `ol_grade_run` enter as VARIANCE-BAND modifiers (see section 8.4): low team OL continuity widens the projection band by 15-25 percent without shifting the point estimate.
+- `rb_traded_offseason_flag` activates the post-trade prior: 64 percent improve, median +6.8 percent fantasy points (corpus). Engine should NOT default-discount traded RBs; instead surface the three role-profile classifications (featured / committee / passdown).
+- `rb_role_at_new_team_projected` is a hard input when the trade flag fires; it routes the post-trade RB into the right tier expectations.
+- `rb_passdown_share_priorYear` boosts the engine's confidence in role retention across coaching changes (passdown roles port better than rushing roles).
+- Compounding-news flag (when 3+ offseason transitions affect this RB simultaneously) routes to arbitrage cluster 7.6.
 
 ### 4.3 WR rubric
 
@@ -284,6 +320,39 @@ The model uses RAS (Relative Athletic Score, Kent Lee Platte) as the composite a
 
 This is a notable place where the model deliberately deviates from common-knowledge fantasy discourse (where 40-time is repeatedly cited as a key signal). The deviation is research-grounded; the conference talk should highlight it.
 
+### 5.7 Offseason transition signals (v1)
+
+This is the engine's prediction-business layer (v2 corpus). Transition signals describe how a player's situation has CHANGED entering the new season, which the past-data signals can't capture.
+
+**Offensive line transitions.** Team-level OL signals (`ol_continuity_score`, `ol_grade_run`, `rookie_ol_starters_count`, `rookie_ol_position_breakdown`) feed into the RB rubric primarily and the QB rubric secondarily. Per corpus, OL signals at the team level are real (continuity r=0.440 to DVOA, run-blocking grade r=0.50 to YPA) but at the individual-RB level are modest (r~0.25). Honest treatment: OL is a TEAM-LEVEL CONTEXT modifier on RB variance bands, not a per-player point-estimate adjustment. Rookie tackles (year-1 grade r=0.67 to year-2) are treated as nearer-final than rookie interior linemen (centers r=0.38, real year-2 leap potential).
+
+**Coaching change effects.** First-time HC carries a documented 0.447 win-pct year-1 prior; new-HC effect on individual WR1 production is ~0.72 PPR/game with p=0.096 (statistically marginal per numberFire). Team context dominates coach. The engine treats `hc_first_time_flag` and `staff_novelty_composite` as team-level variance-band modifiers, not point-estimate adjustments. The `scheme_tag` field is a CATEGORICAL CONTEXT used by individual-position rubrics (e.g., Shanahan-tag elevates RB ceiling priors but doesn't lock a single bellcow; McVay-tag favors slot-bigs at WR; Air-Raid tag depresses RB ceilings).
+
+**RB role transitions (most impactful at individual level).** `rb_role_tier` is a HARD GATE on the RB rubric. Three operational thresholds from the corpus: lead-back (>=60 percent snap share), bellcow (>=67 percent over 15+ games), strict bellcow (>=75 percent season). Trades trigger the post-trade prior: 64 percent improve, median +6.8 percent. The engine classifies into three role-profile buckets at the new team (featured / committee / passdown) BEFORE projecting points; this is the single most common analyst error per the corpus and the engine treats it as a routing problem.
+
+**Compounding-news cases.** When 3+ offseason transitions hit a player simultaneously (e.g., new team + new HC + new QB), the dynasty market under-prices the variance compression per corpus cluster 4. Routes to arbitrage cluster 7.6.
+
+### 5.8 Variance-band modifiers (v1, corpus-derived)
+
+**Key conceptual addition in v1**: many corpus signals legitimately widen the variance band on a player's projection without shifting the point estimate. The engine maintains TWO outputs per player per signal pass:
+
+1. **Point estimate** (the projected value we use for headline ranking, recommendation copy, lane bucketing).
+2. **Variance band** (the 25th-to-75th percentile range we use for confidence labels, "show your work" mode, and arbitrage detection).
+
+Variance-band modifiers from v2 corpus:
+
+| Modifier | Effect on band | Source |
+|---|---|---|
+| `ol_continuity_score` low (bottom quartile) | Widen RB band by +25 percent | Corpus v2 > Cluster 1 |
+| `staff_novelty_composite` >= 2 | Widen team-context band by +20 percent | Corpus v2 > Cluster 2 |
+| `oc_first_year_with_team_flag` = true | Widen TE band by +15 percent | Corpus v2 > Cluster 2 (OC tenure dominant for TE) |
+| `compounding_news_count` >= 3 | Widen player band by +30 percent both directions | Corpus v2 > Cluster 4 |
+| `rb_traded_offseason_flag` = true | Widen RB band by +15 percent (asymmetric: corpus skews positive) | Corpus v2 > Cluster 3 (Stats with Sasa) |
+| `rookie_ol_starters_count` >= 2 (interior) | Widen RB band by +10 percent with year-2 upside skew | Corpus v2 > Cluster 1 (PFF rookie OL development) |
+| `injury_type` in {Achilles within 12 mo, ACL within 24 mo} | Discount point estimate (covered in v0 5.2) AND widen band | Corpus v1 > Injury history |
+
+The user-facing surface for variance bands: in the Decision card and AAR, a wide band shows as a "high variance" tag on the player chip; a narrow band shows as "high confidence." The Soundboard `variance_tolerance` dial (already scaffolded) maps directly: high tolerance values bias toward wide-band picks; low tolerance toward narrow-band picks.
+
 ## 6. Lane classification (post-enrichment)
 
 Current state (`build-trajectory.ts`): pure age threshold (age <= 23 future, age >= 27 win-now, 24-26 balanced). This is an age-only proxy for "timeline of contribution."
@@ -360,6 +429,21 @@ Five condition clusters, each with its identifiable signal cluster, named histor
 - **Engine treatment**: posterior starter probability updated upward from baseline; surfaced as "matches the Purdy/Hurts pattern: [conditions met]." Hits are still rare; the engine does not treat the cluster as deterministic.
 - **Historical analogs cited**: Brock Purdy 2022, Jalen Hurts 2020, Tom Brady 2000 (with the caveat that Brady's pattern was only fully visible in retrospect; Belichick/Weis match was unusual and partially scheme-emergent).
 
+### 7.6 Compounding-news arbitrage cluster (v1)
+
+This is the v2-corpus arbitrage pattern. When 3+ offseason transitions affect a single player simultaneously, the dynasty market under-prices the variance compression. The engine surfaces these as "mis-priced both directions" candidates and lets the user's risk preference (Soundboard `variance_tolerance` dial) decide.
+
+- **Condition cluster** (engine flags when 3+ of these fire on one player in one offseason):
+  - `team_changed_flag` (player traded or signed with new team)
+  - `hc_first_time_flag` at the new team
+  - `oc_first_year_with_team_flag` at the new team
+  - `qb_changed_flag` (new starting QB at the new team)
+  - `scheme_tag_changed_flag` (scheme family different from prior team)
+  - `position_role_tier_uncertain_flag` (e.g., RB role hasn't clarified)
+- **Engine treatment**: `compounding_news_count` >= 3 routes the player to a "high-variance, mis-priced" surface in the Decision card and AAR. Variance band widens by +30 percent both directions per section 5.8. The point estimate stays at the rubric output; the WIDTH conveys the mis-pricing.
+- **Historical analogs (illustrative; corpus does not yet have a quantified hit-rate study, logged as open question)**: Mike Evans-to-SF case (new team + Shanahan scheme + Brock Purdy QB tier change = 3 transitions); Cooper Kupp-to-Seattle 2025 (new team + new HC + new QB); Saquon Barkley to PHI 2024 (new team + new HC + new OC + Hurts QB, 4 transitions, market significantly under-priced his year-1 outcome).
+- **Predictive signal cluster**: 3+ flags AND scheme-fit alignment per the v2 corpus = upside-tilt arbitrage. 3+ flags AND scheme-fit mismatch = downside-tilt. The engine should NOT collapse to a point-estimate adjustment; it should surface the variance asymmetrically.
+
 ## 8. Combination logic
 
 ### 8.1 Bayesian framing
@@ -383,6 +467,18 @@ Dials currently wired to engine math: `horizon` (Phase E in repo). Dials with pl
 ### 8.3 Macro modifier
 
 League-format and time-of-year factors apply post-doctrine. Examples: superflex multiplier (KTC-anchored, format-multiplied per existing engine pattern), TE-premium adjustment, pre-NFL-draft rookie uncertainty widening.
+
+### 8.4 Variance-band layer (v1, paired with section 5.8)
+
+The combination layer outputs TWO numbers per player (point estimate + variance band) instead of one. Compose order:
+
+1. Position rubric produces a point estimate.
+2. KTC market prior bayesian-blends with the rubric output (section 8.1).
+3. Doctrine modifier shifts within bounded range (section 8.2).
+4. Macro modifier applies (section 8.3).
+5. Variance-band modifiers from section 5.8 widen or narrow the band around the now-stable point estimate. Modifiers compose multiplicatively (a 1.25x widening from low OL continuity AND a 1.30x widening from compounding-news AND a 1.15x widening from offseason-trade flag yields a band roughly 1.86x wider than baseline).
+
+The variance band is published alongside the point estimate. Surfaces consume both: ranking views use the point estimate; confidence labels and arbitrage detection use the band width; the AAR's grade math now incorporates band tightness as a factor (a tight-band team is a more LOCKED contender than a wide-band team at the same point-estimate rank).
 
 ## 9. Validation framework
 
@@ -446,6 +542,13 @@ Additional heuristic items:
 - Frame score formula for RB. Requires definition + backtest.
 - Bayesian prior weight default (0.55) and band ([0.35, 0.75]). Sensitivity analysis required.
 
+**v1 additions (2026-05-03)** flagged for backtest from v2 corpus:
+- Variance-band multipliers in section 5.8 (1.10x to 1.30x per modifier). Order of magnitude defensible from corpus correlations but specific values are placeholders.
+- Compounding-news threshold (3+ transitions). The corpus identifies the pattern; it does not quantify the threshold. INTERNAL until backtest.
+- Scheme-tag taxonomy (Shanahan / McVay / Reid / Air-Raid / Spread / Pro-Style / West-Coast / Erhardt-Perkins / other). Manual coding decisions per team.
+- HC-background tag categories (offensive_coordinator / defensive_coordinator / college / position_coach). Coarser than the cohort study would warrant; refine when a quantified study lands.
+- RB role-tier hard gate at 0.60 score ceiling for committee_member / starter_uncertain. Cap is INTERNAL; corpus supports the existence of the tier but not the specific cap value.
+
 Each heuristic is tagged in code (`// INTERNAL_HEURISTIC: ref MODEL_CARD section 10.X`) so the lint rule and grounding subagent can find them.
 
 ## 11. Known limitations and open questions
@@ -468,6 +571,22 @@ Each heuristic is tagged in code (`// INTERNAL_HEURISTIC: ref MODEL_CARD section
 8. Concussion return-to-form curves.
 9. ACL recovery position-specificity beyond WR.
 10. Massey-Thaler 2013 successor work post-rookie-wage-scale era (2011 CBA).
+
+**v1 additions from v2 corpus expansion (2026-05-03), 13 new gaps:**
+
+11. Quantified delta-on-delta study: OL grade change vs RB1 production change.
+12. Rookie OL grade by 12 weeks vs full-season as early-warning for year-2 leap.
+13. OL grade change under same OC vs new OC, holding personnel constant.
+14. Year-1 HC offensive-identity persistence vs prior season.
+15. Reid-tree-specific RB and WR fantasy-impact study.
+16. Fantasy production change when OC moves teams without player vs player moves with same OC.
+17. Year-N to year-N+1 bellcow retention rate, conditional on age and team-context change.
+18. Target-share retention vs carry-share retention across coaching changes.
+19. Successor RB year-1 production after prior bellcow departs.
+20. Dynasty market efficiency formal study (where does KTC mis-price post-event?). The product itself can generate this evidence via internal backtests.
+21. Training-camp starter-announcement reliability through Week 1.
+22. Free-agent landing-spot longitudinal study, controlled for QB and scheme change.
+23. Rookie-HC year-1 bust rate by coaching background (OC / DC / college / position).
 
 The model card is honest about each of these; the engine flags the affected signals as MEDIUM confidence rather than HIGH.
 
@@ -495,7 +614,18 @@ The honest caveat: validation is the v1 backtest, which is in progress. The "out
 
 - **v0 (2026-04-28)**: Initial framework + signal stack + rubric weights (proposed) + arbitrage layer + validation framework. Signals derived from `RESEARCH_CORPUS.md` v1. Internal-heuristic tags placed for backtest. Companion to corpus document. No production code yet implements this card; engine implementation is Phase 1+ of the build plan.
 
+- **v1 (2026-05-03)**: Offseason transition signals integrated per founder direction and v2 corpus expansion. Major additions:
+  - Section 3.9: 17 new transition signals (OL continuity, scheme tag, RB role tier, compounding-news count, etc.)
+  - Section 4.2 RB rubric: role-tier becomes a hard gate; v2-corpus context modifiers layered on top
+  - Section 5.7: comprehensive treatment of offseason transition signals (OL, coaching, RB role, compounding)
+  - Section 5.8: variance-band modifiers concept introduced. Many transition signals widen the variance band rather than shifting the point estimate, per corpus quantitative effect sizes.
+  - Section 7.6: compounding-news arbitrage cluster. 3+ transitions affecting one player = mis-priced, surface as variance-asymmetric play.
+  - Section 8.4: variance-band layer in combination logic. Two outputs per player (point estimate + band).
+  - Section 10: 5 new internal heuristics from v2 (variance-band multipliers, compounding-news threshold, scheme-tag taxonomy, HC-background categories, RB role-tier hard cap).
+  - Section 11.2: 13 new open research questions from v2 corpus.
+  - Companion build plan added at `web/BUILD_PLAN.md` (Phase 1 actionable spec).
+
 Future versions:
-- **v1**: post-backtest weight updates; INTERNAL_HEURISTIC items either backtested or retired.
-- **v2**: post-conference feedback incorporation; expanded corpus.
+- **v2**: post-backtest weight updates; INTERNAL_HEURISTIC items either backtested or retired.
+- **v3**: post-conference feedback incorporation; expanded corpus.
 - **v3+**: hired-analyst tuning rounds; expert-curated weight sets per dial preset.
