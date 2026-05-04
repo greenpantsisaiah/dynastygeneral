@@ -437,64 +437,91 @@ function EvaluateRow({
         </div>
       </div>
 
-      <div
-        className="mt-2"
-        title={`Engine ${point.toFixed(0)} (range ${lo.toFixed(0)}-${hi.toFixed(0)}). Market ${fallbackNum(mktPct)}. ADP-derived ${fallbackNum(adpPct)}.`}
-      >
-        <div className="relative h-4 w-full rounded-full bg-surface-2">
-          <div className="pointer-events-none absolute inset-y-0 left-1/4 w-px bg-border-soft/60" />
-          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-border-soft/60" />
-          <div className="pointer-events-none absolute inset-y-0 left-3/4 w-px bg-border-soft/60" />
-          {/* Engine confidence range */}
+      {(() => {
+        // Compute spread bar from min to max of the three sources.
+        // The shaded segment is the disagreement, not the engine's
+        // confidence. Long bar = sources disagree; short bar = consensus.
+        const sourceVals = [
+          enginePct,
+          ...(mktPct != null ? [mktPct] : []),
+          ...(adpPct != null ? [adpPct] : []),
+        ];
+        const sourceMin = Math.min(...sourceVals);
+        const sourceMax = Math.max(...sourceVals);
+        const spreadVisualWidth = Math.max(sourceMax - sourceMin, 0.5);
+        return (
           <div
-            className="absolute inset-y-0 rounded-full bg-accent/25"
-            style={{
-              left: `${rangeLeftPct}%`,
-              width: `${rangeWidthPct}%`,
-            }}
-          />
-          {/* Engine point-estimate marker */}
-          <div
-            className="absolute inset-y-0 w-0.5 bg-accent"
-            style={{ left: `${enginePct}%` }}
-            title={`Engine: ${point.toFixed(0)}`}
-          />
-          {/* Market (FC) marker */}
-          {mktPct != null && (
-            <div
-              className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-success"
-              style={{ left: `${mktPct}%` }}
-              title={`Market: ${mktPct.toFixed(0)}`}
-            />
-          )}
-          {/* ADP-derived marker */}
-          {adpPct != null && (
-            <div
-              className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-warning"
-              style={{ left: `${adpPct}%` }}
-              title={`ADP: ${adpPct.toFixed(0)}`}
-            />
-          )}
-        </div>
-        <div className="mt-1 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
-          <span>0</span>
-          <span className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-0.5 bg-accent" />{" "}
-              engine
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-success" />{" "}
-              mkt
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-warning" />{" "}
-              adp
-            </span>
-          </span>
-          <span>100</span>
-        </div>
-      </div>
+            className="mt-2"
+            title={`Engine ${point.toFixed(0)} (conf range ${lo.toFixed(0)}-${hi.toFixed(0)}). Market ${fallbackNum(mktPct)}. ADP-derived ${fallbackNum(adpPct)}. Source spread ${(sourceMax - sourceMin).toFixed(0)}.`}
+          >
+            <div className="relative h-4 w-full rounded-full bg-surface-2">
+              <div className="pointer-events-none absolute inset-y-0 left-1/4 w-px bg-border-soft/60" />
+              <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-border-soft/60" />
+              <div className="pointer-events-none absolute inset-y-0 left-3/4 w-px bg-border-soft/60" />
+              {/* Source-spread bar (neutral gray, the visual disagreement) */}
+              <div
+                className="absolute inset-y-0 rounded-full bg-muted/25"
+                style={{
+                  left: `${sourceMin}%`,
+                  width: `${spreadVisualWidth}%`,
+                }}
+              />
+              {/* Engine confidence range as a thinner outline below */}
+              <div
+                className="absolute bottom-0 h-0.5 rounded-full bg-accent/40"
+                style={{
+                  left: `${rangeLeftPct}%`,
+                  width: `${rangeWidthPct}%`,
+                }}
+                title={`Engine confidence range ${lo.toFixed(0)}-${hi.toFixed(0)}`}
+              />
+              {/* Engine point estimate (vertical line, accent gold) */}
+              <div
+                className="absolute inset-y-0 w-0.5 bg-accent"
+                style={{ left: `${enginePct}%` }}
+                title={`Engine: ${point.toFixed(0)}`}
+              />
+              {/* Market marker (green dot) */}
+              {mktPct != null && (
+                <div
+                  className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-success ring-1 ring-background"
+                  style={{ left: `${mktPct}%` }}
+                  title={`Market: ${mktPct.toFixed(0)}`}
+                />
+              )}
+              {/* ADP marker (white dot, max contrast vs accent) */}
+              {adpPct != null && (
+                <div
+                  className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground ring-1 ring-background"
+                  style={{ left: `${adpPct}%` }}
+                  title={`ADP: ${adpPct.toFixed(0)}`}
+                />
+              )}
+            </div>
+            <div className="mt-1 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+              <span>0</span>
+              <span className="flex items-center gap-3">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-0.5 bg-accent" />{" "}
+                  engine
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-success" />{" "}
+                  mkt
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-foreground" />{" "}
+                  adp
+                </span>
+                <span className="text-muted-2/70">
+                  spread {(sourceMax - sourceMin).toFixed(0)}
+                </span>
+              </span>
+              <span>100</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {r.arbitrage_flags.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
