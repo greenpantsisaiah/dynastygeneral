@@ -90,7 +90,12 @@ export default async function AdminEvaluatePage({
 
   const allPlayers = await __dumpAllPlayers();
 
-  const candidates = allPlayers
+  // Pull a generous candidate pool by Sleeper search rank, then
+  // filter against FantasyCalc-tracked players so retirees / FAs
+  // who happen to be searched (Todd Gurley incident 2026-05-04) get
+  // dropped before they hit the engine. Pull 100 then trim to
+  // PER_POSITION after the FC filter lands.
+  const broadCandidates = allPlayers
     .filter(
       (p) =>
         p.position === positionFilter &&
@@ -99,23 +104,33 @@ export default async function AdminEvaluatePage({
         (p.search_rank as number) < 500,
     )
     .sort((a, b) => (a.search_rank as number) - (b.search_rank as number))
-    .slice(0, PER_POSITION);
+    .slice(0, 100);
 
+  const broadIds = broadCandidates.map((p) => p.player_id);
+
+  const [valuesMap, teamSignalsResult] = await Promise.all([
+    resolvePlayerValues({
+      ids: broadIds,
+      isSuperflex: flags.isSuperflex,
+      isPpr: flags.isPpr,
+      isHalfPpr: flags.isHalfPpr,
+      isTePremium: flags.isTePremium,
+    }),
+    getAdminClient().from("team_signals").select("*"),
+  ]);
+
+  // Keep only players that FantasyCalc actually tracks. If FC has no
+  // value for them, they're not part of the dynasty market and should
+  // not appear in this view.
+  const candidates = broadCandidates
+    .filter((p) => valuesMap.has(p.player_id))
+    .slice(0, PER_POSITION);
   const ids = candidates.map((p) => p.player_id);
 
-  const [valuesMap, playerSignalsResult, teamSignalsResult] = await Promise.all(
-    [
-      resolvePlayerValues({
-        ids,
-        isSuperflex: flags.isSuperflex,
-        isPpr: flags.isPpr,
-        isHalfPpr: flags.isHalfPpr,
-        isTePremium: flags.isTePremium,
-      }),
-      getAdminClient().from("player_signals").select("*").in("player_id", ids),
-      getAdminClient().from("team_signals").select("*"),
-    ],
-  );
+  const playerSignalsResult = await getAdminClient()
+    .from("player_signals")
+    .select("*")
+    .in("player_id", ids);
 
   const playerSignalsById = new Map<string, Partial<PlayerSignalsRow>>();
   for (const row of (playerSignalsResult.data ??

@@ -69,13 +69,23 @@ export function adpToScore(adp: number | null | undefined): number | null {
 
 /**
  * Search-rank fallback when no ADP/KTC is available. Sleeper search
- * rank is 1-500+. Cruder than ADP but populated for everyone.
+ * rank reflects user-search popularity, NOT fantasy relevance: it
+ * includes retirees, free agents in the news, etc. Cap the prior at
+ * 55 to reflect this low-quality signal; rubric signals can push
+ * higher when warranted. A player whose only signal is search_rank
+ * should never look elite by default.
+ *
+ * The Todd Gurley incident (2026-05-04): Sleeper had Gurley in the
+ * top-30 RB search rank, FantasyCalc had no value for him, the old
+ * search_rank cascade gave him prior 92, age curve dropped him to
+ * 78, and he showed up as a top-3 RB. The cap fixes this class of
+ * bug at the engine level even if the candidates filter misses one.
  */
 export function searchRankToScore(
   rank: number | null | undefined,
 ): number | null {
   if (rank == null || rank <= 0) return null;
-  return clamp(95 - (rank / 300) * 90);
+  return clamp(55 - (rank / 300) * 50);
 }
 
 /**
