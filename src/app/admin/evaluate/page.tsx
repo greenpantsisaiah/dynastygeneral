@@ -25,6 +25,11 @@ import { getAdminUser } from "@/lib/auth/admin";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { __dumpAllPlayers } from "@/lib/players/cache";
 import { resolvePlayerValues } from "@/lib/players/values";
+import {
+  getProjections,
+  pickAdpFromVariants,
+} from "@/lib/players/projections";
+import { getNflState } from "@/lib/sleeper/client";
 import { evaluate } from "@/lib/engine/evaluation";
 import type {
   PlayerSignalsRow,
@@ -108,7 +113,10 @@ export default async function AdminEvaluatePage({
 
   const broadIds = broadCandidates.map((p) => p.player_id);
 
-  const [valuesMap, teamSignalsResult] = await Promise.all([
+  const nflState = await getNflState();
+  const season = nflState?.season ?? new Date().getFullYear().toString();
+
+  const [valuesMap, projectionsEntry, teamSignalsResult] = await Promise.all([
     resolvePlayerValues({
       ids: broadIds,
       isSuperflex: flags.isSuperflex,
@@ -116,6 +124,7 @@ export default async function AdminEvaluatePage({
       isHalfPpr: flags.isHalfPpr,
       isTePremium: flags.isTePremium,
     }),
+    getProjections(season).catch(() => null),
     getAdminClient().from("team_signals").select("*"),
   ]);
 
@@ -131,6 +140,34 @@ export default async function AdminEvaluatePage({
     .from("player_signals")
     .select("*")
     .in("player_id", ids);
+
+  // Compute Sleeper-projection ADP for each candidate per the format.
+  // Then sort to get the ADP-derived position rank within this set.
+  const adpByPlayerId = new Map<string, number | null>();
+  for (const p of candidates) {
+    const isRookie =
+      typeof p.years_exp === "number" && p.years_exp === 0;
+    const adpEntry = projectionsEntry?.byPlayerId.get(p.player_id);
+    const { value } = pickAdpFromVariants(adpEntry, {
+      isSuperflex: flags.isSuperflex,
+      isPpr: flags.isPpr,
+      isHalfPpr: flags.isHalfPpr,
+      isTePremium: flags.isTePremium,
+      isRookie,
+      position: positionFilter,
+    });
+    adpByPlayerId.set(p.player_id, value);
+  }
+  // ADP position rank: lowest ADP among candidates ranks #1.
+  const candidatesByAdp = candidates
+    .map((p) => ({
+      id: p.player_id,
+      adp: adpByPlayerId.get(p.player_id) ?? null,
+    }))
+    .filter((x) => x.adp != null)
+    .sort((a, b) => (a.adp as number) - (b.adp as number));
+  const adpRankByPlayerId = new Map<string, number>();
+  candidatesByAdp.forEach((x, i) => adpRankByPlayerId.set(x.id, i + 1));
 
   const playerSignalsById = new Map<string, Partial<PlayerSignalsRow>>();
   for (const row of (playerSignalsResult.data ??
@@ -157,12 +194,14 @@ export default async function AdminEvaluatePage({
     const teamSignals = p.team
       ? teamSignalsByTeam.get(p.team)
       : undefined;
+    const adpValue = adpByPlayerId.get(p.player_id) ?? null;
+    const adpRank = adpRankByPlayerId.get(p.player_id) ?? null;
 
     const result = evaluate({
       player: (playerSignals as PlayerSignalsRow | undefined) ?? null,
       team: (teamSignals as TeamSignalsRow | undefined) ?? null,
       ktc_value: value?.value ?? null,
-      adp: null,
+      adp: adpValue,
       search_rank: typeof p.search_rank === "number" ? p.search_rank : null,
       position: p.position ?? null,
       age: typeof p.age === "number" ? p.age : null,
@@ -180,6 +219,8 @@ export default async function AdminEvaluatePage({
       mkt_rank: value?.position_rank ?? null,
       mkt_normalized: value?.value ?? null,
       mkt_raw: value?.raw_value ?? null,
+      adp_value: adpValue,
+      adp_rank: adpRank,
       result,
       isCoded:
         playerSignals != null && Object.keys(playerSignals).length > 1,
@@ -292,9 +333,16 @@ type Row = {
   mkt_rank: number | null;
   mkt_normalized: number | null;
   mkt_raw: number | null;
+  adp_value: number | null;
+  adp_rank: number | null;
   result: ReturnType<typeof evaluate>;
   isCoded: boolean;
 };
+
+function adpToVisualScore(adp: number | null): number | null {
+  if (adp == null || !Number.isFinite(adp)) return null;
+  return Math.max(0, Math.min(100, 95 - (adp / 200) * 95));
+}
 
 function EvaluateRow({
   row,
@@ -308,25 +356,31 @@ function EvaluateRow({
   const lo = r.variance_band.lo;
   const hi = r.variance_band.hi;
   const conf = r.confidence * 100;
-  const delta = r.market_delta;
 
-  // Visual range: percentage positions on a 0-100 scale.
   const rangeLeftPct = lo;
   const rangeWidthPct = Math.max(hi - lo, 1);
-  const pointPct = point;
+  const enginePct = point;
+  const mktPct = row.mkt_normalized;
+  const adpPct = adpToVisualScore(row.adp_value);
 
-  const deltaTone =
-    delta > 5
-      ? "text-success"
-      : delta < -5
-        ? "text-danger"
-        : "text-muted-2";
+  const ranks = [engineRank, row.mkt_rank, row.adp_rank].filter(
+    (x): x is number => x != null,
+  );
+  const spread =
+    ranks.length >= 2 ? Math.max(...ranks) - Math.min(...ranks) : 0;
+  let consensusTag: { label: string; tone: string } | null = null;
+  if (ranks.length >= 2) {
+    if (spread <= 2) {
+      consensusTag = { label: "consensus", tone: "text-success" };
+    } else if (spread >= 6) {
+      consensusTag = { label: "divergence", tone: "text-accent" };
+    }
+  }
 
-  // Surface ranking divergence: when our engine_rank diverges from
-  // mkt_rank by 5+ slots, that's the kind of signal this debug page
-  // exists to expose. Tag visually.
-  const rankDiverges =
-    row.mkt_rank != null && Math.abs(engineRank - row.mkt_rank) >= 5;
+  const fallbackRank = (n: number | null): string =>
+    n == null ? "n/a" : `#${n}`;
+  const fallbackNum = (n: number | null): string =>
+    n == null ? "n/a" : n.toFixed(0);
 
   return (
     <div className="rounded-md border border-border-soft bg-surface px-3 py-2.5">
@@ -341,16 +395,13 @@ function EvaluateRow({
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
             {row.team ?? "FA"}
             {row.age != null ? ` · age ${row.age}` : ""}
-            {row.mkt_rank != null
-              ? ` · mkt #${row.mkt_rank}`
-              : ""}
-            {row.mkt_raw != null
-              ? ` (${row.mkt_raw.toFixed(0)})`
-              : ""}
           </span>
-          {rankDiverges && (
-            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
-              divergence
+          {consensusTag && (
+            <span
+              className={`font-mono text-[9px] uppercase tracking-[0.14em] ${consensusTag.tone}`}
+              title={`Engine #${engineRank}, Market ${fallbackRank(row.mkt_rank)}, ADP ${fallbackRank(row.adp_rank)}. Spread ${spread} ranks.`}
+            >
+              {consensusTag.label}
             </span>
           )}
           {row.isCoded && (
@@ -360,48 +411,86 @@ function EvaluateRow({
           )}
         </div>
         <div className="flex flex-wrap items-baseline gap-3 font-mono text-xs">
-          <span>
-            <span className="text-muted-2">point </span>
+          <span title="Engine point estimate (this rubric's call)">
+            <span className="text-muted-2">engine </span>
             <span className="font-semibold text-foreground">
               {point.toFixed(0)}
             </span>
+            <span className="text-muted-2"> · #{engineRank}</span>
+          </span>
+          <span
+            className="text-muted-2"
+            title="FantasyCalc dynasty market value (normalized 0-100) and position rank"
+          >
+            mkt {fallbackNum(row.mkt_normalized)} ·{" "}
+            {fallbackRank(row.mkt_rank)}
+          </span>
+          <span
+            className="text-muted-2"
+            title="Sleeper crowd ADP for this format and position rank"
+          >
+            adp{" "}
+            {row.adp_value != null ? row.adp_value.toFixed(1) : "n/a"} ·{" "}
+            {fallbackRank(row.adp_rank)}
           </span>
           <span className="text-muted-2">conf {conf.toFixed(0)}%</span>
-          <span className={deltaTone}>
-            mkt Δ {delta >= 0 ? "+" : ""}
-            {delta.toFixed(1)}
-          </span>
         </div>
       </div>
 
-      {/* Visual confidence range */}
       <div
         className="mt-2"
-        title={`Estimate range ${lo.toFixed(0)} to ${hi.toFixed(0)} (width ${(hi - lo).toFixed(0)}). Point estimate ${point.toFixed(0)}. Confidence ${conf.toFixed(0)}%.`}
+        title={`Engine ${point.toFixed(0)} (range ${lo.toFixed(0)}-${hi.toFixed(0)}). Market ${fallbackNum(mktPct)}. ADP-derived ${fallbackNum(adpPct)}.`}
       >
-        <div className="relative h-3 w-full rounded-full bg-surface-2">
-          {/* 25% / 50% / 75% tick marks for orientation */}
+        <div className="relative h-4 w-full rounded-full bg-surface-2">
           <div className="pointer-events-none absolute inset-y-0 left-1/4 w-px bg-border-soft/60" />
           <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-border-soft/60" />
           <div className="pointer-events-none absolute inset-y-0 left-3/4 w-px bg-border-soft/60" />
-          {/* The estimate range */}
+          {/* Engine confidence range */}
           <div
-            className="absolute inset-y-0 rounded-full bg-accent/30"
+            className="absolute inset-y-0 rounded-full bg-accent/25"
             style={{
               left: `${rangeLeftPct}%`,
               width: `${rangeWidthPct}%`,
             }}
           />
-          {/* Point-estimate marker */}
+          {/* Engine point-estimate marker */}
           <div
             className="absolute inset-y-0 w-0.5 bg-accent"
-            style={{ left: `${pointPct}%` }}
+            style={{ left: `${enginePct}%` }}
+            title={`Engine: ${point.toFixed(0)}`}
           />
+          {/* Market (FC) marker */}
+          {mktPct != null && (
+            <div
+              className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-success"
+              style={{ left: `${mktPct}%` }}
+              title={`Market: ${mktPct.toFixed(0)}`}
+            />
+          )}
+          {/* ADP-derived marker */}
+          {adpPct != null && (
+            <div
+              className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-warning"
+              style={{ left: `${adpPct}%` }}
+              title={`ADP: ${adpPct.toFixed(0)}`}
+            />
+          )}
         </div>
-        <div className="mt-1 flex justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+        <div className="mt-1 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
           <span>0</span>
-          <span>
-            range {lo.toFixed(0)}-{hi.toFixed(0)}
+          <span className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-0.5 bg-accent" />{" "}
+              engine
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-success" />{" "}
+              mkt
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-warning" />{" "}
+              adp
+            </span>
           </span>
           <span>100</span>
         </div>
