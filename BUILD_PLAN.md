@@ -1,13 +1,50 @@
 # Dynasty General Build Plan
 
-**Version**: Phase 1 spec
+**Version**: Phase 1 spec, v2 amended 2026-05-03
 **Last updated**: 2026-05-03
 **Status**: ready to execute
-**Companion**: `MODEL_CARD.md` v1, `RESEARCH_CORPUS.md` v2
+**Companion**: `MODEL_CARD.md` v1, `RESEARCH_CORPUS.md` v2, `VALIDATION_PLAN.md` v0, `DATA_ACQUISITION_PLAN.md` v0, `SOUNDBOARD_V2.md` v0
 
 This is the actionable plan for shipping the model the corpus + model card describe. It exists because "build the engine from the model card" is a research-paper instruction, not a programmable one. This document is the programmable version: ordered backlog, deliverables, acquisition list, and the criteria to know each phase is done.
 
 The plan is opinionated about ORDER. Some pieces could ship in parallel, but Phase 1 is sequenced so the earliest deliverables produce visible product value (so the founder is shipping working code week 1, not waiting four weeks for a backend buildout).
+
+## v2 amendment (2026-05-03): stunt commitment changes the timeline
+
+The 2026-season stunt commitment (5 format-diverse leagues + AI-vs-AI reddit league as the primary public validation channel) creates a hard calibration drop-dead of **July 1 2026**. See `VALIDATION_PLAN.md` for full spec; here is the impact on this plan.
+
+### v2 changes vs original Phase 1+ definitions
+
+1. **New Phase 1.5: Architecture redesign.** Inserted between signal ingest and calibration. Soundboard v1 retired in favor of v2 (14 dials across 3 tiers). See `SOUNDBOARD_V2.md`.
+2. **New Phase 1.6: Manager Profile signal.** Required for question-bank entries that reason about opponents (e.g., trade-extraction with psychology matching). Adds `manager_profile` table.
+3. **New Phase 1.7: Data Acquisition Sprint.** A 7-day audit producing `DATA_ACQUISITION_PLAN.md`. Gates Phase 2 calibration. Confirms KTC historical, FantasyCalc, FantasyPros archives, PFF redistribution, etc.
+4. **Phase 1.2 manual coding reframed.** Founder named the wall on 2026-04-29 ("I don't know NFL teams cold"). Replace founder hand-coding with LLM-extraction agent (`historical-signal-extractor`). Founder reviews 10% sample for accuracy.
+5. **Phase 2 calibration is now a spec, not just a harness.** Test A (2,700 player-season backtest with temporal blinding), Test B (30 simulated leagues with peer-methodology agents), Test C (live 2026 stunts). Five named public benchmarks. Public scoreboard at `dynastygeneral.app/scoreboard`.
+6. **Format-aware loss functions** replace the single dynasty loss. Each format gets its own loss (redraft, dynasty standard, dynasty SF, keeper v0, Best Ball). See VALIDATION_PLAN section 8.
+
+### v2 timeline
+
+| Date | Phase | Milestone |
+|---|---|---|
+| 2026-05-03 to 2026-05-10 | Phase 0 wraps + planning + data sprint | Schema + admin + evaluate() stub. VALIDATION_PLAN, DATA_ACQUISITION_PLAN, SOUNDBOARD_V2 written. Data sprint completes. |
+| 2026-05-11 to 2026-05-31 | Phase 1 + 1.6 + 1.7 | Bulk scrapers running. Manager profile scaffold. Historical-signal-extractor agent live. |
+| 2026-06-01 to 2026-06-21 | Phase 1.5 | Architecture redesign + Soundboard v2 wired. |
+| 2026-06-22 to 2026-07-01 | Phase 2 calibration sprint | **Test A + Test B run. Public scoreboard published.** |
+| 2026-07-02 to 2026-07-31 | Phase 2.5 | Question Bank v0 (50 canonical situations) + buffer. |
+| 2026-08-01 to 2026-08-15 | Stunt prep | Decision log dashboard live. Override rules pre-registered. |
+| 2026-08-16+ | NFL drafts begin | **Test C goes live.** |
+
+**Drop-dead:** July 1 2026 for Test A scoreboard. No slack. Every week of architectural ambiguity costs a week of the calibration window.
+
+### v2 Phase definitions (deltas from original)
+
+- **Phase 1.5 (week 4):** Soundboard v1 retired. v2 wired per `SOUNDBOARD_V2.md`. Engine consumers migrated to read dial values from `judgment_profiles_v2`. Old v1 component flagged behind `SOUNDBOARD_LEGACY` for one-season fallback.
+- **Phase 1.6 (week 3):** `manager_profile` table per (league_id, user_id). Observable signals: draft tendencies, roster construction style, trade history accept/reject patterns, FAAB aggression, bench depth. LLM-extraction layer for league chat (where ToS allows). Psychology-pitch matcher: given trade target + counterparty profile, generates 3 pitch frames.
+- **Phase 1.7 (days 1-7 of week 1):** Per `DATA_ACQUISITION_PLAN.md`. Day 1 ToS audit, Day 2 free-source verification, Day 3 paid-source procurement, Day 4 KTC historical sprint, Day 5 LLM-extraction prototype, Day 6 storage schema + migration `0010_validation.sql`, Day 7 acquisition smoke test.
+- **Phase 2 (weeks 5-8):** Replaces original Phase 2 (backtest harness section below). Run Test A + Test B per VALIDATION_PLAN. Publish scoreboard. Calibrate Soundboard v2 default dial positions from backtest results.
+- **Phase 2.5 (week 9):** Question Bank v0. 50 canonical situations covering trade, draft, hold/cut, lineup, lineup-injury, bye-week, dynasty-rebuild, win-now-trade, keeper-cost. Each entry: situation pattern + signal triggers + canonical answer template + which calibration test validates it.
+
+The original Phase 1 (1.1 through 1.5) and Phase 2 sections below remain accurate for the work they describe. The amendment above adds new phases and reframes the calibration test spec.
 
 ## North star (what done looks like)
 
