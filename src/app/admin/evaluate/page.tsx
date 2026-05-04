@@ -9,6 +9,10 @@
  * Per BUILD_PLAN section 0.4: this is the consumer-side test of
  * evaluate(). When the founder validates the output here matches
  * intuition, we wire production surfaces to evaluate() in Phase 1.5.
+ *
+ * Engine input scope: DYNASTY mode only (FantasyCalc isDynasty=true).
+ * Redraft is a separate loss function (see VALIDATION_PLAN section 8)
+ * and lands in Phase 2.
  */
 
 import type { Metadata } from "next";
@@ -37,6 +41,36 @@ export const dynamic = "force-dynamic";
 const POSITIONS = ["RB", "WR", "TE", "QB"] as const;
 const PER_POSITION = 30;
 
+type FormatKey = "sf_ppr" | "1qb_ppr" | "1qb_half" | "sf_te_premium";
+
+const FORMAT_LABELS: Record<FormatKey, string> = {
+  sf_ppr: "SF PPR",
+  "1qb_ppr": "1QB PPR",
+  "1qb_half": "1QB Half",
+  sf_te_premium: "SF TE Prem",
+};
+
+function parseFormat(raw: string | undefined): FormatKey {
+  if (raw && (raw === "sf_ppr" || raw === "1qb_ppr" || raw === "1qb_half" || raw === "sf_te_premium")) {
+    return raw;
+  }
+  return "sf_ppr";
+}
+
+function formatFlags(f: FormatKey): {
+  isSuperflex: boolean;
+  isPpr: boolean;
+  isHalfPpr: boolean;
+  isTePremium: boolean;
+} {
+  return {
+    isSuperflex: f === "sf_ppr" || f === "sf_te_premium",
+    isPpr: f !== "1qb_half",
+    isHalfPpr: f === "1qb_half",
+    isTePremium: f === "sf_te_premium",
+  };
+}
+
 export default async function AdminEvaluatePage({
   searchParams,
 }: {
@@ -45,16 +79,14 @@ export default async function AdminEvaluatePage({
   const user = await getAdminUser();
   if (!user) redirect("/");
 
-  const { pos = "RB", format = "sf_ppr" } = await searchParams;
+  const { pos = "RB", format } = await searchParams;
   const positionFilter = (
     POSITIONS.includes(pos as (typeof POSITIONS)[number])
       ? pos
       : "RB"
   ) as (typeof POSITIONS)[number];
-
-  const isSuperflex = format !== "1qb_ppr";
-  const isPpr = format !== "1qb_half";
-  const isHalfPpr = format === "1qb_half";
+  const fmt = parseFormat(format);
+  const flags = formatFlags(fmt);
 
   const allPlayers = await __dumpAllPlayers();
 
@@ -73,7 +105,13 @@ export default async function AdminEvaluatePage({
 
   const [valuesMap, playerSignalsResult, teamSignalsResult] = await Promise.all(
     [
-      resolvePlayerValues({ ids, isSuperflex, isPpr, isHalfPpr }),
+      resolvePlayerValues({
+        ids,
+        isSuperflex: flags.isSuperflex,
+        isPpr: flags.isPpr,
+        isHalfPpr: flags.isHalfPpr,
+        isTePremium: flags.isTePremium,
+      }),
       getAdminClient().from("player_signals").select("*").in("player_id", ids),
       getAdminClient().from("team_signals").select("*"),
     ],
@@ -124,9 +162,11 @@ export default async function AdminEvaluatePage({
       team: p.team ?? null,
       age: typeof p.age === "number" ? p.age : null,
       search_rank: typeof p.search_rank === "number" ? p.search_rank : null,
-      ktc_value: value?.value ?? null,
+      mkt_normalized: value?.value ?? null,
+      mkt_raw: value?.raw_value ?? null,
       result,
-      isCoded: playerSignals != null && Object.keys(playerSignals).length > 1,
+      isCoded:
+        playerSignals != null && Object.keys(playerSignals).length > 1,
     };
   });
 
@@ -147,12 +187,20 @@ export default async function AdminEvaluatePage({
               mock draft. Production surfaces still use the legacy
               scoring path; this is a side-by-side reality check.
             </p>
+            <p className="mt-1 max-w-3xl text-xs text-muted-2">
+              <span className="font-mono uppercase tracking-[0.14em] text-accent">
+                Dynasty
+              </span>{" "}
+              mode. Redraft loss function lands in Phase 2 (see
+              VALIDATION_PLAN). Mkt column shows raw FantasyCalc
+              values so they stay comparable across formats.
+            </p>
 
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
               {POSITIONS.map((p) => (
                 <Link
                   key={p}
-                  href={`/admin/evaluate?pos=${p}&format=${format}`}
+                  href={`/admin/evaluate?pos=${p}&format=${fmt}`}
                   className={`rounded-md border px-3 py-1 font-mono uppercase tracking-[0.14em] ${
                     p === positionFilter
                       ? "border-accent/60 bg-accent/15 text-accent"
@@ -163,38 +211,21 @@ export default async function AdminEvaluatePage({
                 </Link>
               ))}
               <span className="rounded-md border border-border-soft bg-surface-2 px-3 py-1 font-mono uppercase tracking-[0.14em] text-muted-2">
-                format: {format}
+                format
               </span>
-              <Link
-                href={`/admin/evaluate?pos=${positionFilter}&format=sf_ppr`}
-                className={`rounded-md border px-3 py-1 font-mono uppercase tracking-[0.14em] ${
-                  format === "sf_ppr"
-                    ? "border-accent/60 bg-accent/15 text-accent"
-                    : "border-border-soft bg-surface-2 text-muted-2 hover:text-accent"
-                }`}
-              >
-                SF PPR
-              </Link>
-              <Link
-                href={`/admin/evaluate?pos=${positionFilter}&format=1qb_ppr`}
-                className={`rounded-md border px-3 py-1 font-mono uppercase tracking-[0.14em] ${
-                  format === "1qb_ppr"
-                    ? "border-accent/60 bg-accent/15 text-accent"
-                    : "border-border-soft bg-surface-2 text-muted-2 hover:text-accent"
-                }`}
-              >
-                1QB PPR
-              </Link>
-              <Link
-                href={`/admin/evaluate?pos=${positionFilter}&format=1qb_half`}
-                className={`rounded-md border px-3 py-1 font-mono uppercase tracking-[0.14em] ${
-                  format === "1qb_half"
-                    ? "border-accent/60 bg-accent/15 text-accent"
-                    : "border-border-soft bg-surface-2 text-muted-2 hover:text-accent"
-                }`}
-              >
-                1QB Half
-              </Link>
+              {(Object.keys(FORMAT_LABELS) as FormatKey[]).map((k) => (
+                <Link
+                  key={k}
+                  href={`/admin/evaluate?pos=${positionFilter}&format=${k}`}
+                  className={`rounded-md border px-3 py-1 font-mono uppercase tracking-[0.14em] ${
+                    fmt === k
+                      ? "border-accent/60 bg-accent/15 text-accent"
+                      : "border-border-soft bg-surface-2 text-muted-2 hover:text-accent"
+                  }`}
+                >
+                  {FORMAT_LABELS[k]}
+                </Link>
+              ))}
               <Link
                 href="/admin/signals/players"
                 className="rounded-md border border-border-soft bg-surface-2 px-3 py-1 font-mono uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
@@ -222,19 +253,31 @@ type Row = {
   team: string | null;
   age: number | null;
   search_rank: number | null;
-  ktc_value: number | null;
+  mkt_normalized: number | null;
+  mkt_raw: number | null;
   result: ReturnType<typeof evaluate>;
   isCoded: boolean;
 };
 
 function EvaluateRow({ row }: { row: Row }) {
   const r = row.result;
-  const bandWidth = (r.variance_band.hi - r.variance_band.lo).toFixed(0);
-  const point = r.point_estimate.toFixed(0);
-  const lo = r.variance_band.lo.toFixed(0);
-  const hi = r.variance_band.hi.toFixed(0);
-  const conf = (r.confidence * 100).toFixed(0);
+  const point = r.point_estimate;
+  const lo = r.variance_band.lo;
+  const hi = r.variance_band.hi;
+  const conf = r.confidence * 100;
   const delta = r.market_delta;
+
+  // Visual band: percentage positions on a 0-100 scale.
+  const bandLeftPct = lo;
+  const bandWidthPct = Math.max(hi - lo, 1);
+  const pointPct = point;
+
+  const deltaTone =
+    delta > 5
+      ? "text-success"
+      : delta < -5
+        ? "text-danger"
+        : "text-muted-2";
 
   return (
     <div className="rounded-md border border-border-soft bg-surface px-3 py-2.5">
@@ -247,8 +290,8 @@ function EvaluateRow({ row }: { row: Row }) {
             {row.team ?? "FA"}
             {row.age != null ? ` · age ${row.age}` : ""}
             {row.search_rank != null ? ` · rank ${row.search_rank}` : ""}
-            {row.ktc_value != null
-              ? ` · mkt ${row.ktc_value.toFixed(0)}`
+            {row.mkt_raw != null
+              ? ` · mkt ${row.mkt_raw.toFixed(0)}`
               : ""}
           </span>
           {row.isCoded && (
@@ -260,24 +303,48 @@ function EvaluateRow({ row }: { row: Row }) {
         <div className="flex flex-wrap items-baseline gap-3 font-mono text-xs">
           <span>
             <span className="text-muted-2">point </span>
-            <span className="font-semibold text-foreground">{point}</span>
+            <span className="font-semibold text-foreground">
+              {point.toFixed(0)}
+            </span>
           </span>
-          <span className="text-muted-2">
-            band [{lo} - {hi}] · w={bandWidth}
-          </span>
-          <span className="text-muted-2">conf {conf}%</span>
-          <span
-            className={`${
-              delta > 5
-                ? "text-success"
-                : delta < -5
-                  ? "text-danger"
-                  : "text-muted-2"
-            }`}
-          >
+          <span className="text-muted-2">conf {conf.toFixed(0)}%</span>
+          <span className={deltaTone}>
             mkt Δ {delta >= 0 ? "+" : ""}
             {delta.toFixed(1)}
           </span>
+        </div>
+      </div>
+
+      {/* Visual variance band */}
+      <div
+        className="mt-2"
+        title={`Variance band ${lo.toFixed(0)} to ${hi.toFixed(0)} (width ${(hi - lo).toFixed(0)}). Point estimate ${point.toFixed(0)}. Confidence ${conf.toFixed(0)}%.`}
+      >
+        <div className="relative h-3 w-full rounded-full bg-surface-2">
+          {/* 25% / 50% / 75% tick marks for orientation */}
+          <div className="pointer-events-none absolute inset-y-0 left-1/4 w-px bg-border-soft/60" />
+          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-border-soft/60" />
+          <div className="pointer-events-none absolute inset-y-0 left-3/4 w-px bg-border-soft/60" />
+          {/* The variance band */}
+          <div
+            className="absolute inset-y-0 rounded-full bg-accent/30"
+            style={{
+              left: `${bandLeftPct}%`,
+              width: `${bandWidthPct}%`,
+            }}
+          />
+          {/* Point-estimate marker */}
+          <div
+            className="absolute inset-y-0 w-0.5 bg-accent"
+            style={{ left: `${pointPct}%` }}
+          />
+        </div>
+        <div className="mt-1 flex justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+          <span>0</span>
+          <span>
+            band {lo.toFixed(0)}-{hi.toFixed(0)}
+          </span>
+          <span>100</span>
         </div>
       </div>
 

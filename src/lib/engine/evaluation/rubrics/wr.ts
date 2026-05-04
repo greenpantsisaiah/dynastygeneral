@@ -50,21 +50,29 @@ export function evaluateWr(ctx: EvaluationContext): RubricOutput {
     ),
   );
 
-  // Age curve (gradual)
+  // Age curve. Always emit evidence so users can audit. Peak shelf
+  // 25-29 is flat (Reception Perception target-share studies; aging
+  // WR sustain if target share holds).
   const age = ctx.age ?? ctx.player?.age ?? null;
   const ageMult = ageMultiplier("WR", age);
-  if (ageMult !== 1.0) {
+  if (age != null) {
     const ageDelta = (ageMult - 1.0) * estimate;
-    estimate = clamp(estimate + ageDelta);
+    const note =
+      ageMult === 1.0
+        ? "peak shelf"
+        : ageMult > 1.0
+          ? "pre-peak ramp"
+          : "post-peak decline";
     stack.push(
       evidence(
         "intrinsic",
         "age_curve",
         Math.abs(ageMult - 1.0),
         ageDelta,
-        `WR age curve (age=${age}, multiplier=${ageMult.toFixed(2)})`,
+        `WR age=${age}, mult=${ageMult.toFixed(2)} (${note}). Reception Perception cohort.`,
       ),
     );
+    if (ageMult !== 1.0) estimate = clamp(estimate + ageDelta);
   }
 
   // Aging WR sustaining flag

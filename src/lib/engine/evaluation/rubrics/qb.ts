@@ -77,21 +77,28 @@ export function evaluateQb(ctx: EvaluationContext): RubricOutput {
     ),
   );
 
-  // Tier-conditional aging
+  // Tier-conditional aging. Always emit so users can audit. Tier-1
+  // QBs age well past 35 (Brady, Rodgers); Tier-2/3 declines at 33+.
   const age = ctx.age ?? ctx.player?.age ?? null;
   const ageMult = qbAgeMultiplier(age, tier);
-  if (ageMult !== 1.0) {
+  if (age != null) {
     const ageDelta = (ageMult - 1.0) * estimate;
-    estimate = clamp(estimate + ageDelta);
+    const note =
+      ageMult === 1.0
+        ? `Tier ${tier} peak`
+        : ageMult > 1.0
+          ? `Tier ${tier} pre-peak`
+          : `Tier ${tier} decline`;
     stack.push(
       evidence(
         "intrinsic",
         "qb_tier_conditional_aging",
         Math.abs(ageMult - 1.0),
         ageDelta,
-        `QB age curve (Tier ${tier}, age=${age})`,
+        `QB age=${age}, ${note}, mult=${ageMult.toFixed(2)}. PFF QB Bayesian.`,
       ),
     );
+    if (ageMult !== 1.0) estimate = clamp(estimate + ageDelta);
   }
 
   // Late-round QB hit arbitrage (Tier 3 with high search rank but

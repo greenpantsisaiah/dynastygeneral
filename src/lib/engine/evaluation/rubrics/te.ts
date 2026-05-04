@@ -45,21 +45,31 @@ export function evaluateTe(ctx: EvaluationContext): RubricOutput {
     ),
   );
 
-  // Age curve (TE breakout window 24-27)
+  // Age curve. Always emit evidence. TE breakout window 24-27
+  // (PFF TE breakout cohort; year-3 modal). Strong pre-breakout
+  // discount through year 2 (rookie TEs rarely produce).
   const age = ctx.age ?? ctx.player?.age ?? null;
   const ageMult = ageMultiplier("TE", age);
-  if (ageMult !== 1.0) {
+  if (age != null) {
     const ageDelta = (ageMult - 1.0) * estimate;
-    estimate = clamp(estimate + ageDelta);
+    const note =
+      ageMult === 1.0
+        ? "post-breakout peak"
+        : ageMult > 1.0
+          ? "breakout window"
+          : age < 24
+            ? "pre-breakout"
+            : "post-peak decline";
     stack.push(
       evidence(
         "intrinsic",
         "age_curve",
         Math.abs(ageMult - 1.0),
         ageDelta,
-        `TE age curve (age=${age}, breakout window 24-27)`,
+        `TE age=${age}, mult=${ageMult.toFixed(2)} (${note}). PFF TE breakout cohort.`,
       ),
     );
+    if (ageMult !== 1.0) estimate = clamp(estimate + ageDelta);
   }
 
   // 12-personnel rate (the load-bearing TE signal)

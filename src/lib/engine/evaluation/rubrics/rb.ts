@@ -133,21 +133,29 @@ export function evaluateRb(ctx: EvaluationContext): RubricOutput {
     );
   }
 
-  // Age curve (sharp RB cliff at 27)
+  // Age curve. Always emit evidence (even at 1.0) so users can audit
+  // that the rubric considered age. Citation: Mass 2018 RB cliff +
+  // Apex peak-age. Peak shelf 23-26 is flat; cliff begins at 27.
   const age = ctx.age ?? ctx.player?.age ?? null;
   const ageMult = ageMultiplier("RB", age);
-  if (ageMult !== 1.0) {
+  if (age != null) {
     const ageDelta = (ageMult - 1.0) * estimate;
+    const note =
+      ageMult === 1.0
+        ? "peak shelf"
+        : ageMult > 1.0
+          ? "pre-peak ramp"
+          : "post-peak decline";
     stack.push(
       evidence(
         "intrinsic",
         "age_curve",
         Math.abs(ageMult - 1.0),
         ageDelta,
-        `RB age curve (age=${age}, multiplier=${ageMult.toFixed(2)})`,
+        `RB age=${age}, mult=${ageMult.toFixed(2)} (${note}). Mass 2018 + Apex peak-age.`,
       ),
     );
-    estimate = clamp(estimate + ageDelta);
+    if (ageMult !== 1.0) estimate = clamp(estimate + ageDelta);
   }
 
   // Aging RB cliff-breaker arbitrage flag

@@ -79,13 +79,28 @@ export function searchRankToScore(
 }
 
 /**
- * Position-specific age curves. Returns multiplier in [0.4, 1.1].
+ * Position-specific age curves. Returns the SINGLE-SEASON production
+ * multiplier (not a dynasty horizon premium).
+ *
+ * Curves are flat-peak-shelf, not gradients. Cohort production data
+ * shows year-over-year variance within peak windows is statistical
+ * noise, not a meaningful age effect. The cliff is sharp.
  *
  * Citations:
- * - RB: Mass 2018, sharp cliff at 27 (RESEARCH_CORPUS RB section)
- * - WR: gradual, target_share-conditioned (RESEARCH_CORPUS WR)
- * - TE: most gradual; breakout typically year 3 (RESEARCH_CORPUS TE)
- * - QB: tier-conditional (handled in qb.ts directly)
+ * - RB: Mass 2018 RB cliff studies + Apex peak-age series. Peak shelf
+ *   23-26 is flat; cliff begins at 27. Harstad career-touch framework
+ *   provides the why (touches accumulate, not years).
+ * - WR: peak shelf 25-29; gradual decline (target_share-conditioned).
+ * - TE: pre-breakout discount through year 2; peak shelf 24-30.
+ * - QB: tier-conditional, handled in qb.ts (Tier-1 ages well past 35;
+ *   Tier-2/3 declines at 33+).
+ *
+ * Why no "youth premium" for a 24yo over a 26yo at RB: the production
+ * data does not support one. Dynasty horizon premium is a SEPARATE
+ * concern (sum of remaining peak seasons, discounted) and is not
+ * implemented here because KTC already encodes it in the prior; adding
+ * it again would double-count. Phase 2 backtest will tell us whether
+ * a horizon premium ABOVE KTC is empirically justified.
  */
 export function ageMultiplier(
   position: string,
@@ -94,27 +109,30 @@ export function ageMultiplier(
   if (age == null) return 1.0;
   switch (position) {
     case "RB":
-      if (age < 24) return 1.05;
-      if (age < 27) return 1.0;
-      if (age < 28) return 0.85;
-      if (age < 29) return 0.7;
-      if (age < 30) return 0.55;
-      return 0.4;
+      if (age < 22) return 0.95; // rookie ramp
+      if (age < 23) return 0.98; // year 2 ramp
+      if (age < 27) return 1.0; // peak shelf 23-26 (flat)
+      if (age < 28) return 0.85; // cliff begins at 27
+      if (age < 29) return 0.72;
+      if (age < 30) return 0.58;
+      return 0.45;
     case "WR":
-      if (age < 25) return 1.05;
-      if (age < 30) return 1.0;
+      if (age < 23) return 0.92; // rookie/year-2 ramp
+      if (age < 25) return 0.98;
+      if (age < 30) return 1.0; // peak shelf 25-29
       if (age < 32) return 0.9;
       if (age < 34) return 0.75;
       return 0.55;
     case "TE":
-      if (age < 24) return 0.85; // pre-breakout discount
-      if (age < 27) return 1.05; // breakout window
+      if (age < 23) return 0.78; // strong pre-breakout discount
+      if (age < 24) return 0.88; // late pre-breakout
+      if (age < 28) return 1.02; // breakout window 24-27
       if (age < 31) return 1.0;
       if (age < 33) return 0.85;
       return 0.65;
     case "QB":
-      // Default QB curve; tier-1 override applied in qb.ts
-      if (age < 26) return 0.9; // pre-prime adjustment
+      // Default curve; tier-1 override applied in qb.ts
+      if (age < 26) return 0.9;
       if (age < 33) return 1.0;
       if (age < 36) return 0.85;
       return 0.65;
