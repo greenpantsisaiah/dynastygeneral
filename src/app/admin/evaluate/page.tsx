@@ -133,7 +133,7 @@ export default async function AdminEvaluatePage({
     }
   }
 
-  const rows = candidates.map((p) => {
+  const unsortedRows = candidates.map((p) => {
     const fullName =
       p.full_name ??
       (`${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || p.player_id);
@@ -162,6 +162,7 @@ export default async function AdminEvaluatePage({
       team: p.team ?? null,
       age: typeof p.age === "number" ? p.age : null,
       search_rank: typeof p.search_rank === "number" ? p.search_rank : null,
+      mkt_rank: value?.position_rank ?? null,
       mkt_normalized: value?.value ?? null,
       mkt_raw: value?.raw_value ?? null,
       result,
@@ -169,6 +170,14 @@ export default async function AdminEvaluatePage({
         playerSignals != null && Object.keys(playerSignals).length > 1,
     };
   });
+
+  // Sort by engine point estimate descending so the FIRST visible row
+  // is the engine's #1 at this position. Where the engine disagrees
+  // with market (CMC, etc.) the divergence is now visible at a glance
+  // instead of buried behind Sleeper's search-rank order.
+  const rows = [...unsortedRows].sort(
+    (a, b) => b.result.point_estimate - a.result.point_estimate,
+  );
 
   return (
     <>
@@ -187,13 +196,21 @@ export default async function AdminEvaluatePage({
               mock draft. Production surfaces still use the legacy
               scoring path; this is a side-by-side reality check.
             </p>
-            <p className="mt-1 max-w-3xl text-xs text-muted-2">
+            <p className="mt-2 max-w-3xl text-xs text-muted-2">
               <span className="font-mono uppercase tracking-[0.14em] text-accent">
                 Dynasty
               </span>{" "}
               mode. Redraft loss function lands in Phase 2 (see
               VALIDATION_PLAN). Mkt column shows raw FantasyCalc
               values so they stay comparable across formats.
+            </p>
+            <p className="mt-2 max-w-3xl text-xs text-muted-2">
+              Each row shows the engine&apos;s 0-100 dynasty-value
+              estimate. The shaded segment is the confidence range; the
+              vertical marker is the point estimate. Sorted by engine
+              point descending, so divergence from market rank is
+              visible (e.g. an aging RB who Sleeper ranks high but the
+              engine ranks low will drop down the list).
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -235,8 +252,12 @@ export default async function AdminEvaluatePage({
             </div>
 
             <div className="mt-8 space-y-2">
-              {rows.map((r) => (
-                <EvaluateRow key={r.player_id} row={r} />
+              {rows.map((r, i) => (
+                <EvaluateRow
+                  key={r.player_id}
+                  row={r}
+                  engineRank={i + 1}
+                />
               ))}
             </div>
           </div>
@@ -253,13 +274,20 @@ type Row = {
   team: string | null;
   age: number | null;
   search_rank: number | null;
+  mkt_rank: number | null;
   mkt_normalized: number | null;
   mkt_raw: number | null;
   result: ReturnType<typeof evaluate>;
   isCoded: boolean;
 };
 
-function EvaluateRow({ row }: { row: Row }) {
+function EvaluateRow({
+  row,
+  engineRank,
+}: {
+  row: Row;
+  engineRank: number;
+}) {
   const r = row.result;
   const point = r.point_estimate;
   const lo = r.variance_band.lo;
@@ -267,9 +295,9 @@ function EvaluateRow({ row }: { row: Row }) {
   const conf = r.confidence * 100;
   const delta = r.market_delta;
 
-  // Visual band: percentage positions on a 0-100 scale.
-  const bandLeftPct = lo;
-  const bandWidthPct = Math.max(hi - lo, 1);
+  // Visual range: percentage positions on a 0-100 scale.
+  const rangeLeftPct = lo;
+  const rangeWidthPct = Math.max(hi - lo, 1);
   const pointPct = point;
 
   const deltaTone =
@@ -279,21 +307,37 @@ function EvaluateRow({ row }: { row: Row }) {
         ? "text-danger"
         : "text-muted-2";
 
+  // Surface ranking divergence: when our engine_rank diverges from
+  // mkt_rank by 5+ slots, that's the kind of signal this debug page
+  // exists to expose. Tag visually.
+  const rankDiverges =
+    row.mkt_rank != null && Math.abs(engineRank - row.mkt_rank) >= 5;
+
   return (
     <div className="rounded-md border border-border-soft bg-surface px-3 py-2.5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex flex-wrap items-baseline gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+            #{engineRank}
+          </span>
           <span className="text-sm font-semibold text-foreground">
             {row.name}
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
             {row.team ?? "FA"}
             {row.age != null ? ` · age ${row.age}` : ""}
-            {row.search_rank != null ? ` · rank ${row.search_rank}` : ""}
+            {row.mkt_rank != null
+              ? ` · mkt #${row.mkt_rank}`
+              : ""}
             {row.mkt_raw != null
-              ? ` · mkt ${row.mkt_raw.toFixed(0)}`
+              ? ` (${row.mkt_raw.toFixed(0)})`
               : ""}
           </span>
+          {rankDiverges && (
+            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
+              divergence
+            </span>
+          )}
           {row.isCoded && (
             <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-success">
               coded
@@ -315,22 +359,22 @@ function EvaluateRow({ row }: { row: Row }) {
         </div>
       </div>
 
-      {/* Visual variance band */}
+      {/* Visual confidence range */}
       <div
         className="mt-2"
-        title={`Variance band ${lo.toFixed(0)} to ${hi.toFixed(0)} (width ${(hi - lo).toFixed(0)}). Point estimate ${point.toFixed(0)}. Confidence ${conf.toFixed(0)}%.`}
+        title={`Estimate range ${lo.toFixed(0)} to ${hi.toFixed(0)} (width ${(hi - lo).toFixed(0)}). Point estimate ${point.toFixed(0)}. Confidence ${conf.toFixed(0)}%.`}
       >
         <div className="relative h-3 w-full rounded-full bg-surface-2">
           {/* 25% / 50% / 75% tick marks for orientation */}
           <div className="pointer-events-none absolute inset-y-0 left-1/4 w-px bg-border-soft/60" />
           <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-border-soft/60" />
           <div className="pointer-events-none absolute inset-y-0 left-3/4 w-px bg-border-soft/60" />
-          {/* The variance band */}
+          {/* The estimate range */}
           <div
             className="absolute inset-y-0 rounded-full bg-accent/30"
             style={{
-              left: `${bandLeftPct}%`,
-              width: `${bandWidthPct}%`,
+              left: `${rangeLeftPct}%`,
+              width: `${rangeWidthPct}%`,
             }}
           />
           {/* Point-estimate marker */}
@@ -342,7 +386,7 @@ function EvaluateRow({ row }: { row: Row }) {
         <div className="mt-1 flex justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
           <span>0</span>
           <span>
-            band {lo.toFixed(0)}-{hi.toFixed(0)}
+            range {lo.toFixed(0)}-{hi.toFixed(0)}
           </span>
           <span>100</span>
         </div>
