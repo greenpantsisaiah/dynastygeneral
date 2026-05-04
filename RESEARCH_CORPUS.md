@@ -1,9 +1,9 @@
 # Dynasty General Research Corpus
 
-Last updated: 2026-04-27
+Last updated: 2026-05-03 (v1 SEED + predictive-frameworks expansion)
 Curator: dynasty-canon-keeper (subagent)
-Total works consulted: 38
-Used in active model: 33
+Total works consulted: 81 (38 v1 + 43 v2 predictive expansion)
+Used in active model: 73
 Discarded with reasons: 5
 
 ## Methodology
@@ -322,3 +322,189 @@ These are honest gaps the corpus surfaced. Maintenance passes should target them
 - Citation correction logged: founder spec referenced Massey & Thaler in JEP; actual venue is Management Science 59(7), 1479-1495, 2013. The Berkeley working-paper PDF (https://eml.berkeley.edu/~webfac/malmendier/e218_sp06/Thaler.pdf) is the freely-available pre-publication version.
 - Citation watchlist: a 2024 arXiv revisit of the Loser's Curse (https://arxiv.org/abs/2411.10400) extends the analysis with utility-function variation. Should be read and incorporated in the next maintenance pass.
 - INTERNAL HEURISTIC tags currently in use: rushing-share threshold for "rushing-dependent" QB, gap vs zone RB aging, OC scheme tenure for TE, off-field-risk fantasy-impact mapping. These must each be either backtested or retired before the conference talk.
+- v2 expansion (2026-05-03): predictive-frameworks-for-offseason-transitions section appended below per founder direction. The engine has to be in the prediction business; v1 was heavy on backward-looking signals. Heavy reliance on Tier 3-4 sources is honest because peer-reviewed offseason-transition work is rare; 13 specific gaps logged in that section's open questions.
+
+## Predictive frameworks for offseason transitions
+
+This section was added 2026-05-03 in response to the founder's directive (verbatim): the engine has to be in the prediction business, and predictions must process offseason transitions (offensive line shifts, coaching changes, RB role changes, post-trade landings) using research, not independent reasoning. Every claim below is sourced or honestly tagged as a gap. Inclusion criteria match the v1 corpus: peer-reviewed work first, named industry frameworks second, longitudinal cohort studies third, beat reporters fourth (FACT only), internal heuristics fifth (explicitly tagged).
+
+A standing limitation: most published offseason-transition work is industry-tier rather than peer-reviewed. The corpus treats this honestly. Where peer-reviewed evidence is missing, the entry says so and the engine should weight the signal accordingly.
+
+### Cluster 1: Offensive line transitions
+
+#### OL continuity score and predictive validity
+
+- Football Outsiders, "2018 Offensive Line Continuity Scores" and methodology: https://www.footballoutsiders.com/stat-analysis/2019/2018-offensive-line-continuity-scores. Continuity Score combines three variables (number of starters used, number of week-to-week starting-lineup changes, longest starting streak of any single five-man unit). The correlation between continuity score and offensive DVOA was 0.440; passing-offense DVOA 0.378, rushing-offense DVOA 0.362. Tier 2 (named industry framework, public methodology). USE: continuity score as a stability prior on next-season RB and QB outcomes. Limitation: correlation is contemporaneous (continuity in season N correlates with DVOA in season N), not strictly leading; the engine should not claim "continuity in 2025 predicts 2026 RB1 production at r = 0.44," only that low-continuity rosters carry materially higher variance.
+- Football Outsiders Adjusted Line Yards methodology: https://www.footballoutsiders.com/info/methods. ALY isolates OL contribution from RB contribution (OL is 100 percent responsible for losses, 20 percent more responsible than average for first 4 yards gained, 50 percent less responsible 5 to 10 yards, zero past 10). Tier 2. USE: ALY as the load-bearing OL-quality signal for projecting next-season RB yardage, paired with continuity score for variance estimation. Already cited in v1 corpus under cross-position OL impact; reused here in transition context.
+- 4for4, "How Offensive Line Play Impacts Fantasy Football": https://www.4for4.com/2025/preseason/how-offensive-line-play-impacts-fantasy-football. Documents that direct correlation between OL grade alone and individual RB fantasy production is modest (correlation coefficient roughly 0.25 at the player level, weaker still at 100-attempt thresholds). Tier 3-4. USE: as a cautionary anchor. The signal is real at the team level (ALY, continuity) and substantially weaker at the individual-RB-projection level. The engine must not over-claim.
+- PFF, "Fantasy Football: Offensive line rankings for 2024": https://www.pff.com/news/fantasy-football-offensive-line-rankings-for-2024. Documents that team rushing grade correlates 0.77 with yards per attempt and team run-blocking grade correlates 0.50 with yards per attempt. Tier 2. USE: PFF run-blocking grade as the input for the individual-RB OL-context modifier; pair with ALY at the team level.
+- Pro Football Network and PFF, "Examining success factors for young offensive linemen from college to the NFL": https://www.pff.com/news/nfl-examining-success-factors-young-offensive-linemen-college-nfl. Tier 2. USE: methodological reference for the rookie-OL development curve in the next sub-section.
+
+Verdict mapping: continuity score and ALY map to a "team-level OL stability" snapshot field. Player-level RB projection should treat OL upgrade or downgrade as a variance modifier (wider distribution when continuity is low) rather than as a point-estimate adjustment.
+
+#### OL grade upgrade or downgrade effect on next-season RB1 production
+
+- 4for4 (above): the year-over-year link between OL grade change and individual RB production change is weak in isolation. Tier 3-4. DISCARD as a primary signal. USE only as a corroborating context modifier.
+- Sharp Football and Fantasy Points 2025 OL rankings preseason packages (https://www.fantasypoints.com/nfl/articles/2025/nfl-offensive-line-rankings): industry rankings adjust for personnel changes and continuity but do not publish a clean year-over-year regression of "OL grade Δ predicts RB1 Δ." Tier 3. CITATION_UNVERIFIED for a quantified delta-on-delta study.
+- Open question: a peer-reviewed or industry-quantified longitudinal study of "RB1 production change as a function of OL grade change," controlled for QB, scheme, and committee status. The corpus does not surface one. Logged in maintenance as a high-priority gap.
+
+Common-knowledge debunk for this sub-cluster: "An OL upgrade automatically lifts the RB1 to a top-12 finish." TRUE_BUT_OVERWEIGHTED. Effect size at the individual level is small (correlation roughly 0.25; 4for4) once team-level rushing efficiency is controlled for. The engine should not promote an RB into a higher tier on OL upgrade alone; it should widen the variance band.
+
+Arbitrage / outlier pattern: when an above-average frame RB joins a top-tier OL with high continuity (5-man unit returning), the lower-tail risk shrinks measurably. Henry-frame RBs going behind continuous OLs (Tennessee 2019-2020 returning OL) are the canonical historical breaker. Conditions: continuity score top-quartile, returning RB with frame >= 220 lb, gap or zone scheme stable from prior year.
+
+#### Rookie OL development curve
+
+- PFF, "Examining success factors for young offensive linemen from college to the NFL": https://www.pff.com/news/nfl-examining-success-factors-young-offensive-linemen-college-nfl. Year 1 to Year 2 PFF offensive grade correlation across all rookie OL is 0.56. Position-broken: tackles 0.67 correlation (most stable), centers 0.38 (least stable). On average, year-2 grades exceed year-1 grades for guards, centers, and interior linemen, but not for tackles, who tend to maintain rather than improve. Tier 2. USE: rookie-OL projection prior. The engine should treat rookie tackles as nearer-to-final-grade in year 1 (so the weight on RB downstream of a rookie tackle should not assume year-2 leap), while interior rookies (guards, centers) should carry a year-2 improvement prior.
+- PFF, "NFL Offensive Line Success: Why building through the NFL draft is the key": https://www.pff.com/news/nfl-offensive-line-success-why-building-through-the-nfl-draft-is-the-key. Trajectory steeper for early-round OL prospects than late-round. Tier 2. USE: scale the rookie-OL development prior by draft round.
+- Open question: rookie OL grade by 12 weeks vs full-season grade as an early-warning signal for year-2 leap. The corpus does not surface a clean study. Logged.
+
+Verdict mapping: rookie OL position (tackle vs interior) and draft round become snapshot fields the engine can use to widen or narrow the next-year RB-context band. Specifically, an RB behind a rookie interior OL carries a year-2 upside prior; an RB behind a rookie tackle carries flat expectation.
+
+#### OC change effect on OL grade (scheme vs personnel)
+
+- Football Outsiders Continuity Score (above): variable is lineup stability, not scheme. The 0.440 contemporaneous correlation captures personnel-driven stability; scheme stability is separate and less directly studied.
+- Sharp Football, "Only 3 NFL Offensive Coordinators Have Been With Team Longer Than One Year" (entering 2019): https://www.sharpfootballanalysis.com/analysis/only-3-nfl-offensive-coordinators-have-been-with-team-longer-than-one-year/. League-wide OC churn is high; only Pete Carmichael Jr. (Saints, 10 years), Josh McDaniels (Patriots, 7), and Ken Whisenhunt (Chargers, 3) had more than 2 years tenure entering 2019. Tier 3. USE: OC tenure as a context modifier. New-OC year carries materially higher variance regardless of personnel continuity.
+- CBS Sports, "Full list of 2026 NFL coordinator grades: Evaluating every OC and DC hire this offseason": https://www.cbssports.com/nfl/news/nfl-coaching-grades-2026-offensive-defensive-coordinator-hires/. 21 of 32 NFL clubs hired new OCs for 2026; 17 new offensive play-callers. Tier 4. USE: as the contemporaneous prior on league-wide OC volatility.
+- CITATION_UNVERIFIED for a quantified study of "OL grade change under same OC vs new OC, holding personnel constant." Open question, logged.
+
+Verdict: scheme persistence (same OC vs new OC) belongs in the snapshot as a binary plus tenure-years field. The engine should treat any team with both new OC and rookie OL personnel as the highest-variance band for next-season RB and QB projection.
+
+### Cluster 2: Coaching change effects
+
+#### First-year HC volatility and offensive identity in year 1
+
+- Pro Football History, "Breaking Down the Success of First-Time NFL Head Coaches": https://pro-football-history.com/blog/10/121/breaking-down-the-success-of-firsttime-nfl-head-coaches. First-time HCs post a 41.7 percent playoff likelihood and a 0.447 winning percentage in year 1; rookie HCs improve team win totals by an average of 2.0, with 26 of 40 leading teams to better records. Win rates progress from 31.39 percent year 1 to 50.86 percent year 3 across the cohort that survives. Tier 4 (industry blog with cohort numbers; methodology is partially documented but not peer-reviewed). USE: first-year HC carries below-replacement win-rate prior with high cohort-level variance.
+- Bleacher Report, "Ranking New NFL Head Coaches Based on Possibility of Success in Year 1": https://bleacherreport.com/articles/25211807-ranking-new-nfl-head-coaches-based-possibility-success-year-1. Documents the compounding-risk pattern: first-time HC + first-time GM + first-year coordinators is the maximum-variance combination. Tier 5 (analyst piece, not a study). USE: as the qualitative anchor for a "staff-novelty composite" snapshot field, not as a quantified weight.
+- Open question: a quantified study of "year-1 offensive scheme identity persistence vs prior season under new HC." The corpus does not surface a peer-reviewed source.
+
+#### Year-over-year scheme persistence under same OC vs new OC
+
+- Sharp Football OC tenure work (above): OC-level scheme persistence is fragile because OC tenure is short. Tier 3.
+- Fantasy Points, "2025 Fantasy Football Impact: New Coaches": https://www.fantasypoints.com/nfl/articles/2025/fantasy-football-impact-new-coaches. Documents that scheme tweaks happen even when teams retain coordinators; the concept of "minor adjustments" vs "scheme overhaul" is industry-recognized but not formally quantified. Tier 3.
+- numberFire, "Fantasy Football: How Much Do Coaches Impact Wide Receiver Usage?": https://www.numberfire.com/nfl/news/19379/fantasy-football-how-much-do-coaches-impact-wide-receiver-usage/david-mccaffery. Team construct appears more valuable than coach when predicting volume and fantasy production. When a receiver changed both teams and coaches simultaneously, about half of the volume signal was lost. Tier 3. USE: coaching change matters less than team context for individual-WR volume; weight team context above coach in the projection blend.
+
+#### Specific scheme tags and their position impact
+
+- The Ringer, "How the Shanahan System Turns Afterthoughts Into Star Running Backs": https://www.theringer.com/2020/01/22/nfl/kyle-mike-shanahan-zone-blocking-raheem-mostert-running-backs. Mike Shanahan's outside-zone scheme produced six 1,000-yard rushers in Denver behind the Alex Gibbs OL system; the modern Shanahan tree (Kyle Shanahan, Sean McVay, Matt LaFleur, Mike McDaniel) inherits the same mechanism. Tier 4. USE: Shanahan-tree tag carries a "RB ceiling-elevation under outside zone" prior, with the well-documented caveat that the system can elevate undrafted or late-round RBs (Mostert, Wilson) at the expense of locking in any single bellcow.
+- SumerSports, "Shanahan Schemes": https://sumersports.com/the-zone/shanahan-schemes/. Tier 3. USE: corroborating coverage of the Shanahan-tree mechanism.
+- Yahoo Sports, "25 in 2025: How the famed Shanahan tree has evolved as NFL defenses adjusted to it": https://sports.yahoo.com/nfl/article/25-in-2025-how-the-famed-shanahan-tree-has-evolved-as-nfl-defenses-adjusted-to-it-195740737.html. Tier 4. USE: scheme-evolution prior, the Shanahan-tree advantage erodes as defenses adapt.
+- Joseph Ferraiola, "Sean McVay Offensive Scheme Study": https://josephferraiola.substack.com/p/sean-mcvay-offensive-scheme-study. McVay uses outside zone on 39.8 percent of run plays (1st in NFL since 2017) and condenses WR splits in 11 personnel; bigger slot WRs (Kupp-frame) function as quasi-TEs. Tier 4. USE: McVay-tag carries a "slot-bigs sustain target share" prior; pure-Z deep WRs are de-emphasized.
+- Wikipedia, "Air raid offense": https://en.wikipedia.org/wiki/Air_raid_offense. 4-WR shotgun base; RB role is reduced. Tier 5. USE: as the qualitative scheme tag; air-raid-tagged offenses depress RB ceilings and elevate WR3+ target shares.
+
+Note on Reid tree: the v1 corpus documents Reid-tree QBs (Mahomes, Hurts via Sirianni-adjacent). For the transition layer, the load-bearing Reid-tree fact is high TE target rate within stable 11-personnel base; the search did not surface a clean Reid-tree-RB-impact study. CITATION_UNVERIFIED for a Reid-tree-specific RB or WR fantasy-impact paper. Logged.
+
+#### OC inheritance pattern (do players follow when an OC changes teams?)
+
+- Fantasy Life, "NFL Offensive Coordinator Rankings": https://www.fantasylife.com/articles/fantasy/nfl-offensive-coordinator-rankings-for-2025. Documents that scheme-fit translates: backs in the Monken system (Cleveland, then NYG) sustain featured-back production; the same OC's TE usage benefited Cameron Brate in Tampa Bay. Tier 4. USE: OC scheme-fit carries an inheritance prior, but the engine should not over-claim; the inheritance signal is qualitative without quantified hit rate.
+- Fantasy Points 2025 new-coaches piece (above): McDaniel-system RBs (De'Von Achane back-to-back RB5) imply system-mediated upside transfers when a key OC moves. Tier 3.
+- Open question: a quantified study of "fantasy production change for a player when his OC moves to a new team without him" vs "fantasy production change when the OC stays and the player moves to a new team with the same OC." The corpus does not surface a clean version. Logged.
+
+#### Personnel group preferences (12-personnel rate stability under same OC)
+
+- Sharp Football, "NFL Offensive Personnel Usage, All 32 Teams": https://www.sharpfootballanalysis.com/stats-nfl/nfl-offensive-personnel/. Tier 3. USE: the league-wide year-by-year 12-personnel rate is the baseline against which team-level deviations are interpreted.
+- Underdog Network, "How TE Usage in 11- and 12-Personnel Impacts Fantasy Football" (cited in v1 corpus under TE 12-personnel): 12-personnel rate hit 22.1 percent in 2023, the highest of the 2000s. Tier 3.
+- NFL.com, "New trend alert for NFL offenses": https://www.nfl.com/news/new-trend-alert-for-nfl-offenses-ranking-top-five-pass-catching-groups. Documents that personnel-grouping decisions are OC-mediated; Klint Kubiak in New Orleans called 12-personnel at the 8th-highest rate, and Seattle is expected to lift their 12-personnel rate under his hire. Tier 4. USE: 12-personnel rate is OC-sticky (a Kubiak-type OC carries the tendency across teams) but team-discontinuous (team rate changes when OC changes).
+- SumerSports, "A Look Into Offensive Personnel Diversity": https://sumersports.com/the-zone/a-look-into-offensive-personnel-diversity/. Tier 3. USE: corroborates the OC-driven nature of personnel rate shifts.
+
+Common-knowledge debunk for this cluster: "A new HC means the WR1 collapses." TRUE_BUT_OVERWEIGHTED. Effect size from numberFire is roughly 0.72 fewer PPR points per game with a new HC at p = 0.096 (statistically marginal); Sticky Stats / SumerSports work shows team context dominates. Coach response language: "A new HC affects WR volume by less than a point per game on average. The bigger swings come from QB change and from changing teams entirely; a new HC alone is not a sell trigger."
+
+Arbitrage / outlier: when an OC with a documented scheme-tag moves to a team whose roster matches the scheme (e.g., a Shanahan-tree OC inheriting an outside-zone-fit OL plus zone-decisive RB), the inherited-system bonus is real but conditional. The engine should flag scheme-fit matches as upside-tilt rather than hardcode an upgrade.
+
+### Cluster 3: RB role transitions (bellcow vs committee)
+
+#### Bellcow definitional thresholds
+
+- Fantasy Points, "The Bell-Cow Report": https://www.fantasypoints.com/nfl/articles/2020/the-bell-cow-report. Establishes the framework: bellcow RBs rank highly in snaps, carries, targets, AND in percentage of team running back snaps, carries, and targets. Tier 3. USE: bellcow as a multi-axis classification, not a single-stat threshold.
+- Fantasy Points, "Bell-Cow or Bust: The Optimal RB Strategy": https://www.fantasypoints.com/nfl/articles/season/2020/bell-cow-or-bust-the-optimal-rb-strategy. Hard threshold: 75 percent snap share in a season. Roughly 4.2 RBs per season meet this bar. Tier 3. USE: 75 percent snap share as the strict-bellcow definition.
+- PhillyVoice, "Fantasy football: Which NFL teams have bell cow running backs": https://www.phillyvoice.com/fantasy-football-running-back-committees-bell-cow-starters-snap-percentage-touches-advice-tips-draft/. Some analysts use a 60 percent market-share threshold for a softer bellcow definition. Tier 4. USE: 60 percent snap share as a "lead-back" tier, distinct from strict bellcow.
+- Footballguys, "The Running Back By Committee Conundrum": https://www.footballguys.com/article/2025-running-back-by-committee-conundrum. Since 2021, 19 backs have handled at least 67 percent of their team's snaps per game across at least 15 games, equating to roughly 4.8 backs each year meeting that threshold. Tier 3. USE: 67 percent snap share over 15+ games as the dynasty-relevant bellcow operational threshold (because it accounts for sustained workload, not single-game spikes).
+- Fantasy Points, "Statistically Significant: Weighted Opp.": https://www.fantasypoints.com/nfl/articles/2024/statistically-significant-weighted-opportunity. Weighted opportunity (carries × 0.58 + targets × 1.59) correlates 0.95 with PPR fantasy points. Tier 3. USE: weighted opportunity is the per-week bellcow detector.
+
+The engine should track three tiers: lead back (>= 60 percent snap share), bellcow (>= 67 percent snap share over 15+ games), strict bellcow (>= 75 percent season snap share). Trades and free-agency signings should be evaluated against the projected tier at the new team, not a binary bellcow flag.
+
+#### Year-over-year bellcow retention
+
+- Footballguys, "The Running Back By Committee Conundrum" (above): bellcow seasons declined from 42 (2013-2017) to 35 (2018-2022). The trend is toward fewer bellcows league-wide. Tier 3. USE: as the population-level prior; the probability that a current bellcow remains bellcow next season is below the prior generation's rate.
+- Alex Bishka, "Rushing Stability": https://alex-bishka.github.io/Fantasy/Blogs/sticky-stats/rushing-sticky-season-totals. There is no single rushing stat that is reliable year-over-year AND a decent predictor for fantasy production. Tier 4 (independent analyst). USE: as the cautionary anchor; the engine should not project year N+1 bellcow status from year N rushing efficiency alone. Snap share and target share are stickier than rushing-yards or YPC.
+- PFF, "Do NFL running backs regress? Facts and fiction": https://www.pff.com/news/nfl-breaking-down-fact-and-fiction-about-how-and-when-nfl-running-backs-begin-to-regress-2021. There is no correlation between an RB's workload one year and the change in his RYOE from career average the next year. The huge workload is not affecting RYOE. Tier 2. USE: the engine should NOT mechanically downgrade a bellcow purely for high prior-year workload; instead, downgrade for age + frame + scheme-fit changes.
+- Open question: a quantified retention rate (the probability that a year-N bellcow remains a year-N+1 bellcow), conditional on age, contract, and team-context change. The corpus does not surface a clean number. CITATION_UNVERIFIED for that specific quantification. Logged.
+
+#### Committee resolution patterns
+
+- Fantasy Life, "NFL Offensive Coordinator Rankings" (above): featured backs in Monken's system have historically emerged; Achane's RB5 finishes under McDaniel signaled a committee-to-featured resolution. Tier 4. USE: scheme-fit is a leading indicator of committee resolution.
+- Footballguys committee piece (above): committees usually exist by default (no dominant back), not by design. The trigger for committee-to-bellcow resolution is talent emergence, injury to the other committee member, or a coach's preference declaration. Tier 3. USE: the engine should track the committee's "hierarchy stability" each offseason; signals like contract restructure, draft capital expended on a successor, and beat-reporter quotes accumulate into a posterior on resolution.
+- DraftKings, "Next Man Up: Sorting Out The Packers' Backfield": https://www.draftkings.com/playbook/nfl/next-man-sorting-packers-backfield. Tier 5 (DFS column). USE: as the qualitative pattern reference; numerical claims must come from elsewhere.
+
+#### Post-trade RB outcomes
+
+- Stats with Sasa, "The fantasy impact of NFL trades": https://www.statswithsasa.com/2024/10/17/the-fantasy-impact-of-nfl-trades/. Over 64 percent of traded RBs improve after the trade; the median traded RB scores 6.8 percent more fantasy points after the trade. Tier 4 (independent analyst, methodology partially documented). USE: post-trade RB outcomes skew positive at the median; the engine should NOT default to a "traded RBs disappoint year 1" prior. Notable named cases: Christian McCaffrey (CAR to SF), Kenyan Drake (MIA to ARI). The piece also notes Amari Cooper's 60 percent fantasy production lift post-trade (WR-cited but in the same study).
+- CITATION_UNVERIFIED for a peer-reviewed treatment of post-trade RB year-1 hit rate at the new team. The Sasa piece is the cleanest available; corpus should mark this finding as Tier 4 confidence and seek a stronger replication in maintenance.
+- Open question: whether the +6.8 percent median lift holds when traded RBs are subset to "moved in offseason" vs "moved mid-season." The Sasa piece is mid-season-trade-heavy. Logged.
+
+#### Pass-down RB stickiness vs early-down stickiness
+
+- PFF, "Metrics that Matter: The value of a carry, the value of a target" (cited in v1 corpus): targets are worth roughly 2.74x carries in PPR. Tier 2. USE: re-cited here for the durability claim. A pass-down RB role is more durable across coaching changes because the receiving function ports better across schemes than gap-vs-zone RB-running fit.
+- v1 corpus already flags "PFF target-value research implies pass-catching role is more durable than rushing role." Reaffirmed here. Tier 2. USE: under coaching transition, the engine should weight an RB's prior-year target-share above his prior-year carry-share when projecting next-year role.
+- Open question: a quantified study of "target-share retention vs carry-share retention across coaching changes." Logged. CITATION_UNVERIFIED for that specific quantification.
+
+#### Next man up vs committee resolution after a starter departs
+
+- Bleacher Report, "Making Sense of Every NFL Backfield After 2026 NFL Draft": https://bleacherreport.com/articles/25422876-making-sense-every-nfl-backfield-after-2026-nfl-draft. Tier 5 (column with examples, not a study). USE: as the qualitative reference for the named-case patterns.
+- NFL.com Vikings RB transition: Aaron Jones to Minnesota after Green Bay departure. Tier 5. USE: example of veteran RB ported to a new system at lead-back tier.
+- Pattern documented in the search but not formally quantified: Hubbard moving back to lead role in Carolina after Dowdle's departure; Gibbs taking the Detroit backfield after Montgomery trade; Singletary stepping in for Barkley in NYG. CITATION_UNVERIFIED for a quantified hit-rate study on "successor RB year-1 production after the prior bellcow departs." Logged.
+
+Common-knowledge debunk for this cluster: "Post-trade RBs always disappoint in year 1." FALSE. The Stats with Sasa numbers (64 percent improve, median +6.8 percent fantasy points) directly contradict the claim. Coach response language: "The data goes the other way. Traded RBs improve more often than not, and the median traded RB scores roughly 7 percent more after the trade. The pessimism comes from a few high-profile flameouts. Treat each case on the conditions, not on the genre."
+
+Arbitrage / outlier pattern: post-trade RBs land into one of three role profiles. (1) Featured back replacing a departed bellcow (Hubbard 2025 Carolina pattern, Aaron Jones 2024 Minnesota pattern): high upside, conditional on scheme fit. (2) Committee splitter (Singletary 2024 NYG): capped ceiling, high floor for half a season then drift. (3) Pass-down complement (Tony Pollard 2024 Tennessee tier): durable role, lower ceiling but coaching-change-resilient. The engine should classify the projected role at the new team BEFORE projecting points; conflating the three is the most common analyst error.
+
+### Cluster 4: Predictive frameworks for the transitions themselves
+
+#### How well does the dynasty market reprice post-event vs pre-event?
+
+- KeepTradeCut, "Dynasty Football Trade Calculator": https://keeptradecut.com/trade-calculator. Crowdsourced values from over 25 million data points. KTC repricing happens within days to weeks of major events (trades, free-agent signings, coaching hires) because the crowd updates continuously. Tier 3 (named industry framework, public methodology). USE: KTC reprice latency is approximately the news cycle, not a season; the engine should treat KTC as a near-real-time market.
+- FantasyCalc, "Dynasty Trade Calculator": https://fantasycalc.com/trade-calculator. Algorithmically generated values from hundreds of thousands of real trades. Tier 3. USE: FantasyCalc as a corroborating market signal; deviation between KTC and FantasyCalc is itself a tradeable signal (FC lags actual trades; KTC lags consensus opinion).
+- KTC FAQ: https://keeptradecut.com/frequently-asked-questions. Documents the "averages of how dynasty owners value players" framing. Tier 3.
+- Open question: a peer-reviewed or quantified study of "dynasty market efficiency: where does KTC mis-price post-event?" The v1 corpus already flagged this gap (open question 7). The product itself is positioned to generate this evidence via internal backtests. Logged.
+
+Common-knowledge claim status: "By July, all offseason news is already baked into KTC." TRUE_BUT_OVERWEIGHTED. The market does reprice within days of major events; the residual mis-pricing tends to concentrate in (a) under-covered positions (TE, late-round rookies), (b) compounding-news cases (multiple events stacked: trade plus coaching change plus depth-chart shift), and (c) the immediate aftermath of the NFL Draft, when crowd attention is split across hundreds of new entries. The engine should NOT assume KTC has fully repriced compounding-news cases.
+
+#### Beat reporter and depth-chart signal credibility
+
+- The v1 corpus already flags beat reporters as Tier 4: sources of FACT, never sources of ANALYSIS. Re-cited here for the transition layer.
+- Ourlads, "2026 NFL Depth Charts and Rosters": https://www.ourlads.com/nfldepthcharts/. The NFL requires teams to release a "credible" weekly depth chart, but empirical observation across the league shows depth-chart-1 listing does not always predict actual starts (named example: Charlton played 20+ snaps without starting despite being depth-chart-1 at DE). Tier 5 (industry directory, not a study). USE: training-camp depth-chart-1 listings carry signal but should not be treated as deterministic.
+- Open question: a quantified study of "training-camp starter announcement reliability through Week 1," controlling for position and franchise. CITATION_UNVERIFIED for a clean version. Logged.
+
+#### Free-agent landing-spot effect on next-season fantasy outcome
+
+- numberFire, "Fantasy Football: How Much Do Coaches Impact Wide Receiver Usage?": https://www.numberfire.com/nfl/news/19379/fantasy-football-how-much-do-coaches-impact-wide-receiver-usage/david-mccaffery. When a WR changes both teams and coaches simultaneously, about half of the volume signal is lost. Tier 3. USE: free-agent landing-spot signal degrades when the receiver moves to a coach he hasn't played for; engine should bake context fragility into the FA-signing prior.
+- Footballguys, "Coaching and Philosophy Changes": https://www.footballguys.com/article/14woodcoachingphilosophychanges. Tier 4. USE: corroborating coverage of philosophy-change effects on inherited skill players.
+- PFF, "Fantasy Football: Wide Receiver Free Agent Preview": https://www.pff.com/news/fantasy-football-wide-receiver-free-agent-preview-rankings-landing-spots-and-impact. Tier 2 (descriptive industry analysis, not a study). USE: as the qualitative reference; quantified hit rates are not provided.
+- Open question: a longitudinal study of "free-agent signing followed by next-season fantasy outcome correlation," ideally controlling for QB change and scheme change. CITATION_UNVERIFIED. Logged.
+
+Common-knowledge debunk for this cluster: "A free-agent signing automatically improves the receiving WR's fantasy outlook." TRUE_BUT_OVERWEIGHTED. Half the signal is lost when the WR moves to a new system AND a new coach; landing on a top QB matters more than the marquee value of the contract. Coach response language: "Free-agency landing spots are real signals, but the volume bump is conditional on QB tier and scheme fit. Half the production signal evaporates when both team and coach are new. The engine flags 'high QB tier + same scheme family' as the upside cases and 'new QB tier + new scheme' as the variance cases."
+
+#### Coaching-staff hire timing and rookie-HC bust rate early in the year
+
+- Pro Football History first-time HC piece (above): year-1 winning percentage 0.447 across the cohort; year-3 progression to 0.508 for survivors. The cohort is partially survivor-biased (HCs who lose their job early are not in the year-3 sample). Tier 4. USE: with a survivor-bias caveat. The engine should apply a rookie-HC penalty to next-year team-context projection but should NOT extrapolate the year-3 progression onto every individual year-1 case (selection effect).
+- The Ringer, "Ranking the Top NFL Head Coaching Candidates for 2026": https://www.theringer.com/2025/12/17/nfl/ranking-top-nfl-head-coaching-candidates-2026-robert-saleh-mike-mccarthy-marcus-freeman-bill-belichick. Tier 5 (analyst ranking). USE: as a qualitative coaching-credentialing reference, not a study.
+- Open question: rookie-HC year-1 bust rate broken by background (offensive coordinator, defensive coordinator, college coach, position coach). CITATION_UNVERIFIED for a clean cohort study. Logged.
+
+#### Bayesian update frameworks for offseason news
+
+- Nathan Braun, "Bayesian Fantasy Football Writeup": https://nathanbraun.com/bayesian-fantasy-football/. Documents the prior-plus-update structure: preseason draft rankings as prior, weekly results as the update mechanism. Tier 3 (industry-tier methodology with code, not peer-reviewed). USE: methodological template for the engine's offseason-update layer.
+- Adam Harstad, "Fantasy, in Theory: Bayes and Bob": https://www.footballguys.com/article/HarstadFiT3. Documents that the bulk of predictive power comes from preseason expectations; Bayesian update on top of the prior improves on the margin, not in the bulk. Tier 3. USE: the engine should NOT under-weight the preseason prior in favor of weekly news; the marginal-improvement framing is durable.
+- Scott Rome, "Bayesian Hierarchical Modeling Applied to Fantasy Football Projections": https://srome.github.io/Bayesian-Hierarchical-Modeling-Applied-to-Fantasy-Football-Projections/. Documents a hierarchical-modeling treatment of fantasy projections with explicit priors and posteriors per player. Tier 3 (independent ML practitioner). USE: as the methodological reference for the engine's per-player posterior layer.
+- PFF, "2020 NFL QB Rankings: Using Bayesian Updating to rank all 32 projected starters": https://www.pff.com/news/nfl-2020-quarterback-rankings. Documents an industry-tier Bayesian-updating implementation for QB rankings. Tier 2. USE: as the load-bearing PFF-tier industry example for QB-specific Bayesian updating; the structure (career-mean prior plus per-game updates) ports to the engine's offseason layer.
+- Wharton Sports Analytics, "Wharton Sports Analytics Journal" 2025 fall edition: https://wsb.wharton.upenn.edu/wharton-sports-analytics-journal/2025-fall-edition/. Documents temporal linear regression for WR touchdown projection across 1990 to 2024 data; finds usage and efficiency more predictive than raw prior-year touchdowns. Tier 2 (university-affiliated, peer-reviewed-adjacent). USE: as methodological corroboration for usage-over-output projection in the offseason layer.
+
+Common-knowledge debunk for this cluster: "The market needs the regular season to reprice; offseason news is mostly noise." FALSE. The KTC repricing latency is days to weeks for major events, not months; the Bayesian framework documented above explicitly treats offseason intelligence as a meaningful prior-update source. Coach response language: "The market repriced this within a week. Offseason news is a real input, not noise. The signal is strongest when multiple events stack (trade plus coaching change plus depth-chart shift); a single-event reprice from KTC has typically already happened by the time you read the headline."
+
+Arbitrage / outlier pattern: compounding-news cases. When three or more transitions affect a single player in one offseason (e.g., new team + new HC + new QB), the dynasty market under-prices the variance compression. The engine should flag these as "high-variance, mis-priced both directions" and let the user's risk preference (Soundboard horizon dial) bias the call.
+
+### Maintenance notes for this section
+
+- Last update: 2026-05-03.
+- Inclusion criteria: every entry has a URL or a CITATION_UNVERIFIED tag. No source is fabricated. Where the strongest available evidence is Tier 4 industry blog rather than peer-reviewed, the entry says so explicitly.
+- Open questions logged in this section that should be elevated in the next maintenance pass: (1) quantified delta-on-delta study of OL grade change vs RB1 production change, (2) rookie-OL-development by week-12 vs full-season, (3) OL grade change under same OC vs new OC holding personnel constant, (4) year-1 HC offensive-identity persistence vs prior season, (5) Reid-tree-specific RB and WR fantasy-impact study, (6) fantasy production change when OC moves vs when player moves with same OC, (7) bellcow year-N to year-N+1 retention rate conditional on age and team change, (8) target-share vs carry-share retention across coaching changes, (9) successor RB year-1 production after prior bellcow departs, (10) dynasty market efficiency study of post-event mis-pricing, (11) training-camp starter announcement reliability through Week 1, (12) free-agent landing-spot study controlled for QB and scheme change, (13) rookie-HC year-1 bust rate by coaching background.
+- Heavy reliance on Tier 3 to Tier 4 industry sources in this section is honest: peer-reviewed offseason-transition work is rare. The product's credibility depends on flagging the gap rather than papering over it. The engine should weight signals in this section accordingly: contemporaneous correlations like the 0.440 OL continuity DVOA correlation are usable as variance modifiers but NOT as deterministic point-estimate adjustments.
+- Citation watchlist for this section: the Stats with Sasa "fantasy impact of NFL trades" piece is the cleanest available source on traded-RB outcomes; if a peer-reviewed replication surfaces, it should supersede.
