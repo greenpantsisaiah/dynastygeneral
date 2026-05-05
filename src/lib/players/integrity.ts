@@ -186,29 +186,14 @@ function runRosterIdentityVerification(args: {
     (p) => p.roster_id === me.roster_id,
   ).length;
   if (minePickCount > 0) return [];
-
-  // Only fire when the draft has actually progressed past the user's
-  // first slot. In a fresh snake draft where the user picks 5th, it's
-  // natural for picks 1-4 to exist while the user has zero picks
-  // attributed. We need to wait until the draft has reached pick
-  // my_slot (their round-1 pick number) before "zero picks for me"
-  // is genuinely diagnostic of an identity mismatch.
-  //
-  // False-positive observed 2026-05-05 on a fresh 12-team snake where
-  // the founder was at pick 1.5 (slot 5). Picks 1-4 from other
-  // managers triggered the banner even though the identity was
-  // correct.
-  const mySlot = args.snap.draft.my_slot;
-  if (mySlot != null && picks.length < mySlot) return [];
-
   return [
     {
       kind: "roster_identity_mismatch",
       severity: "severe",
       headline: `You are mapped to roster ${me.roster_id} but Sleeper shows zero picks for that roster in this draft`,
       detail:
-        "The hub identified your roster from owner_id matching, but ground-truth draft picks attribute zero selections to that roster while the draft has progressed past your first slot. You are almost certainly viewing the wrong team. Common causes: a stale ?username= in the URL, a navigation that loaded another manager's view, or a saved-username mismatch. Every recommendation below this banner reflects the WRONG team's roster.",
-      evidence: `is_me roster_id=${me.roster_id}, owner_id=${me.owner_id}, picks_in_draft=${picks.length}, picks_attributed_to_me=${minePickCount}, my_slot=${mySlot ?? "?"}`,
+        "The hub identified your roster from owner_id matching, but ground-truth draft picks attribute zero selections to that roster while the draft has progressed. You are almost certainly viewing the wrong team. Common causes: a stale ?username= in the URL, a navigation that loaded another manager's view, or a saved-username mismatch. Every recommendation below this banner reflects the WRONG team's roster.",
+      evidence: `is_me roster_id=${me.roster_id}, owner_id=${me.owner_id}, picks_in_draft=${picks.length}, picks_attributed_to_me=${minePickCount}`,
     },
   ];
 }
