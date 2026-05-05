@@ -21,6 +21,12 @@
  * snapshot_date, format).
  */
 
+import { config as loadEnv } from "dotenv";
+import { resolve } from "node:path";
+// Load .env.local (Next.js convention) so SUPABASE_SERVICE_ROLE_KEY
+// and NEXT_PUBLIC_SUPABASE_URL are available when this is run via tsx.
+loadEnv({ path: resolve(process.cwd(), ".env.local") });
+
 import { createClient } from "@supabase/supabase-js";
 import { __dumpAllPlayers } from "../src/lib/players/cache";
 
