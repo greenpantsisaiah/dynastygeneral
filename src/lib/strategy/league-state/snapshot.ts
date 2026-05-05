@@ -138,6 +138,14 @@ export type LeagueSnapshot = {
   season: string;
   total_teams: number;
   format: LeagueFormat;
+  /**
+   * League-type classification from Sleeper's league.settings.type:
+   * 0 = redraft, 1 = keeper, 2 = dynasty. Drives keeper-aware
+   * cornerstone-count logic in trade analysis.
+   */
+  league_type: "redraft" | "keeper" | "dynasty";
+  /** Maximum keepers in a keeper league; null for redraft and dynasty. */
+  max_keepers: number | null;
   scoring: LeagueScoring[];
   starter_slots: StarterSlots;
   rosters: RosterSnapshot[];
@@ -698,11 +706,32 @@ export async function buildLeagueSnapshot(args: {
     return total / rosterSnapshots.length;
   }
 
+  // League-type per Sleeper convention: settings.type 0=redraft,
+  // 1=keeper, 2=dynasty. Default to dynasty if unset (most common
+  // case for the user's existing leagues).
+  const settingsRaw = (league.settings ?? {}) as Record<string, unknown>;
+  const settingsType =
+    typeof settingsRaw["type"] === "number"
+      ? (settingsRaw["type"] as number)
+      : 2;
+  const leagueType: "redraft" | "keeper" | "dynasty" =
+    settingsType === 0
+      ? "redraft"
+      : settingsType === 1
+        ? "keeper"
+        : "dynasty";
+  const maxKeepers =
+    leagueType === "keeper" && typeof settingsRaw["max_keepers"] === "number"
+      ? (settingsRaw["max_keepers"] as number)
+      : null;
+
   return {
     league_id: league.league_id,
     season: league.season,
     total_teams: totalTeams,
     format: detectFormat(league),
+    league_type: leagueType,
+    max_keepers: maxKeepers,
     scoring: detectScoring(league),
     starter_slots: parseStarterSlots(league),
     rosters: rosterSnapshots,

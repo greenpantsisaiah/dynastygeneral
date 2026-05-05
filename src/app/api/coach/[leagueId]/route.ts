@@ -22,7 +22,10 @@ import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
 import { humanize, resolvePlayers } from "@/lib/players/cache";
-import { buildOperationalContext } from "@/lib/engine/llm-contract";
+import {
+  buildOperationalContext,
+  enumerateAllLeaguePicks,
+} from "@/lib/engine/llm-contract";
 import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
@@ -498,15 +501,17 @@ export async function POST(
     for (const id of r.player_ids) valueIds.add(id);
   }
   for (const p of available.slice(0, 30)) valueIds.add(p.id);
+  // Price ALL picks in rounds 1-8 across the league, not just the
+  // user's own schedule. Coach trade-analysis bug 2026-05-05: when a
+  // trade involved a counterparty's pick (1.09 in the founder's case),
+  // Coach saw pick_values: [missing], hallucinated a value, and gave
+  // wrong advice. Pricing the full board prevents this entire class.
   const opContext = await buildOperationalContext({
     snap: snapshot,
     pickIds: valueIds,
-    picksToPrice: snapshot.draft.my_pick_schedule.slice(0, 8).map((p) => ({
-      pick_label: p.pick_label,
-      pick_no: p.pick_no,
-      round: p.round,
-      ktc_value: 0, // overwritten by buildTradePricing
-    })),
+    picksToPrice: enumerateAllLeaguePicks(snapshot.total_teams, 8).map(
+      (p) => ({ ...p, ktc_value: 0 }),
+    ),
   });
   const formatRules = opContext.format_rules;
   const starterDemandRemaining = opContext.starter_demand_remaining;

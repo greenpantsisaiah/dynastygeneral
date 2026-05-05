@@ -43,6 +43,18 @@ export type FormatRules = {
   is_superflex: boolean;
   flex_eligible: readonly ["RB", "WR", "TE"];
   sf_eligible: readonly ["QB", "RB", "WR", "TE"] | null;
+  /**
+   * League-type classification from Sleeper's league.settings.type:
+   * "redraft" | "keeper" | "dynasty". Drives cornerstone-count logic
+   * in trade analysis (see system-prompt rule "trade analysis must
+   * weight keeper count when present"). Per coach trade-analysis bug
+   * 2026-05-05: 5-keeper formats reward consolidation onto cornerstones
+   * differently than dynasty / redraft and the LLM was missing this
+   * signal entirely.
+   */
+  league_type: "redraft" | "keeper" | "dynasty";
+  /** Number of players that carry over per season in keeper leagues; null otherwise. */
+  max_keepers: number | null;
 };
 
 /**
@@ -134,6 +146,8 @@ export function buildFormatRulesFromSnapshot(
     is_superflex: isSF,
     flex_eligible: FLEX_ELIGIBLE,
     sf_eligible: isSF ? SF_ELIGIBLE : null,
+    league_type: snap.league_type,
+    max_keepers: snap.max_keepers,
   };
 }
 
@@ -146,8 +160,16 @@ export function buildFormatRulesFromRosterPositions(args: {
   rosterPositions: string[];
   scoringHighlights: string[];
   isSuperflex: boolean;
+  leagueType?: "redraft" | "keeper" | "dynasty";
+  maxKeepers?: number | null;
 }): FormatRules {
-  const { rosterPositions, scoringHighlights, isSuperflex } = args;
+  const {
+    rosterPositions,
+    scoringHighlights,
+    isSuperflex,
+    leagueType = "dynasty",
+    maxKeepers = null,
+  } = args;
   const countSlot = (slot: string): number =>
     rosterPositions.filter((p) => p === slot).length;
   const flexCount =
@@ -173,6 +195,8 @@ export function buildFormatRulesFromRosterPositions(args: {
     is_superflex: isSuperflex,
     flex_eligible: FLEX_ELIGIBLE,
     sf_eligible: isSuperflex ? SF_ELIGIBLE : null,
+    league_type: leagueType,
+    max_keepers: maxKeepers,
   };
 }
 
@@ -205,6 +229,52 @@ export function buildStarterDemand(args: {
  * a flat dataset and the cache is shared across formats so widening
  * the set is cheap.
  */
+/**
+ * Enumerate every pick label for the first N rounds of a snake draft.
+ * Used to seed `picksToPrice` for trade-analysis endpoints so the LLM
+ * has values for ALL picks, not just the user's own. Without this, the
+ * LLM is forced to bracket-and-guess pick values for any pick the
+ * user doesn't own (the counterparty's first-rounder, for example),
+ * which is exactly the hallucination class observed 2026-05-05 in the
+ * founder's "Final Countdown" league when Coach said "I don't have 1.9
+ * priced but I'll bracket it" and bracketed wrong.
+ *
+ * Note: pick_label format is `${round}.${positionInRound}` matching
+ * the rest of the codebase (e.g. "1.5", "2.8"). pick_no is the global
+ * pick number (1-indexed). Snake reversal is implicit: round 1 has
+ * positionInRound 1..teams left-to-right; round 2 has positionInRound
+ * 1..teams as well, but pick_no starts at teams+1 (the reversal is
+ * already handled because we're labeling by position-in-round, not by
+ * draft slot).
+ *
+ * Default round count is 8 because most realistic trade scenarios
+ * involve picks within rounds 1-6 plus some fluff in rounds 6-8;
+ * pricing all 12 teams x 8 rounds = 96 picks adds negligible context
+ * size.
+ */
+export function enumerateAllLeaguePicks(
+  totalTeams: number,
+  rounds: number = 8,
+): Array<{
+  pick_label: string;
+  pick_no: number;
+  round: number;
+}> {
+  const out: Array<{ pick_label: string; pick_no: number; round: number }> =
+    [];
+  for (let round = 1; round <= rounds; round++) {
+    for (let positionInRound = 1; positionInRound <= totalTeams; positionInRound++) {
+      const pick_no = (round - 1) * totalTeams + positionInRound;
+      out.push({
+        pick_label: `${round}.${positionInRound}`,
+        pick_no,
+        round,
+      });
+    }
+  }
+  return out;
+}
+
 export async function buildTradePricing(args: {
   snap: LeagueSnapshot;
   pickIds: Iterable<string>;

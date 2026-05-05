@@ -29,9 +29,14 @@ import {
 import { resolvePlayerValues, type PlayerValue } from "@/lib/players/values";
 import {
   buildFormatRulesFromRosterPositions,
+  enumerateAllLeaguePicks,
   type FormatRules,
   type TradePricing,
 } from "./llm-contract";
+import {
+  startupPickValue,
+  SUPERFLEX_PICK_MULTIPLIER,
+} from "@/lib/players/future-picks";
 
 /**
  * Decision context: everything the engine needs to reason over a single
@@ -162,10 +167,30 @@ export async function assembleContext(
   // SYSTEM_PROMPT hard rules ("never claim 'doesn't start' without
   // checking format_rules") fire correctly here too.
   const rosterPositions = league.roster_positions ?? [];
+  // Read keeper info from Sleeper league.settings (passthrough on the
+  // schema). Per Sleeper convention: type 0=redraft, 1=keeper,
+  // 2=dynasty. max_keepers populates only on keeper leagues.
+  const settingsRaw = (league.settings ?? {}) as Record<string, unknown>;
+  const settingsType =
+    typeof settingsRaw["type"] === "number"
+      ? (settingsRaw["type"] as number)
+      : 2;
+  const leagueType: "redraft" | "keeper" | "dynasty" =
+    settingsType === 0
+      ? "redraft"
+      : settingsType === 1
+        ? "keeper"
+        : "dynasty";
+  const maxKeepers =
+    leagueType === "keeper" && typeof settingsRaw["max_keepers"] === "number"
+      ? (settingsRaw["max_keepers"] as number)
+      : null;
   const formatRules = buildFormatRulesFromRosterPositions({
     rosterPositions,
     scoringHighlights,
     isSuperflex,
+    leagueType,
+    maxKeepers,
   });
 
   // Player values for every rostered player across the league, resolved
@@ -241,13 +266,25 @@ export async function assembleContext(
     traded_picks_summary: summarizeTradedPicks(tradedPicks, profile.teams),
     pricing: {
       scale_note:
-        "Player values from FantasyCalc 2026-04-24 (KTC-equivalent), normalized 0-100. Use to bound any trade ask: receiving side total must land in [0.85x, 1.15x] of sending side. Pick values not yet wired into this endpoint; for pick-involving trades describe ask SHAPES instead of fabricating numbers (per system-prompt rule).",
+        "Player values from FantasyCalc (KTC-equivalent), normalized 0-100. Pick values from the KTC-anchored startupPickValue scale, format-multiplied for SF. Both compose arithmetically. Receiving side of any trade must land in [0.85x, 1.15x] of sending side.",
       fairness_band_pct: 15,
       player_values_present: playerValueMap.size > 0,
       player_value_count: playerValueMap.size,
       player_values: playerValuesRecord,
-      pick_values: [],
-      sf_pick_multiplier: isSuperflex ? 1.2 : 1.0,
+      // Price every pick in rounds 1-8 across the league (12 teams x 8
+      // rounds = 96 picks for a 12-team). Without this, pick-involving
+      // trades force the LLM to bracket-and-guess values that don't
+      // map to its own picks (the counterparty's first-rounder, etc.).
+      // That hallucination class produced the 2026-05-05 bad-trade-
+      // analysis incident in the founder's "Final Countdown" league.
+      pick_values: enumerateAllLeaguePicks(totalRosters, 8).map((p) => ({
+        ...p,
+        ktc_value: Math.round(
+          startupPickValue(p.pick_no) *
+            (isSuperflex ? SUPERFLEX_PICK_MULTIPLIER : 1.0),
+        ),
+      })),
+      sf_pick_multiplier: isSuperflex ? SUPERFLEX_PICK_MULTIPLIER : 1.0,
     },
   };
 }
