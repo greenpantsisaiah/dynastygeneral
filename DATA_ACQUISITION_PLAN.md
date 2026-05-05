@@ -10,7 +10,13 @@
 - **2026-05-04:**
   - KTC historical via Wayback Machine: VERIFIED feasible. 31 snapshots across 2022-2024 preserve `playersArray` JSON in HTML. Script `scripts/ingest-ktc-historical.ts` built and smoke-tested: 449/500 player match rate to Sleeper IDs (~90%). Day 4 of the plan effectively complete.
   - FantasyCalc historical API: BLOCKED. No public `/historical` endpoint at any reasonable path. Falls to KTC (now unblocked) as the dynasty-prior source. FantasyCalc current still works for live values.
-  - Migration `0010_validation.sql` written (historical_market_values, historical_consensus_rankings, historical_outcomes, historical_signal_codes, backtest_runs). Awaits manual apply by founder.
+  - Migration `0010_validation.sql` written (historical_market_values, historical_consensus_rankings, historical_outcomes, historical_signal_codes, backtest_runs). Founder applied it 2026-05-05.
+  - KTC ingest run end-to-end against production Supabase: 26,710 rows landed, 31 snapshots, 90% Sleeper match. Top-5 SF dynasty 2022-08-14 verified (Allen / Herbert / Mahomes / Jefferson / Chase).
+
+- **2026-05-05:**
+  - Day 5 prototype: invoked `historical-signal-extractor` agent on Najee_Harris 2022 as smoke test. **Result: 4 of 4 signals coded correctly** within ground-truth tolerance (rb_role_tier=bellcow, rb_traded_offseason_flag=false, rb_role_at_new_team_projected=null, compounding_news_count=1). Vintage blinding worked: agent excluded the 2022-08-29 Lisfranc diagnosis even though it would have been informative. Citation-with-date enforcement worked. Schema-enum constraint worked (returned null instead of guessing on the trade-team field).
+  - Agent prompt improvements applied to spec: explicit `bellcow` vs `strict_bellcow` boundary, explicit `null`-when-no-trade convention for `rb_role_at_new_team_projected`, 6-class enumerated event taxonomy for `compounding_news_count`. Three smaller suggestions (team-blog source tier, soft `SOURCE_UNAVAILABLE` handling, WebSearch date-filter hint) deferred to next iteration.
+  - **Next step (separate session): batch driver script that calls the agent for all top-200 RBs × 3 historical seasons via the Anthropic API + tool use, with throttling, retry, and writes to `historical_signal_codes`.** This is the long-pole item before the Phase 2 backtest can run.
 
 ## 0. Purpose
 
