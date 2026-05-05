@@ -1,9 +1,16 @@
 # Data Acquisition Plan v0
 
-**Status:** draft, 2026-05-03
+**Status:** in progress · sprint started 2026-05-04
 **Owner:** Isaiah McPeak
 **Gates:** VALIDATION_PLAN.md sections 4 (vintaging) and 5 (backtest)
 **Sprint window:** 2026-05-04 to 2026-05-10 (3-day audit + 4-day procurement)
+
+## Sprint progress log
+
+- **2026-05-04:**
+  - KTC historical via Wayback Machine: VERIFIED feasible. 31 snapshots across 2022-2024 preserve `playersArray` JSON in HTML. Script `scripts/ingest-ktc-historical.ts` built and smoke-tested: 449/500 player match rate to Sleeper IDs (~90%). Day 4 of the plan effectively complete.
+  - FantasyCalc historical API: BLOCKED. No public `/historical` endpoint at any reasonable path. Falls to KTC (now unblocked) as the dynasty-prior source. FantasyCalc current still works for live values.
+  - Migration `0010_validation.sql` written (historical_market_values, historical_consensus_rankings, historical_outcomes, historical_signal_codes, backtest_runs). Awaits manual apply by founder.
 
 ## 0. Purpose
 
@@ -79,19 +86,19 @@ Plus two buckets for the live stunts (Test C):
 - **Need:** dynasty trade values, historical daily snapshots 2022-2024
 - **Cost:** unclear; their public site shows current values only
 - **ToS:** unknown; KTC has been litigation-cautious historically
-- **Verification:** UNVERIFIED + LIKELY BLOCKED. Action: (a) check Wayback Machine for daily KTC snapshots; (b) email KTC about historical data licensing; (c) check if any KTC API exists (unofficial gist exists at github.com/abeschoenig/ktc-rest); (d) check pre-existing scrapes in fantasy community
-- **Fallback chain if blocked:**
-  1. **Primary fallback: FantasyCalc** (has API at https://api.fantasycalc.com/, includes some historical via `historicalRanks` endpoint)
-  2. **Secondary fallback: DLF (Dynasty League Football) ADP**, monthly archives, scrapeable
-  3. **Tertiary fallback: KTC current-only** (we lose the historical Bayesian prior; backtest becomes weaker but still possible by using FP ECR as prior)
+- **Verification:** **VERIFIED feasible via Wayback Machine** (2026-05-04). 31 preserved snapshots across 2022-2024 (11/7/13 per year). KTC embeds the full player roster as a JS variable (`playersArray = [...]`) directly in the HTML; Wayback preserves it. Sleeper ID match rate ~90% on smoke test. Per-snapshot data: 500 players, oneQB + superflex values, overall + positional ranks, age, draft capital. Script `scripts/ingest-ktc-historical.ts` is the production ingestion path.
+- **Open ToS question:** KTC ToS doesn't explicitly bless or block historical-data archiving via Wayback. If we ever publish raw KTC values in our scoreboard we should check; for internal model use, archived public data is a defensible posture. Email to KTC about a commercial license is still worth sending (founder action).
+- **Fallback chain (now downgraded since primary is unblocked):**
+  1. ~~Primary: FantasyCalc~~ → **BLOCKED**, no historical API. Only useful for live values.
+  2. **Tertiary: FP ECR as prior** if KTC Wayback ever fails (used for years missing snapshots).
 
 ### 2.5 FantasyCalc
 
 - **Need:** dynasty values, historical snapshots, format variations (1QB / SF / TEP)
-- **Cost:** free API
-- **ToS:** unclear; need to read https://fantasycalc.com/ ToS
-- **Verification:** UNVERIFIED. Action: read ToS, hit `/historicalRanks` endpoint, document coverage depth for 2022-2024
-- **Fallback:** if ToS blocks commercial use, scrape via Wayback (worse coverage)
+- **Cost:** free API for current values
+- **ToS:** unclear for redistribution; current API works without auth or rate limit issues at our scale
+- **Verification:** **PARTIAL** (2026-05-04). Current values: VERIFIED working (already in production via `resolvePlayerValues`). Historical: BLOCKED. Probed `/values/historical`, `/history/values`, `/historicalValues`, `/snapshot`, `/historical`, `/values/{date}` and all return 404. No public historical endpoint exists.
+- **Fallback:** KTC Wayback (now unblocked, see 2.4) replaces FantasyCalc as the historical dynasty market source. FantasyCalc remains the live values source.
 
 ### 2.6 FantasyPros (expert consensus)
 
