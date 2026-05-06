@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Third-party data (do not commit, do not redistribute)
+# FP rankings/ADP/screenshots/HTML were collected during a paid trial
+# and are subject to FP terms of service. Keep server-side only.
+/data/fantasypros/
+
+# Private founder artifacts (legal correspondence templates, etc.)
+/.private/
+

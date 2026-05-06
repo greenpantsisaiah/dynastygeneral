@@ -137,7 +137,8 @@ async function pickTargets(
     .eq("format", "sf")
     .gte("snapshot_date", `${year}-06-01`)
     .lte("snapshot_date", cutoff)
-    .order("snapshot_date", { ascending: false });
+    .order("snapshot_date", { ascending: false })
+    .limit(50000);
   const dateCounts = new Map<string, number>();
   for (const r of snapshots ?? []) {
     const d = (r as { snapshot_date: string }).snapshot_date;
@@ -151,29 +152,67 @@ async function pickTargets(
       bestCount = c;
     }
   }
-  if (!bestDate) {
-    throw new Error(`No KTC snapshots found for ${year} within window`);
-  }
-  console.log(
-    `[extract] using KTC snapshot ${bestDate} (${bestCount} rows) for ${year} top-N`,
-  );
 
-  const topRBsRes = await supa
-    .from("historical_market_values")
-    .select("player_id, position, position_rank, overall_rank")
-    .eq("source", "ktc")
-    .eq("format", "sf")
-    .eq("snapshot_date", bestDate)
-    .eq("position", "RB")
-    .lte("position_rank", positionRankMax)
-    .order("position_rank", { ascending: true })
-    .limit(limit);
-  const topRBs = (topRBsRes.data ?? []) as Array<{
+  // Fallback: if KTC has no summer-preseason snapshot for the year
+  // (e.g., 2023 where Wayback didn't preserve summer captures), pick
+  // the universe from FP ECR historical_consensus_rankings for the
+  // same year. The signal codes are vintage-bound to the prediction
+  // year via the agent prompt's PRE-DRAFT CUTOFF; universe-selection
+  // source is just a convenience.
+  let topRBs: Array<{
     player_id: string;
     position: string;
     position_rank: number;
     overall_rank: number | null;
-  }>;
+  }> = [];
+
+  if (bestDate) {
+    console.log(
+      `[extract] using KTC snapshot ${bestDate} (${bestCount} rows) for ${year} top-N`,
+    );
+    const topRBsRes = await supa
+      .from("historical_market_values")
+      .select("player_id, position, position_rank, overall_rank")
+      .eq("source", "ktc")
+      .eq("format", "sf")
+      .eq("snapshot_date", bestDate)
+      .eq("position", "RB")
+      .lte("position_rank", positionRankMax)
+      .order("position_rank", { ascending: true })
+      .limit(limit);
+    topRBs = (topRBsRes.data ?? []) as typeof topRBs;
+  } else {
+    console.log(
+      `[extract] no KTC summer snapshot for ${year}; falling back to FP ECR for universe selection`,
+    );
+    const fpRes = await supa
+      .from("historical_consensus_rankings")
+      .select("player_id, position, position_rank, rank")
+      .eq("source", "fantasypros_ecr")
+      .eq("format", "sf")
+      .eq("snapshot_date", cutoff)
+      .eq("position", "RB")
+      .lte("position_rank", positionRankMax)
+      .order("position_rank", { ascending: true })
+      .limit(limit);
+    const rows = (fpRes.data ?? []) as Array<{
+      player_id: string;
+      position: string;
+      position_rank: number;
+      rank: number;
+    }>;
+    if (rows.length === 0) {
+      throw new Error(
+        `No KTC or FP ECR universe found for ${year} (looked at ${cutoff})`,
+      );
+    }
+    topRBs = rows.map((r) => ({
+      player_id: r.player_id,
+      position: r.position,
+      position_rank: r.position_rank,
+      overall_rank: r.rank,
+    }));
+  }
 
   const ids = topRBs.map((r) => r.player_id);
   const playerMap = await resolvePlayers(ids);
@@ -424,24 +463,44 @@ async function main(): Promise<void> {
       continue;
     }
     console.log(`[extract] coding ${t.player_name} ${year}...`);
-    try {
-      const data = await extractOne(client, agentSpec, t, year);
-      if (!data) {
-        console.warn(`[extract] no valid output for ${t.player_name}`);
-        failed++;
-        continue;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 3;
+    let success = false;
+    while (attempts < MAX_ATTEMPTS && !success) {
+      attempts++;
+      try {
+        const data = await extractOne(client, agentSpec, t, year);
+        if (!data) {
+          console.warn(`[extract] no valid output for ${t.player_name}`);
+          failed++;
+          break;
+        }
+        await writeRows(supa, t, year, data);
+        extracted++;
+        console.log(
+          `[extract] done ${t.player_name}: role=${JSON.stringify(data.rb_role_tier.value)} traded=${data.rb_traded_offseason_flag.value} compNews=${data.compounding_news_count.value}`,
+        );
+        success = true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const isRateLimit =
+          msg.includes("rate_limit") || msg.includes("429");
+        if (isRateLimit && attempts < MAX_ATTEMPTS) {
+          const sleepSec = 60 * attempts;
+          console.warn(
+            `[extract] rate limit on ${t.player_name} (attempt ${attempts}); sleeping ${sleepSec}s and retrying...`,
+          );
+          await new Promise((r) => setTimeout(r, sleepSec * 1000));
+        } else {
+          console.error(
+            `[extract] error on ${t.player_name} (attempt ${attempts}):`,
+            msg.slice(0, 300),
+          );
+          if (attempts >= MAX_ATTEMPTS) {
+            failed++;
+          }
+        }
       }
-      await writeRows(supa, t, year, data);
-      extracted++;
-      console.log(
-        `[extract] done ${t.player_name}: role=${JSON.stringify(data.rb_role_tier.value)} traded=${data.rb_traded_offseason_flag.value} compNews=${data.compounding_news_count.value}`,
-      );
-    } catch (err) {
-      console.error(
-        `[extract] error on ${t.player_name}:`,
-        err instanceof Error ? err.message : String(err),
-      );
-      failed++;
     }
   }
 

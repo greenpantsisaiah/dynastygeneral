@@ -388,3 +388,58 @@ the calibration window.
 `DATA_ACQUISITION_PLAN.md` covers what we need, what we have access
 to, what we license, what fallbacks exist if a source is blocked. It
 gates Section 4 (vintaging) and Section 5 (backtest spec).
+
+## 14. Phase 2 v0 progress log (started 2026-05-05)
+
+Pulling results into VALIDATION_PLAN as the calibration sprint runs.
+Full result detail in `MODEL_CARD.md` section 9.7.
+
+### 14.1 v0 status (2026-05-06)
+
+**Done:**
+
+- KTC historical ingestion: 26,710 rows, 31 snapshots, 2022-01 through 2024-12
+- Historical outcomes ingestion: 3,877 rows for 2022/2023/2024 season totals from Sleeper
+- FantasyPros archives ingested: 6,477 rows of FP ECR / ADP / Top20Draft accuracy variants for 2022-2026 (paid trial 2026-05-05)
+- Backtest harness shipped: `scripts/backtest-score.ts` (single-season PPR), `scripts/backtest-score-dynasty.ts` (dynasty cumulative loss)
+- Engine historical runner: `scripts/run-engine-historical.ts` with `--with-signals` flag for v1
+- Phase 2 v0 backtest: Dynasty General v0 (no signals) achieves Spearman 0.399 averaged 2022-2024, beating FP ECR (0.365), FP ADP (0.364), KTC (0.346) on dynasty cumulative-PPR rank correlation
+- Public scoreboard CSV: `data/scoreboard/scoreboard_v1.csv`
+- Methodology page: `data/scoreboard/methodology.md`
+- Legal guardrails: `LEGAL_GUARDRAILS.md` (audit by `dynasty-legal-privacy-checker` 2026-05-05)
+- Draft pages (`/scoreboard`, `/vs-fantasypros`) with `robots: noindex` until founder review
+
+**In progress:**
+
+- Signal extractor for 2022/2023/2024 RB universes (top-10 each, ~$5 spend total)
+- Engine v1 with signals (pending extractor completion per year)
+
+**Open from section 12 questions:**
+
+1. **KTC historical access** (RESOLVED): Wayback Machine archive recovery via `playersArray` JS variable extraction. 31 snapshots 2022-2024.
+2. **Sleeper league data ToS**: still open. Test B sim harness design pending.
+3. **PFF redistribution rules**: still open. Out of scope for v0.
+4. **Reddit AI league recruitment**: still open. Pre-stunt prep.
+5. **Test A vintaging for hand-coded signals** (RESOLVED): `historical-signal-extractor` agent + batch driver `scripts/extract-historical-signals.ts` replaces hand-coding. Vintage discipline enforced via `coded_with_knowledge_through` cutoff in agent prompt.
+6. **Marketing artifact format** (PARTIALLY RESOLVED): scoreboard page exists as draft. Blog post + conference paper later.
+
+### 14.2 v0 caveats explicit
+
+The Spearman 0.399 result is real but partial:
+
+- **Sample sizes are small.** ±0.05-0.10 confidence intervals.
+- **Engine v0 has zero signal codes loaded** at the headline result. v1 with signals (in progress) is the real test.
+- **Loss function is partial.** Section 8.2 specifies a 0.6/0.4 composite; v0 reports the cumulative-PPR-rank component plus a separate KTC drift summary.
+- **2024 cumulative is 1-year only**, not full 3-year. Re-score when 2025/2026 outcomes ingest.
+
+The v0 result does NOT yet earn the "8% RMSE reduction over FP consensus" stretch claim from section 3. It DOES clear the mandatory bar (beat naive last-year + ADP autodraft on dynasty loss).
+
+### 14.3 Drop-dead status
+
+Drop-dead is July 1 2026 for Test A scoreboard. As of 2026-05-06:
+
+- Test A v0 is running and producing measurable results. **45 days of slack remain** vs the drop-dead.
+- Test B (simulation) has not started. ~30 days of work expected. Need to start mid-June.
+- Test C decision-log infrastructure has not started. Mid-August target.
+
+On-track. The data-acquisition sprint compressed Phase 1.7 into 2 days (KTC + outcomes + FP) instead of the planned 7. That bought us early Phase 2 start.

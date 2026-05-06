@@ -41,6 +41,12 @@ export async function SiteNav() {
           >
             Scout
           </Link>
+          <Link
+            href="/scoreboard"
+            className="hidden text-muted transition hover:text-foreground sm:inline"
+          >
+            Scoreboard
+          </Link>
           {user ? (
             <UserMenu
               name={user.name}
