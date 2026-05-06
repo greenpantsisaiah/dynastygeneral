@@ -64,15 +64,31 @@ function rosterAtSlot(snap: LeagueSnapshot, pickNo: number): number | null {
   // Falls back to sampling picks_made only if the mapping is empty
   // (e.g. pre-draft state where Sleeper hasn't populated it yet).
   const direct = snap.draft.slot_to_roster_id[slot];
-  if (direct != null) return direct;
-  const sample = snap.draft.picks_made.find((p) => {
-    const s = slotForPickNo(p.pick_no, snap.total_teams, {
-      type: snap.draft.type ?? "snake",
-      reversalRound: snap.draft.reversal_round,
+  let originalRoster: number | null = direct ?? null;
+  if (originalRoster == null) {
+    const sample = snap.draft.picks_made.find((p) => {
+      const s = slotForPickNo(p.pick_no, snap.total_teams, {
+        type: snap.draft.type ?? "snake",
+        reversalRound: snap.draft.reversal_round,
+      });
+      return s.slot === slot;
     });
-    return s.slot === slot;
-  });
-  return sample?.roster_id ?? null;
+    originalRoster = sample?.roster_id ?? null;
+  }
+  if (originalRoster == null) return null;
+  // Trade-aware override. Mirrors effectiveRosterIdForPickNo in
+  // sleeper/draft-state.ts. Without this, a pick that has been traded
+  // away or traded in would still resolve to the original slot owner,
+  // which broke "your next pick X (N ahead)" framing in the Decision
+  // card when a user sold a future-round pick.
+  const round = Math.ceil(pickNo / snap.total_teams);
+  for (const t of snap.draft.traded_picks) {
+    if (t.season !== snap.season) continue;
+    if (t.round !== round) continue;
+    if (t.original_owner !== originalRoster) continue;
+    return t.current_owner;
+  }
+  return originalRoster;
 }
 
 function pickLabel(pickNo: number, totalTeams: number): string {
@@ -83,21 +99,22 @@ function pickLabel(pickNo: number, totalTeams: number): string {
 
 function findMyNextPick(
   snap: LeagueSnapshot,
-  myRosterId: number,
+  _myRosterId: number,
 ): { pick_no: number; picks_until_me: number } | null {
+  // Read from snap.draft.my_pick_schedule, which is the trade-aware
+  // source of truth built in buildMyPickSchedule (snapshot.ts). Earlier
+  // versions looped with rosterAtSlot which DID NOT respect
+  // traded_picks, so a user who sold a future-round pick would see the
+  // sold pick as still theirs in the Decision card title (e.g., "2
+  // ahead" instead of correct "11 ahead"). The schedule already filters
+  // out traded-away picks and includes traded-in picks.
   if (snap.draft.next_pick_no == null) return null;
-  const totalTeams = snap.total_teams;
-  for (
-    let n = snap.draft.next_pick_no;
-    n <= snap.draft.next_pick_no + totalTeams * 4;
-    n++
-  ) {
-    const rid = rosterAtSlot(snap, n);
-    if (rid === myRosterId) {
-      return { pick_no: n, picks_until_me: n - snap.draft.next_pick_no };
-    }
-  }
-  return null;
+  const next = snap.draft.my_pick_schedule[0];
+  if (!next) return null;
+  return {
+    pick_no: next.pick_no,
+    picks_until_me: next.pick_no - snap.draft.next_pick_no,
+  };
 }
 
 // Score each position 0..1 for likelihood that this picker takes it.
