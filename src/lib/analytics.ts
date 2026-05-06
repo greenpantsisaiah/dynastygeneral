@@ -26,7 +26,7 @@ type DGEvent =
   | {
       event: "trade_attack_built";
       league_id: string;
-      target_type: "player" | "manager";
+      target_type: "player" | "manager" | "pick";
     }
   | { event: "scout_report_run"; scouted_username: string }
   | { event: "soundboard_doctrine_saved"; doctrine: string }

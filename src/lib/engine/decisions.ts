@@ -139,7 +139,8 @@ export type TradeOutboundInput = {
   sleeperUsername?: string | null;
   target:
     | { kind: "player"; name: string }
-    | { kind: "manager"; name: string };
+    | { kind: "manager"; name: string }
+    | { kind: "pick"; name: string };
   willingToMove?: string[];
   notes?: string | null;
   declaredStrategy?: StrategyState | null;
@@ -156,7 +157,9 @@ export async function runTradeOutbound(
   const targetLabel =
     input.target.kind === "player"
       ? `player **${input.target.name}**`
-      : `manager **${input.target.name}**`;
+      : input.target.kind === "manager"
+        ? `manager **${input.target.name}**`
+        : `the **${input.target.name}** pick (rookie or current draft pick the user wants to acquire from its current owner; price it using the pricing.pick_values block, identify the current owner from snapshot.draft, and frame the angle around that manager's roster needs)`;
 
   const userMessage = [
     `# Decision: Outbound trade`,

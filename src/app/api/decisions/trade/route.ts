@@ -30,7 +30,11 @@ const outboundSchema = z.object({
   mode: z.literal("outbound"),
   league_id: z.string().regex(LEAGUE_ID_RE),
   sleeper_username: z.string().regex(USERNAME_RE).nullish(),
-  target_kind: z.enum(["player", "manager"]),
+  // "pick" target_kind: when the user wants to attack a specific
+  // pick on the clock or a future-round pick. target_name carries
+  // the pick label ("3.6", "2027 1st", etc.). Surfaced 2026-05-06
+  // as a gap from the live-draft trade analyzer session.
+  target_kind: z.enum(["player", "manager", "pick"]),
   target_name: z.string().min(1).max(120),
   willing_to_move: z.array(z.string().min(1)).max(30).nullish(),
   notes: z.string().max(2000).nullish(),

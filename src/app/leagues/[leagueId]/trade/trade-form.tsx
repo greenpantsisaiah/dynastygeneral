@@ -111,7 +111,7 @@ export function TradeForm({
             event: "trade_attack_built",
             league_id: leagueId,
             target_type:
-              (body as { target_kind?: "player" | "manager" }).target_kind ??
+              (body as { target_kind?: "player" | "manager" | "pick" }).target_kind ??
               "player",
           });
         }
@@ -236,13 +236,14 @@ function OutboundFields() {
         <select name="target_kind" defaultValue="player" className={inputCls}>
           <option value="player">Specific player</option>
           <option value="manager">Specific manager / team</option>
+          <option value="pick">Specific pick (current draft or future)</option>
         </select>
       </Field>
       <Field label="Target name">
         <input
           name="target_name"
           required
-          placeholder="e.g. Malik Nabers, or TeamName"
+          placeholder="e.g. Malik Nabers · TeamName · 3.6 · 2027 1st"
           className={inputCls}
         />
       </Field>
@@ -287,7 +288,7 @@ function buildOutbound(
     mode: "outbound" as const,
     league_id: leagueId,
     sleeper_username: username || null,
-    target_kind: String(fd.get("target_kind") ?? "player") as "player" | "manager",
+    target_kind: String(fd.get("target_kind") ?? "player") as "player" | "manager" | "pick",
     target_name: String(fd.get("target_name") ?? "").trim(),
     willing_to_move: willing.length > 0 ? willing : null,
     notes: String(fd.get("notes") ?? "").trim() || null,
