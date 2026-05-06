@@ -116,6 +116,70 @@ const RULES: Rule[] = [
       "// canonical",
     ],
   },
+  // Trade-aware pick owner resolution: 2026-05-06 bug class. Three
+  // independent implementations (banner / decision-card title /
+  // gap-walker) drifted; we patched two and the third quietly stayed
+  // wrong. Canonical: rosterAtPickNo in src/lib/sleeper/pick-resolution.ts.
+  // The bootstrap in resolveDraftState (draft-state.ts) is the only
+  // accepted alternate (it produces the snapshot shape the canonical
+  // consumes). Anywhere else that loops over traded_picks or accesses
+  // tp.original_owner is reimplementing the wheel.
+  {
+    name: "no inline traded_picks override-map construction outside the canonical resolver",
+    why: "Trade-aware pick attribution must go through rosterAtPickNo (src/lib/sleeper/pick-resolution.ts). The override-map signature `${round}:${original_owner}` keyed Map is the 2026-05-06 'Decision title says 2 ahead but banner says 11' bug class. Analytics readers of traded_picks (count, filter, list) are fine; only the override-map construction is forbidden.",
+    pattern: /\$\{[^}]*round[^}]*\}:\$\{[^}]*original_owner/,
+    scan: { dir: SRC, ext: [".ts"] },
+    allowFilePrefixes: [
+      EVALS,
+      // The canonical resolver does the iteration directly without an
+      // override map, so it does not match the pattern. Bootstraps are
+      // allowed because they produce the snapshot shape downstream
+      // surfaces consume.
+      join(SRC, "lib", "sleeper", "draft-state.ts"),
+      join(SRC, "lib", "strategy", "league-state", "snapshot.ts"),
+      // Future-picks portfolio builder uses a related but distinct
+      // key shape (season:round:original_owner) for FUTURE-season
+      // pick ownership. Different domain from active-draft pick
+      // resolution. Allowed.
+      join(SRC, "lib", "players", "future-picks.ts"),
+    ],
+    allowLineSubstrings: ["// canonical override map"],
+  },
+  // Survival pct hardcoded buckets: 2026-05-06 bug class. The
+  // 90/50/15 lookup with a ±5 nudge collapsed everything to 50% and
+  // disagreed with the gap-text classifier in body copy. Canonical:
+  // survivalPctFor in src/lib/strategy/decision-synthesis/synthesize.ts
+  // (computes a real opponent-game-theory probability). Hardcoded
+  // 90/50/15 ternaries elsewhere indicate a parallel classifier.
+  {
+    name: "no hardcoded 90/50/15 survival-pct bucket lookup outside the canonical",
+    why: "Survival pct is computed by survivalPctFor() using opponent-game-theory math. Hardcoding the legacy 90/50/15 buckets reintroduces the divergence-from-badge bug class (2026-05-06).",
+    pattern: /["']likely_here["']\s*\?\s*9\d\s*:\s*["']coin_flip["']\s*\?\s*\d+\s*:/,
+    scan: { dir: SRC, ext: [".ts"] },
+    allowFilePrefixes: [
+      EVALS,
+      // The canonical home is allowed to define the legacy fallback.
+      join(SRC, "lib", "strategy", "decision-synthesis", "synthesize.ts"),
+    ],
+    allowLineSubstrings: ["// canonical", "// fallback path"],
+  },
+  // Parallel pick-owner functions. A new function named like
+  // rosterAtSlot / rosterAtPickNo / pickOwner / ownerOfPick outside
+  // the canonical home is, by definition, a parallel implementation.
+  // Allow only two homes: pick-resolution.ts (canonical) and the
+  // existing thin wrapper in predict.ts (which delegates).
+  {
+    name: "no parallel pick-owner functions outside pick-resolution.ts",
+    why: "Functions named rosterAtPickNo / rosterAtSlot / pickOwner / ownerOfPick / effectiveRosterIdForPickNo can only be defined in pick-resolution.ts (canonical), draft-state.ts (bootstrap), or as a thin wrapper in predict.ts. Anywhere else is a duplicate implementation.",
+    pattern: /^\s*(?:export\s+)?function\s+(?:rosterAtPickNo|pickOwner|ownerOfPick|effectiveRosterIdForPickNo)\s*[(<]/,
+    scan: { dir: SRC, ext: [".ts"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "sleeper", "pick-resolution.ts"),
+      join(SRC, "lib", "sleeper", "draft-state.ts"),
+    ],
+    allowLineSubstrings: ["// allowed re-export", "// canonical"],
+  },
 ];
 
 function walk(dir: string, exts: string[], out: string[] = []): string[] {

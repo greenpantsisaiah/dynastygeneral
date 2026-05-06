@@ -29,7 +29,7 @@ import type {
   SurvivingTarget,
 } from "./types";
 import type { RankedArchetype } from "../archetypes/schema";
-import { slotForPickNo } from "@/lib/sleeper/snake";
+import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
 import type { AvailablePlayer } from "@/lib/players/available";
 
 const SCORING_POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
@@ -55,40 +55,16 @@ function formatPriors(
   return { QB: 0.08, RB: 0.3, WR: 0.42, TE: 0.15, K: 0, DST: 0 };
 }
 
+// Thin wrapper over the canonical resolver in sleeper/pick-resolution.ts.
+// All trade-aware pick attribution goes through that one function so a
+// fix lands in one place. See pick-resolution.ts for the full rationale.
 function rosterAtSlot(snap: LeagueSnapshot, pickNo: number): number | null {
-  const { slot } = slotForPickNo(pickNo, snap.total_teams, {
-    type: snap.draft.type ?? "snake",
-    reversalRound: snap.draft.reversal_round,
+  return rosterAtPickNo({
+    pickNo,
+    totalTeams: snap.total_teams,
+    season: snap.season,
+    draft: snap.draft,
   });
-  // Authoritative slot → roster mapping from Sleeper draft metadata.
-  // Falls back to sampling picks_made only if the mapping is empty
-  // (e.g. pre-draft state where Sleeper hasn't populated it yet).
-  const direct = snap.draft.slot_to_roster_id[slot];
-  let originalRoster: number | null = direct ?? null;
-  if (originalRoster == null) {
-    const sample = snap.draft.picks_made.find((p) => {
-      const s = slotForPickNo(p.pick_no, snap.total_teams, {
-        type: snap.draft.type ?? "snake",
-        reversalRound: snap.draft.reversal_round,
-      });
-      return s.slot === slot;
-    });
-    originalRoster = sample?.roster_id ?? null;
-  }
-  if (originalRoster == null) return null;
-  // Trade-aware override. Mirrors effectiveRosterIdForPickNo in
-  // sleeper/draft-state.ts. Without this, a pick that has been traded
-  // away or traded in would still resolve to the original slot owner,
-  // which broke "your next pick X (N ahead)" framing in the Decision
-  // card when a user sold a future-round pick.
-  const round = Math.ceil(pickNo / snap.total_teams);
-  for (const t of snap.draft.traded_picks) {
-    if (t.season !== snap.season) continue;
-    if (t.round !== round) continue;
-    if (t.original_owner !== originalRoster) continue;
-    return t.current_owner;
-  }
-  return originalRoster;
 }
 
 function pickLabel(pickNo: number, totalTeams: number): string {

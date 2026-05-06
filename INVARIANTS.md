@@ -9,9 +9,10 @@ Before editing any code in response to a bug report:
 1. State the bug as one sentence: "the bug is X **because** Y."
 2. Verify Y by reading the **runtime data** at the boundary, not the schema or your memory of how it works.
 3. If Y can't be verified in two minutes of focused reading, spawn the `dynasty-bug-investigator` agent with the bug description.
-4. Only then edit code.
+4. Before writing a helper that computes a number, label, or boolean used in user-facing copy or scoring, check `CANONICAL_SOURCES.md`. If a canonical already owns the domain, IMPORT it. If not, decide whether yours becomes the canonical (add an entry) or whether you can extend an existing one. Don't ship a parallel implementation.
+5. Only then edit code.
 
-Renaming a flag is not a fix. Adding a fallback to a value that should never be missing is not a fix. If the symptom recurs after your patch, the patch was a guess.
+Renaming a flag is not a fix. Adding a fallback to a value that should never be missing is not a fix. A new helper that re-derives a number an existing canonical already produces is not a fix; it's the next bug. If the symptom recurs after your patch, the patch was a guess.
 
 ## Subagents available (`.claude/agents/`)
 
@@ -122,6 +123,7 @@ These are not in the schemas. They are runtime quirks that have caused trust-bre
 - **`league.roster_positions` is the source of truth** for starter requirements. The literal string `"SUPER_FLEX"` marks superflex format. K and DST appear only if the league rosters them. Never hard-code roster requirements; parse this list.
 - **`league.previous_league_id`** chains league history across seasons. Use it to walk back through prior years.
 - **`traded_picks` reroutes draft picks.** Apply this override map on top of snake order, not after.
+- **One trade-aware pick resolver.** Every surface that asks "who owns pick N?" goes through `rosterAtPickNo` in `src/lib/sleeper/pick-resolution.ts`. Three independent implementations (banner, decision-card title, gap-walker) was the 2026-05-06 "4.5 · 2 ahead" bug class: a fix in one path silently left two others stale. Do not re-implement the slot + traded_picks override loop inline. The bootstrap inside `resolveDraftState` (draft-state.ts:effectiveRosterIdForPickNo) is the only acceptable copy because it produces the normalized snapshot shape the canonical resolver consumes; everything downstream of that uses the canonical resolver.
 - **ADP variant keys** (on the cached players blob): `adp_dynasty_1qb`, `adp_dynasty_2qb`, `adp_dynasty_superflex`, `adp_dynasty_te_premium`, `adp_rookie`. Match the variant to league format. `adp_rookie` is the variant for rookie-only drafts and rookie-only ADP context.
 - **Pre-NFL-draft rookies** have `team: null` and `years_exp: 0`. Their `search_rank` is unreliable and varies wildly. Filtering candidates by `team != null` will silently exclude every pre-draft rookie (Shedeur Sanders, Cam Ward, etc.). Either let them through, or admit them via the `adp_rookie` path explicitly.
 - **`nfl_state.season_type`** distinguishes pre/regular/post; `nfl_state.season` is the year string.

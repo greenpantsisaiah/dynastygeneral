@@ -9,3 +9,9 @@ This version has breaking changes. APIs, conventions, and file structure may all
 Read these before fixing bugs, adding surfaces, or touching the strategy engine. They capture root-quality lessons that survive compaction.
 
 @INVARIANTS.md
+
+# Canonical computation sources
+
+Before writing any helper that returns a number, label, or boolean used in user-facing copy or scoring, check the canonical-sources index. Re-implementing a domain that already has a canonical is the bug class we keep paying for. CI enforces a subset via `evals/anti-patterns.test.ts`.
+
+@CANONICAL_SOURCES.md
