@@ -37,6 +37,7 @@ import { resolveDraftState } from "@/lib/sleeper/draft-state";
 import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { buildOpponentReadout } from "@/lib/strategy/opponents/observe";
+import { buildOpponentTradeHistory } from "@/lib/strategy/opponents/trade-history";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
@@ -635,6 +636,16 @@ export async function POST(
     // re-deriving roster shape from picks alone.
     opponents: opponents.teams.map((t) => {
       const r = snapshot.rosters.find((x) => x.roster_id === t.roster_id);
+      // Pick-trade history derived from snapshot.draft.traded_picks
+      // (no extra Sleeper call). Surfaces counterparty psychology
+      // (pick flipper / hoarder / seller / quiet) so Coach can read
+      // behavioral patterns instead of just current roster state.
+      // The joeboch fingerprint from the 2026-05-08 izzydabomb session.
+      const tradeHistory = buildOpponentTradeHistory({
+        rosterId: t.roster_id,
+        tradedPicks: snapshot.draft.traded_picks,
+        currentSeason: snapshot.season,
+      });
       return {
         owner: t.owner_name,
         roster_id: t.roster_id,
@@ -645,6 +656,16 @@ export async function POST(
           stance: a.stance,
           headline: a.headline,
         })),
+        trade_history: {
+          signature: tradeHistory.signature,
+          summary: tradeHistory.summary,
+          picks_sent: tradeHistory.picks_sent,
+          picks_received: tradeHistory.picks_received,
+          future_picks_sent: tradeHistory.future_picks_sent,
+          future_picks_received: tradeHistory.future_picks_received,
+          current_picks_sent: tradeHistory.current_picks_sent,
+          current_picks_received: tradeHistory.current_picks_received,
+        },
       };
     }),
     top_available: available.slice(0, 30).map((p) => {
