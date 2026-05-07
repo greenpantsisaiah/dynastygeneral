@@ -1308,6 +1308,8 @@ export default async function LeagueHubPage({
                   trajectory={leagueBriefing?.trajectory}
                   horizonDial={leagueBriefing?.dials.horizon}
                   leagueId={leagueId}
+                  leagueType={leagueSnapshot?.league_type ?? "unknown"}
+                  maxKeepers={leagueSnapshot?.max_keepers ?? null}
                   recentPicks={(() => {
                     if (!leagueSnapshot) return [];
                     const ownerByRosterId = new Map(

@@ -72,6 +72,100 @@ export function classifyLane(pick: {
   return "balanced";
 }
 
+/**
+ * Format-aware lane definition (label + blurb + tone). The engine's
+ * classifier is age-based and stays the same across formats; only
+ * the user-facing rendering shifts. Per founder ask 2026-05-07:
+ * "future" framing isn't relevant in keeper / redraft formats and
+ * may bias the user away from the right pick.
+ *
+ * Dynasty (default): WIN-NOW / BALANCED / FUTURE
+ * Keeper (low max <= 4): WIN-NOW / TRADE-FLEX / KEEPER-LOCK
+ * Keeper (max >= 5): close to dynasty (WIN-NOW / BALANCED / FUTURE)
+ * Redraft: LOCK / CEILING / DEPTH
+ *
+ * The internal IDs ("win-now" / "balanced" / "future") are stable
+ * across formats so existing lane-routing logic (emphasisLane,
+ * trajectory composition, byLane) keeps working unchanged.
+ */
+export type LaneDefinition = {
+  id: TimelineLane;
+  label: string;
+  blurb: string;
+  tone: "warning" | "neutral" | "success";
+};
+
+export function laneDefinitionsForFormat(
+  leagueType: "dynasty" | "keeper" | "redraft" | "unknown",
+  maxKeepers: number | null,
+): LaneDefinition[] {
+  if (leagueType === "redraft") {
+    return [
+      {
+        id: "win-now",
+        label: "Lock",
+        blurb: "Proven Week-1 starter floor",
+        tone: "warning",
+      },
+      {
+        id: "balanced",
+        label: "Ceiling",
+        blurb: "High upside this season",
+        tone: "neutral",
+      },
+      {
+        id: "future",
+        label: "Depth",
+        blurb: "Insurance / late-round value",
+        tone: "success",
+      },
+    ];
+  }
+  if (leagueType === "keeper" && maxKeepers != null && maxKeepers <= 4) {
+    return [
+      {
+        id: "win-now",
+        label: "Win-Now",
+        blurb: "Proven, starts now",
+        tone: "warning",
+      },
+      {
+        id: "balanced",
+        label: "Trade-Flex",
+        blurb: "Productive but not your keeper lock",
+        tone: "neutral",
+      },
+      {
+        id: "future",
+        label: "Keeper-Lock",
+        blurb: `Cornerstone-tier; ${maxKeepers}-keeper candidate`,
+        tone: "success",
+      },
+    ];
+  }
+  // Dynasty + keeper-with-many-keepers: original framing.
+  return [
+    {
+      id: "win-now",
+      label: "Win-Now",
+      blurb: "Proven, starts now",
+      tone: "warning",
+    },
+    {
+      id: "balanced",
+      label: "Balanced",
+      blurb: "Productive across both windows",
+      tone: "neutral",
+    },
+    {
+      id: "future",
+      label: "Future",
+      blurb: "Young upside, building",
+      tone: "success",
+    },
+  ];
+}
+
 export function buildTrajectory(snap: LeagueSnapshot): BuildTrajectory {
   const myRosterId = snap.my_roster_id;
   if (myRosterId == null) {

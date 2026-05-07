@@ -29,6 +29,7 @@ import type {
 } from "@/lib/strategy/decision-synthesis/types";
 import type { PickDensityKind } from "@/lib/strategy/league-state/snapshot";
 import type { BuildTrajectory } from "@/lib/engine/build-trajectory";
+import { laneDefinitionsForFormat } from "@/lib/engine/build-trajectory";
 
 export type RecentPickForContinuity = {
   pick_no: number;
@@ -142,6 +143,8 @@ export function DecisionCard({
   leagueId,
   recentPicks,
   tierAnnotations,
+  leagueType,
+  maxKeepers,
 }: {
   decision: Decision;
   trajectory?: BuildTrajectory;
@@ -153,6 +156,12 @@ export function DecisionCard({
   // signal + next-tier scarcity. Best-effort: card renders fine
   // without it.
   tierAnnotations?: ReadonlyMap<string, TierAnnotation>;
+  // League format awareness for lane labeling. Per 2026-05-07
+  // founder ask: "future" framing isn't relevant in keeper /
+  // redraft formats. Lane labels and blurbs shift while the
+  // engine's internal classifier stays the same.
+  leagueType?: "dynasty" | "keeper" | "redraft" | "unknown";
+  maxKeepers?: number | null;
 }) {
   const tone = RULE_TONE[decision.recommendation.rule];
   const rec = decision.recommendation;
@@ -419,26 +428,10 @@ export function DecisionCard({
               (a, b) => (b.confidence_pct ?? 0) - (a.confidence_pct ?? 0),
             );
           }
-          const lanes = [
-            {
-              id: "win-now" as const,
-              label: "Win-Now",
-              blurb: "Proven, starts now",
-              tone: "warning" as const,
-            },
-            {
-              id: "balanced" as const,
-              label: "Balanced",
-              blurb: "Productive across both windows",
-              tone: "neutral" as const,
-            },
-            {
-              id: "future" as const,
-              label: "Future",
-              blurb: "Young upside, building",
-              tone: "success" as const,
-            },
-          ];
+          const lanes = laneDefinitionsForFormat(
+            leagueType ?? "dynasty",
+            maxKeepers ?? null,
+          );
           const anyHits = lanes.some((l) => byLane[l.id].length > 0);
           if (!anyHits) return null;
 
