@@ -72,6 +72,7 @@ import { PlaysFromHere } from "@/components/league/plays-from-here";
 import { DecisionCard } from "@/components/league/decision-card";
 import { TradeStrategyPanel } from "@/components/league/trade-strategy-panel";
 import { InflectionPanel } from "@/components/league/inflection-panel";
+import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
 import {
   buildLeagueReadFromSnapshot,
   type LeagueRead,
@@ -80,6 +81,10 @@ import {
   buildInflectionsFromSnapshot,
   type InflectionContext,
 } from "@/lib/engine/inflection";
+import {
+  analyzeDraftProgress,
+  type DraftProgress,
+} from "@/lib/strategy/draft-progress";
 import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
@@ -745,6 +750,7 @@ export default async function LeagueHubPage({
   // for this analysis; data was always there but not surfaced.
   let leagueRead: LeagueRead | null = null;
   let inflectionItems: InflectionContext[] = [];
+  let draftProgress: DraftProgress | null = null;
   if (leagueSnapshot) {
     try {
       // Resolve all rostered players (including ones in picks_made
@@ -796,6 +802,16 @@ export default async function LeagueHubPage({
       inflectionItems = buildInflectionsFromSnapshot({
         snap: leagueSnapshot,
         playersMap,
+      });
+
+      // Draft progress scorecard. "How am I doing in this draft."
+      // Uses the same lrValueMap (FantasyCalc value + overall_rank)
+      // and the playerNameLookup so the scorecard names specific
+      // best-steal / biggest-reach picks.
+      draftProgress = analyzeDraftProgress({
+        snap: leagueSnapshot,
+        playerValueMap: lrValueMap,
+        playerNameLookup,
       });
     } catch (err) {
       console.error("[hub:league-read+inflections]", err);
@@ -1232,6 +1248,17 @@ export default async function LeagueHubPage({
                   problem the synthesis fix already solved. WindowsBar
                   meters retained as math (CAN-WIN-NOW vs FUTURE scores
                   are league-state observations, not user declarations). */}
+
+              {/* Draft Progress scorecard. "How are you doing in this
+                  draft" at-a-glance answer for the multi-draft user
+                  who returns after a day or two. Above WindowsBar so
+                  it's the first thing seen on hub revisit. Per the
+                  2026-05-07 founder ask: positive emotional ROI when
+                  metrics support it; honest when they don't. The
+                  model-feedback footer closes the "if I followed recs
+                  and it shows off-track, that's a model alert"
+                  feedback loop. */}
+              <DraftProgressPanel data={draftProgress} />
 
               {windows && sleeperUser && (
                 <WindowsBar leagueId={leagueId} windows={windows} />
