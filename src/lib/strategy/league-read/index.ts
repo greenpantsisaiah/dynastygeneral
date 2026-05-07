@@ -6,6 +6,7 @@
  */
 
 export { analyzeLeagueRead, type OpponentRosterSnapshot } from "./analyze";
+export { buildLeagueReadFromSnapshot } from "./from-snapshot";
 export type {
   LeagueRead,
   LeverageOpportunity,

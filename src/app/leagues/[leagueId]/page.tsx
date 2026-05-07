@@ -70,6 +70,11 @@ import { getOptionalUser, getTier } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PlaysFromHere } from "@/components/league/plays-from-here";
 import { DecisionCard } from "@/components/league/decision-card";
+import { TradeStrategyPanel } from "@/components/league/trade-strategy-panel";
+import {
+  buildLeagueReadFromSnapshot,
+  type LeagueRead,
+} from "@/lib/strategy/league-read";
 import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
@@ -728,6 +733,20 @@ export default async function LeagueHubPage({
     }
   }
 
+  // League read: trade-leverage synthesis + structural constraints +
+  // trade-window timing. Surfaces in TradeStrategyPanel below
+  // DecisionCard. Closes the chat-gap diagnostic from 2026-05-07
+  // izzydabomb keeper-league session: founder repeatedly chatted Coach
+  // for this analysis; data was always there but not surfaced.
+  let leagueRead: LeagueRead | null = null;
+  if (leagueSnapshot) {
+    try {
+      leagueRead = buildLeagueReadFromSnapshot({ snap: leagueSnapshot });
+    } catch (err) {
+      console.error("[hub:league-read]", err);
+    }
+  }
+
   // Contender outlook. Multi-year forecast of where the user's current
   // trajectory lands. Independent of draftActive; the answer to "am I
   // setting up a contender window?" is just as relevant in-season as
@@ -1294,6 +1313,13 @@ export default async function LeagueHubPage({
                       </Link>
                     </div>
                   )}
+
+                  {/* Trade Strategy Panel. Surfaces league-read
+                      trade-leverage synthesis below the Decision card.
+                      Closes the chat-gap from 2026-05-07: founder
+                      repeatedly went to Coach for this; now visible
+                      first-class. v1 design, redesign queued. */}
+                  <TradeStrategyPanel data={leagueRead} />
                 </>
               )}
 
