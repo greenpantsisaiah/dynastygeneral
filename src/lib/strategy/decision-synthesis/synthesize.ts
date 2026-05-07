@@ -1063,6 +1063,19 @@ function buildNextPicksPlan(
   // QB-leaned at 6.2 with the same "1/2" label.
   leanPosition: Position | null,
   leanPlayerId: string | null,
+  // OpponentGapAnalysis from the outer scope (computed once for
+  // current pick, reused for future picks as a coarse approximation).
+  // 2026-05-08 fix: without this, the survivor predicate used only
+  // the raw ADP-gap heuristic via availabilityAt, which drifts from
+  // the canonical survivalPctFor + availabilityFromPct pipeline used
+  // by top_candidates. The integrity check then fired
+  // AVAILABILITY_INCOHERENT for any player the opponent-game-theory
+  // layer downgraded to probably_gone but the raw ADP gap rated as
+  // coin_flip (Egbuka @ 6.9, Warren @ 7.8 / 8.5 in izzydabomb's
+  // Finders Keepers 2026 league). Per CANONICAL_SOURCES.md
+  // anti-pattern 2: deriving the bucket from anything other than the
+  // pct violates the canonical. This call site is now corrected.
+  gapAnalysis: OpponentGapAnalysis,
 ): NextPickPlanItem[] {
   if (schedule.length <= 1) return [];
   const me = snap.rosters.find((r) => r.is_me);
@@ -1082,15 +1095,26 @@ function buildNextPicksPlan(
   const items: NextPickPlanItem[] = [];
   for (let idx = 0; idx < futures.length; idx++) {
     const future = futures[idx];
-    // Bind to the same availability classifier the Top 3 card uses so
-    // the engine never recommends a player it elsewhere flagged as
-    // probably gone. Likely_here and coin_flip stay in the pool;
-    // probably_gone is excluded.
+    // Bind to the SAME canonical availability classifier the Top 3
+    // card uses (survivalPctFor → availabilityFromPct), not the raw
+    // ADP-gap heuristic. The opponent-game-theory layer is the
+    // load-bearing differentiator: without it, we let players through
+    // here that the canonical elsewhere flagged as probably_gone, and
+    // the integrity check correctly fires AVAILABILITY_INCOHERENT.
+    // Per CANONICAL_SOURCES.md anti-pattern 2.
     const survivor = (p: AvailablePlayer): boolean => {
       if (leanPlayerId && p.id === leanPlayerId) return false;
-      const a = availabilityAt(p, future.pick_no);
-      if (a == null) return true;
-      return a !== "probably_gone";
+      const baseAvail = availabilityAt(p, future.pick_no);
+      const survivalPct = survivalPctFor({
+        player: p,
+        availability: baseAvail,
+        signal: null,
+        available,
+        gap: gapAnalysis,
+      });
+      const adjusted = availabilityFromPct(survivalPct);
+      if (adjusted == null) return true;
+      return adjusted !== "probably_gone";
     };
     const pool = available.filter(survivor);
 
@@ -1694,6 +1718,7 @@ export function synthesizeDecision(args: {
     schedule,
     winner.position,
     winner.player.id,
+    gapAnalysis,
   );
   const scarcity_callout = buildScarcityCallout(
     winner,

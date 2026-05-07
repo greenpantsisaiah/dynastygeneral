@@ -180,6 +180,21 @@ const RULES: Rule[] = [
     ],
     allowLineSubstrings: ["// allowed re-export", "// canonical"],
   },
+  // Direct availabilityAt result compared to "probably_gone" string
+  // literal. This bypasses the canonical survivalPctFor +
+  // availabilityFromPct pipeline (which adds the opponent-game-theory
+  // layer) and was the root cause of the 2026-05-08 AVAILABILITY_INCOHERENT
+  // banner: buildNextPicksPlan filtered survivors via raw ADP gap while
+  // top_candidates classified via the canonical pct pipeline. Both
+  // paths must use the canonical for survival classification.
+  {
+    name: "no direct availabilityAt result compared to probably_gone",
+    why: "Per CANONICAL_SOURCES.md anti-pattern 2: deriving the survival bucket from anything other than the canonical survivalPctFor + availabilityFromPct pipeline drifts from the opponent-game-theory layer and produces the AVAILABILITY_INCOHERENT bug class. Wrap availabilityAt's output through survivalPctFor + availabilityFromPct before classifying.",
+    pattern: /availabilityAt\([^)]*\)\s*[!=]==?\s*["']probably_gone["']/,
+    scan: { dir: SRC, ext: [".ts"] },
+    allowFilePrefixes: [EVALS],
+    allowLineSubstrings: ["// canonical pipeline OK"],
+  },
 ];
 
 function walk(dir: string, exts: string[], out: string[] = []): string[] {
