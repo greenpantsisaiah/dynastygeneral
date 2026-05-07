@@ -20,6 +20,8 @@
  * are situational callouts surfaced only when meaningful.
  */
 
+import type { EvBank } from "@/lib/strategy/ev-bank";
+
 export type ProgressTier = "strong" | "solid" | "mixed" | "off_track";
 
 export type PositionCode = "QB" | "RB" | "WR" | "TE";
@@ -101,6 +103,14 @@ export type DraftProgress = {
   wins: string[];
   watch_outs: string[];
   sharp_positioning: string[];
+
+  // EV bank: per-pick + cumulative measure of value extracted vs. the
+  // market, with a +/- range from realistic ADP noise. Null when no
+  // picks made yet. Per user feedback 2026-05-08: statistically
+  // grounded, with a visualization. Sharp locks count as negative by
+  // definition; whether they were "right" is a scarcity question
+  // answered in the Decision card.
+  ev_bank: EvBank | null;
 
   model_alert_triggered: boolean;
 };

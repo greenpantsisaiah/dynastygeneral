@@ -19,6 +19,7 @@ import type {
   ProgressMetric,
   ProgressTier,
 } from "@/lib/strategy/draft-progress";
+import type { EvBank, EvBankPickEntry } from "@/lib/strategy/ev-bank";
 
 const TIER_BANNER_BORDER: Record<ProgressTier, string> = {
   strong: "border-success/60",
@@ -182,7 +183,127 @@ export function DraftProgressPanel({ data }: { data: DraftProgress | null }) {
           )}
         </div>
       )}
+
+      {data.ev_bank && data.ev_bank.entries.length > 0 && (
+        <EvBankSection bank={data.ev_bank} />
+      )}
     </section>
+  );
+}
+
+function EvBankSection({ bank }: { bank: EvBank }) {
+  const totalEv = bank.total_ev;
+  const totalDisplay =
+    totalEv == null
+      ? "ungraded"
+      : totalEv >= 0
+        ? `+${totalEv.toFixed(1)}`
+        : totalEv.toFixed(1);
+  const totalColor =
+    totalEv == null
+      ? "text-foreground"
+      : totalEv >= 5
+        ? "text-success"
+        : totalEv >= -5
+          ? "text-foreground"
+          : totalEv >= -15
+            ? "text-warning"
+            : "text-danger";
+
+  // Bar scale: max abs ev_delta across entries drives the bar width.
+  // Falls back to 1 to avoid divide-by-zero on a single zero-delta entry.
+  const maxAbsDelta = Math.max(
+    1,
+    ...bank.entries.map((e) => Math.abs(e.ev_delta ?? 0)),
+  );
+
+  return (
+    <div className="border-t border-border-soft px-5 py-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          EV bank
+        </div>
+        <div className="flex items-baseline gap-3">
+          <span className={`font-mono text-lg font-semibold ${totalColor}`}>
+            {totalDisplay}
+          </span>
+          {bank.range_low != null && bank.range_high != null && (
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
+              range {bank.range_low >= 0 ? "+" : ""}
+              {bank.range_low.toFixed(1)} to {bank.range_high >= 0 ? "+" : ""}
+              {bank.range_high.toFixed(1)}
+            </span>
+          )}
+        </div>
+      </div>
+      <p className="mt-2 text-xs leading-snug text-muted">{bank.summary}</p>
+      <div className="mt-3 space-y-1.5">
+        {bank.entries.map((entry) => (
+          <EvBankRow key={entry.player_id} entry={entry} maxAbs={maxAbsDelta} />
+        ))}
+      </div>
+      <p className="mt-3 text-[10px] leading-snug text-muted-2">
+        EV per pick = (value/100) × (pick minus ADP). Range from realistic ADP noise of ±{bank.adp_noise_picks} picks. Sharp locks (player taken before ADP) count negative against the bank by definition; whether the lock was correct is a scarcity question answered in the Decision card.
+      </p>
+    </div>
+  );
+}
+
+function EvBankRow({
+  entry,
+  maxAbs,
+}: {
+  entry: EvBankPickEntry;
+  maxAbs: number;
+}) {
+  const delta = entry.ev_delta;
+  const isUngraded = delta == null;
+  // Bar fills from center outward. Positive = green to right, negative = red to left.
+  const barWidthPct = isUngraded ? 0 : (Math.abs(delta!) / maxAbs) * 50;
+  const isPositive = !isUngraded && delta! >= 0;
+  const barColor = isUngraded
+    ? "bg-border-soft"
+    : isPositive
+      ? "bg-success/70"
+      : "bg-danger/70";
+
+  return (
+    <div className="grid grid-cols-[44px_1fr_56px_2fr] items-center gap-2 text-[11px] leading-tight">
+      <span className="font-mono text-[10px] text-muted-2">{entry.pick_label}</span>
+      <span className="truncate text-foreground">
+        {entry.player_name}
+        {entry.position && (
+          <span className="ml-1 text-muted-2">· {entry.position}</span>
+        )}
+      </span>
+      <span
+        className={`font-mono text-right ${
+          isUngraded
+            ? "text-muted-2"
+            : isPositive
+              ? "text-success"
+              : "text-danger"
+        }`}
+      >
+        {isUngraded
+          ? "n/a"
+          : delta! >= 0
+            ? `+${delta!.toFixed(1)}`
+            : delta!.toFixed(1)}
+      </span>
+      <div className="relative h-2 rounded-full bg-border-soft/30">
+        <div className="absolute left-1/2 top-0 h-full w-px bg-border-strong" />
+        {!isUngraded && (
+          <div
+            className={`absolute top-0 h-full rounded-full ${barColor}`}
+            style={{
+              width: `${barWidthPct}%`,
+              [isPositive ? "left" : "right"]: "50%",
+            }}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 

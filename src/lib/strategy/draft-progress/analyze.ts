@@ -16,6 +16,7 @@ import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { Position } from "@/lib/strategy/archetypes/schema";
 import type { AvailablePlayer } from "@/lib/players/available";
 import { getHardStarterReqs } from "@/lib/engine/roster-fit";
+import { analyzeEvBank } from "@/lib/strategy/ev-bank";
 import type {
   DraftProgress,
   PositionCode,
@@ -119,6 +120,16 @@ export function analyzeDraftProgress(args: {
     leagueRankMetric,
   });
 
+  // EV bank: per-pick + cumulative value-vs-market measure with a
+  // realistic ADP-noise envelope. Independent of the rest of the
+  // panel state; runs over the same picks + value/ADP lookups.
+  const ev_bank = analyzeEvBank({
+    snap,
+    playerValueMap,
+    playerNameLookup,
+    getAdp,
+  });
+
   return {
     picks_made_by_user: myPicks.length,
     total_picks_for_user: totalPicksForUser,
@@ -132,6 +143,7 @@ export function analyzeDraftProgress(args: {
     wins,
     watch_outs,
     sharp_positioning,
+    ev_bank,
     model_alert_triggered: false,
   };
 }
