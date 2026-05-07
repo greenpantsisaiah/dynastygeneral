@@ -555,15 +555,46 @@ Until then, no marketing claims of relative performance. The conference talk lea
 
 **Per-year picture (more honest than the average):**
 
-- **2024 (1yr cumulative):** Dynasty General v1 dominates by a wide margin (0.346 vs FP ECR 0.200, FP ADP 0.093, KTC 0.236). The 2024 NFL season had unusually high star-player injury rates (CMC, Burrow, Aiyuk, Kincaid); FP rankings collapsed (FP ADP at 0.093 is essentially random) while DG's age curves correctly downgraded aging starters. This single-year DG outperformance drives most of the average lead.
+- **2024 (1yr cumulative):** Dynasty General v1 dominates by a wide margin (0.346 vs FP ECR 0.200, FP ADP 0.093, KTC 0.236). FP rankings collapsed (FP ADP at 0.093 is essentially random against actual outcomes). FP whiffs include CMC at FP rank 6-18 finishing actual rank 310 (Achilles tear, missed season), Brandon Aiyuk at FP rank 22 finishing 278 (ACL), Marvin Harrison Jr at FP ECR 8 finishing 77, Sam LaPorta at FP 19 finishing 102, Travis Etienne at FP 18 finishing 150. This single-year DG outperformance drives most of the average lead.
 - **2023 (2yr cumulative):** FP ADP wins (0.535 vs DG v1 0.474). Both are competitive; DG v1 ahead of FP ECR (0.433) and KTC (0.449).
 - **2022 (3yr cumulative):** FP ECR and FP ADP tie at 0.463 vs DG v1 at 0.442. The longest horizon is where consensus ranking captures something DG doesn't yet.
 
-**The claim that survives scrutiny:**
+**Diagnosed win mechanism (rank-disagreement analysis, 2026-05-07):**
 
-DG v1 wins on AVERAGE across the three years, primarily because FP collapses on 2024 1-year while DG holds up. On the per-year long-horizon (2022 3yr, 2023 2yr) DG is competitive but not dominant.
+DG is structurally MORE BULLISH than FP across years, not more bearish. Of all DG-vs-FP disagreements >= 20 ranks in the top-100, ~85% are DG ranking a player higher than FP, ~15% are DG bearish. The DG average-Spearman win comes from two specific bullish patterns:
 
-**The honest framing for marketing:** "Dynasty General beats consensus on average across 2022-2024 backtests. Per-year, we dominate the year consensus got most wrong; we're competitive but trailing on the longest horizons. Open work: extend signal coverage beyond RBs, investigate the long-horizon FP signal we don't yet capture."
+1. **Elite-QB bullish calls in SF-friendly market.** Mahomes (DG 10, FP 30, actual 19), Kyler Murray (DG 48, FP 72, actual 17), Justin Herbert (DG 24, FP 47, actual 16; DG 52, FP 76, actual 21 across years), Lamar Jackson (DG 23, FP 52, actual 2), Tua (DG 56, FP 91, actual 37). Every elite-QB DG-bullish call hit. This is a real edge.
+2. **Aggressive young-player elevation with high variance.** Drake London (DG 34, FP 83, actual 45) + Garrett Wilson (DG 53, FP 90, actual 34) hit. Treylon Burks, Quentin Johnston, Keon Coleman, Anthony Richardson, Dalton Kincaid missed. Net: roughly even.
+
+**What is NOT happening:** the "DG age curves correctly downgrade aging stars FP misses" pitch is unsupported by the data. CMC, Aiyuk, Tyreek Hill, Cooper Kupp, Mark Andrews are NOT in DG's bearish list. DG ranked them similarly to FP and shared in those big misses. The age-curve correction is largely on aging RBs (Henry, Mixon) where DG's bearish calls were sometimes wrong (Henry kept producing in 2024).
+
+**Per-position Spearman within top-100 (2026-05-07):**
+
+| Year | DG QB | FP QB | DG RB | FP RB | DG WR | FP WR | DG TE | FP TE |
+|---|---|---|---|---|---|---|---|---|
+| 2022 | 0.66 | 0.72 | 0.32 | 0.49 | 0.70 | 0.71 | 0.25 | 0.47 |
+| 2023 | 0.66 | 0.75 | 0.50 | 0.56 | 0.53 | 0.51 | 0.38 | -0.04 |
+| 2024 | 0.51 | 0.68 | 0.40 | 0.46 | 0.55 | 0.46 | 0.17 | 0.36 |
+
+DG loses to FP within-position on QB and RB consistently. WR is roughly tied. TE varies wildly (small sample n=9-11). The DG win at top-100 OVERALL is therefore NOT from better intra-position ordering; it's from the bullish-QB calls dragging actual top-100 rank closer to predicted via cross-position lift.
+
+**Open model issues identified by diagnosis:**
+
+1. **Post-major-injury RB elevation is broken.** Cam Akers (returning from torn Achilles), JK Dobbins (chronic injury history), Elijah Mitchell (chronic injury), Travis Etienne (role uncertainty post-injury) all received DG-bullish ranks and busted hard. The current signal stack (`rb_role_tier`, `rb_traded_offseason_flag`, `rb_role_at_new_team_projected`, `compounding_news_count`) does not capture "returning from major injury" as a downgrade signal. Need `rb_injury_recovery_status` signal extraction in v2.
+2. **Rookie WR differentiation missing.** Drake London and Garrett Wilson (2022) hit big when DG-elevated. Treylon Burks, Keon Coleman, Quentin Johnston (DG-elevated, busted). The rookie boost fires too uniformly. Need rookie OL grade, projected target share, draft capital tier as differentiating signals.
+3. **Aging-skill cliff at 30+ not steep enough.** Tyreek Hill 31, Cooper Kupp 32, Mark Andrews 30 all DG-bullish in 2024, all actual rank > 50. The age curve at 30+ for skill positions is too gentle.
+4. **DG's win is fragile to QB-aggressive bets.** If we removed Mahomes/Kyler/Herbert from 2024 calculation, DG might not beat FP at all. Doubling down on QB signal extraction (mobility, supporting cast, OC system stability) is the highest-leverage v2 priority. NOT extending RB extraction further.
+
+**The honest framing for marketing (revised 2026-05-07):**
+
+"Dynasty General makes higher-conviction calls than consensus rankings. On average across 2022-2024, our calibrated bullish bets on elite QBs and certain young breakouts deliver +0.022 absolute Spearman lift over FantasyPros (5.5% relative). Per-year results are mixed: we dominated 2024 where consensus collapsed on injury-driven busts; we trailed FP on 2022 and 2023 long-horizon ranks. We're transparent about the tradeoff: aggressive calls have variance, and we have specific known weaknesses (post-injury RB elevation, rookie WR differentiation, aging-skill cliff calibration) that v2 will address."
+
+**Sample sizes:**
+- 86-89 joined pairs per source for 2022 (3yr)
+- 62-72 joined pairs per source for 2023 (2yr)
+- 64-73 joined pairs per source for 2024 (1yr)
+
+Sample sizes this small place a ±0.05 to ±0.10 confidence interval on the reported Spearman values. The v1 average win is real; the year-over-year deltas (especially 2023 and 2024 where v1 vs v0 is +0.007) are inside the noise band.
 
 **Sample sizes:**
 - 86-89 joined pairs per source for 2022 (3yr)
@@ -574,7 +605,7 @@ Sample sizes this small place a ±0.05 to ±0.10 confidence interval on the repo
 
 **Caveats:**
 
-1. **Signal coverage is RB-only in v1.** QB / WR / TE predictions run on rubric + age curve only. The long-horizon gap to FP (where FP wins on 2022/2023) is plausibly because FP integrates expert opinion across all positions; DG v1 only adds signal data for RBs. Extending hand-coded signals to WR / QB / TE would test this hypothesis. Estimated cost: ~$300-450 in extraction across 3 years × 3 positions × ~50 players each.
+1. **Signal coverage is RB-only in v1.** QB / WR / TE predictions run on rubric + age curve only. Per the 2026-05-07 per-position diagnostic, extending RB signal coverage further is NOT the right v2 move; DG already loses within-RB to FP ECR. The high-leverage v2 extension is QB signal extraction (mobility, supporting cast, OC stability), since DG's QB-bullish calls are where the existing edge lives. Estimated cost: ~$50-100 in QB extraction across 3 years × ~30 QBs.
 2. **Loss function is still partial.** Section 8.2 of VALIDATION_PLAN specifies `L_dynasty = 0.6 × KTC_6mo_value_MAE + 0.4 × cumulative_3yr_PPR_RMSE`. We report Spearman rank correlation as a proxy. Value drift data is in `backtest_runs.baseline_comparisons.mean_ktc_drift` for runs with KTC snapshots; the weighted composite is queued.
 3. **Cumulative window is incomplete for 2024.** The 2024 prediction is scored against a 1-year cumulative. When 2025 and 2026 outcomes are ingested, the 2024 prediction can be re-scored against the full 3yr horizon, potentially changing the per-year picture.
 4. **Engine restricted to KTC top-200 universe.** Players ranked outside KTC top-200 are not predicted by v0/v1. Fair join with FP ECR (which ranks 500+) within the top-100, but the engine cannot find a "diamond in the rough" KTC missed entirely.
@@ -584,7 +615,7 @@ Sample sizes this small place a ±0.05 to ±0.10 confidence interval on the repo
 
 **Conclusion:**
 
-Engine v1 with full RB signal coverage produces a measurable improvement over both engine v0 and named consensus baselines on average. The win is concentrated in the 2024 year where consensus rankings collapsed; on long-horizon dynasty windows (2022 3yr, 2023 2yr) DG is competitive but trails FP. The falsifiable claim from VALIDATION_PLAN section 3 (mandatory: beat naive last-year + ADP autodraft on the chosen loss function) is met. The "stretch" claim of beating FP by 8%+ on the loss function on every horizon is NOT met; v1 wins average, loses 2 of 3 per-year. v2 work (extending signal coverage to non-RB positions, investigating the long-horizon FP signal) is queued.
+Engine v1 with full RB signal coverage produces a measurable +0.022 absolute Spearman improvement over engine v0 and named consensus baselines on average across 2022-2024. The win is mechanistically concentrated in two patterns: aggressive elite-QB elevation in SF-friendly leagues (Mahomes, Kyler, Herbert, Lamar all DG-bullish hits), and high-variance young-player elevation (Drake London / Garrett Wilson hits offset by Burks / Coleman / Richardson misses). The falsifiable claim from VALIDATION_PLAN section 3 (mandatory: beat naive last-year + ADP autodraft on the chosen loss function) is met. The "stretch" claim of beating FP by 8%+ on the loss function on every horizon is NOT met; v1 wins average, loses 2 of 3 per-year, and within-position DG loses to FP across nearly every cell. v2 work prioritized: (1) QB signal extraction (where edge lives), (2) post-injury RB recovery-status signal (broken category), (3) rookie WR differentiation (OL grade + target share), (4) aging-skill cliff recalibration at 30+. NOT prioritized: extending RB signal extraction further, since RB within-position correlation already loses to FP at full coverage.
 
 ## 10. Internal heuristics pending validation
 
