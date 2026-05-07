@@ -10,6 +10,7 @@ type Props = {
   leagueId: string | null;
   output: Record<string, unknown>;
   input?: Record<string, unknown> | null;
+  teamDisplay?: string | null;
   confidencePct: number | null;
 };
 
@@ -35,7 +36,7 @@ export function ShareVerdictButton(props: Props) {
           league_id: props.leagueId,
           output: props.output,
           input: props.input ?? null,
-          team_display: null,
+          team_display: props.teamDisplay ?? null,
           confidence_pct: props.confidencePct,
         }),
       });

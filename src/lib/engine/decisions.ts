@@ -90,9 +90,19 @@ export type TradeIncomingInput = {
   declaredStrategy?: StrategyState | null;
 };
 
+// Trade run result extends the generic RunResult with the team
+// display name from the snapshot. Used by the route handler to
+// expose the team_display to the client (which forwards it to the
+// share creation endpoint when the user clicks Share verdict).
+// Snapshot already has the team name; we surface it here so the
+// route doesn't need a duplicate fetch.
+export type TradeRunResult<T> = RunResult<T> & {
+  teamDisplay: string | null;
+};
+
 export async function runTradeIncoming(
   input: TradeIncomingInput,
-): Promise<RunResult<TradeIncomingOutput>> {
+): Promise<TradeRunResult<TradeIncomingOutput>> {
   const ctx = await assembleContext({
     leagueId: input.leagueId,
     sleeperUsername: input.sleeperUsername ?? null,
@@ -116,7 +126,7 @@ export async function runTradeIncoming(
     .filter(Boolean)
     .join("\n");
 
-  return runStructured({
+  const result = await runStructured({
     toolName: "trade_incoming_decision",
     toolDescription:
       "Emit a structured decision for an incoming trade offer, including walk-away floor and negotiation message when appropriate.",
@@ -130,6 +140,7 @@ export async function runTradeIncoming(
     maxTokens: 1500,
     temperature: 0.35,
   });
+  return { ...result, teamDisplay: ctx.me.team_name };
 }
 
 // ── Trade: outbound ───────────────────────────────────────────────────────
@@ -148,7 +159,7 @@ export type TradeOutboundInput = {
 
 export async function runTradeOutbound(
   input: TradeOutboundInput,
-): Promise<RunResult<TradeOutboundOutput>> {
+): Promise<TradeRunResult<TradeOutboundOutput>> {
   const ctx = await assembleContext({
     leagueId: input.leagueId,
     sleeperUsername: input.sleeperUsername ?? null,
@@ -179,7 +190,7 @@ export async function runTradeOutbound(
     .filter(Boolean)
     .join("\n");
 
-  return runStructured({
+  const result = await runStructured({
     toolName: "trade_outbound_decision",
     toolDescription:
       "Emit a structured outbound trade attack: angle, packages, opener, walk-away floor.",
@@ -193,6 +204,7 @@ export async function runTradeOutbound(
     maxTokens: 1800,
     temperature: 0.4,
   });
+  return { ...result, teamDisplay: ctx.me.team_name };
 }
 
 // ── Strategy clarify ──────────────────────────────────────────────────────

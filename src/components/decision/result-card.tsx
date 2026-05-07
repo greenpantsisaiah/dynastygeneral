@@ -117,6 +117,7 @@ export function TradeIncomingResult({
   shareContext?: {
     leagueId: string | null;
     input?: Record<string, unknown> | null;
+    teamDisplay?: string | null;
   };
 }) {
   const actionTone: Record<string, "accent" | "success" | "danger" | "muted"> = {
@@ -147,6 +148,7 @@ export function TradeIncomingResult({
               leagueId={shareContext.leagueId}
               output={result as unknown as Record<string, unknown>}
               input={shareContext.input ?? null}
+              teamDisplay={shareContext.teamDisplay ?? null}
               confidencePct={confidencePct}
             />
           )}
@@ -238,6 +240,7 @@ export function TradeOutboundResult({
   shareContext?: {
     leagueId: string | null;
     input?: Record<string, unknown> | null;
+    teamDisplay?: string | null;
   };
 }) {
   const verdictText = formatOutboundVerdict(result);
@@ -260,6 +263,7 @@ export function TradeOutboundResult({
               leagueId={shareContext.leagueId}
               output={result as unknown as Record<string, unknown>}
               input={shareContext.input ?? null}
+              teamDisplay={shareContext.teamDisplay ?? null}
               confidencePct={confidencePct}
             />
           )}

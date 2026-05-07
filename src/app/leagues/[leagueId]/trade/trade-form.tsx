@@ -23,6 +23,7 @@ type ApiResponse =
       ok: true;
       mode: "incoming";
       engine_mode: "live" | "stub";
+      team_display: string | null;
       output: TradeIncomingOutput;
       latencyMs: number;
       tokens?: { input: number; output: number; cache_read?: number };
@@ -31,6 +32,7 @@ type ApiResponse =
       ok: true;
       mode: "outbound";
       engine_mode: "live" | "stub";
+      team_display: string | null;
       output: TradeOutboundOutput;
       latencyMs: number;
       tokens?: { input: number; output: number; cache_read?: number };
@@ -158,7 +160,11 @@ export function TradeForm({
           <TradeIncomingResult
             result={result.output}
             mode={result.engine_mode}
-            shareContext={{ leagueId, input: lastInput }}
+            shareContext={{
+              leagueId,
+              input: lastInput,
+              teamDisplay: result.team_display,
+            }}
           />
         </MetaWrap>
       )}
@@ -167,7 +173,11 @@ export function TradeForm({
           <TradeOutboundResult
             result={result.output}
             mode={result.engine_mode}
-            shareContext={{ leagueId, input: lastInput }}
+            shareContext={{
+              leagueId,
+              input: lastInput,
+              teamDisplay: result.team_display,
+            }}
           />
         </MetaWrap>
       )}

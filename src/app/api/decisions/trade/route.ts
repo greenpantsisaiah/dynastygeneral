@@ -99,7 +99,7 @@ export async function POST(req: Request) {
 
   try {
     if (parsed.data.mode === "incoming") {
-      const { mode: engineMode, ...rest } = await runTradeIncoming({
+      const { mode: engineMode, teamDisplay, ...rest } = await runTradeIncoming({
         leagueId: parsed.data.league_id,
         sleeperUsername: parsed.data.sleeper_username ?? null,
         declaredStrategy: parsed.data.declared_strategy ?? null,
@@ -114,10 +114,11 @@ export async function POST(req: Request) {
         ok: true,
         mode: "incoming",
         engine_mode: engineMode,
+        team_display: teamDisplay,
         ...rest,
       });
     }
-    const { mode: engineMode, ...rest } = await runTradeOutbound({
+    const { mode: engineMode, teamDisplay, ...rest } = await runTradeOutbound({
       leagueId: parsed.data.league_id,
       sleeperUsername: parsed.data.sleeper_username ?? null,
       declaredStrategy: parsed.data.declared_strategy ?? null,
@@ -132,6 +133,7 @@ export async function POST(req: Request) {
       ok: true,
       mode: "outbound",
       engine_mode: engineMode,
+      team_display: teamDisplay,
       ...rest,
     });
   } catch (err) {
