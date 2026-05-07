@@ -18,6 +18,7 @@ import type { FormatRules } from "@/lib/engine/llm-contract";
 import type {
   LeagueRead,
   LeverageOpportunity,
+  NamedAssetHint,
   StructuralConstraint,
   TradeWindowEstimate,
 } from "./types";
@@ -36,6 +37,21 @@ type UserState = {
 };
 
 /**
+ * Per-opponent roster snapshot for named-asset targeting. The
+ * analyzer uses this to populate receive_asset_candidates with
+ * specific KTC-valued players from the opponent's roster.
+ */
+export type OpponentRosterSnapshot = {
+  roster_id: number;
+  // Player IDs grouped by position with their KTC values, sorted
+  // descending by value within position.
+  player_values_by_position: Record<
+    Position,
+    Array<{ player_id: string; player_name: string; value: number }>
+  >;
+};
+
+/**
  * Compute the league read. Returns the synthesis.
  */
 export function analyzeLeagueRead(args: {
@@ -43,13 +59,17 @@ export function analyzeLeagueRead(args: {
   formatRules: FormatRules;
   userState: UserState;
   myRosterId: number | null;
+  // Per-opponent roster snapshots for named-asset targeting.
+  // Keyed by roster_id. Empty map disables named-asset hints
+  // (analyzer falls back to generic "their best RB" prose).
+  opponentRosters: Map<number, OpponentRosterSnapshot>;
   // Current draft pick number (1-N) used for trade-window estimate.
   // Null when the league is not in active draft.
   currentPickNo: number | null;
   totalRosters: number;
   rounds: number;
 }): LeagueRead {
-  const { profile, formatRules, userState, myRosterId, currentPickNo, totalRosters, rounds } = args;
+  const { profile, formatRules, userState, myRosterId, opponentRosters, currentPickNo, totalRosters, rounds } = args;
 
   // Compute user's structural constraints. "Don't trade picks while
   // you have positions below starter_max."
@@ -195,9 +215,30 @@ export function analyzeLeagueRead(args: {
       }
     }
 
-    const framing = `Target ${team.owner_name} (${panicLabel}). Send ${sendAssetHint}; ask for ${
-      receivePosition ? `their best ${receivePosition}` : "an asset that fills your roster gap"
-    }${
+    // Phase 2: name specific candidate assets from the opponent's
+    // roster at the receive position. Pull the top 3 by KTC value.
+    let receiveAssetCandidates: NamedAssetHint[] = [];
+    if (receivePosition != null) {
+      const oppRoster = opponentRosters.get(team.roster_id);
+      const players =
+        oppRoster?.player_values_by_position[receivePosition] ?? [];
+      receiveAssetCandidates = players.slice(0, 3).map((p) => ({
+        player_id: p.player_id,
+        player_name: p.player_name,
+        ktc_value: p.value,
+      }));
+    }
+
+    const receiveAssetHint =
+      receiveAssetCandidates.length >= 1
+        ? receiveAssetCandidates
+            .map((c) => `${c.player_name} (KTC ${c.ktc_value})`)
+            .join(" or ")
+        : receivePosition
+          ? `their best ${receivePosition}`
+          : "asset to be specified";
+
+    const framing = `Target ${team.owner_name} (${panicLabel}). Send ${sendAssetHint}; ask for ${receiveAssetHint}${
       receivePosition && positions_unfilled.includes(receivePosition)
         ? " plus a future pick"
         : ""
@@ -211,9 +252,8 @@ export function analyzeLeagueRead(args: {
       send_position: bestSendPosition,
       receive_position: receivePosition,
       send_asset_hint: sendAssetHint,
-      receive_asset_hint: receivePosition
-        ? `their best ${receivePosition}`
-        : "asset to be specified",
+      receive_asset_hint: receiveAssetHint,
+      receive_asset_candidates: receiveAssetCandidates,
       leverage_score: baseScore,
       framing_one_liner: framing,
     });

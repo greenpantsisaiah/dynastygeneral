@@ -44,7 +44,11 @@ import {
 import {
   buildInflectionInputsFromHumanPlayer,
 } from "./inflection/build-inputs";
-import { analyzeLeagueRead, type LeagueRead } from "@/lib/strategy/league-read";
+import {
+  analyzeLeagueRead,
+  type LeagueRead,
+  type OpponentRosterSnapshot,
+} from "@/lib/strategy/league-read";
 import type { Position } from "@/lib/strategy/archetypes/schema";
 
 /**
@@ -323,6 +327,49 @@ export async function assembleContext(
       });
     }
   }
+  // Build per-opponent roster snapshots so the league-read analyzer
+  // can name specific KTC-valued assets ("Bijan Robinson (KTC 87)")
+  // instead of generic prose ("their best RB"). Per the 2026-05-07
+  // founder ask: Coach output should name actual players when
+  // proposing trade asks.
+  const opponentRosters: Map<number, OpponentRosterSnapshot> = new Map();
+  for (const r of rosters) {
+    if (myRoster && r.roster_id === myRoster.roster_id) continue;
+    const oppHumans = humansFrom(r.players ?? [], playersMap);
+    const byPos: Record<
+      Position,
+      Array<{ player_id: string; player_name: string; value: number }>
+    > = { QB: [], RB: [], WR: [], TE: [], K: [], DST: [] };
+    for (const p of oppHumans) {
+      const pos = (p.position ?? "").toUpperCase() as Position;
+      if (
+        pos !== "QB" &&
+        pos !== "RB" &&
+        pos !== "WR" &&
+        pos !== "TE" &&
+        pos !== "K" &&
+        pos !== "DST"
+      ) {
+        continue;
+      }
+      const v = playerValueMap.get(p.id);
+      if (v && typeof v.value === "number") {
+        byPos[pos].push({
+          player_id: p.id,
+          player_name: p.name,
+          value: v.value,
+        });
+      }
+    }
+    for (const pos of ["QB", "RB", "WR", "TE", "K", "DST"] as Position[]) {
+      byPos[pos].sort((a, b) => b.value - a.value);
+    }
+    opponentRosters.set(r.roster_id, {
+      roster_id: r.roster_id,
+      player_values_by_position: byPos,
+    });
+  }
+
   const league_read = analyzeLeagueRead({
     profile,
     formatRules,
@@ -331,6 +378,7 @@ export async function assembleContext(
       player_values_by_position: userPlayerValuesByPosition,
     },
     myRosterId: myRoster?.roster_id ?? null,
+    opponentRosters,
     currentPickNo: null, // draft state lives in resolveDraftState; v2 plumb-through
     totalRosters,
     rounds: 0,
@@ -645,6 +693,13 @@ export function renderContextForPrompt(ctx: DecisionContext): string {
         lines.push(
           `    Receive: ${op.receive_position ?? "TBD"}. Asset hint: ${op.receive_asset_hint}.`,
         );
+        if (op.receive_asset_candidates.length > 0) {
+          lines.push(
+            `    Specific named targets on their roster: ${op.receive_asset_candidates
+              .map((c) => `${c.player_name} (KTC ${c.ktc_value})`)
+              .join(", ")}.`,
+          );
+        }
         if (op.opponent_softness_signals.length > 0) {
           lines.push(
             `    Softness signals: ${op.opponent_softness_signals.slice(0, 3).join("; ")}.`,

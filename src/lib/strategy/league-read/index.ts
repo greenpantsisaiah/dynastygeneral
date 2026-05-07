@@ -5,10 +5,11 @@
  * direction (2026-05-07).
  */
 
-export { analyzeLeagueRead } from "./analyze";
+export { analyzeLeagueRead, type OpponentRosterSnapshot } from "./analyze";
 export type {
   LeagueRead,
   LeverageOpportunity,
+  NamedAssetHint,
   StructuralConstraint,
   TradeWindowEstimate,
 } from "./types";

@@ -22,6 +22,19 @@
 import type { Position } from "../archetypes/schema";
 
 /**
+ * Named-asset hint for a leverage opportunity. Phase 2 upgrade: name
+ * specific players by KTC value (e.g., "Bijan Robinson (KTC 87)")
+ * instead of generic prose ("their best RB"). Surfaces in
+ * receive_asset_hint when the opponent's roster has KTC-valued
+ * players at the receive position.
+ */
+export type NamedAssetHint = {
+  player_id: string;
+  player_name: string;
+  ktc_value: number;
+};
+
+/**
  * One trade-leverage opportunity: an opponent whose structural hole
  * matches a surplus on the user's roster.
  *
@@ -47,10 +60,14 @@ export type LeverageOpportunity = {
   // Phase 1: best by KTC value where applicable; Phase 2 may use
   // surplus-after-starter math.
   send_asset_hint: string;
-  // Specific named asset you'd target. Phase 1 may be generic ("their
-  // best RB"); Phase 2 will name specific players when KTC values are
-  // available across the league.
+  // Specific named asset you'd target. Phase 2 names specific players
+  // by KTC value when the opponent's roster has them.
   receive_asset_hint: string;
+  // Phase 2: top 1-3 specific named assets on the opponent's roster
+  // at the receive position. Empty when KTC values aren't available
+  // for that opponent. Coach uses these to write specific trade
+  // proposals naming actual players, not generic prose.
+  receive_asset_candidates: NamedAssetHint[];
   // 0-100 leverage score: higher = stronger leverage you have.
   leverage_score: number;
   // One-line conversation framing the user can paste.
