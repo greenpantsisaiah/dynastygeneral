@@ -89,6 +89,20 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Canonical**: `getAvailablePlayers(...)` (filtered by `picks_made` during active draft, by `roster.players` union otherwise) + KTC harmonization across the FULL pool
 - **Anti-pattern**: filtering by `team != null`. Pre-NFL-draft rookies have `team: null`; the filter silently excludes them. Lint rule "no team!=null player-pool filter" enforces this.
 
+### Decision-rule scoring (multi-candidate differentiation)
+
+- **Canonical**: every `push({ rule, score })` in `src/lib/strategy/decision-synthesis/synthesize.ts` must produce a `score` that varies based on signals already computed for that candidate (survival pct, ADP-extremeness via `adpGapModifier`, KTC value rank, position-saturation penalty, drift score). A flat literal score across multiple candidates of the same rule leaves V8's stable sort + position iteration order (`["QB", "RB", "WR", "TE"]`) as the tiebreaker. RB then always wins over TE / WR / QB regardless of relative value.
+- **Returns**: `score: number` whose magnitude differentiates candidates within and across positions for the same rule.
+- **Inputs**: at least one candidate-specific signal. Existing patterns to mirror:
+  - `fill_starter_urgent`: `100 + adpGapModifier(top.adp, currentPickNo).adjustment`
+  - `fill_starter`: `60 + adpGapModifier(top.adp, currentPickNo).adjustment`
+  - `position_steal`: `85 - positionRank * 5` then capped on saturation
+  - `earned_value`: `45 - i * 1.5 - sat.penalty + adpGap.adjustment`
+  - `push_path`: `50 + r.drift_score * 25`
+  - `future_stash`: `50 - i * 2`
+- **Anti-pattern**: `score: <literal>` with no per-candidate term. If a new rule's score doesn't naturally differentiate, the rule needs another signal, not a flat number with stable-sort fallback.
+- **Bug class avoided**: 2026-05-08 Warren-vs-Judkins incident. Both candidates fired `fill_starter_urgent` at flat 100; stable sort picked Judkins (RB iterates before TE) over Warren despite Warren being ADP-extreme + lower survival + higher value in TE-premium SF. Coach correctly re-derived Warren when prompted, proving the data was present but ignored at scoring time. Locked by `evals/fill-starter-urgent.test.ts`.
+
 ## Adding a new entry
 
 Use this template:

@@ -734,26 +734,36 @@ function buildCandidates(
     const have = me.position_counts[pos];
     const need = reqs[pos];
     const adp = top.adp;
-    const gap =
+    // Two gaps with different semantics. gapToNext (adp vs next user
+    // pick) drives "past your next slot" framing. gapToCurrent (adp vs
+    // current pick) drives "past consensus" framing because consensus
+    // is measured against the present moment, not the future. Bug
+    // 2026-05-08: a single `gap` was conflated and produced "ADP 54 is
+    // 11 picks past consensus" for a Judkins pick whose actual gap was
+    // 2 picks. Coach correctly said "1 pick past consensus." Per
+    // dynasty-bug-investigator triage, the body copy needs both gaps.
+    const gapToNext =
       typeof adp === "number" ? Math.round(adp - nextUserPickNo) : null;
+    const gapToCurrent =
+      typeof adp === "number" ? Math.round(adp - currentPickNo) : null;
     const survival = (() => {
-      if (availability == null || adp == null || gap == null) {
+      if (availability == null || adp == null || gapToNext == null || gapToCurrent == null) {
         return "ADP unavailable; treat as fragile until you see him on the board.";
       }
       const adpRounded = Math.round(adp);
-      const gapAbs = Math.abs(gap);
+      const pastConsensus = Math.abs(gapToCurrent);
       const pctText = survivalPct != null ? ` (${survivalPct}% survives)` : "";
       if (availability === "likely_here") {
-        if (gap >= 0) {
-          return `ADP ${adpRounded} puts him ${gap} pick${gap === 1 ? "" : "s"} past your next slot (${nextUserPickNo}). Gap opponents do not need this position; should still be there${pctText}.`;
+        if (gapToNext >= 0) {
+          return `ADP ${adpRounded} puts him ${gapToNext} pick${gapToNext === 1 ? "" : "s"} past your next slot (${nextUserPickNo}). Gap opponents do not need this position; should still be there${pctText}.`;
         }
-        return `ADP ${adpRounded} is ${gapAbs} pick${gapAbs === 1 ? "" : "s"} past consensus and gap opponents do not target his position; survival likely${pctText}.`;
+        return `ADP ${adpRounded} is ${pastConsensus} pick${pastConsensus === 1 ? "" : "s"} past consensus and gap opponents do not target his position; survival likely${pctText}.`;
       }
       if (availability === "coin_flip") {
-        if (gap >= 0) {
+        if (gapToNext >= 0) {
           return `ADP ${adpRounded} is at or near your next slot (${nextUserPickNo}). Coin flip whether he survives the gap${pctText}; not safe to skip without a backup.`;
         }
-        return `ADP ${adpRounded} is ${gapAbs} pick${gapAbs === 1 ? "" : "s"} past consensus, but gap opponents target this position. Coin flip whether he survives${pctText}.`;
+        return `ADP ${adpRounded} is ${pastConsensus} pick${pastConsensus === 1 ? "" : "s"} past consensus, but gap opponents target this position. Coin flip whether he survives${pctText}.`;
       }
       // probably_gone
       return `ADP ${adpRounded} is at-or-before your slot AND gap opponents target his position. Fragile-to-gone${pctText}.`;
@@ -761,19 +771,40 @@ function buildCandidates(
     if (availability !== "likely_here") {
       // COIN_FLIP and PROBABLY_GONE both fire urgent-fill scoring.
       // The user can't safely wait if the player might be gone.
+      //
+      // Tiebreaker: when multiple positions all fire fill_starter_urgent
+      // (e.g., user has both an empty RB slot and an empty TE slot),
+      // a flat 100 used to leave the position iteration order
+      // (QB,RB,WR,TE) as the only differentiator and stable sort would
+      // pick RB regardless of relative value. Bug 2026-05-08: standing
+      // call surfaced Judkins (RB, ADP 54, +2 past consensus, 35%
+      // survives) over Warren (TE, ADP 35, +21 past consensus, 21%
+      // survives) in a TE-premium SF league; user had to override via
+      // Coach. Fix: incorporate adpGapModifier (same modifier
+      // earned_value uses) so a player who is more extreme past ADP
+      // ranks higher among fill_starter_urgent candidates. Adjustment
+      // is bounded ±12 so the rule still dominates lower-priority
+      // rules but no longer ignores the magnitude of the value drop.
+      const adpUrgency = adpGapModifier(top.adp, currentPickNo).adjustment;
       push({
         player: top,
         position: pos,
         rule: "fill_starter_urgent",
-        score: 100,
+        score: 100 + adpUrgency,
         primary_reason: `${top.name} is the best ${POSITION_LABEL[pos]} on the board and you're ${have}/${need} on starters. ${survival}`,
       });
     } else {
+      // Same flat-score class as fill_starter_urgent above. Two
+      // positions both firing fill_starter at score 60 would tie and
+      // fall back to position iteration order. Use adpGapModifier so
+      // a player past consensus outranks an at-ADP candidate within
+      // the rule.
+      const adpUrgency = adpGapModifier(top.adp, currentPickNo).adjustment;
       push({
         player: top,
         position: pos,
         rule: "fill_starter",
-        score: 60,
+        score: 60 + adpUrgency,
         primary_reason: `Fills your ${POSITION_LABEL[pos]} starter hole (${have}/${need}). ${top.name} is the best available; ${survival.toLowerCase()}`,
       });
     }

@@ -195,6 +195,27 @@ const RULES: Rule[] = [
     allowFilePrefixes: [EVALS],
     allowLineSubstrings: ["// canonical pipeline OK"],
   },
+  // Flat literal score in a decision-rule push. When two candidates
+  // of the same rule both push at the same flat number, V8 stable
+  // sort + position iteration order (QB,RB,WR,TE) becomes the
+  // tiebreaker. RB always wins. 2026-05-08 Warren-vs-Judkins bug:
+  // fill_starter_urgent assigned both candidates score 100, RB beat
+  // TE despite Warren being ADP-extreme + lower survival + higher
+  // value. Every rule's score MUST include a per-candidate
+  // differentiator (adpGapModifier, drift_score, position_rank,
+  // index decay, saturation penalty). Per CANONICAL_SOURCES.md
+  // "Decision-rule scoring".
+  {
+    name: "no flat literal score in synthesize.ts decision-rule push",
+    why: "Decision-rule scores must differentiate candidates within and across positions for the same rule. A literal score: <number>, leaves stable sort + iteration order (QB,RB,WR,TE) as the tiebreaker, which is the 2026-05-08 Warren-vs-Judkins bug class. Combine the base score with at least one candidate-specific signal (adpGapModifier, drift_score, position_rank, etc.).",
+    pattern: /^\s*score:\s*[0-9]+\s*,/,
+    scan: { dir: join(SRC, "lib", "strategy", "decision-synthesis"), ext: [".ts"] },
+    allowFilePrefixes: [EVALS],
+    allowLineSubstrings: [
+      "// flat-score sentinel allowed",
+      "score: <literal>",
+    ],
+  },
 ];
 
 function walk(dir: string, exts: string[], out: string[] = []): string[] {
