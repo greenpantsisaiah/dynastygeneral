@@ -258,6 +258,7 @@ export function icemanContext(): DecisionContext {
       sf_pick_multiplier: 1.2,
     },
     inflections: {},
+    league_read: null,
   };
 }
 
@@ -349,5 +350,6 @@ export function sparseContext(): DecisionContext {
       sf_pick_multiplier: 1.2,
     },
     inflections: {},
+    league_read: null,
   };
 }

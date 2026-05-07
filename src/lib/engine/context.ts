@@ -44,6 +44,8 @@ import {
 import {
   buildInflectionInputsFromHumanPlayer,
 } from "./inflection/build-inputs";
+import { analyzeLeagueRead, type LeagueRead } from "@/lib/strategy/league-read";
+import type { Position } from "@/lib/strategy/archetypes/schema";
 
 /**
  * Decision context: everything the engine needs to reason over a single
@@ -101,6 +103,13 @@ export type DecisionContext = {
   // Keyed by player_id; only roster players in at least one window
   // appear here. Empty object when nothing is active.
   inflections: Record<string, InflectionContext>;
+  // League read: in-draft trade leverage + structural-constraint
+  // guardrails + trade-window timing. Computed from existing
+  // league_profile dynamics + user roster + format rules.
+  // Per the 2026-05-07 chat-gap diagnostic: founder repeatedly chats
+  // Coach for this synthesis. We now compute it server-side and pass
+  // to the LLM so Coach auto-leads with it. UI surface deferred.
+  league_read: LeagueRead | null;
 };
 
 export type ContextInputs = {
@@ -277,6 +286,56 @@ export async function assembleContext(
     if (resolved) inflections[player.id] = resolved;
   }
 
+  // League read: synthesize trade-leverage opportunities + structural
+  // guardrails + trade-window timing from existing league_profile
+  // dynamics + user roster + format rules.
+  const userPositionCounts: Record<Position, number> = {
+    QB: 0,
+    RB: 0,
+    WR: 0,
+    TE: 0,
+    K: 0,
+    DST: 0,
+  };
+  const userPlayerValuesByPosition: Record<
+    Position,
+    Array<{ player_id: string; player_name: string; value: number }>
+  > = { QB: [], RB: [], WR: [], TE: [], K: [], DST: [] };
+  for (const p of myRosterHumans) {
+    const pos = (p.position ?? "").toUpperCase() as Position;
+    if (
+      pos !== "QB" &&
+      pos !== "RB" &&
+      pos !== "WR" &&
+      pos !== "TE" &&
+      pos !== "K" &&
+      pos !== "DST"
+    ) {
+      continue;
+    }
+    userPositionCounts[pos] = (userPositionCounts[pos] ?? 0) + 1;
+    const v = playerValueMap.get(p.id);
+    if (v && typeof v.value === "number") {
+      userPlayerValuesByPosition[pos].push({
+        player_id: p.id,
+        player_name: p.name,
+        value: v.value,
+      });
+    }
+  }
+  const league_read = analyzeLeagueRead({
+    profile,
+    formatRules,
+    userState: {
+      position_counts: userPositionCounts,
+      player_values_by_position: userPlayerValuesByPosition,
+    },
+    myRosterId: myRoster?.roster_id ?? null,
+    currentPickNo: null, // draft state lives in resolveDraftState; v2 plumb-through
+    totalRosters,
+    rounds: 0,
+  });
+
   return {
     league: {
       id: league.league_id,
@@ -338,6 +397,7 @@ export async function assembleContext(
       sf_pick_multiplier: isSuperflex ? SUPERFLEX_PICK_MULTIPLIER : 1.0,
     },
     inflections,
+    league_read,
   };
 }
 
@@ -561,6 +621,45 @@ export function renderContextForPrompt(ctx: DecisionContext): string {
           );
         }
       }
+    }
+  }
+
+  // League read: trade-leverage synthesis, structural constraints,
+  // trade-window timing. Surfaced before "League dynamics" so Coach
+  // sees the synthesized strategic frame before the raw dynamics
+  // categories. Per the 2026-05-07 chat-gap diagnostic: founder
+  // repeatedly chats Coach for this; the data was always there but
+  // never auto-led with.
+  if (ctx.league_read) {
+    const lr = ctx.league_read;
+    lines.push(``);
+    lines.push(`## League read (trade leverage + structural strategy)`);
+    lines.push(`- ${lr.headline}`);
+    if (lr.top_leverage_opportunities.length > 0) {
+      lines.push(`- Top trade leverage targets:`);
+      for (const op of lr.top_leverage_opportunities) {
+        lines.push(
+          `  · ${op.opponent_name} (${op.opponent_panic_label}, leverage score ${op.leverage_score}/100)`,
+        );
+        lines.push(`    Send: ${op.send_position}. Asset hint: ${op.send_asset_hint}.`);
+        lines.push(
+          `    Receive: ${op.receive_position ?? "TBD"}. Asset hint: ${op.receive_asset_hint}.`,
+        );
+        if (op.opponent_softness_signals.length > 0) {
+          lines.push(
+            `    Softness signals: ${op.opponent_softness_signals.slice(0, 3).join("; ")}.`,
+          );
+        }
+        lines.push(`    Framing: ${op.framing_one_liner}`);
+      }
+    }
+    for (const c of lr.structural_constraints) {
+      if (c.is_active) {
+        lines.push(`- Structural guardrail: ${c.guardrail_message}`);
+      }
+    }
+    if (lr.trade_window) {
+      lines.push(`- Trade window: ${lr.trade_window.message}`);
     }
   }
 
