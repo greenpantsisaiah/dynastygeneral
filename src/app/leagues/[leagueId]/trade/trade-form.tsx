@@ -205,25 +205,34 @@ function MetaWrap({
 function IncomingFields() {
   return (
     <>
-      <Field label="You send">
+      <Field label="You send (your assets going out)">
         <AssetTokenInput
           name="you_send"
           required
-          placeholder="Type a player or pick (e.g. Jalen Hurts, 2027 2nd)"
+          placeholder="Type a player or pick. Add multiple. e.g. Jalen Hurts, 2027 2nd"
         />
       </Field>
-      <Field label="You receive">
+      <Field label="You receive (their assets coming to you)">
         <AssetTokenInput
           name="you_receive"
           required
-          placeholder="Type a player or pick (e.g. Malik Nabers, 2026 4th)"
+          placeholder="Type a player or pick. Add multiple. e.g. Malik Nabers, 2026 4th"
         />
       </Field>
-      <Field label="Who's offering (optional: team or manager)">
-        <input name="other_manager" className={inputCls} />
+      <Field label="Who's offering (optional: team or manager name)">
+        <input
+          name="other_manager"
+          placeholder="EO386 · TeamName"
+          className={inputCls}
+        />
       </Field>
       <Field label="Context (optional: urgency, competing offers, history)">
-        <textarea name="notes" rows={3} className={`${inputCls} resize-none`} />
+        <textarea
+          name="notes"
+          rows={3}
+          placeholder="They've offered me Nabers twice this month. I'm 0-3 and need win-now production."
+          className={`${inputCls} resize-none`}
+        />
       </Field>
     </>
   );
@@ -234,27 +243,32 @@ function OutboundFields() {
     <>
       <Field label="Target type">
         <select name="target_kind" defaultValue="player" className={inputCls}>
-          <option value="player">Specific player</option>
-          <option value="manager">Specific manager / team</option>
-          <option value="pick">Specific pick (current draft or future)</option>
+          <option value="player">Specific player (you know who you want)</option>
+          <option value="manager">Specific manager / team (you want to raid their roster)</option>
+          <option value="pick">Specific pick (current draft pick or future round)</option>
         </select>
       </Field>
       <Field label="Target name">
         <input
           name="target_name"
           required
-          placeholder="e.g. Malik Nabers · TeamName · 3.6 · 2027 1st"
+          placeholder="Player: Malik Nabers · Manager: EO386 · Pick: 3.6 or 2027 1st"
           className={inputCls}
         />
       </Field>
-      <Field label="Willing to move (optional)">
+      <Field label="Willing to move (optional: who you're prepared to part with)">
         <AssetTokenInput
           name="willing_to_move"
-          placeholder="Type a player or pick (e.g. Jalen Hurts, 2027 1st)"
+          placeholder="Type a player or pick. Add multiple. e.g. Jalen Hurts, 2027 1st"
         />
       </Field>
-      <Field label="Context (optional)">
-        <textarea name="notes" rows={3} className={`${inputCls} resize-none`} />
+      <Field label="Context (optional: their needs, recent moves, urgency)">
+        <textarea
+          name="notes"
+          rows={3}
+          placeholder="They just lost their starting RB to injury. I have RB depth. They're 1-2 and clearly tilted."
+          className={`${inputCls} resize-none`}
+        />
       </Field>
     </>
   );

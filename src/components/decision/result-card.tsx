@@ -116,6 +116,7 @@ export function TradeIncomingResult({
     decline: "danger",
     wait: "muted",
   };
+  const verdictText = formatIncomingVerdict(result);
   return (
     <div className="overflow-hidden rounded-lg border border-border-strong bg-surface">
       <div className="flex items-center justify-between px-5 pt-5">
@@ -125,9 +126,12 @@ export function TradeIncomingResult({
           <LeverageBadge level={result.leverage} />
           {mode === "stub" && <ActionBadge label="Dev stub" tone="muted" />}
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-          {Math.round(result.confidence * 100)}% confidence
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
+            {Math.round(result.confidence * 100)}% confidence
+          </span>
+          <VerdictCopyButton text={verdictText} />
+        </div>
       </div>
       <div className="px-5 pb-5 pt-3 text-xl font-semibold leading-tight text-foreground">
         {result.recommendation}
@@ -148,6 +152,7 @@ export function TradeIncomingResult({
           <CopyableMessage text={result.negotiation_message} />
         </Row>
       )}
+      <CalibrationFooter />
     </div>
   );
 }
@@ -161,6 +166,7 @@ export function TradeOutboundResult({
   result: TradeOutboundOutput;
   mode: "live" | "stub";
 }) {
+  const verdictText = formatOutboundVerdict(result);
   return (
     <div className="overflow-hidden rounded-lg border border-border-strong bg-surface">
       <div className="flex items-center justify-between px-5 pt-5">
@@ -168,9 +174,12 @@ export function TradeOutboundResult({
           <LeverageBadge level={result.leverage} />
           {mode === "stub" && <ActionBadge label="Dev stub" tone="muted" />}
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-          {Math.round(result.confidence * 100)}% confidence
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
+            {Math.round(result.confidence * 100)}% confidence
+          </span>
+          <VerdictCopyButton text={verdictText} />
+        </div>
       </div>
       <div className="px-5 pb-5 pt-3 text-xl font-semibold leading-tight text-foreground">
         {result.attack_angle}
@@ -201,6 +210,7 @@ export function TradeOutboundResult({
       </Row>
       <Row label="Walk-away floor">{result.walk_away_floor}</Row>
       <Row label="Opportunity cost">{result.opportunity_cost}</Row>
+      <CalibrationFooter />
     </div>
   );
 }
@@ -308,4 +318,93 @@ function CopyableMessage({ text }: { text: string }) {
 
 function CopyButton({ text }: { text: string }) {
   return <ClientCopy text={text} />;
+}
+
+// Prominent copy button for the entire trade verdict. Sits in the
+// header next to confidence so the user can grab a screenshot-ready
+// summary in one click without hunting for it.
+function VerdictCopyButton({ text }: { text: string }) {
+  return <ClientCopy text={text} variant="prominent" label="Copy verdict" />;
+}
+
+// Calibration footer. Builds trust on every shared trade screenshot
+// by anchoring the verdict in the engine's published backtest. The
+// number is a stable claim per MODEL_CARD section 9.7. If the
+// scoreboard updates (e.g., v1 with full signal coverage), bump
+// the digit here at the same time.
+function CalibrationFooter() {
+  return (
+    <div className="flex items-center justify-between border-t border-border-soft px-5 py-3">
+      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
+        Engine v0 · 0.399 Spearman · beats consensus
+      </span>
+      <a
+        href="/scoreboard"
+        className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2 transition hover:text-accent"
+      >
+        Methodology →
+      </a>
+    </div>
+  );
+}
+
+// ── Verdict text formatters (for league-chat sharing) ─────────────────────
+
+function formatIncomingVerdict(r: TradeIncomingOutput): string {
+  const conf = Math.round(r.confidence * 100);
+  const lines: string[] = [
+    `Trade verdict via Dynasty General`,
+    ``,
+    `${r.action.toUpperCase()} (${conf}% confidence · ${r.leverage} leverage · ${r.strategy_fit.replace(/_/g, " ")})`,
+    ``,
+    r.recommendation,
+    ``,
+    `Why:`,
+    ...r.reasoning.map((s) => `  · ${s}`),
+    ``,
+    `Opponent read: ${r.opponent_read}`,
+    `Opportunity cost: ${r.opportunity_cost}`,
+  ];
+  if (r.stronger_ask) lines.push(`Stronger ask: ${r.stronger_ask}`);
+  lines.push(`Walk-away floor: ${r.walk_away_floor}`);
+  if (r.negotiation_message) {
+    lines.push(``, `Suggested message:`, r.negotiation_message);
+  }
+  lines.push(
+    ``,
+    `Engine v0: 0.399 Spearman, beats consensus. Methodology: dynastygeneral.app/scoreboard`,
+  );
+  return lines.join("\n");
+}
+
+function formatOutboundVerdict(r: TradeOutboundOutput): string {
+  const conf = Math.round(r.confidence * 100);
+  const lines: string[] = [
+    `Trade attack via Dynasty General`,
+    ``,
+    `${r.attack_angle} (${conf}% confidence · ${r.leverage} leverage)`,
+    ``,
+    `Opponent read: ${r.opponent_read}`,
+    ``,
+    `Packages:`,
+  ];
+  for (const p of r.packages) {
+    lines.push(
+      `  [${p.tier.toUpperCase()}]`,
+      `    You send: ${p.you_send.join(", ")}`,
+      `    You get:  ${p.you_receive.join(", ")}`,
+      `    ${p.rationale}`,
+    );
+  }
+  lines.push(
+    ``,
+    `Opener:`,
+    r.opener_message,
+    ``,
+    `Walk-away floor: ${r.walk_away_floor}`,
+    `Opportunity cost: ${r.opportunity_cost}`,
+    ``,
+    `Engine v0: 0.399 Spearman, beats consensus. Methodology: dynastygeneral.app/scoreboard`,
+  );
+  return lines.join("\n");
 }
