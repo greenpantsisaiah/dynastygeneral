@@ -257,6 +257,7 @@ export function icemanContext(): DecisionContext {
       pick_values: [],
       sf_pick_multiplier: 1.2,
     },
+    inflections: {},
   };
 }
 
@@ -347,5 +348,6 @@ export function sparseContext(): DecisionContext {
       pick_values: [],
       sf_pick_multiplier: 1.2,
     },
+    inflections: {},
   };
 }

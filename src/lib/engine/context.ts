@@ -37,6 +37,13 @@ import {
   startupPickValue,
   SUPERFLEX_PICK_MULTIPLIER,
 } from "@/lib/players/future-picks";
+import {
+  resolveInflections,
+  type InflectionContext,
+} from "./inflection";
+import {
+  buildInflectionInputsFromHumanPlayer,
+} from "./inflection/build-inputs";
 
 /**
  * Decision context: everything the engine needs to reason over a single
@@ -83,6 +90,17 @@ export type DecisionContext = {
   // freelances trade math (the 6.2-for-4.3 failure that triggered
   // the contract's existence).
   pricing: TradePricing;
+  // Inflection-window bifurcations for the user's roster players. Per
+  // the 2026-05-07 statistical-architecture decision: when a player is
+  // in an inflection window (aging cliff, post-injury return, rookie
+  // debut, etc.), the conditional outcome distribution is bimodal.
+  // We surface the bifurcation (Story A / B with probabilities,
+  // signal scorecard, named comparators) instead of a single point
+  // estimate. Coach is required to lead with the bifurcation when an
+  // inflection is active.
+  // Keyed by player_id; only roster players in at least one window
+  // appear here. Empty object when nothing is active.
+  inflections: Record<string, InflectionContext>;
 };
 
 export type ContextInputs = {
@@ -226,6 +244,39 @@ export async function assembleContext(
     };
   }
 
+  // Inflection-window resolution for the user's roster. We pre-group
+  // ALL rostered players (across the league) by team+position so the
+  // successor / position-room saturation signals can fire correctly
+  // (a rookie RB on the user's team that displaces the veteran lives
+  // on the same NFL team but may not be on the user's roster).
+  const allRosteredHumans = [...allIds]
+    .map((id) => playersMap.get(id))
+    .filter((p): p is SleeperPlayer => !!p)
+    .map((p) => humanize(p));
+  const teamPosIndex = new Map<string, HumanPlayer[]>();
+  for (const p of allRosteredHumans) {
+    if (!p.team || !p.position) continue;
+    const key = `${p.team}:${p.position.toUpperCase()}`;
+    const arr = teamPosIndex.get(key) ?? [];
+    arr.push(p);
+    teamPosIndex.set(key, arr);
+  }
+  const inflections: Record<string, InflectionContext> = {};
+  for (const player of myRosterHumans) {
+    if (!player.team || !player.position) continue;
+    const key = `${player.team}:${player.position.toUpperCase()}`;
+    const sameTeamSamePosition = (teamPosIndex.get(key) ?? []).filter(
+      (p) => p.id !== player.id,
+    );
+    const inputs = buildInflectionInputsFromHumanPlayer({
+      player,
+      sameTeamSamePosition,
+    });
+    if (!inputs) continue;
+    const resolved = resolveInflections(inputs);
+    if (resolved) inflections[player.id] = resolved;
+  }
+
   return {
     league: {
       id: league.league_id,
@@ -286,6 +337,7 @@ export async function assembleContext(
       })),
       sf_pick_multiplier: isSuperflex ? SUPERFLEX_PICK_MULTIPLIER : 1.0,
     },
+    inflections,
   };
 }
 
@@ -455,6 +507,61 @@ export function renderContextForPrompt(ctx: DecisionContext): string {
   if (ctx.me.headline.length) {
     lines.push(`- Roster highlights:`);
     for (const h of ctx.me.headline) lines.push(`  · ${h}`);
+  }
+
+  // Inflection-window bifurcations on roster players. Per the
+  // 2026-05-07 statistical-architecture decision: when a roster player
+  // is in an aging cliff / rookie debut / post-injury window, the
+  // outcome distribution is bimodal. Coach must NOT collapse to a
+  // single point estimate; lead with the bifurcation and the
+  // signal scorecard.
+  const inflectionEntries = Object.entries(ctx.inflections);
+  if (inflectionEntries.length > 0) {
+    lines.push(``);
+    lines.push(`## Inflection-window bifurcations on your roster`);
+    lines.push(
+      `- These players are in HIGH-VARIANCE moments where the outcome distribution is bimodal. Do NOT recommend a single point estimate; lead with Story A vs Story B framing, cite the scorecard signals by name, and let the user weigh the bifurcation.`,
+    );
+    for (const [, ctx2] of inflectionEntries) {
+      for (const r of ctx2.resolutions) {
+        lines.push(``);
+        lines.push(
+          `### ${ctx2.player_name} (${ctx2.position}) · ${r.window.replace(/_/g, " ")}`,
+        );
+        lines.push(`- ${r.headline}`);
+        lines.push(
+          `- Calibration: ${r.confidence_summary.text}`,
+        );
+        lines.push(`- Story A "${r.story_a_label}" probability: ${Math.round(r.p_story_a * 100)}%`);
+        lines.push(`- Story B "${r.story_b_label}" probability: ${Math.round(r.p_story_b * 100)}%`);
+        lines.push(`- Scorecard:`);
+        for (const s of r.signals) {
+          const arrow =
+            s.direction === "story_a"
+              ? "(A)"
+              : s.direction === "story_b"
+                ? "(B)"
+                : s.direction === "neutral"
+                  ? "(neutral)"
+                  : "(data missing)";
+          lines.push(
+            `  · [${s.confidence}] ${s.name} ${arrow}: ${s.observation ?? "n/a"}`,
+          );
+        }
+        const aComps = r.comparators.filter((c) => c.story === "a");
+        const bComps = r.comparators.filter((c) => c.story === "b");
+        if (aComps.length > 0) {
+          lines.push(
+            `- Story A comparators: ${aComps.map((c) => `${c.player} ${c.year ?? ""} (${c.outcome_summary})`).join("; ")}`,
+          );
+        }
+        if (bComps.length > 0) {
+          lines.push(
+            `- Story B comparators: ${bComps.map((c) => `${c.player} ${c.year ?? ""} (${c.outcome_summary})`).join("; ")}`,
+          );
+        }
+      }
+    }
   }
 
   lines.push(``);
