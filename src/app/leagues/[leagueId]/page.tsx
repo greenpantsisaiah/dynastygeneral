@@ -860,6 +860,7 @@ export default async function LeagueHubPage({
         playerValueMap: lrValueMap,
         playerNameLookup,
         getAdp,
+        availablePool: availablePlayers,
       });
 
       // Team Identity. The "this is your team" hero card. Combines

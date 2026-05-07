@@ -1,2 +1,11 @@
 export { analyzeDraftProgress } from "./analyze";
-export type { DraftProgress, ProgressMetric, ProgressTier } from "./types";
+export type {
+  DraftProgress,
+  PositionCode,
+  PositionDiagnostic,
+  PositionRun,
+  PositionState,
+  ProgressMetric,
+  ProgressTier,
+  ThinAlert,
+} from "./types";

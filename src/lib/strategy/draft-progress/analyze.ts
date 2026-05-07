@@ -1,34 +1,54 @@
 /**
- * Compute the draft-progress scorecard for the user's own drafting
- * in a given league. Three metrics: pick quality (vs consensus),
- * league rank (by total roster value), build coherence (window
- * scores aligning with the structural state).
+ * Compute the draft-progress scorecard for the user's own drafting in
+ * a given league.
+ *
+ * Redesign 2026-05-08 (post forum-question research): old shape was
+ * three abstract metrics ("pick quality", "league rank", "build
+ * coherence") that reported state instead of answering questions
+ * drafters actually ask. New shape leads with a position-by-position
+ * diagnostic (QB/RB/WR/TE strong/ok/thin/empty + best player + one-
+ * line summary) which IS the universal forum question. League rank
+ * and pick sharpness move to a condensed secondary row. Situational
+ * callouts (position run, thin alerts) surface only when meaningful.
  */
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { Position } from "@/lib/strategy/archetypes/schema";
+import type { AvailablePlayer } from "@/lib/players/available";
 import { getHardStarterReqs } from "@/lib/engine/roster-fit";
-import type { DraftProgress, ProgressMetric, ProgressTier } from "./types";
+import type {
+  DraftProgress,
+  PositionCode,
+  PositionDiagnostic,
+  PositionRun,
+  PositionState,
+  ProgressMetric,
+  ProgressTier,
+  ThinAlert,
+} from "./types";
 
-const SCORING_POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
+const SCORING_POSITIONS: PositionCode[] = ["QB", "RB", "WR", "TE"];
+const RUN_WINDOW_SIZE = 8;
+const RUN_THRESHOLD = 3;
+const THIN_TOP_TIER_SIZE = 25;
+const THIN_ALERT_REMAINING_LIMIT = 3;
 
 export function analyzeDraftProgress(args: {
   snap: LeagueSnapshot;
-  // Map player_id -> { value } from the same FantasyCalc resolution
-  // that powers pricing.player_values. Used for league-rank
-  // computation (sum of values across rosters).
   playerValueMap: Map<
     string,
     { value: number; overall_rank: number | null }
   >;
   playerNameLookup: (id: string) => { name: string; position: string | null } | null;
-  // Format-aware ADP lookup. Returns the consensus draft position
-  // for this player (Sleeper ADP via pickAdpFromVariants). Used
-  // for positioning analysis. When null, the player has no ADP
-  // for this format and we skip them in the calculation.
+  // Format-aware ADP lookup. Sleeper ADP via pickAdpFromVariants.
   getAdp: (id: string) => number | null;
+  // Available pool. Used for thin-alert detection (how many top-tier
+  // players remain at each position). Empty array OK; thin alerts
+  // simply won't fire.
+  availablePool?: AvailablePlayer[];
 }): DraftProgress | null {
   const { snap, playerValueMap, playerNameLookup, getAdp } = args;
+  const availablePool = args.availablePool ?? [];
   const myRoster = snap.rosters.find((r) => r.is_me);
   if (!myRoster) return null;
   const myPicks = snap.draft.picks_made.filter(
@@ -37,127 +57,179 @@ export function analyzeDraftProgress(args: {
   const totalPicksForUser =
     snap.total_teams > 0 ? snap.draft.rounds : 0;
 
-  // Metric 1: positioning vs ADP. For each pick the user made,
-  // compute delta = ADP - pick_no. Positive = took player after
-  // ADP (got value). Negative = took player before ADP (early
-  // lock). Per founder feedback 2026-05-08: do NOT call early
-  // picks "reaches" against the user. The user is following our
-  // recommendations; off-ADP early picks are intentional sharp
-  // positioning, not a failure of theirs. The metric REPORTS
-  // positioning honestly without negative framing.
-  type PickPositioning = {
-    pick_no: number;
-    player_id: string;
-    adp: number | null;
-    delta: number | null;
-    label: "value" | "consensus" | "early-lock" | "sharp-lock";
-  };
-  const positioning: PickPositioning[] = myPicks.map((p) => {
-    const adp = getAdp(p.player_id);
-    if (adp == null) {
-      return {
-        pick_no: p.pick_no,
-        player_id: p.player_id,
-        adp: null,
-        delta: null,
-        label: "consensus",
-      };
-    }
-    const delta = adp - p.pick_no;
-    let label: PickPositioning["label"];
-    if (delta >= 10) label = "value";
-    else if (delta >= -8) label = "consensus";
-    else if (delta >= -20) label = "early-lock";
-    else label = "sharp-lock";
-    return { pick_no: p.pick_no, player_id: p.player_id, adp, delta, label };
-  });
+  const reqs = getHardStarterReqs(snap);
 
-  const resolvedPositioning = positioning.filter(
-    (p): p is PickPositioning & { delta: number; adp: number } => p.delta != null,
+  // Position diagnostic. The heart of the new surface.
+  const position_diagnostic = SCORING_POSITIONS.map((pos) =>
+    computePositionDiagnostic({
+      position: pos,
+      myRoster,
+      need: reqs[pos as Position] ?? 0,
+      playerValueMap,
+      playerNameLookup,
+    }),
   );
 
-  let pickQualityMetric: ProgressMetric;
-  if (positioning.length === 0) {
-    pickQualityMetric = {
-      label: "Positioning vs ADP",
-      display_value: "no picks yet",
-      sub_line: "Start drafting and we'll show your positioning vs Sleeper ADP on every pick.",
-      tier: "solid",
-      ungraded: true,
-    };
-  } else if (resolvedPositioning.length === 0) {
-    pickQualityMetric = {
-      label: "Positioning vs ADP",
-      display_value: "ungraded",
-      sub_line: "ADP data not available for these picks yet.",
-      tier: "solid",
-      ungraded: true,
-    };
-  } else {
-    // Counts by label.
-    const valuePicks = resolvedPositioning.filter((p) => p.label === "value");
-    const consensusPicks = resolvedPositioning.filter(
-      (p) => p.label === "consensus",
-    );
-    const earlyLockPicks = resolvedPositioning.filter(
-      (p) => p.label === "early-lock",
-    );
-    const sharpLockPicks = resolvedPositioning.filter(
-      (p) => p.label === "sharp-lock",
-    );
-    const sharpish = earlyLockPicks.length + sharpLockPicks.length;
-    const totalCount = resolvedPositioning.length;
-    const valueOrConsensus = valuePicks.length + consensusPicks.length;
+  // League rank by total roster value (kept, condensed).
+  const leagueRankMetric = computeLeagueRankMetric({ snap, myRoster, playerValueMap });
 
-    // Always positive framing: every pick has an honest narrative.
-    // Tier is informational, not judgmental:
-    //   strong: at least 1 value pick AND 0 sharp-locks
-    //   solid: any combination, at-or-near consensus, no extreme sharp-locks
-    //   mixed: multiple sharp-locks (intentional but worth verifying)
-    //   off_track is reserved for extreme outliers; the user's own
-    //   draft never lands here unless something is genuinely wrong.
-    let tier: ProgressTier;
-    if (valuePicks.length >= 1 && sharpLockPicks.length === 0) tier = "strong";
-    else if (sharpLockPicks.length >= 2) tier = "mixed";
-    else tier = "solid";
+  // Pick sharpness vs ADP. Renamed from "Positioning vs ADP" and
+  // simplified copy (no more "2+1 sharp" jargon).
+  const pickSharpnessMetric = computePickSharpnessMetric({
+    myPicks,
+    getAdp,
+    playerNameLookup,
+  });
 
-    const display_value =
-      sharpish > 0
-        ? `${valueOrConsensus}+${sharpish} sharp`
-        : `${valueOrConsensus}/${totalCount}`;
+  // Situational callouts.
+  const position_run = computePositionRun(snap);
+  const thin_alerts = computeThinAlerts({
+    position_diagnostic,
+    availablePool,
+    playerValueMap,
+  });
 
-    let sub: string;
-    if (sharpLockPicks.length > 0) {
-      const example = sharpLockPicks[0];
-      const name =
-        playerNameLookup(example.player_id)?.name ?? example.player_id;
-      sub = `${valueOrConsensus} picks at-or-after consensus; ${sharpish} intentional early locks. Sharpest: ${name} taken ${Math.round(Math.abs(example.delta))} picks before ADP. If the engine had a standing-call reason, that lock is the kind of move that wins drafts.`;
-    } else if (earlyLockPicks.length > 0) {
-      const example = earlyLockPicks[0];
-      const name =
-        playerNameLookup(example.player_id)?.name ?? example.player_id;
-      sub = `${valueOrConsensus} picks at-or-after consensus; ${earlyLockPicks.length} early lock${earlyLockPicks.length === 1 ? "" : "s"}. Most off-ADP: ${name} (${Math.round(Math.abs(example.delta))} picks early).`;
-    } else if (valuePicks.length > 0) {
-      const example = valuePicks.reduce((a, b) =>
-        a.delta > b.delta ? a : b,
-      );
-      const name =
-        playerNameLookup(example.player_id)?.name ?? example.player_id;
-      sub = `${valuePicks.length} value pick${valuePicks.length === 1 ? "" : "s"}. Best: ${name} fell ${Math.round(example.delta)} picks past ADP.`;
-    } else {
-      sub = `${totalCount} picks at-or-near consensus; market-rate execution.`;
+  // Headline + overall tier. Anchor on the strongest signal in this
+  // priority: empty needed position > thin needed position > league rank
+  // bottom-quartile > everything ok.
+  const overall_tier = computeOverallTier({
+    position_diagnostic,
+    leagueRankMetric,
+  });
+  const headline = composeHeadline({
+    overall_tier,
+    position_diagnostic,
+    position_run,
+    thin_alerts,
+    leagueRankMetric,
+    picksMade: myPicks.length,
+  });
+
+  // Wins, watch-outs, sharp positioning. Smaller surface than v1 but
+  // useful for emotional context.
+  const { wins, watch_outs, sharp_positioning } = composeCallouts({
+    myPicks,
+    getAdp,
+    playerNameLookup,
+    position_diagnostic,
+    leagueRankMetric,
+  });
+
+  return {
+    picks_made_by_user: myPicks.length,
+    total_picks_for_user: totalPicksForUser,
+    overall_tier,
+    headline,
+    position_diagnostic,
+    league_rank: leagueRankMetric,
+    pick_sharpness: pickSharpnessMetric,
+    position_run,
+    thin_alerts,
+    wins,
+    watch_outs,
+    sharp_positioning,
+    model_alert_triggered: false,
+  };
+}
+
+function computePositionDiagnostic(args: {
+  position: PositionCode;
+  myRoster: LeagueSnapshot["rosters"][number];
+  need: number;
+  playerValueMap: Map<
+    string,
+    { value: number; overall_rank: number | null }
+  >;
+  playerNameLookup: (id: string) => { name: string; position: string | null } | null;
+}): PositionDiagnostic {
+  const { position, myRoster, need, playerValueMap, playerNameLookup } = args;
+  const have = myRoster.position_counts[position as Position] ?? 0;
+
+  // Identify all players this user has at this position; pick the one
+  // with the highest FantasyCalc value as the anchor.
+  let bestName: string | null = null;
+  let bestValue: number | null = null;
+  for (const id of myRoster.player_ids ?? []) {
+    const meta = playerNameLookup(id);
+    if (!meta) continue;
+    if ((meta.position ?? "").toUpperCase() !== position) continue;
+    const val = playerValueMap.get(id)?.value ?? null;
+    if (val == null) {
+      if (bestName == null) bestName = meta.name;
+      continue;
     }
-    pickQualityMetric = {
-      label: "Positioning vs ADP",
-      display_value,
-      sub_line: sub,
-      tier,
-    };
+    if (bestValue == null || val > bestValue) {
+      bestValue = val;
+      bestName = meta.name;
+    }
   }
 
-  // Metric 2: league rank by total roster value. Sum FantasyCalc
-  // value across each roster's player_ids; rank descending; report
-  // the user's position.
+  const state: PositionState =
+    have === 0 && need > 0
+      ? "empty"
+      : have < need
+        ? "thin"
+        : have > need
+          ? "strong"
+          : "ok";
+
+  const summary = composePositionSummary({
+    position,
+    have,
+    need,
+    state,
+    bestName,
+    bestValue,
+  });
+
+  return {
+    position,
+    have,
+    need,
+    state,
+    best_player_name: bestName,
+    best_player_value: bestValue,
+    summary,
+  };
+}
+
+function composePositionSummary(args: {
+  position: PositionCode;
+  have: number;
+  need: number;
+  state: PositionState;
+  bestName: string | null;
+  bestValue: number | null;
+}): string {
+  const { position, have, need, state, bestName } = args;
+  if (state === "empty") {
+    if (need === 0) return `Optional. None drafted.`;
+    return `No ${position} drafted yet. ${need} starter${need === 1 ? "" : "s"} required.`;
+  }
+  if (state === "thin") {
+    return `Starter only (${bestName ?? position}). ${need - have} more starter${need - have === 1 ? "" : "s"} needed.`;
+  }
+  if (state === "ok") {
+    return bestName
+      ? `${bestName} anchors the room. Starting requirement met.`
+      : `Starting requirement met.`;
+  }
+  // strong
+  const depth = have - need;
+  return bestName
+    ? `${bestName} anchors. ${depth} extra body for depth/trade.`
+    : `Starters covered with depth.`;
+}
+
+function computeLeagueRankMetric(args: {
+  snap: LeagueSnapshot;
+  myRoster: LeagueSnapshot["rosters"][number];
+  playerValueMap: Map<
+    string,
+    { value: number; overall_rank: number | null }
+  >;
+}): ProgressMetric {
+  const { snap, myRoster, playerValueMap } = args;
   const totalsByRoster = new Map<number, number>();
   for (const r of snap.rosters) {
     let sum = 0;
@@ -171,258 +243,346 @@ export function analyzeDraftProgress(args: {
   const myIndex = ranked.findIndex(([rid]) => rid === myRoster.roster_id);
   const myRank = myIndex >= 0 ? myIndex + 1 : null;
   const totalTeams = snap.total_teams;
-  let leagueRankMetric: ProgressMetric;
-  if (myRank == null || ranked[0][1] === 0) {
-    leagueRankMetric = {
+
+  if (myRank == null || ranked.length === 0 || ranked[0][1] === 0) {
+    return {
       label: "League rank",
       display_value: "ungraded",
       sub_line: "Roster values not yet resolved.",
       tier: "solid",
       ungraded: true,
     };
-  } else {
-    const myValue = totalsByRoster.get(myRoster.roster_id) ?? 0;
-    const topValue = ranked[0][1];
-    let tier: ProgressTier;
-    let sub: string;
-    // Sub-line composition. When user is #1 the previous "vs 232 for #1"
-    // copy was confusing because the user IS #1; comparing to themselves
-    // reads as "tied with the leader" when they ARE the leader. Per
-    // 2026-05-08 founder feedback: when user is #1, show distance to
-    // #2 instead. Always include the next-closest team for context.
-    if (myRank === 1) {
-      const second = ranked[1];
-      if (second) {
-        const secondValue = second[1];
-        const lead = myValue - secondValue;
-        const leadPct =
-          myValue > 0 ? Math.round((lead / myValue) * 100) : 0;
-        sub = `League leader (${myValue.toFixed(0)} pts). ${lead.toFixed(0)} pts ahead of #2 (${leadPct}% lead).`;
-      } else {
-        sub = `League leader (${myValue.toFixed(0)} pts).`;
-      }
-      tier = "strong";
-    } else if (myRank <= Math.ceil(totalTeams / 4)) {
-      const myValuePctOfTop = topValue > 0 ? (myValue / topValue) * 100 : 0;
-      sub = `Top quartile of the league (${myValue.toFixed(0)} pts; ${myValuePctOfTop.toFixed(0)}% of leader).`;
-      tier = "strong";
-    } else if (myRank <= Math.ceil(totalTeams / 2)) {
-      const myValuePctOfTop = topValue > 0 ? (myValue / topValue) * 100 : 0;
-      sub = `Mid-pack roster value (${myValuePctOfTop.toFixed(0)}% of league leader).`;
-      tier = "solid";
-    } else if (myRank <= Math.floor((3 * totalTeams) / 4)) {
-      const myValuePctOfTop = topValue > 0 ? (myValue / topValue) * 100 : 0;
-      sub = `Below mid-pack (${myValuePctOfTop.toFixed(0)}% of league leader). Trade-up may close the gap.`;
-      tier = "mixed";
-    } else {
-      sub = `Bottom-quartile roster value. Trade-up leverage may help close the gap.`;
-      tier = "off_track";
-    }
-    leagueRankMetric = {
-      label: "League rank",
-      display_value: `${myRank}/${totalTeams}`,
-      sub_line: sub,
-      tier,
-    };
   }
 
-  // Metric 3: build coherence. Are the user's picks aligned with the
-  // window they're building toward? Phase 1 heuristic: if win-now
-  // window is high (>= 70) AND age skew is appropriate (older
-  // starters), tier=strong. If both windows are low or contradictory,
-  // tier=mixed.
-  // We approximate using avg roster age + position-fill ratio.
-  const myStarterFill = computeStarterFill(myRoster.position_counts, snap);
-  const avgAge = myRoster.starter_avg_age ?? myRoster.avg_age ?? null;
-  let buildCoherenceMetric: ProgressMetric;
-  if (myPicks.length < 2) {
-    buildCoherenceMetric = {
-      label: "Build coherence",
-      display_value: "early",
-      sub_line: "Too few picks to read your build trajectory yet.",
+  const myValue = totalsByRoster.get(myRoster.roster_id) ?? 0;
+  const topValue = ranked[0][1];
+  let tier: ProgressTier;
+  let sub: string;
+
+  if (myRank === 1) {
+    const second = ranked[1];
+    if (second) {
+      const lead = myValue - second[1];
+      const leadPct = myValue > 0 ? Math.round((lead / myValue) * 100) : 0;
+      sub = `Lead ${Math.round(lead)} pts over #2 (${leadPct}%).`;
+    } else {
+      sub = `Sole roster valued.`;
+    }
+    tier = "strong";
+  } else if (myRank <= Math.ceil(totalTeams / 4)) {
+    const pct = topValue > 0 ? Math.round((myValue / topValue) * 100) : 0;
+    sub = `Top quartile. ${pct}% of leader's value.`;
+    tier = "strong";
+  } else if (myRank <= Math.ceil(totalTeams / 2)) {
+    const pct = topValue > 0 ? Math.round((myValue / topValue) * 100) : 0;
+    sub = `Mid-pack. ${pct}% of leader.`;
+    tier = "solid";
+  } else if (myRank <= Math.floor((3 * totalTeams) / 4)) {
+    const pct = topValue > 0 ? Math.round((myValue / topValue) * 100) : 0;
+    sub = `Below mid-pack. ${pct}% of leader.`;
+    tier = "mixed";
+  } else {
+    sub = `Bottom quartile by roster value.`;
+    tier = "off_track";
+  }
+
+  return {
+    label: "League rank",
+    display_value: `${myRank} of ${totalTeams}`,
+    sub_line: sub,
+    tier,
+  };
+}
+
+function computePickSharpnessMetric(args: {
+  myPicks: LeagueSnapshot["draft"]["picks_made"];
+  getAdp: (id: string) => number | null;
+  playerNameLookup: (id: string) => { name: string; position: string | null } | null;
+}): ProgressMetric {
+  const { myPicks, getAdp, playerNameLookup } = args;
+  if (myPicks.length === 0) {
+    return {
+      label: "Pick sharpness",
+      display_value: "no picks yet",
+      sub_line: "Best value pickups will land here as you draft.",
       tier: "solid",
       ungraded: true,
     };
-  } else {
-    // Tier on efficiency: starters_filled relative to picks_made.
-    // After N picks, the maximum possible starters_filled is N (one
-    // starter per pick). 80%+ efficiency = strong; 50%+ = solid;
-    // <50% = mixed (you're spending picks on depth/upside not
-    // starters, which may be intentional but worth verifying).
-    const efficiency =
-      myPicks.length > 0
-        ? myStarterFill.filled / Math.min(myPicks.length, myStarterFill.required)
-        : 0;
-    let tier: ProgressTier;
-    let sub: string;
-    if (efficiency >= 0.8) {
-      tier = "strong";
-      sub = `Filling starters efficiently: ${myStarterFill.filled}/${myStarterFill.required} starting positions covered after ${myPicks.length} picks.`;
-    } else if (efficiency >= 0.5) {
-      tier = "solid";
-      sub = `Starters partially covered (${myStarterFill.filled}/${myStarterFill.required}); on track with picks remaining.`;
-    } else if (myStarterFill.coverage > 0) {
-      tier = "mixed";
-      sub = `${myStarterFill.filled}/${myStarterFill.required} starters after ${myPicks.length} picks. Spending picks on depth/upside more than starters; intentional, but verify the build direction.`;
-    } else {
-      tier = "mixed";
-      sub = `No starters filled yet across ${myPicks.length} picks. Confirm the build direction.`;
-    }
-    if (avgAge != null) {
-      sub += ` Roster avg age ${avgAge.toFixed(1)}.`;
-    }
-    buildCoherenceMetric = {
-      label: "Build coherence",
-      display_value: `${myStarterFill.filled}/${myStarterFill.required}`,
-      sub_line: sub,
-      tier,
+  }
+
+  type Resolved = { pick_no: number; player_id: string; delta: number };
+  const resolved: Resolved[] = [];
+  for (const p of myPicks) {
+    const adp = getAdp(p.player_id);
+    if (adp == null) continue;
+    resolved.push({ pick_no: p.pick_no, player_id: p.player_id, delta: adp - p.pick_no });
+  }
+
+  if (resolved.length === 0) {
+    return {
+      label: "Pick sharpness",
+      display_value: "ungraded",
+      sub_line: "ADP data not resolved yet.",
+      tier: "solid",
+      ungraded: true,
     };
   }
 
-  // Headline + overall tier. Per 2026-05-08 founder feedback: data-
-  // missing ("ungraded") metrics should not degrade the overall
-  // tier read. A user ranked #1 with one ungraded metric was
-  // showing solid/yellow, contradicting the league rank. Filter
-  // out ungraded metrics before computing overall.
-  const allMetrics = [
-    pickQualityMetric,
-    leagueRankMetric,
-    buildCoherenceMetric,
-  ];
-  const gradedTiers = allMetrics
-    .filter((m) => !m.ungraded)
-    .map((m) => m.tier);
-  let overall_tier: ProgressTier;
-  if (gradedTiers.length === 0) {
-    overall_tier = "solid";
-  } else if (gradedTiers.includes("off_track")) {
-    overall_tier = "off_track";
-  } else if (
-    gradedTiers.filter((t) => t === "strong").length >=
-    Math.ceil(gradedTiers.length / 2)
+  const valuePicks = resolved.filter((p) => p.delta >= 10);
+  const earlyLocks = resolved.filter((p) => p.delta <= -10);
+  const bestValue = valuePicks.sort((a, b) => b.delta - a.delta)[0];
+
+  let tier: ProgressTier;
+  let display_value: string;
+  let sub: string;
+
+  if (bestValue) {
+    const meta = playerNameLookup(bestValue.player_id);
+    const name = meta?.name ?? bestValue.player_id;
+    tier = "strong";
+    display_value = `+${Math.round(bestValue.delta)}`;
+    sub = `Best value: ${name} fell ${Math.round(bestValue.delta)} picks past ADP.`;
+  } else if (earlyLocks.length > 0) {
+    const sharpest = earlyLocks.sort((a, b) => a.delta - b.delta)[0];
+    const meta = playerNameLookup(sharpest.player_id);
+    const name = meta?.name ?? sharpest.player_id;
+    const earlyBy = Math.round(Math.abs(sharpest.delta));
+    tier = "solid";
+    display_value = `−${earlyBy}`;
+    sub = `Earliest lock: ${name}, ${earlyBy} picks before ADP. Decisive when scarcity says go.`;
+  } else {
+    tier = "solid";
+    display_value = "at ADP";
+    sub = `Picks at-or-near consensus. Market-rate execution.`;
+  }
+
+  return {
+    label: "Pick sharpness",
+    display_value,
+    sub_line: sub,
+    tier,
+  };
+}
+
+function computePositionRun(snap: LeagueSnapshot): PositionRun | null {
+  const allPicks = [...snap.draft.picks_made].sort((a, b) => a.pick_no - b.pick_no);
+  if (allPicks.length < RUN_WINDOW_SIZE) return null;
+  const window = allPicks.slice(-RUN_WINDOW_SIZE);
+  const counts: Record<PositionCode, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+  for (const p of window) {
+    if (p.position && counts[p.position as PositionCode] !== undefined) {
+      counts[p.position as PositionCode]!++;
+    }
+  }
+  let topPos: PositionCode | null = null;
+  let topCount = 0;
+  for (const pos of SCORING_POSITIONS) {
+    if (counts[pos] > topCount) {
+      topCount = counts[pos];
+      topPos = pos;
+    }
+  }
+  if (!topPos || topCount < RUN_THRESHOLD) return null;
+  return {
+    position: topPos,
+    picks_in_window: topCount,
+    window_size: RUN_WINDOW_SIZE,
+    message: `${topPos} run on. ${topCount} of last ${RUN_WINDOW_SIZE} picks were ${topPos}s.`,
+  };
+}
+
+function computeThinAlerts(args: {
+  position_diagnostic: PositionDiagnostic[];
+  availablePool: AvailablePlayer[];
+  playerValueMap: Map<string, { value: number; overall_rank: number | null }>;
+}): ThinAlert[] {
+  const { position_diagnostic, availablePool, playerValueMap } = args;
+  if (availablePool.length === 0) return [];
+
+  const alerts: ThinAlert[] = [];
+
+  for (const diag of position_diagnostic) {
+    if (diag.state !== "empty" && diag.state !== "thin") continue;
+    const positionPlayers = availablePool.filter(
+      (p) => (p.position ?? "").toUpperCase() === diag.position,
+    );
+    const ranked = positionPlayers
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        value: playerValueMap.get(p.id)?.value ?? null,
+        overall_rank: playerValueMap.get(p.id)?.overall_rank ?? null,
+      }))
+      .filter((p) => p.overall_rank != null && p.overall_rank! <= THIN_TOP_TIER_SIZE)
+      .sort((a, b) => (a.overall_rank ?? 999) - (b.overall_rank ?? 999));
+
+    if (ranked.length <= THIN_ALERT_REMAINING_LIMIT && ranked.length > 0) {
+      alerts.push({
+        position: diag.position,
+        remaining_top_tier: ranked.length,
+        top_names: ranked.slice(0, 3).map((p) => p.name),
+        message: `Only ${ranked.length} top-${THIN_TOP_TIER_SIZE} ${diag.position}${ranked.length === 1 ? "" : "s"} left. Lock one before they go.`,
+      });
+    }
+  }
+
+  return alerts.slice(0, 3);
+}
+
+function computeOverallTier(args: {
+  position_diagnostic: PositionDiagnostic[];
+  leagueRankMetric: ProgressMetric;
+}): ProgressTier {
+  const { position_diagnostic, leagueRankMetric } = args;
+
+  const hasEmptyNeeded = position_diagnostic.some(
+    (d) => d.state === "empty" && d.need > 0,
+  );
+  if (hasEmptyNeeded && !leagueRankMetric.ungraded) {
+    if (leagueRankMetric.tier === "strong") return "solid";
+    return "mixed";
+  }
+
+  const allOkOrStrong = position_diagnostic
+    .filter((d) => d.need > 0)
+    .every((d) => d.state === "ok" || d.state === "strong");
+
+  if (
+    allOkOrStrong &&
+    !leagueRankMetric.ungraded &&
+    (leagueRankMetric.tier === "strong" || leagueRankMetric.tier === "solid")
   ) {
-    // Majority strong (or all strong) -> strong overall
-    overall_tier = "strong";
-  } else if (gradedTiers.includes("strong") && !gradedTiers.includes("mixed")) {
-    // At least one strong, no mixed -> still strong
-    overall_tier = "strong";
-  } else if (gradedTiers.includes("mixed")) {
-    overall_tier = "mixed";
-  } else {
-    overall_tier = "solid";
+    return leagueRankMetric.tier === "strong" ? "strong" : "solid";
   }
 
-  let headline: string;
+  if (leagueRankMetric.tier === "off_track") return "off_track";
+  if (leagueRankMetric.ungraded) return allOkOrStrong ? "solid" : "mixed";
+  return leagueRankMetric.tier;
+}
+
+function composeHeadline(args: {
+  overall_tier: ProgressTier;
+  position_diagnostic: PositionDiagnostic[];
+  position_run: PositionRun | null;
+  thin_alerts: ThinAlert[];
+  leagueRankMetric: ProgressMetric;
+  picksMade: number;
+}): string {
+  const { overall_tier, position_diagnostic, position_run, thin_alerts, picksMade } = args;
+
+  if (picksMade === 0) {
+    return "Draft begins. Targets and gaps will appear here as you go.";
+  }
+
+  const empties = position_diagnostic.filter(
+    (d) => d.state === "empty" && d.need > 0,
+  );
+  const thins = position_diagnostic.filter((d) => d.state === "thin");
+  const strongs = position_diagnostic.filter((d) => d.state === "strong");
+
+  if (empties.length === 1 && thin_alerts.some((a) => a.position === empties[0].position)) {
+    return `${empties[0].position} room is empty and the top tier is almost gone. That's the next pick to make.`;
+  }
+  if (empties.length >= 2) {
+    const labels = empties.map((d) => d.position).join(" and ");
+    return `${labels} still untouched. Two starter holes outweigh anything else right now.`;
+  }
+  if (empties.length === 1) {
+    return `${empties[0].position} room is empty. That's the gap to close.`;
+  }
+  if (thins.length >= 2) {
+    const labels = thins.map((d) => d.position).join(" and ");
+    return `Starters covered, but ${labels} are thin. Depth or upgrade is the next move.`;
+  }
+  if (position_run && position_diagnostic.find((d) => d.position === position_run.position)?.state !== "strong") {
+    return `${position_run.position} run on. ${position_run.picks_in_window}-of-${position_run.window_size} recent picks. Decide whether you join or pivot.`;
+  }
+  if (overall_tier === "strong" && strongs.length >= 2) {
+    return `Roster is taking shape. Multiple positions covered with depth, ranked well in the league.`;
+  }
   if (overall_tier === "strong") {
-    headline = "You're drafting well. Multiple metrics in the strong band; lean into the lead.";
-  } else if (overall_tier === "solid") {
-    headline = "You're on track. Solid build forming; keep executing.";
-  } else if (overall_tier === "mixed") {
-    headline = "Mixed signals. Some sharp positioning worth verifying.";
-  } else {
-    headline = "Off-script on at least one metric. The watch-outs below name the concern.";
+    return `Solid build forming. Starters covered, value pickups on the board.`;
   }
+  if (overall_tier === "solid") {
+    return `On track. Holes are normal for this point in the draft.`;
+  }
+  if (overall_tier === "mixed") {
+    return `Mixed signals. Roster build has gaps worth verifying before the next pick.`;
+  }
+  return `Off-pace by league-value rank. Trade-up leverage may help close the gap.`;
+}
 
-  // Wins + sharp-positioning callouts. Per founder feedback
-  // 2026-05-08: NO "biggest reach" framing on the user's own
-  // scorecard. Off-ADP picks are intentional sharp positioning,
-  // not failures. Celebrate where the user went against consensus
-  // and explain WHY when we can. The sharp_positioning array is
-  // a separate emphasis list, not a watch-out.
+function composeCallouts(args: {
+  myPicks: LeagueSnapshot["draft"]["picks_made"];
+  getAdp: (id: string) => number | null;
+  playerNameLookup: (id: string) => { name: string; position: string | null } | null;
+  position_diagnostic: PositionDiagnostic[];
+  leagueRankMetric: ProgressMetric;
+}): { wins: string[]; watch_outs: string[]; sharp_positioning: string[] } {
+  const { myPicks, getAdp, playerNameLookup, position_diagnostic, leagueRankMetric } = args;
   const wins: string[] = [];
   const watch_outs: string[] = [];
   const sharp_positioning: string[] = [];
 
-  // Best ADP value pick (player who fell to the user)
-  const bestValue = resolvedPositioning
-    .filter((p) => p.delta >= 10)
-    .sort((a, b) => b.delta - a.delta)[0];
+  // Best ADP value pick
+  let bestValue: { player_id: string; delta: number } | null = null;
+  for (const p of myPicks) {
+    const adp = getAdp(p.player_id);
+    if (adp == null) continue;
+    const delta = adp - p.pick_no;
+    if (delta < 10) continue;
+    if (!bestValue || delta > bestValue.delta) {
+      bestValue = { player_id: p.player_id, delta };
+    }
+  }
   if (bestValue) {
     const meta = playerNameLookup(bestValue.player_id);
     wins.push(
-      `Value pick: ${meta?.name ?? bestValue.player_id} fell ${bestValue.delta} picks past ADP.`,
-    );
-  }
-  // Roster rank win
-  if (myRank != null && myRank <= Math.ceil(totalTeams / 4)) {
-    wins.push(
-      `Roster value rank ${myRank}/${totalTeams}: top quartile of the league.`,
-    );
-  }
-  // Starter coverage win
-  if (myStarterFill.coverage >= 0.5) {
-    wins.push(
-      `${myStarterFill.filled}/${myStarterFill.required} starting slots already covered.`,
+      `Value pick: ${meta?.name ?? bestValue.player_id} fell ${Math.round(bestValue.delta)} picks past ADP.`,
     );
   }
 
-  // Sharp positioning: where the user went against consensus
-  // intentionally. Frame as decisive, not as reckless.
-  for (const pick of resolvedPositioning.filter(
-    (p) => p.label === "early-lock" || p.label === "sharp-lock",
-  )) {
-    const meta = playerNameLookup(pick.player_id);
-    const name = meta?.name ?? pick.player_id;
-    const earlyBy = Math.round(Math.abs(pick.delta));
+  // League rank as a win when top quartile
+  if (leagueRankMetric.tier === "strong" && !leagueRankMetric.ungraded) {
+    wins.push(`League rank ${leagueRankMetric.display_value} by total value.`);
+  }
+
+  // Strong-position win
+  const strongs = position_diagnostic.filter((d) => d.state === "strong");
+  for (const d of strongs.slice(0, 1)) {
+    if (d.best_player_name) {
+      wins.push(
+        `${d.position} room loaded: ${d.best_player_name} plus ${d.have - d.need} extra for depth.`,
+      );
+    }
+  }
+
+  // Sharp positioning callouts: early locks
+  for (const p of myPicks) {
+    const adp = getAdp(p.player_id);
+    if (adp == null) continue;
+    const delta = adp - p.pick_no;
+    if (delta > -10) continue;
+    const meta = playerNameLookup(p.player_id);
+    const name = meta?.name ?? p.player_id;
     sharp_positioning.push(
-      `${name} locked ${earlyBy} picks before ADP. Going against consensus, and decisive about it.`,
+      `${name} locked ${Math.round(Math.abs(delta))} picks before ADP. Decisive when scarcity said go.`,
     );
   }
 
-  // Watch-outs are now reserved for genuine roster construction
-  // concerns the user can act on, not for criticizing past picks.
-  if (myRank != null && myRank > Math.floor((3 * totalTeams) / 4)) {
-    watch_outs.push(
-      `Roster value rank ${myRank}/${totalTeams}: trade-up leverage may close the gap.`,
-    );
+  // Watch-outs: empty needed positions and bottom-quartile rank
+  for (const d of position_diagnostic) {
+    if (d.state === "empty" && d.need > 0) {
+      watch_outs.push(`${d.position} untouched. ${d.need} starter${d.need === 1 ? "" : "s"} still required.`);
+    }
   }
-  if (
-    myStarterFill.coverage < 0.3 &&
-    myPicks.length >= Math.ceil((totalPicksForUser || 1) / 4)
-  ) {
-    watch_outs.push(
-      `Starters thin: ${myStarterFill.filled}/${myStarterFill.required} after ${myPicks.length} picks. Worth checking the build direction.`,
-    );
+  if (leagueRankMetric.tier === "off_track" && !leagueRankMetric.ungraded) {
+    watch_outs.push(`Bottom-quartile by total value. Trade-up leverage may help.`);
   }
-
-  // Phase 1: model_alert_triggered always false until we have
-  // historical standing-call records to compute adherence.
-  const model_alert_triggered = false;
 
   return {
-    picks_made_by_user: myPicks.length,
-    total_picks_for_user: totalPicksForUser,
-    overall_tier,
-    headline,
-    pick_quality: pickQualityMetric,
-    league_rank: leagueRankMetric,
-    build_coherence: buildCoherenceMetric,
     wins: wins.slice(0, 3),
     watch_outs: watch_outs.slice(0, 3),
     sharp_positioning: sharp_positioning.slice(0, 3),
-    model_alert_triggered,
-  };
-}
-
-function computeStarterFill(
-  counts: Record<Position, number>,
-  snap: LeagueSnapshot,
-): { filled: number; required: number; coverage: number } {
-  // Use the canonical roster-fit helper so SF / 2QB starter
-  // requirements are correctly derived for the QB column. Per
-  // INVARIANTS: never branch on starter_slots.hard.QB directly.
-  const reqs = getHardStarterReqs(snap);
-  let filled = 0;
-  let required = 0;
-  for (const pos of SCORING_POSITIONS) {
-    const have = counts[pos] ?? 0;
-    const need = reqs[pos] ?? 0;
-    required += need;
-    filled += Math.min(have, need);
-  }
-  return {
-    filled,
-    required,
-    coverage: required > 0 ? filled / required : 0,
   };
 }

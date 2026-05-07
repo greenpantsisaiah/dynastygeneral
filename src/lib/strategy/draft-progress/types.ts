@@ -1,76 +1,99 @@
 /**
  * Draft progress: a "how am I doing" scorecard for the user's own
- * drafting in this league. Surfaces above the DecisionCard on the
- * league hub. Specifically designed for the multi-draft user who
- * comes back after a day or two and wants the at-a-glance answer
- * before drilling into the next pick.
+ * drafting in this league.
  *
- * Per the 2026-05-07 founder ask: "Positive emotional ROI is my
- * expectation given that I've gone with DG on every pick so far.
- * It'd suck if it told me I wasn't doing well after following all
- * the recommendations." With the corollary: if a recommendation-
- * following user IS doing badly, that's a MODEL alert, not a user
- * problem. The footer closes that feedback loop.
+ * Redesign 2026-05-08 (post forum-question research): the previous
+ * shape had three abstract metrics ("Pick Quality", "League Rank",
+ * "Build Coherence") that reported state but did not answer the
+ * questions dynasty drafters actually ask mid-draft. Reddit /
+ * Dynasty Nerds / FantasyPros forums consistently surface five
+ * recurring questions:
+ *
+ *   1. Where am I weak/strong by position?  (universal)
+ *   2. Is a position run starting?
+ *   3. What's about to thin out?
+ *   4. Did I miss obvious value?
+ *   5. How does my roster compare to the league?
+ *
+ * The new shape answers those questions directly. The headline is
+ * the verdict, the position diagnostic is the body, and the rest
+ * are situational callouts surfaced only when meaningful.
  */
 
 export type ProgressTier = "strong" | "solid" | "mixed" | "off_track";
 
-/**
- * Per-metric score with its own honesty fields. Three cards on the
- * panel: pick quality, league rank, build coherence.
- */
+export type PositionCode = "QB" | "RB" | "WR" | "TE";
+
+export type PositionState = "strong" | "ok" | "thin" | "empty";
+
+/** Per-position diagnostic. Replaces the old "build coherence" card. */
+export type PositionDiagnostic = {
+  position: PositionCode;
+  have: number;
+  need: number;
+  state: PositionState;
+  // Name of the user's best player at this position by FantasyCalc value.
+  // Null when the user has no player at this position.
+  best_player_name: string | null;
+  // Best player's FantasyCalc value (0-100). Null when not resolved.
+  best_player_value: number | null;
+  // One-line read tailored to (state, count, best player). Concrete:
+  // "Anchor + depth (Mahomes leads)", "Need a starter, none rostered",
+  // "Top-12 starter, no depth yet", etc.
+  summary: string;
+};
+
+/** Position-run watch. Null when no run is active. */
+export type PositionRun = {
+  position: PositionCode;
+  picks_in_window: number;
+  window_size: number;
+  // Friendly sentence: "QB run on. 4 of last 8 picks were QBs."
+  message: string;
+};
+
+/** Position-thin alert. Surfaced when top-tier supply at a needed position is short. */
+export type ThinAlert = {
+  position: PositionCode;
+  remaining_top_tier: number;
+  // Names of the top remaining players at this position (max 3).
+  top_names: string[];
+  // Friendly sentence: "Only 2 RBs left in top 25. Lock one before they go."
+  message: string;
+};
+
+/** Per-metric score (kept for league rank + pick sharpness secondary row). */
 export type ProgressMetric = {
   label: string;
-  // Number to display prominently. Format-specific to the metric
-  // (e.g., "+6.2", "2/12", "81/100").
   display_value: string;
-  // Sub-line: what this means in plain English.
   sub_line: string;
-  // Tier color for visual.
   tier: ProgressTier;
-  // True when the metric couldn't be computed because data is
-  // missing (not a performance issue). Excluded from overall_tier
-  // calculation per the 2026-05-08 fix: a #1-ranked user with one
-  // ungraded metric should not show overall tier as solid/yellow.
   ungraded?: boolean;
 };
 
 export type DraftProgress = {
-  // Number of picks the user has made. Drives "N picks in" framing.
   picks_made_by_user: number;
-  // Total picks the user will make in this draft (rounds for snake
-  // dynasty startup; 1 round for many keeper drafts; etc).
   total_picks_for_user: number;
-  // Headline tier across all metrics. "strong" when at least 2 of 3
-  // metrics are strong + 0 are off_track. "off_track" when any
-  // metric is off_track. Otherwise "solid" / "mixed".
   overall_tier: ProgressTier;
-  // One-sentence sentiment headline. Positive ROI when the metrics
-  // support it; honest when they don't.
+  // Verdict sentence. Anchors on the strongest signal: position diagnostic
+  // weakness, position-run risk, or league rank.
   headline: string;
-  // Three score cards.
-  pick_quality: ProgressMetric;
+
+  // The new heart of the panel. Always present (4 entries).
+  position_diagnostic: PositionDiagnostic[];
+
+  // Secondary metrics, condensed.
   league_rank: ProgressMetric;
-  build_coherence: ProgressMetric;
-  // Wins to celebrate (3 max). Specific reasons the user should feel
-  // good, named with concrete deltas. Empty when there are no clear
-  // wins yet.
+  pick_sharpness: ProgressMetric;
+
+  // Situational callouts. Each may be null/empty when not relevant.
+  position_run: PositionRun | null;
+  thin_alerts: ThinAlert[];
+
+  // Free-form highlights/concerns. Smaller surface than v1.
   wins: string[];
-  // Watch-outs (3 max). Specific concerns to flag honestly. Each is
-  // also a candidate trigger for the model-feedback alert.
   watch_outs: string[];
-  // Sharp-positioning callouts (3 max). Picks where the user went
-  // against consensus by a meaningful margin. Framed as DECISIVE,
-  // not reckless. Per founder direction 2026-05-08: when a user is
-  // following our recommendations and we lock a player early
-  // because the engine identified scarcity / format leverage, that
-  // is the FEATURE, not a watch-out. Surface it positively.
   sharp_positioning: string[];
-  // Model-feedback flag: true when user has been following standing
-  // calls AND metrics are off_track. Triggers the "this is a model
-  // alert, not a user alert" footer copy.
-  // Phase 1 limitation: we don't yet store historical standing-call
-  // recommendations, so we can't compute adherence directly. Set
-  // false for now; a future iteration will compute it.
+
   model_alert_triggered: boolean;
 };
