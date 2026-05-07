@@ -46,6 +46,7 @@ import {
 } from "./inflection/build-inputs";
 import {
   analyzeLeagueRead,
+  analyzeOpponentPickQuality,
   type LeagueRead,
   type OpponentRosterSnapshot,
 } from "@/lib/strategy/league-read";
@@ -369,6 +370,17 @@ export async function assembleContext(
       player_values_by_position: byPos,
     });
   }
+
+  // Pick-quality / sophistication signals are computed by the hub
+  // server component (it has the LeagueSnapshot which carries
+  // draft.picks_made). assembleContext does not have picks_made
+  // wired through here yet (resolveDraftState lives elsewhere); a
+  // future plumb-through will pass pickQuality into the league_read
+  // for Coach. For now, Coach gets league_read WITHOUT pick-quality;
+  // hub UI gets it via buildLeagueReadFromSnapshot.
+  // Reference to analyzeOpponentPickQuality kept so the import
+  // graph stays warm and the function is type-checked.
+  void analyzeOpponentPickQuality;
 
   const league_read = analyzeLeagueRead({
     profile,

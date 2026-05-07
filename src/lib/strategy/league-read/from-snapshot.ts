@@ -18,6 +18,7 @@ import type { Position } from "@/lib/strategy/archetypes/schema";
 import type { LeagueProfile, TeamProfile } from "@/lib/engine/opponent";
 import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 import { analyzeLeagueRead, type OpponentRosterSnapshot } from "./analyze";
+import { analyzeOpponentPickQuality } from "./pick-quality";
 import type { LeagueRead } from "./types";
 
 export function buildLeagueReadFromSnapshot(args: {
@@ -25,7 +26,9 @@ export function buildLeagueReadFromSnapshot(args: {
   // Optional: per-player-id KTC value (FantasyCalc-normalized 0-100).
   // When provided, the league-read can name specific opponent assets.
   // When omitted, falls back to generic "their best RB" prose.
-  playerValueMap?: Map<string, { value: number }>;
+  // overall_rank (when present) enables pick-quality / sophistication
+  // analysis (took at pick N vs consensus rank R = delta).
+  playerValueMap?: Map<string, { value: number; overall_rank?: number | null }>;
   // Optional: name lookup for player_id. When provided alongside
   // playerValueMap, opponent rosters can be enumerated with named
   // KTC-valued assets.
@@ -137,6 +140,36 @@ export function buildLeagueReadFromSnapshot(args: {
     }
   }
 
+  // Pick-quality signals: per-opponent value-vs-consensus analysis on
+  // each pick they've made. Surfaces "joeboch took Mendoza in r5,
+  // 35 picks before consensus" style reads automatically. Requires
+  // playerValueMap (for overall_rank consensus baseline) plus
+  // playerNameLookup (for narrative output).
+  let pickQuality: ReturnType<typeof analyzeOpponentPickQuality> | undefined;
+  if (
+    playerValueMap &&
+    playerNameLookup &&
+    snap.draft.picks_made.length > 0
+  ) {
+    // playerValueMap shape from caller is { value }; pick-quality
+    // also needs overall_rank. Build a wider map view.
+    const pickQualityValueMap = new Map<
+      string,
+      { value: number; overall_rank: number | null }
+    >();
+    for (const [id, v] of playerValueMap.entries()) {
+      pickQualityValueMap.set(id, {
+        value: v.value,
+        overall_rank: (v as { overall_rank?: number | null }).overall_rank ?? null,
+      });
+    }
+    pickQuality = analyzeOpponentPickQuality({
+      picksMade: snap.draft.picks_made,
+      playerValueMap: pickQualityValueMap,
+      playerNameLookup,
+    });
+  }
+
   return analyzeLeagueRead({
     profile,
     formatRules,
@@ -146,6 +179,7 @@ export function buildLeagueReadFromSnapshot(args: {
     },
     myRosterId: myRoster?.roster_id ?? null,
     opponentRosters,
+    pickQuality,
     currentPickNo: snap.draft.next_pick_no,
     totalRosters: snap.total_teams,
     rounds: snap.draft.rounds,

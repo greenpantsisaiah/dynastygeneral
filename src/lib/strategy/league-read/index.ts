@@ -7,6 +7,11 @@
 
 export { analyzeLeagueRead, type OpponentRosterSnapshot } from "./analyze";
 export { buildLeagueReadFromSnapshot } from "./from-snapshot";
+export {
+  analyzeOpponentPickQuality,
+  type OpponentPickQuality,
+  type PickQuality,
+} from "./pick-quality";
 export type {
   LeagueRead,
   LeverageOpportunity,

@@ -22,6 +22,7 @@ import type {
   StructuralConstraint,
   TradeWindowEstimate,
 } from "./types";
+import type { OpponentPickQuality } from "./pick-quality";
 
 type ScoringPosition = "QB" | "RB" | "WR" | "TE";
 const SCORING_POSITIONS: ScoringPosition[] = ["QB", "RB", "WR", "TE"];
@@ -63,13 +64,18 @@ export function analyzeLeagueRead(args: {
   // Keyed by roster_id. Empty map disables named-asset hints
   // (analyzer falls back to generic "their best RB" prose).
   opponentRosters: Map<number, OpponentRosterSnapshot>;
+  // Per-opponent pick-quality analysis. Keyed by roster_id. Empty
+  // map disables sophistication-tier signals on softness_signals.
+  // Per the 2026-05-08 A3 closure: surfaces "Mendoza behind Cousins"
+  // style reads automatically.
+  pickQuality?: Map<number, OpponentPickQuality>;
   // Current draft pick number (1-N) used for trade-window estimate.
   // Null when the league is not in active draft.
   currentPickNo: number | null;
   totalRosters: number;
   rounds: number;
 }): LeagueRead {
-  const { profile, formatRules, userState, myRosterId, opponentRosters, currentPickNo, totalRosters, rounds } = args;
+  const { profile, formatRules, userState, myRosterId, opponentRosters, pickQuality, currentPickNo, totalRosters, rounds } = args;
 
   // Compute user's structural constraints. "Don't trade picks while
   // you have positions below starter_max."
@@ -214,6 +220,23 @@ export function analyzeLeagueRead(args: {
         softnessSignals.push(`${have}/${need} at ${pos}; below starter requirement`);
       }
     }
+    // Pick-quality / sophistication signals. Adds "Drafting tier:
+    // LOW. 3 reach picks of 15+ before consensus" plus named
+    // biggest reach / biggest value entries when present.
+    const oppPickQuality = pickQuality?.get(team.roster_id);
+    if (oppPickQuality) {
+      // Boost leverage score when sophistication is LOW (they're
+      // more likely to overpay in trades the same way they overpay
+      // in the draft).
+      if (oppPickQuality.sophistication_tier === "low") {
+        baseScore += 8;
+      } else if (oppPickQuality.sophistication_tier === "high") {
+        baseScore -= 5; // sophisticated drafter; harder extraction
+      }
+      for (const s of oppPickQuality.signals) {
+        softnessSignals.push(s);
+      }
+    }
 
     // Phase 2: name specific candidate assets from the opponent's
     // roster at the receive position. Pull the top 3 by KTC value.
@@ -248,7 +271,7 @@ export function analyzeLeagueRead(args: {
       opponent_roster_id: team.roster_id,
       opponent_name: team.owner_name,
       opponent_panic_label: panicLabel,
-      opponent_softness_signals: softnessSignals.slice(0, 4),
+      opponent_softness_signals: softnessSignals.slice(0, 6),
       send_position: bestSendPosition,
       receive_position: receivePosition,
       send_asset_hint: sendAssetHint,

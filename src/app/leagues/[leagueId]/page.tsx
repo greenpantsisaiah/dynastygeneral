@@ -747,26 +747,58 @@ export default async function LeagueHubPage({
   let inflectionItems: InflectionContext[] = [];
   if (leagueSnapshot) {
     try {
-      leagueRead = buildLeagueReadFromSnapshot({ snap: leagueSnapshot });
-    } catch (err) {
-      console.error("[hub:league-read]", err);
-    }
-    // Inflection bifurcations on roster players: aging cliff, rookie
-    // debut, post-major-injury return. Resolves Sleeper player metadata
-    // for name + age + position; reuses the same `resolvePlayers` cache
-    // the rest of the hub uses.
-    try {
+      // Resolve all rostered players (including ones in picks_made
+      // for accurate pick-quality name lookups). Cached, single
+      // call. Used by both league-read pick-quality + inflection.
       const allRosterIds = new Set<string>();
       for (const r of leagueSnapshot.rosters) {
         for (const id of r.player_ids ?? []) allRosterIds.add(id);
       }
+      for (const p of leagueSnapshot.draft.picks_made) {
+        if (p.player_id) allRosterIds.add(p.player_id);
+      }
       const playersMap = await resolvePlayers([...allRosterIds]);
+
+      // Build a value map from the JSON-encoded snapshots that the
+      // hub already prepared (playerValuesByIdJson +
+      // ktcOverallRanksByIdJson). When the value resolver didn't run
+      // (e.g., the league hasn't been seeded), the maps are empty
+      // and the league-read falls back to generic "their best RB"
+      // prose without erroring.
+      const lrValueMap: Map<
+        string,
+        { value: number; overall_rank: number | null }
+      > = new Map();
+      for (const [id, value] of Object.entries(playerValuesByIdJson)) {
+        lrValueMap.set(id, {
+          value,
+          overall_rank: ktcOverallRanksByIdJson[id] ?? null,
+        });
+      }
+
+      const playerNameLookup = (id: string) => {
+        const sp = playersMap.get(id);
+        if (!sp) return null;
+        const combined = [sp.first_name, sp.last_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const name = sp.full_name ?? combined ?? id;
+        return { name, position: sp.position ?? null };
+      };
+
+      leagueRead = buildLeagueReadFromSnapshot({
+        snap: leagueSnapshot,
+        playerValueMap: lrValueMap,
+        playerNameLookup,
+      });
+
       inflectionItems = buildInflectionsFromSnapshot({
         snap: leagueSnapshot,
         playersMap,
       });
     } catch (err) {
-      console.error("[hub:inflections]", err);
+      console.error("[hub:league-read+inflections]", err);
     }
   }
 
