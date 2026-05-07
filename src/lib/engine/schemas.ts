@@ -87,6 +87,32 @@ export const tradeActionSchema = z.enum([
 ]);
 export type TradeAction = z.infer<typeof tradeActionSchema>;
 
+// Structured counter-offer payload. When action is "counter," the
+// model emits a SPECIFIC alternative trade (your assets going out,
+// their assets coming in) the user can copy-paste into Sleeper or
+// remix in the outbound flow. Free-form `stronger_ask` was insufficient:
+// users asked for "just tell me what to send back" and got prose.
+export const counterOfferSchema = z.object({
+  you_send: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe(
+      "Specific assets (player names + pick labels) you would send in the counter.",
+    ),
+  you_receive: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe(
+      "Specific assets (player names + pick labels) you would receive in the counter.",
+    ),
+  rationale: z
+    .string()
+    .describe(
+      "One-sentence justification for THIS counter shape vs the original ask.",
+    ),
+});
+export type CounterOffer = z.infer<typeof counterOfferSchema>;
+
 export const tradeIncomingOutputSchema = z.object({
   action: tradeActionSchema,
   recommendation: z
@@ -106,7 +132,12 @@ export const tradeIncomingOutputSchema = z.object({
     .string()
     .nullish()
     .describe(
-      "If action is 'counter', the specific additional piece to request.",
+      "If action is 'counter', a one-line description of the additional piece to request. The structured counter_offer field below carries the specific assets.",
+    ),
+  counter_offer: counterOfferSchema
+    .nullish()
+    .describe(
+      "REQUIRED when action is 'counter'. Specific you_send / you_receive lists for the counter trade. Stays within the ±15% fairness band per system rules.",
     ),
   walk_away_floor: z
     .string()
@@ -313,6 +344,25 @@ export const tradeIncomingOutputJsonSchema = {
     opponent_read: { type: "string" },
     leverage: { type: "string", enum: ["none", "moderate", "strong"] },
     stronger_ask: { type: ["string", "null"] },
+    counter_offer: {
+      type: ["object", "null"],
+      description:
+        "REQUIRED when action is 'counter'. Structured counter trade with specific you_send / you_receive arrays.",
+      properties: {
+        you_send: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" },
+        },
+        you_receive: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" },
+        },
+        rationale: { type: "string" },
+      },
+      required: ["you_send", "you_receive", "rationale"],
+    },
     walk_away_floor: {
       type: "string",
       description:

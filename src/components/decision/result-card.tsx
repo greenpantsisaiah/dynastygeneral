@@ -164,7 +164,14 @@ export function TradeIncomingResult({
       </Row>
       <Row label="Opponent read">{result.opponent_read}</Row>
       <Row label="Opportunity cost">{result.opportunity_cost}</Row>
-      {result.stronger_ask && <Row label="Stronger ask">{result.stronger_ask}</Row>}
+      {result.action === "counter" && result.counter_offer && (
+        <Row label="Counter offer">
+          <CounterOfferBlock counter={result.counter_offer} />
+        </Row>
+      )}
+      {result.stronger_ask && !result.counter_offer && (
+        <Row label="Stronger ask">{result.stronger_ask}</Row>
+      )}
       <Row label="Walk-away floor">{result.walk_away_floor}</Row>
       {result.negotiation_message && (
         <Row label="Message">
@@ -174,6 +181,49 @@ export function TradeIncomingResult({
       <CalibrationFooter />
     </div>
   );
+}
+
+// Structured counter offer block. Renders the engine's specific
+// counter as a tiered package (matching the visual language of
+// outbound packages) with per-asset breakdown plus a copy button
+// for the assets list. The user can paste straight into Sleeper or
+// remix the counter via the outbound flow later.
+function CounterOfferBlock({
+  counter,
+}: {
+  counter: NonNullable<TradeIncomingOutput["counter_offer"]>;
+}) {
+  const counterText = formatCounterOffer(counter);
+  return (
+    <div className="group relative rounded-md border border-border-soft bg-background p-3 text-sm">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+          Suggested counter
+        </span>
+        <ClientCopy text={counterText} variant="prominent" label="Copy counter" />
+      </div>
+      <div className="mt-2 text-foreground">
+        <span className="text-muted-2">You send:</span>{" "}
+        {counter.you_send.join(", ")}
+      </div>
+      <div className="mt-1 text-foreground">
+        <span className="text-muted-2">You receive:</span>{" "}
+        {counter.you_receive.join(", ")}
+      </div>
+      <div className="mt-2 text-muted">{counter.rationale}</div>
+    </div>
+  );
+}
+
+function formatCounterOffer(
+  counter: NonNullable<TradeIncomingOutput["counter_offer"]>,
+): string {
+  return [
+    `Counter offer:`,
+    `You send: ${counter.you_send.join(", ")}`,
+    `You receive: ${counter.you_receive.join(", ")}`,
+    counter.rationale,
+  ].join("\n");
 }
 
 // ── Trade: outbound ───────────────────────────────────────────────────────
@@ -399,7 +449,17 @@ function formatIncomingVerdict(r: TradeIncomingOutput): string {
     `Opponent read: ${r.opponent_read}`,
     `Opportunity cost: ${r.opportunity_cost}`,
   ];
-  if (r.stronger_ask) lines.push(`Stronger ask: ${r.stronger_ask}`);
+  if (r.action === "counter" && r.counter_offer) {
+    lines.push(
+      ``,
+      `Counter offer:`,
+      `  You send: ${r.counter_offer.you_send.join(", ")}`,
+      `  You receive: ${r.counter_offer.you_receive.join(", ")}`,
+      `  ${r.counter_offer.rationale}`,
+    );
+  } else if (r.stronger_ask) {
+    lines.push(`Stronger ask: ${r.stronger_ask}`);
+  }
   lines.push(`Walk-away floor: ${r.walk_away_floor}`);
   if (r.negotiation_message) {
     lines.push(``, `Suggested message:`, r.negotiation_message);

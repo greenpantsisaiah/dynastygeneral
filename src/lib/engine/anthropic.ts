@@ -215,6 +215,11 @@ function stubFor<TSchema extends z.ZodTypeAny>(
         opponent_read: "[DEV STUB] Likely targeting a specific RB on the board.",
         leverage: "moderate",
         stronger_ask: "[DEV STUB] Add a 2027 2nd.",
+        counter_offer: {
+          you_send: ["[DEV STUB] Mid-tier RB"],
+          you_receive: ["[DEV STUB] Their original ask + 2027 2nd"],
+          rationale: "[DEV STUB] Adds a future 2nd without breaking the band.",
+        },
         walk_away_floor: "[DEV STUB] Decline anything below current offer.",
         negotiation_message:
           "[DEV STUB] Structure's fine. Given the board, I need a 2027 2nd to pull the trigger.",

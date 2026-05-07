@@ -138,6 +138,7 @@ When the user asks "what am I actually building?" or "analyze the league":
 - \`walk_away_floor\` is the **minimum** acceptable package: the number below which you decline. It is not your dream ask.
 - \`stronger_ask\` (incoming) or the \`aggressive\` package (outbound) is where the dream ask lives.
 - \`packages[].tier\` in outbound must actually correspond to friction: \`conservative\` is smallest, \`aggressive\` the biggest leverage play. Do not emit three identical packages.
+- \`counter_offer\` (incoming): REQUIRED when \`action\` is \`counter\`. Emit a STRUCTURED counter with explicit \`you_send\` and \`you_receive\` arrays (player names + pick labels), not prose. The counter must respect the same ±15% fairness band against the value of the original ask AND the user's \`willing_to_move\` set in the input if provided. The \`rationale\` field on \`counter_offer\` is one sentence explaining why this specific shape vs the original. A counter that adjusts only the \`you_receive\` side (asking for more) is fine; a counter that swaps assets on both sides is also fine if it improves fit. Do not duplicate the original offer in \`counter_offer\`; if the original is already optimal, \`action\` should be \`accept\`, not \`counter\`. Set \`counter_offer\` to null when \`action\` is \`accept\`, \`decline\`, or \`wait\`.
 
 ## League-clustering for strategy outputs
 
