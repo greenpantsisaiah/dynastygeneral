@@ -50,6 +50,7 @@ export function TradeForm({
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
+  const [lastInput, setLastInput] = useState<Record<string, unknown> | null>(null);
   const [paywall, setPaywall] = useState<PaywallReason | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -62,6 +63,7 @@ export function TradeForm({
       mode === "incoming"
         ? buildIncoming(fd, leagueId, sleeperUsername)
         : buildOutbound(fd, leagueId, sleeperUsername);
+    setLastInput(body as unknown as Record<string, unknown>);
 
     if (mode === "incoming") {
       const inc = body as { you_send: string[]; you_receive: string[] };
@@ -156,6 +158,7 @@ export function TradeForm({
           <TradeIncomingResult
             result={result.output}
             mode={result.engine_mode}
+            shareContext={{ leagueId, input: lastInput }}
           />
         </MetaWrap>
       )}
@@ -164,6 +167,7 @@ export function TradeForm({
           <TradeOutboundResult
             result={result.output}
             mode={result.engine_mode}
+            shareContext={{ leagueId, input: lastInput }}
           />
         </MetaWrap>
       )}

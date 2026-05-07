@@ -27,7 +27,9 @@ type BucketName =
   | "feedback"
   | "league-refresh"
   | "waitlist"
-  | "account-action";
+  | "account-action"
+  | "verdict-share-create"
+  | "verdict-share-view";
 
 type LimitSpec = {
   // Requests allowed
@@ -76,6 +78,14 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   waitlist: { requests: 3, window: "1 m" },
   // Account export + wipe: auth-required, destructive or data-heavy.
   "account-action": { requests: 5, window: "1 m" },
+  // Shared verdict creation. Auth-required; legitimate users share
+  // ~1-3 verdicts per session at most. Tight bucket to keep a
+  // compromised account from minting share-link spam.
+  "verdict-share-create": { requests: 10, window: "10 m" },
+  // Shared verdict viewing: public anonymous, generous since views
+  // are cheap (one row read + one counter bump). Per-IP cap stops
+  // a bot from inflating view_count en masse.
+  "verdict-share-view": { requests: 60, window: "1 m" },
 };
 
 let redis: Redis | null = null;

@@ -5,6 +5,7 @@ import type {
   TradeOutboundOutput,
 } from "@/lib/engine/schemas";
 import { ClientCopy } from "./client-copy";
+import { ShareVerdictButton } from "./share-verdict-button";
 
 /**
  * Render structured engine outputs. Keep these presentational. Logic
@@ -106,9 +107,17 @@ export function PickResult({
 export function TradeIncomingResult({
   result,
   mode,
+  shareContext,
 }: {
   result: TradeIncomingOutput;
   mode: "live" | "stub";
+  // When present, shows the Share button. Omitted on the public
+  // viewing page (/t/[code]) so a re-share of an already-shared
+  // verdict isn't a thing in v1.
+  shareContext?: {
+    leagueId: string | null;
+    input?: Record<string, unknown> | null;
+  };
 }) {
   const actionTone: Record<string, "accent" | "success" | "danger" | "muted"> = {
     accept: "success",
@@ -117,20 +126,30 @@ export function TradeIncomingResult({
     wait: "muted",
   };
   const verdictText = formatIncomingVerdict(result);
+  const confidencePct = Math.round(result.confidence * 100);
   return (
     <div className="overflow-hidden rounded-lg border border-border-strong bg-surface">
-      <div className="flex items-center justify-between px-5 pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
         <div className="flex flex-wrap items-center gap-2">
           <ActionBadge label={result.action} tone={actionTone[result.action]} />
           <StrategyBadge fit={result.strategy_fit} />
           <LeverageBadge level={result.leverage} />
           {mode === "stub" && <ActionBadge label="Dev stub" tone="muted" />}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-            {Math.round(result.confidence * 100)}% confidence
+            {confidencePct}% confidence
           </span>
           <VerdictCopyButton text={verdictText} />
+          {shareContext && (
+            <ShareVerdictButton
+              mode="incoming"
+              leagueId={shareContext.leagueId}
+              output={result as unknown as Record<string, unknown>}
+              input={shareContext.input ?? null}
+              confidencePct={confidencePct}
+            />
+          )}
         </div>
       </div>
       <div className="px-5 pb-5 pt-3 text-xl font-semibold leading-tight text-foreground">
@@ -162,23 +181,38 @@ export function TradeIncomingResult({
 export function TradeOutboundResult({
   result,
   mode,
+  shareContext,
 }: {
   result: TradeOutboundOutput;
   mode: "live" | "stub";
+  shareContext?: {
+    leagueId: string | null;
+    input?: Record<string, unknown> | null;
+  };
 }) {
   const verdictText = formatOutboundVerdict(result);
+  const confidencePct = Math.round(result.confidence * 100);
   return (
     <div className="overflow-hidden rounded-lg border border-border-strong bg-surface">
-      <div className="flex items-center justify-between px-5 pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
         <div className="flex items-center gap-2">
           <LeverageBadge level={result.leverage} />
           {mode === "stub" && <ActionBadge label="Dev stub" tone="muted" />}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-            {Math.round(result.confidence * 100)}% confidence
+            {confidencePct}% confidence
           </span>
           <VerdictCopyButton text={verdictText} />
+          {shareContext && (
+            <ShareVerdictButton
+              mode="outbound"
+              leagueId={shareContext.leagueId}
+              output={result as unknown as Record<string, unknown>}
+              input={shareContext.input ?? null}
+              confidencePct={confidencePct}
+            />
+          )}
         </div>
       </div>
       <div className="px-5 pb-5 pt-3 text-xl font-semibold leading-tight text-foreground">

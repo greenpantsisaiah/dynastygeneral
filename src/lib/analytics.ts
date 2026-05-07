@@ -28,6 +28,11 @@ type DGEvent =
       league_id: string;
       target_type: "player" | "manager" | "pick";
     }
+  | {
+      event: "trade_verdict_shared";
+      league_id: string;
+      mode: "incoming" | "outbound";
+    }
   | { event: "scout_report_run"; scouted_username: string }
   | { event: "soundboard_doctrine_saved"; doctrine: string }
   | { event: "trial_started"; plan: "pro" }
