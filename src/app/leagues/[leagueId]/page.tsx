@@ -71,10 +71,15 @@ import { createClient } from "@/lib/supabase/server";
 import { PlaysFromHere } from "@/components/league/plays-from-here";
 import { DecisionCard } from "@/components/league/decision-card";
 import { TradeStrategyPanel } from "@/components/league/trade-strategy-panel";
+import { InflectionPanel } from "@/components/league/inflection-panel";
 import {
   buildLeagueReadFromSnapshot,
   type LeagueRead,
 } from "@/lib/strategy/league-read";
+import {
+  buildInflectionsFromSnapshot,
+  type InflectionContext,
+} from "@/lib/engine/inflection";
 import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
@@ -739,11 +744,29 @@ export default async function LeagueHubPage({
   // izzydabomb keeper-league session: founder repeatedly chatted Coach
   // for this analysis; data was always there but not surfaced.
   let leagueRead: LeagueRead | null = null;
+  let inflectionItems: InflectionContext[] = [];
   if (leagueSnapshot) {
     try {
       leagueRead = buildLeagueReadFromSnapshot({ snap: leagueSnapshot });
     } catch (err) {
       console.error("[hub:league-read]", err);
+    }
+    // Inflection bifurcations on roster players: aging cliff, rookie
+    // debut, post-major-injury return. Resolves Sleeper player metadata
+    // for name + age + position; reuses the same `resolvePlayers` cache
+    // the rest of the hub uses.
+    try {
+      const allRosterIds = new Set<string>();
+      for (const r of leagueSnapshot.rosters) {
+        for (const id of r.player_ids ?? []) allRosterIds.add(id);
+      }
+      const playersMap = await resolvePlayers([...allRosterIds]);
+      inflectionItems = buildInflectionsFromSnapshot({
+        snap: leagueSnapshot,
+        playersMap,
+      });
+    } catch (err) {
+      console.error("[hub:inflections]", err);
     }
   }
 
@@ -1320,6 +1343,16 @@ export default async function LeagueHubPage({
                       repeatedly went to Coach for this; now visible
                       first-class. v1 design, redesign queued. */}
                   <TradeStrategyPanel data={leagueRead} />
+
+                  {/* Inflection Panel. Surfaces high-variance roster
+                      players (aging cliff, rookie debut, post-injury)
+                      with Story A / B bifurcation, signal scorecard,
+                      and named historical comparators. Per the
+                      2026-05-07 statistical-architecture decision:
+                      single-point predictions are statistically wrong
+                      for inflection-window players; show the
+                      bifurcation, let the user decide. */}
+                  <InflectionPanel items={inflectionItems} />
                 </>
               )}
 
