@@ -483,7 +483,19 @@ export function DecisionCard({
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
                 {lanes.map((l) => {
-                  const picks = byLane[l.id].slice(0, 3);
+                  // In the emphasis lane (where the lean lives), the
+                  // lean is already shown prominently in the standing-
+                  // call band above. Filter it out here so the lane
+                  // card shows real ALTERNATIVES within that
+                  // direction instead of duplicating the call.
+                  // (Founder-reported UX: "the standing call card
+                  // shows the same player as the lean lane card in
+                  // many scenarios.")
+                  const baseList =
+                    l.id === emphasisLane
+                      ? byLane[l.id].filter((p) => !p.is_lean)
+                      : byLane[l.id];
+                  const picks = baseList.slice(0, 3);
                   const isEmphasized = emphasisLane === l.id;
                   const headerColor =
                     l.tone === "warning"
@@ -515,7 +527,9 @@ export function DecisionCard({
                       </div>
                       {picks.length === 0 ? (
                         <p className="mt-2 text-xs text-muted-2">
-                          {emptyLaneCopy(l.id)}
+                          {l.id === emphasisLane
+                            ? "Standing call is the only pick aligned with this lane. See above."
+                            : emptyLaneCopy(l.id)}
                         </p>
                       ) : (
                         <ul className="mt-2 space-y-2">
