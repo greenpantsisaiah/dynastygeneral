@@ -131,19 +131,19 @@ export function analyzeDraftProgress(args: {
       const example = sharpLockPicks[0];
       const name =
         playerNameLookup(example.player_id)?.name ?? example.player_id;
-      sub = `${valueOrConsensus} picks at-or-after consensus; ${sharpish} intentional early locks. Sharpest: ${name} taken ${Math.abs(example.delta)} picks before ADP. If the engine had a standing-call reason, that lock is the kind of move that wins drafts.`;
+      sub = `${valueOrConsensus} picks at-or-after consensus; ${sharpish} intentional early locks. Sharpest: ${name} taken ${Math.round(Math.abs(example.delta))} picks before ADP. If the engine had a standing-call reason, that lock is the kind of move that wins drafts.`;
     } else if (earlyLockPicks.length > 0) {
       const example = earlyLockPicks[0];
       const name =
         playerNameLookup(example.player_id)?.name ?? example.player_id;
-      sub = `${valueOrConsensus} picks at-or-after consensus; ${earlyLockPicks.length} early lock${earlyLockPicks.length === 1 ? "" : "s"}. Most off-ADP: ${name} (${Math.abs(example.delta)} picks early).`;
+      sub = `${valueOrConsensus} picks at-or-after consensus; ${earlyLockPicks.length} early lock${earlyLockPicks.length === 1 ? "" : "s"}. Most off-ADP: ${name} (${Math.round(Math.abs(example.delta))} picks early).`;
     } else if (valuePicks.length > 0) {
       const example = valuePicks.reduce((a, b) =>
         a.delta > b.delta ? a : b,
       );
       const name =
         playerNameLookup(example.player_id)?.name ?? example.player_id;
-      sub = `${valuePicks.length} value pick${valuePicks.length === 1 ? "" : "s"}. Best: ${name} fell ${example.delta} picks past ADP.`;
+      sub = `${valuePicks.length} value pick${valuePicks.length === 1 ? "" : "s"}. Best: ${name} fell ${Math.round(example.delta)} picks past ADP.`;
     } else {
       sub = `${totalCount} picks at-or-near consensus; market-rate execution.`;
     }
@@ -363,7 +363,7 @@ export function analyzeDraftProgress(args: {
   )) {
     const meta = playerNameLookup(pick.player_id);
     const name = meta?.name ?? pick.player_id;
-    const earlyBy = Math.abs(pick.delta);
+    const earlyBy = Math.round(Math.abs(pick.delta));
     sharp_positioning.push(
       `${name} locked ${earlyBy} picks before ADP. Going against consensus, and decisive about it.`,
     );
