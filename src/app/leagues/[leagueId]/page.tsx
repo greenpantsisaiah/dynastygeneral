@@ -818,7 +818,12 @@ export default async function LeagueHubPage({
       // founder feedback 2026-05-08: scoring user picks against
       // FantasyCalc rank produced false "reach" labels (Mahomes was
       // top of Sleeper ADP but FantasyCalc-rank ~50 since he's 30).
-      const { pickAdpFromVariants } = await import(
+      //
+      // ADP comes from Sleeper's projections endpoint (separate
+      // from the SleeperPlayer cache). Earlier bug 2026-05-08:
+      // casting SleeperPlayer to PlayerAdp returned null for every
+      // pick. Fix: fetch projections explicitly.
+      const { pickAdpFromVariants, getProjections } = await import(
         "@/lib/players/projections"
       );
       const adpFmt = {
@@ -830,13 +835,24 @@ export default async function LeagueHubPage({
         isTePremium: leagueSnapshot.scoring.includes("TE-premium"),
         isRookie: false,
       };
+      let projectionsForAdp:
+        | Awaited<ReturnType<typeof getProjections>>
+        | null = null;
+      try {
+        projectionsForAdp = await getProjections(leagueSnapshot.season);
+      } catch (err) {
+        console.error("[hub:adp-projections]", err);
+      }
       const getAdp = (id: string): number | null => {
+        const adpRaw = projectionsForAdp?.byPlayerId.get(id);
+        if (!adpRaw) return null;
         const sp = playersMap.get(id);
-        if (!sp) return null;
-        const { value } = pickAdpFromVariants(
-          sp as unknown as Parameters<typeof pickAdpFromVariants>[0],
-          adpFmt,
-        );
+        const isRookie = sp?.years_exp === 0;
+        const { value } = pickAdpFromVariants(adpRaw, {
+          ...adpFmt,
+          isRookie,
+          position: sp?.position ?? null,
+        });
         return value;
       };
       draftProgress = analyzeDraftProgress({

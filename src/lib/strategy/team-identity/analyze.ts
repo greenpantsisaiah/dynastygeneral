@@ -39,10 +39,60 @@ export function analyzeTeamIdentity(args: {
   if (!myRoster) return null;
 
   // ─── Build archetype readout ────────────────────────────────────
-  const top = rankedArchetypes[0] ?? null;
-  const second = rankedArchetypes[1] ?? null;
+  // Pick-budget gate: archetypes that fit by ABSENCE (TE Streamer
+  // fits because you have 0 TEs; QB Late Streamer fits because you
+  // have 0 QBs) will fire at 100% confidence in the early rounds
+  // before the user has had a chance to address those positions.
+  // Bug surfaced 2026-05-08: 3 picks in, no TE drafted yet, top
+  // archetype was "TE Streamer" at 100% fit purely because of the
+  // absence. The user is being TOLD to draft RB next AND being
+  // told their identity is TE Streamer. Contradictory framing.
+  //
+  // Fix: require minimum picks before any archetype can be named.
+  // Also detect absence-based archetypes (those whose name contains
+  // "Streamer" / "Late" / "Punt") and require an even higher pick
+  // threshold for those.
+  const totalPicks = snap.draft.picks_made.filter(
+    (p) => p.roster_id === myRoster.roster_id,
+  ).length;
+  const MIN_PICKS_FOR_ANY_ARCHETYPE = 4;
+  const MIN_PICKS_FOR_ABSENCE_ARCHETYPE = 7;
+
+  let top: RankedArchetype | null = rankedArchetypes[0] ?? null;
+  let second: RankedArchetype | null = rankedArchetypes[1] ?? null;
+
+  // If the top archetype is absence-based, require more picks before
+  // we let it claim the identity slot. Otherwise demote to the next
+  // archetype in line that ISN'T absence-based.
+  function isAbsenceBased(name: string): boolean {
+    const lower = name.toLowerCase();
+    return (
+      lower.includes("streamer") ||
+      lower.includes("late") ||
+      lower.includes("punt") ||
+      lower.includes("zero")
+    );
+  }
+
+  if (top && isAbsenceBased(top.archetype.name) && totalPicks < MIN_PICKS_FOR_ABSENCE_ARCHETYPE) {
+    // Find first non-absence-based archetype with reasonable score
+    const fallback = rankedArchetypes.find(
+      (a) => !isAbsenceBased(a.archetype.name) && a.total_score >= 0.4,
+    );
+    if (fallback) {
+      top = fallback;
+      const secondCandidate = rankedArchetypes.find(
+        (a) => a !== fallback && !isAbsenceBased(a.archetype.name) && a.total_score >= 0.4,
+      );
+      second = secondCandidate ?? null;
+    } else {
+      top = null;
+      second = null;
+    }
+  }
+
   let build: BuildArchetypeReadout;
-  if (!top) {
+  if (!top || totalPicks < MIN_PICKS_FOR_ANY_ARCHETYPE) {
     build = {
       primary_name: "Forming",
       secondary_name: null,
@@ -53,13 +103,15 @@ export function analyzeTeamIdentity(args: {
   } else {
     // Treat the secondary as a real hybrid only when its score is
     // within 0.10 of the primary. Otherwise it's noise.
-    const isHybrid =
+    const secondaryName: string | null =
       second != null &&
       top.total_score - second.total_score <= 0.1 &&
-      second.total_score >= 0.4;
+      second.total_score >= 0.4
+        ? second.archetype.name
+        : null;
     build = {
       primary_name: top.archetype.name,
-      secondary_name: isHybrid ? second.archetype.name : null,
+      secondary_name: secondaryName,
       primary_confidence: top.total_score,
       description: top.archetype.tagline ?? "",
       phase: top.phase ?? null,

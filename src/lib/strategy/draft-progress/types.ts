@@ -28,6 +28,11 @@ export type ProgressMetric = {
   sub_line: string;
   // Tier color for visual.
   tier: ProgressTier;
+  // True when the metric couldn't be computed because data is
+  // missing (not a performance issue). Excluded from overall_tier
+  // calculation per the 2026-05-08 fix: a #1-ranked user with one
+  // ungraded metric should not show overall tier as solid/yellow.
+  ungraded?: boolean;
 };
 
 export type DraftProgress = {

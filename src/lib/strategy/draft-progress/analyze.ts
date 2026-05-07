@@ -83,6 +83,7 @@ export function analyzeDraftProgress(args: {
       display_value: "no picks yet",
       sub_line: "Start drafting and we'll show your positioning vs Sleeper ADP on every pick.",
       tier: "solid",
+      ungraded: true,
     };
   } else if (resolvedPositioning.length === 0) {
     pickQualityMetric = {
@@ -90,6 +91,7 @@ export function analyzeDraftProgress(args: {
       display_value: "ungraded",
       sub_line: "ADP data not available for these picks yet.",
       tier: "solid",
+      ungraded: true,
     };
   } else {
     // Counts by label.
@@ -176,25 +178,45 @@ export function analyzeDraftProgress(args: {
       display_value: "ungraded",
       sub_line: "Roster values not yet resolved.",
       tier: "solid",
+      ungraded: true,
     };
   } else {
     const myValue = totalsByRoster.get(myRoster.roster_id) ?? 0;
     const topValue = ranked[0][1];
-    const valuePctOfTop = topValue > 0 ? (myValue / topValue) * 100 : 0;
     let tier: ProgressTier;
     let sub: string;
-    if (myRank <= Math.ceil(totalTeams / 4)) {
+    // Sub-line composition. When user is #1 the previous "vs 232 for #1"
+    // copy was confusing because the user IS #1; comparing to themselves
+    // reads as "tied with the leader" when they ARE the leader. Per
+    // 2026-05-08 founder feedback: when user is #1, show distance to
+    // #2 instead. Always include the next-closest team for context.
+    if (myRank === 1) {
+      const second = ranked[1];
+      if (second) {
+        const secondValue = second[1];
+        const lead = myValue - secondValue;
+        const leadPct =
+          myValue > 0 ? Math.round((lead / myValue) * 100) : 0;
+        sub = `League leader (${myValue.toFixed(0)} pts). ${lead.toFixed(0)} pts ahead of #2 (${leadPct}% lead).`;
+      } else {
+        sub = `League leader (${myValue.toFixed(0)} pts).`;
+      }
       tier = "strong";
-      sub = `Your roster value sits in the top quartile of the league (${myValue.toFixed(0)} pts vs ${topValue.toFixed(0)} for #1, ${valuePctOfTop.toFixed(0)}% of leader).`;
+    } else if (myRank <= Math.ceil(totalTeams / 4)) {
+      const myValuePctOfTop = topValue > 0 ? (myValue / topValue) * 100 : 0;
+      sub = `Top quartile of the league (${myValue.toFixed(0)} pts; ${myValuePctOfTop.toFixed(0)}% of leader).`;
+      tier = "strong";
     } else if (myRank <= Math.ceil(totalTeams / 2)) {
+      const myValuePctOfTop = topValue > 0 ? (myValue / topValue) * 100 : 0;
+      sub = `Mid-pack roster value (${myValuePctOfTop.toFixed(0)}% of league leader).`;
       tier = "solid";
-      sub = `Your roster value is mid-pack (${valuePctOfTop.toFixed(0)}% of league leader).`;
     } else if (myRank <= Math.floor((3 * totalTeams) / 4)) {
+      const myValuePctOfTop = topValue > 0 ? (myValue / topValue) * 100 : 0;
+      sub = `Below mid-pack (${myValuePctOfTop.toFixed(0)}% of league leader). Trade-up may close the gap.`;
       tier = "mixed";
-      sub = `Below mid-pack on roster value. ${valuePctOfTop.toFixed(0)}% of league leader.`;
     } else {
-      tier = "off_track";
       sub = `Bottom-quartile roster value. Trade-up leverage may help close the gap.`;
+      tier = "off_track";
     }
     leagueRankMetric = {
       label: "League rank",
@@ -219,19 +241,32 @@ export function analyzeDraftProgress(args: {
       display_value: "early",
       sub_line: "Too few picks to read your build trajectory yet.",
       tier: "solid",
+      ungraded: true,
     };
   } else {
-    let tier: ProgressTier = "solid";
-    let sub = "";
-    if (myStarterFill.coverage >= 0.5) {
+    // Tier on efficiency: starters_filled relative to picks_made.
+    // After N picks, the maximum possible starters_filled is N (one
+    // starter per pick). 80%+ efficiency = strong; 50%+ = solid;
+    // <50% = mixed (you're spending picks on depth/upside not
+    // starters, which may be intentional but worth verifying).
+    const efficiency =
+      myPicks.length > 0
+        ? myStarterFill.filled / Math.min(myPicks.length, myStarterFill.required)
+        : 0;
+    let tier: ProgressTier;
+    let sub: string;
+    if (efficiency >= 0.8) {
       tier = "strong";
-      sub = `Filling starters efficiently: ${myStarterFill.filled}/${myStarterFill.required} starting positions covered. Build trajectory looks coherent.`;
-    } else if (myStarterFill.coverage > 0) {
+      sub = `Filling starters efficiently: ${myStarterFill.filled}/${myStarterFill.required} starting positions covered after ${myPicks.length} picks.`;
+    } else if (efficiency >= 0.5) {
       tier = "solid";
-      sub = `Starters partially covered (${myStarterFill.filled}/${myStarterFill.required}); on track for a balanced build with picks remaining.`;
+      sub = `Starters partially covered (${myStarterFill.filled}/${myStarterFill.required}); on track with picks remaining.`;
+    } else if (myStarterFill.coverage > 0) {
+      tier = "mixed";
+      sub = `${myStarterFill.filled}/${myStarterFill.required} starters after ${myPicks.length} picks. Spending picks on depth/upside more than starters; intentional, but verify the build direction.`;
     } else {
       tier = "mixed";
-      sub = `No starters filled yet across ${myPicks.length} picks. Confirm the build direction makes sense for this league context.`;
+      sub = `No starters filled yet across ${myPicks.length} picks. Confirm the build direction.`;
     }
     if (avgAge != null) {
       sub += ` Roster avg age ${avgAge.toFixed(1)}.`;
@@ -244,17 +279,38 @@ export function analyzeDraftProgress(args: {
     };
   }
 
-  // Headline + overall tier
-  const tiers = [
-    pickQualityMetric.tier,
-    leagueRankMetric.tier,
-    buildCoherenceMetric.tier,
+  // Headline + overall tier. Per 2026-05-08 founder feedback: data-
+  // missing ("ungraded") metrics should not degrade the overall
+  // tier read. A user ranked #1 with one ungraded metric was
+  // showing solid/yellow, contradicting the league rank. Filter
+  // out ungraded metrics before computing overall.
+  const allMetrics = [
+    pickQualityMetric,
+    leagueRankMetric,
+    buildCoherenceMetric,
   ];
+  const gradedTiers = allMetrics
+    .filter((m) => !m.ungraded)
+    .map((m) => m.tier);
   let overall_tier: ProgressTier;
-  if (tiers.includes("off_track")) overall_tier = "off_track";
-  else if (tiers.filter((t) => t === "strong").length >= 2) overall_tier = "strong";
-  else if (tiers.includes("strong") || !tiers.includes("mixed")) overall_tier = "solid";
-  else overall_tier = "mixed";
+  if (gradedTiers.length === 0) {
+    overall_tier = "solid";
+  } else if (gradedTiers.includes("off_track")) {
+    overall_tier = "off_track";
+  } else if (
+    gradedTiers.filter((t) => t === "strong").length >=
+    Math.ceil(gradedTiers.length / 2)
+  ) {
+    // Majority strong (or all strong) -> strong overall
+    overall_tier = "strong";
+  } else if (gradedTiers.includes("strong") && !gradedTiers.includes("mixed")) {
+    // At least one strong, no mixed -> still strong
+    overall_tier = "strong";
+  } else if (gradedTiers.includes("mixed")) {
+    overall_tier = "mixed";
+  } else {
+    overall_tier = "solid";
+  }
 
   let headline: string;
   if (overall_tier === "strong") {
