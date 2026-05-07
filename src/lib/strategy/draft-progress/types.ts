@@ -54,6 +54,13 @@ export type DraftProgress = {
   // Watch-outs (3 max). Specific concerns to flag honestly. Each is
   // also a candidate trigger for the model-feedback alert.
   watch_outs: string[];
+  // Sharp-positioning callouts (3 max). Picks where the user went
+  // against consensus by a meaningful margin. Framed as DECISIVE,
+  // not reckless. Per founder direction 2026-05-08: when a user is
+  // following our recommendations and we lock a player early
+  // because the engine identified scarcity / format leverage, that
+  // is the FEATURE, not a watch-out. Surface it positively.
+  sharp_positioning: string[];
   // Model-feedback flag: true when user has been following standing
   // calls AND metrics are off_track. Triggers the "this is a model
   // alert, not a user alert" footer copy.

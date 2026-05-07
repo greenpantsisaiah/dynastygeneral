@@ -805,13 +805,39 @@ export default async function LeagueHubPage({
       });
 
       // Draft progress scorecard. "How am I doing in this draft."
-      // Uses the same lrValueMap (FantasyCalc value + overall_rank)
-      // and the playerNameLookup so the scorecard names specific
-      // best-steal / biggest-reach picks.
+      // Uses Sleeper format-aware ADP (via pickAdpFromVariants) as
+      // the consensus baseline for positioning analysis. ADP is
+      // the right baseline for draft-position consensus; FantasyCalc
+      // overall_rank is dynasty-value rank and is wrong here. Per
+      // founder feedback 2026-05-08: scoring user picks against
+      // FantasyCalc rank produced false "reach" labels (Mahomes was
+      // top of Sleeper ADP but FantasyCalc-rank ~50 since he's 30).
+      const { pickAdpFromVariants } = await import(
+        "@/lib/players/projections"
+      );
+      const adpFmt = {
+        isSuperflex:
+          leagueSnapshot.format === "superflex" ||
+          leagueSnapshot.format === "2qb",
+        isPpr: leagueSnapshot.scoring.includes("PPR"),
+        isHalfPpr: leagueSnapshot.scoring.includes("half-PPR"),
+        isTePremium: leagueSnapshot.scoring.includes("TE-premium"),
+        isRookie: false,
+      };
+      const getAdp = (id: string): number | null => {
+        const sp = playersMap.get(id);
+        if (!sp) return null;
+        const { value } = pickAdpFromVariants(
+          sp as unknown as Parameters<typeof pickAdpFromVariants>[0],
+          adpFmt,
+        );
+        return value;
+      };
       draftProgress = analyzeDraftProgress({
         snap: leagueSnapshot,
         playerValueMap: lrValueMap,
         playerNameLookup,
+        getAdp,
       });
     } catch (err) {
       console.error("[hub:league-read+inflections]", err);

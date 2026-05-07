@@ -77,6 +77,25 @@ export function DraftProgressPanel({ data }: { data: DraftProgress | null }) {
         <MetricCard metric={data.build_coherence} />
       </div>
 
+      {data.sharp_positioning.length > 0 && (
+        <div className="border-t border-border-soft px-5 py-4">
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+            Sharp positioning · where you went against consensus
+          </div>
+          <ul className="mt-2 space-y-1 text-xs leading-snug text-foreground">
+            {data.sharp_positioning.map((s, i) => (
+              <li key={i}>· {s}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] leading-snug text-muted-2">
+            Going off-ADP isn't a flaw; it's where you outperform the field.
+            Every early lock was a deliberate scarcity / format-leverage
+            call by the engine. The book says go by ADP. Real data says
+            don't always.
+          </p>
+        </div>
+      )}
+
       {(data.wins.length > 0 || data.watch_outs.length > 0) && (
         <div className="grid gap-3 border-t border-border-soft px-5 py-4 sm:grid-cols-2">
           {data.wins.length > 0 && (
@@ -105,22 +124,6 @@ export function DraftProgressPanel({ data }: { data: DraftProgress | null }) {
           )}
         </div>
       )}
-
-      <div className="border-t border-border-soft px-5 py-3 text-xs text-muted-2 leading-snug">
-        {data.model_alert_triggered ? (
-          <span className="text-warning">
-            Model alert. You've been following our recommendations and the
-            scorecard is off-track. That's a model issue, not your issue.
-            We're using this signal to recalibrate.
-          </span>
-        ) : (
-          <span>
-            Following our recommendations? If this scorecard ever shows
-            off-track while you're staying on the standing call, that's a
-            model alert, not your fault.
-          </span>
-        )}
-      </div>
     </section>
   );
 }
