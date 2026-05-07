@@ -525,54 +525,66 @@ The "outperformed N percent of league players" claim is reserved for the moment 
 
 Until then, no marketing claims of relative performance. The conference talk leads with methodology, not the headline number.
 
-### 9.7 Phase 2 v0 backtest result (2026-05-05)
+### 9.7 Phase 2 v0 + v1 backtest result (last updated 2026-05-07)
 
 **Run label:** `phase2_v1_dyn_*` rows in `backtest_runs`. Source CSV: `web/data/scoreboard/scoreboard_v1.csv`.
 
 **Methodology:**
 - Universe: KTC top-200 dynasty 1QB at preseason snapshot (Aug 14 of each prediction year)
-- Engine output: ranked by `evaluate(ctx).point_estimate` with `ctx.player = null` (no signal codes loaded yet) and `ctx.team = null`. Position rubrics fall back to KTC-prior + age-curve adjustments.
+- Engine output: ranked by `evaluate(ctx).point_estimate`. v0 runs with `ctx.player = null` (no signal codes); v1 runs load `historical_signal_codes` for the prediction year via `--with-signals`.
 - Predicted top-100 joined to actual cumulative PPR rank. Cumulative window: 3yr for 2022 prediction (2022+2023+2024 outcomes), 2yr for 2023 (2023+2024), 1yr for 2024 (2024 only).
 - Metric: Spearman rank correlation between predicted rank and actual cumulative PPR rank.
+- v1 signal coverage: 174 RBs hand-coded across 2022/2023/2024 (52 + 63 + 59 successfully extracted). Other positions (QB/WR/TE) run on rubric + age curve only; signal stack is RB-specific in v1.
 
 **Results (1QB dynasty, top-100 predicted):**
 
 | Source | 2022 (3yr) | 2023 (2yr) | 2024 (1yr) | Avg |
 |---|---|---|---|---|
-| **Dynasty General v0 (no signals)** | 0.390 | **0.467** | **0.339** | **0.399** |
+| **Dynasty General v1 (RB signals loaded)** | 0.442 | **0.474** | **0.346** | **0.421** |
+| Dynasty General v0 (no signals) | 0.390 | 0.467 | 0.339 | 0.399 |
 | FantasyPros ECR | **0.463** | 0.433 | 0.200 | 0.365 |
 | FantasyPros ADP | **0.463** | **0.535** | 0.093 | 0.364 |
 | KTC (market) | 0.354 | 0.449 | 0.236 | 0.346 |
 
-Dynasty General's engine v0, using only position rubric scaffolding and corpus-grounded age curves with NO signal codes loaded, achieves a Spearman rank correlation of 0.399 averaged across 2022-2024 dynasty backtests. This beats:
-- FantasyPros ECR by 0.034 (9% relative)
-- FantasyPros ADP by 0.035 (10% relative)
-- KTC market consensus by 0.053 (15% relative)
+**v1 vs v0:** v1 with full RB signal coverage beats v0 on every horizon, biggest gain on 3-year (+0.052), modest on 2-year and 1-year. Average +0.022 absolute (5.5% relative). The earlier "v1 < v0 with 7 RBs coded" finding (recorded 2026-05-06) was a noise artifact from undercoverage; at full coverage the signal dominates.
 
-**Where v0 wins clearly:** 2024 (Spearman 0.339 vs field average ~0.18). The 2024 NFL season had unusually high star-player injury rates (CMC, Burrow, Aiyuk, Kincaid). Our age curves correctly downgraded aging RBs and TEs that the market overrated; consensus baselines did not.
+**v1 vs consensus baselines:**
+- Beats FantasyPros ECR by 0.056 (15% relative) on average
+- Beats FantasyPros ADP by 0.057 (16% relative) on average
+- Beats KTC market consensus by 0.075 (22% relative) on average
 
-**Where v0 loses:** 2022 (Spearman 0.390 vs FP ECR/ADP at 0.463). The 2022 market was relatively stable; consensus did well on a calm year; our age curves may have over-corrected.
+**Per-year picture (more honest than the average):**
 
-**Where v0 ties:** 2023 (Spearman 0.467 vs FP ADP 0.535, FP ECR 0.433, KTC 0.449). Within sample-size noise of the leaders.
+- **2024 (1yr cumulative):** Dynasty General v1 dominates by a wide margin (0.346 vs FP ECR 0.200, FP ADP 0.093, KTC 0.236). The 2024 NFL season had unusually high star-player injury rates (CMC, Burrow, Aiyuk, Kincaid); FP rankings collapsed (FP ADP at 0.093 is essentially random) while DG's age curves correctly downgraded aging starters. This single-year DG outperformance drives most of the average lead.
+- **2023 (2yr cumulative):** FP ADP wins (0.535 vs DG v1 0.474). Both are competitive; DG v1 ahead of FP ECR (0.433) and KTC (0.449).
+- **2022 (3yr cumulative):** FP ECR and FP ADP tie at 0.463 vs DG v1 at 0.442. The longest horizon is where consensus ranking captures something DG doesn't yet.
+
+**The claim that survives scrutiny:**
+
+DG v1 wins on AVERAGE across the three years, primarily because FP collapses on 2024 1-year while DG holds up. On the per-year long-horizon (2022 3yr, 2023 2yr) DG is competitive but not dominant.
+
+**The honest framing for marketing:** "Dynasty General beats consensus on average across 2022-2024 backtests. Per-year, we dominate the year consensus got most wrong; we're competitive but trailing on the longest horizons. Open work: extend signal coverage beyond RBs, investigate the long-horizon FP signal we don't yet capture."
 
 **Sample sizes:**
 - 86-89 joined pairs per source for 2022 (3yr)
 - 62-72 joined pairs per source for 2023 (2yr)
 - 64-73 joined pairs per source for 2024 (1yr)
 
-Sample sizes this small place a ±0.05 to ±0.10 confidence interval on the reported Spearman values. The v0 win on AVERAGE is real; the year-over-year ranking is noisier.
+Sample sizes this small place a ±0.05 to ±0.10 confidence interval on the reported Spearman values. The v1 average win is real; the year-over-year deltas (especially 2023 and 2024 where v1 vs v0 is +0.007) are inside the noise band.
 
 **Caveats:**
 
-1. **No signal codes loaded.** Track A (`scripts/extract-historical-signals.ts`) is in progress. The engine in this run uses only KTC prior + age curve. Once signal codes (RB role tier, OL transitions, coaching changes, compounding-news count) are loaded, engine v1 will be re-run and these numbers should change. The v0 result is the floor.
-2. **Loss function is partial.** Section 8.2 of VALIDATION_PLAN specifies `L_dynasty = 0.6 × KTC_6mo_value_MAE + 0.4 × cumulative_3yr_PPR_RMSE`. We compute the cumulative PPR rank correlation but have not yet weighted-composited it with KTC value drift. Value drift data is in `backtest_runs.baseline_comparisons.mean_ktc_drift` for the runs that have KTC snapshots. v1 will composite.
-3. **Cumulative window is incomplete for 2024.** The 2024 prediction is scored against a 1-year cumulative (only 2024 outcomes). When 2025 and 2026 outcomes are ingested, the 2024 prediction can be re-scored against the full 3yr horizon.
-4. **Engine restricted to KTC top-200 universe.** Players ranked outside KTC top-200 are not predicted by v0. Comparing to FP ECR (which ranks 500+) is fair within the top-100 join, but v0 cannot find a "diamond in the rough" that KTC missed entirely.
+1. **Signal coverage is RB-only in v1.** QB / WR / TE predictions run on rubric + age curve only. The long-horizon gap to FP (where FP wins on 2022/2023) is plausibly because FP integrates expert opinion across all positions; DG v1 only adds signal data for RBs. Extending hand-coded signals to WR / QB / TE would test this hypothesis. Estimated cost: ~$300-450 in extraction across 3 years × 3 positions × ~50 players each.
+2. **Loss function is still partial.** Section 8.2 of VALIDATION_PLAN specifies `L_dynasty = 0.6 × KTC_6mo_value_MAE + 0.4 × cumulative_3yr_PPR_RMSE`. We report Spearman rank correlation as a proxy. Value drift data is in `backtest_runs.baseline_comparisons.mean_ktc_drift` for runs with KTC snapshots; the weighted composite is queued.
+3. **Cumulative window is incomplete for 2024.** The 2024 prediction is scored against a 1-year cumulative. When 2025 and 2026 outcomes are ingested, the 2024 prediction can be re-scored against the full 3yr horizon, potentially changing the per-year picture.
+4. **Engine restricted to KTC top-200 universe.** Players ranked outside KTC top-200 are not predicted by v0/v1. Fair join with FP ECR (which ranks 500+) within the top-100, but the engine cannot find a "diamond in the rough" KTC missed entirely.
 5. **DSTs and kickers excluded** (no rubric for them, and they don't appear in dynasty markets meaningfully).
+6. **The horizon-gating thesis is refuted.** A 2026-05-06 partial-coverage finding suggested the bellcow boost might hurt long-horizon correlation; the founder locked in option 2 (horizon-gate the boost). Full-coverage data refutes this: v1 wins biggest on 3-year. Horizon-gating implementation parked.
+7. **2024 dominance is dataset-dependent.** The DG average win is driven by FP's bad 2024. If 2024 is an outlier year (unusual injury distribution) rather than a structural FP weakness, the average claim weakens for future years. Re-run after 2025 outcomes ingest to verify.
 
 **Conclusion:**
 
-Even research-grounded scaffolding (corpus-cited age curves + position rubric structure) provides measurable predictive lift over market consensus. This is the falsifiable claim Phase 2 v0 was built to test. The v0 result clears the bar specified in VALIDATION_PLAN section 3 (mandatory: beat naive last-year + ADP autodraft on the chosen loss function). It does NOT yet earn the "stretch" claim of beating FP consensus by 8%+ RMSE reduction; the sample size is too small for confidence intervals to certify that. v1 with signals will re-test.
+Engine v1 with full RB signal coverage produces a measurable improvement over both engine v0 and named consensus baselines on average. The win is concentrated in the 2024 year where consensus rankings collapsed; on long-horizon dynasty windows (2022 3yr, 2023 2yr) DG is competitive but trails FP. The falsifiable claim from VALIDATION_PLAN section 3 (mandatory: beat naive last-year + ADP autodraft on the chosen loss function) is met. The "stretch" claim of beating FP by 8%+ on the loss function on every horizon is NOT met; v1 wins average, loses 2 of 3 per-year. v2 work (extending signal coverage to non-RB positions, investigating the long-horizon FP signal) is queued.
 
 ## 10. Internal heuristics pending validation
 
