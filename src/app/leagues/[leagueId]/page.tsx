@@ -73,6 +73,11 @@ import { DecisionCard } from "@/components/league/decision-card";
 import { TradeStrategyPanel } from "@/components/league/trade-strategy-panel";
 import { InflectionPanel } from "@/components/league/inflection-panel";
 import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
+import { TeamIdentityPanel } from "@/components/league/team-identity-panel";
+import {
+  analyzeTeamIdentity,
+  type TeamIdentity,
+} from "@/lib/strategy/team-identity";
 import {
   buildLeagueReadFromSnapshot,
   type LeagueRead,
@@ -751,6 +756,7 @@ export default async function LeagueHubPage({
   let leagueRead: LeagueRead | null = null;
   let inflectionItems: InflectionContext[] = [];
   let draftProgress: DraftProgress | null = null;
+  let teamIdentity: TeamIdentity | null = null;
   if (leagueSnapshot) {
     try {
       // Resolve all rostered players (including ones in picks_made
@@ -838,6 +844,20 @@ export default async function LeagueHubPage({
         playerValueMap: lrValueMap,
         playerNameLookup,
         getAdp,
+      });
+
+      // Team Identity. The "this is your team" hero card. Combines
+      // archetype (from rankedArchetypes), position room rank,
+      // inflection exposure, lineup talent rank, and predicted
+      // keeper slate into a single identity readout. Per founder
+      // direction 2026-05-08: characterizing the user's team has
+      // always been core mission; this is the consolidation surface.
+      teamIdentity = analyzeTeamIdentity({
+        snap: leagueSnapshot,
+        rankedArchetypes,
+        inflections: inflectionItems,
+        playerValueMap: lrValueMap,
+        playerNameLookup,
       });
     } catch (err) {
       console.error("[hub:league-read+inflections]", err);
@@ -1275,15 +1295,18 @@ export default async function LeagueHubPage({
                   meters retained as math (CAN-WIN-NOW vs FUTURE scores
                   are league-state observations, not user declarations). */}
 
+              {/* Team Identity hero card. "This is your team" at the
+                  top of the hub. Combines archetype, position room
+                  fingerprint, risk fingerprint, lineup talent rank,
+                  and likely keeper slate. Per founder direction
+                  2026-05-08: characterizing the user's team has been
+                  core mission; this is the consolidation surface. */}
+              <TeamIdentityPanel data={teamIdentity} />
+
               {/* Draft Progress scorecard. "How are you doing in this
                   draft" at-a-glance answer for the multi-draft user
-                  who returns after a day or two. Above WindowsBar so
-                  it's the first thing seen on hub revisit. Per the
-                  2026-05-07 founder ask: positive emotional ROI when
-                  metrics support it; honest when they don't. The
-                  model-feedback footer closes the "if I followed recs
-                  and it shows off-track, that's a model alert"
-                  feedback loop. */}
+                  who returns after a day or two. Below Team Identity
+                  so identity comes before performance. */}
               <DraftProgressPanel data={draftProgress} />
 
               {windows && sleeperUser && (
