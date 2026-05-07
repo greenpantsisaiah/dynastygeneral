@@ -89,23 +89,45 @@ function prettyModel(model_version: string): string {
     "ktc@sf": "KeepTradeCut (Superflex)",
     "dynasty_general_v0_nosignals@1qb": "Dynasty General v0 (1QB, no signals)",
     "dynasty_general_v0_nosignals@sf": "Dynasty General v0 (SF, no signals)",
+    "dynasty_general_v0_signals@1qb": "Dynasty General v1 (1QB, RB signals loaded)",
+    "dynasty_general_v0_signals@sf": "Dynasty General v1 (SF, RB signals loaded)",
   };
   return map[model_version] ?? model_version;
+}
+
+// Dedupe rows by (model_version, prediction_year). The CSV may contain
+// multiple runs as the engine evolved (partial-coverage v1 runs from
+// 2026-05-06 + the full-coverage v1 run from 2026-05-07). Keep the
+// most recent row by reading order (the CSV writer appends).
+function dedupeMostRecent(rows: ScoreRow[]): ScoreRow[] {
+  const byKey = new Map<string, ScoreRow>();
+  for (const r of rows) {
+    const key = `${r.model_version}|${r.prediction_year}|${r.loss_function}`;
+    byKey.set(key, r); // last write wins
+  }
+  return [...byKey.values()];
 }
 
 export default function ScoreboardPage() {
   const rows = readScoreboard();
   // Filter to dynasty cumulative loss function rows for the headline table
-  const dynastyRows = rows
-    .filter((r) => r.loss_function.startsWith("dynasty_v0_"))
-    .filter((r) => r.format === "1qb")
-    .filter((r) => !r.model_version.includes("top20draft"))
-    .sort((a, b) => {
-      // Sort by year first, then put DG first within each year
-      const yearCmp = Number(a.prediction_year) - Number(b.prediction_year);
-      if (yearCmp !== 0) return yearCmp;
-      return a.model_version.includes("dynasty_general") ? -1 : 1;
-    });
+  const dynastyRows = dedupeMostRecent(
+    rows
+      .filter((r) => r.loss_function.startsWith("dynasty_v0_"))
+      .filter((r) => r.format === "1qb")
+      .filter((r) => !r.model_version.includes("top20draft")),
+  ).sort((a, b) => {
+    // Sort by year first, then put DG v1 first, then DG v0, then others within each year
+    const yearCmp = Number(a.prediction_year) - Number(b.prediction_year);
+    if (yearCmp !== 0) return yearCmp;
+    const aV1 = a.model_version.includes("v0_signals");
+    const bV1 = b.model_version.includes("v0_signals");
+    if (aV1 !== bV1) return aV1 ? -1 : 1;
+    const aV0 = a.model_version.includes("v0_nosignals");
+    const bV0 = b.model_version.includes("v0_nosignals");
+    if (aV0 !== bV0) return aV0 ? -1 : 1;
+    return 0;
+  });
 
   // Group by year
   const byYear = new Map<string, ScoreRow[]>();
@@ -120,7 +142,7 @@ export default function ScoreboardPage() {
       <main className="flex-1 bg-background">
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24 sm:pb-16">
-            <Ticker label="Scoreboard · Phase 2 v0 backtest · 2026-05-06" />
+            <Ticker label="Scoreboard · Phase 2 v0 + v1 backtest · 2026-05-08" />
             <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
               We publish our accuracy. The industry hides theirs.
             </h1>
@@ -132,10 +154,14 @@ export default function ScoreboardPage() {
               source rankings and historical actuals.
             </p>
             <p className="mt-4 max-w-3xl text-base leading-relaxed text-muted-2">
-              Engine v0 below uses position rubric scaffolding plus
-              corpus-grounded age curves. It runs WITHOUT signal codes loaded
-              (those are in progress). The v0 result is the floor; signal-
-              aware v1 should improve on these numbers.
+              Two engine versions are reported. v0 uses position rubric
+              scaffolding plus corpus-grounded age curves with no signal
+              codes loaded. v1 adds 174 hand-coded RB signals across
+              2022-2024 (role tier, role-at-new-team, traded flag,
+              compounding-news count). v1 averages +0.022 absolute Spearman
+              over v0 across the three years, with the gain concentrated
+              on 3-year cumulative. WR / QB / TE signal extraction is
+              queued; those positions still run on rubric + age curve only.
             </p>
           </div>
         </section>
@@ -222,7 +248,13 @@ export default function ScoreboardPage() {
               <ul className="mt-3 space-y-2 text-sm text-muted">
                 <li>
                   <strong className="text-foreground">
-                    Dynasty General v0:
+                    Dynasty General v1 (RB signals loaded):
+                  </strong>{" "}
+                  Spearman 0.421
+                </li>
+                <li>
+                  <strong className="text-foreground">
+                    Dynasty General v0 (no signals):
                   </strong>{" "}
                   Spearman 0.399
                 </li>
@@ -231,10 +263,14 @@ export default function ScoreboardPage() {
                 <li>KeepTradeCut market consensus: Spearman 0.346</li>
               </ul>
               <p className="mt-3 text-xs text-muted-2">
-                Sample sizes are small (60-90 joined pairs per source per
-                year). Confidence intervals on individual Spearman values are
-                roughly ±0.05 to ±0.10. The average across years is more
-                reliable than any single-year ranking.
+                Honest read: DG wins on AVERAGE; per-year picture is mixed.
+                In 2024 (1-year cumulative) DG dominates by a wide margin
+                because consensus rankings collapsed on injury-driven busts
+                (CMC, Aiyuk, Cooper Kupp, Tyreek Hill). On the longer
+                horizons (2022 3-year, 2023 2-year) FantasyPros wins by
+                ~0.02-0.06. Average win is real; per-year ranking deserves
+                scrutiny. Sample sizes 60-90 joined pairs per cell;
+                confidence intervals roughly ±0.05 to ±0.10.
               </p>
             </div>
           </div>
@@ -295,9 +331,25 @@ export default function ScoreboardPage() {
             </h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
               <li>
-                Engine v0 has zero signal codes loaded. Track A
-                (historical-signal-extractor) is in progress; v1 with signals
-                will be published when Track A completes.
+                v1 signal coverage is RB-only (174 RBs hand-coded across
+                2022-2024). QB / WR / TE predictions still run on rubric
+                + age curve only. The long-horizon gap to FP on 2022 / 2023
+                may close as signal coverage extends to non-RB positions;
+                that work is queued.
+              </li>
+              <li>
+                Per-position breakdown shows DG loses to FP within-position
+                on QB and RB across years; WR is roughly tied. The DG
+                top-100 average win comes from cross-position bust avoidance
+                (correctly downgrading aging starters that consensus
+                overranked) more than from within-position ordering.
+              </li>
+              <li>
+                The horizon-gating thesis (that workload-dependent signals
+                like the bellcow boost should be horizon-gated) was
+                considered after the partial-coverage v1 result and
+                refuted by the full-coverage data. v1 wins biggest on
+                3-year cumulative. The boost is not horizon-gated.
               </li>
               <li>
                 Sample sizes are small; confidence intervals are ±0.05 to
@@ -310,7 +362,7 @@ export default function ScoreboardPage() {
                 will be re-scored on the full 3-year cumulative.
               </li>
               <li>
-                Engine universe is restricted to KTC top-200; v0 cannot find
+                Engine universe is restricted to KTC top-200; we cannot find
                 a "diamond in the rough" outside that universe.
               </li>
               <li>
@@ -320,11 +372,11 @@ export default function ScoreboardPage() {
 
             <div className="mt-12 rounded-lg border border-border-soft bg-surface px-6 py-5 text-xs leading-relaxed text-muted-2">
               <p>
-                Updated 2026-05-06. Dynasty General is not affiliated with,
+                Updated 2026-05-08. Dynasty General is not affiliated with,
                 endorsed by, or sponsored by FantasyPros, Marzen Media LLC,
                 KeepTradeCut, FantasyCalc, or Sleeper. Comparative claims
                 reflect public product observation and our own backtest
-                methodology as of 2026-05-06; see{" "}
+                methodology as of 2026-05-08; see{" "}
                 <Link href="/scoreboard/methodology" className="underline">
                   /scoreboard/methodology
                 </Link>{" "}

@@ -127,19 +127,34 @@ export function ageMultiplier(
       if (age < 30) return 0.58;
       return 0.45;
     case "WR":
+      // Calibration update 2026-05-08 (diagnostic #3): the prior
+      // 30-31 = 0.90 / 32-33 = 0.75 schedule was too gentle. Tyreek
+      // Hill 31, Cooper Kupp 32, Brandon Aiyuk 28 (post-injury at
+      // age 26 effectively), DeVonta Smith 26 (mid), and the broader
+      // 2024 aging-WR cohort all DG-bullish-then-bust. Sharper cliff
+      // between 31-33 brings the curve closer to the actual outcome
+      // distribution at the WR aging window. Per corpus: WR peak
+      // shelf is 25-29, so 30+ is decline territory.
       if (age < 23) return 0.92; // rookie/year-2 ramp
       if (age < 25) return 0.98;
       if (age < 30) return 1.0; // peak shelf 25-29
-      if (age < 32) return 0.9;
-      if (age < 34) return 0.75;
-      return 0.55;
+      if (age < 31) return 0.9;  // year 30: gentle dip, still WR1-eligible
+      if (age < 32) return 0.78; // year 31: cliff begins (Tyreek 2024 case)
+      if (age < 34) return 0.62; // years 32-33 (Cooper Kupp 2024 case)
+      return 0.45;
     case "TE":
+      // Calibration update 2026-05-08: prior 28-30 = 1.00 /
+      // 31-32 = 0.85 was too gentle. Mark Andrews 30 was DG-bullish
+      // in 2024 and busted; corpus says TE peak shelf 24-30 ends
+      // AT 30, so 30 should already be on the cliff edge, not in
+      // the peak. Tightened to start the decline at age 30.
       if (age < 23) return 0.78; // strong pre-breakout discount
       if (age < 24) return 0.88; // late pre-breakout
       if (age < 28) return 1.02; // breakout window 24-27
-      if (age < 31) return 1.0;
-      if (age < 33) return 0.85;
-      return 0.65;
+      if (age < 30) return 1.0;  // late peak 28-29
+      if (age < 31) return 0.88; // year 30: cliff edge (Andrews 2024 case)
+      if (age < 33) return 0.72; // years 31-32: clear decline
+      return 0.5;
     case "QB":
       // Default curve; tier-1 override applied in qb.ts
       if (age < 26) return 0.9;
