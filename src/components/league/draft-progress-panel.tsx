@@ -138,7 +138,7 @@ export function DraftProgressPanel({ data }: { data: DraftProgress | null }) {
 
       <div className="grid gap-3 border-t border-border-soft px-5 py-4 sm:grid-cols-2">
         <MetricCard metric={data.league_rank} />
-        <MetricCard metric={data.pick_sharpness} />
+        <MetricCard metric={data.best_value} />
       </div>
 
       {data.sharp_positioning.length > 0 && (

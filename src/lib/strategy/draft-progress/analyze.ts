@@ -73,9 +73,13 @@ export function analyzeDraftProgress(args: {
   // League rank by total roster value (kept, condensed).
   const leagueRankMetric = computeLeagueRankMetric({ snap, myRoster, playerValueMap });
 
-  // Pick sharpness vs ADP. Renamed from "Positioning vs ADP" and
-  // simplified copy (no more "2+1 sharp" jargon).
-  const pickSharpnessMetric = computePickSharpnessMetric({
+  // "Best value" replaced "Pick sharpness" 2026-05-08. Old metric
+  // surfaced a single negative number for the earliest lock ("−14"),
+  // which was confusing on first read and one-sided. New metric
+  // focuses on the positive direction (market gifts that fell past
+  // ADP); sharp locks are already surfaced in the SHARP POSITIONING
+  // sub-section, so we don't double-render them.
+  const bestValueMetric = computeBestValueMetric({
     myPicks,
     getAdp,
     playerNameLookup,
@@ -122,7 +126,7 @@ export function analyzeDraftProgress(args: {
     headline,
     position_diagnostic,
     league_rank: leagueRankMetric,
-    pick_sharpness: pickSharpnessMetric,
+    best_value: bestValueMetric,
     position_run,
     thin_alerts,
     wins,
@@ -294,17 +298,26 @@ function computeLeagueRankMetric(args: {
   };
 }
 
-function computePickSharpnessMetric(args: {
+function computeBestValueMetric(args: {
   myPicks: LeagueSnapshot["draft"]["picks_made"];
   getAdp: (id: string) => number | null;
   playerNameLookup: (id: string) => { name: string; position: string | null } | null;
 }): ProgressMetric {
+  // Renamed from "Pick sharpness" 2026-05-08 (post user feedback).
+  // Old metric showed a single negative number ("−14") for the
+  // earliest lock, which read as "your sharpness is negative" instead
+  // of "you locked decisively when scarcity said go." The negative
+  // direction (sharp locks) is already covered by the SHARP POSITIONING
+  // sub-section. This card focuses on the positive direction (market
+  // gifts: players who fell past consensus into your slot) so the
+  // displayed number always reads as a win or honestly says "no value
+  // picks yet."
   const { myPicks, getAdp, playerNameLookup } = args;
   if (myPicks.length === 0) {
     return {
-      label: "Pick sharpness",
+      label: "Best value",
       display_value: "no picks yet",
-      sub_line: "Best value pickups will land here as you draft.",
+      sub_line: "Players who fall past consensus into your slot will land here.",
       tier: "solid",
       ungraded: true,
     };
@@ -320,7 +333,7 @@ function computePickSharpnessMetric(args: {
 
   if (resolved.length === 0) {
     return {
-      label: "Pick sharpness",
+      label: "Best value",
       display_value: "ungraded",
       sub_line: "ADP data not resolved yet.",
       tier: "solid",
@@ -329,38 +342,26 @@ function computePickSharpnessMetric(args: {
   }
 
   const valuePicks = resolved.filter((p) => p.delta >= 10);
-  const earlyLocks = resolved.filter((p) => p.delta <= -10);
   const bestValue = valuePicks.sort((a, b) => b.delta - a.delta)[0];
-
-  let tier: ProgressTier;
-  let display_value: string;
-  let sub: string;
 
   if (bestValue) {
     const meta = playerNameLookup(bestValue.player_id);
     const name = meta?.name ?? bestValue.player_id;
-    tier = "strong";
-    display_value = `+${Math.round(bestValue.delta)}`;
-    sub = `Best value: ${name} fell ${Math.round(bestValue.delta)} picks past ADP.`;
-  } else if (earlyLocks.length > 0) {
-    const sharpest = earlyLocks.sort((a, b) => a.delta - b.delta)[0];
-    const meta = playerNameLookup(sharpest.player_id);
-    const name = meta?.name ?? sharpest.player_id;
-    const earlyBy = Math.round(Math.abs(sharpest.delta));
-    tier = "solid";
-    display_value = `−${earlyBy}`;
-    sub = `Earliest lock: ${name}, ${earlyBy} picks before ADP. Decisive when scarcity says go.`;
-  } else {
-    tier = "solid";
-    display_value = "at ADP";
-    sub = `Picks at-or-near consensus. Market-rate execution.`;
+    const fellBy = Math.round(bestValue.delta);
+    return {
+      label: "Best value",
+      display_value: `${name} +${fellBy}`,
+      sub_line: `Fell ${fellBy} picks past ADP into your slot. ${valuePicks.length > 1 ? `${valuePicks.length} value pickups so far.` : "Market gift."}`,
+      tier: "strong",
+    };
   }
 
+  // No value pickups yet. Show neutral "at consensus" framing.
   return {
-    label: "Pick sharpness",
-    display_value,
-    sub_line: sub,
-    tier,
+    label: "Best value",
+    display_value: "at consensus",
+    sub_line: "Picks at-or-near ADP. No market gifts yet; sharp locks (if any) appear below.",
+    tier: "solid",
   };
 }
 
@@ -470,6 +471,14 @@ function composeHeadline(args: {
 }): string {
   const { overall_tier, position_diagnostic, position_run, thin_alerts, picksMade } = args;
 
+  // Headline rewritten 2026-05-08 (post user feedback): the panel
+  // describes STATE; the Decision card prescribes ACTION. Old
+  // headlines used prescriptive language ("two starter holes outweigh
+  // anything else", "that's the gap to close", "depth or upgrade is
+  // the next move") which imposed a "fill holes first" doctrine that
+  // is not statistically grounded. If the engine has identified an
+  // EV-defying market gift at a non-hole position, the headline must
+  // not contradict it. Stick to facts; let the Decision card recommend.
   if (picksMade === 0) {
     return "Draft begins. Targets and gaps will appear here as you go.";
   }
@@ -480,36 +489,39 @@ function composeHeadline(args: {
   const thins = position_diagnostic.filter((d) => d.state === "thin");
   const strongs = position_diagnostic.filter((d) => d.state === "strong");
 
-  if (empties.length === 1 && thin_alerts.some((a) => a.position === empties[0].position)) {
-    return `${empties[0].position} room is empty and the top tier is almost gone. That's the next pick to make.`;
-  }
-  if (empties.length >= 2) {
+  // Compose a fact-only headline. Lead with the most surprising state
+  // (empties first, then thin alerts, then position runs), end with
+  // a context modifier. No prescription.
+  const stateParts: string[] = [];
+  if (empties.length > 0) {
     const labels = empties.map((d) => d.position).join(" and ");
-    return `${labels} still untouched. Two starter holes outweigh anything else right now.`;
+    stateParts.push(`${labels} ${empties.length === 1 ? "untouched" : "still untouched"}`);
   }
-  if (empties.length === 1) {
-    return `${empties[0].position} room is empty. That's the gap to close.`;
-  }
-  if (thins.length >= 2) {
-    const labels = thins.map((d) => d.position).join(" and ");
-    return `Starters covered, but ${labels} are thin. Depth or upgrade is the next move.`;
+  if (thins.length > 0) {
+    const labels = thins.map((d) => `${d.position} thin (${d.have}/${d.need})`).join(", ");
+    stateParts.push(labels);
   }
   if (position_run && position_diagnostic.find((d) => d.position === position_run.position)?.state !== "strong") {
-    return `${position_run.position} run on. ${position_run.picks_in_window}-of-${position_run.window_size} recent picks. Decide whether you join or pivot.`;
+    stateParts.push(`${position_run.position} run on (${position_run.picks_in_window}-of-${position_run.window_size})`);
   }
+  if (stateParts.length > 0) {
+    return stateParts.join(". ") + ".";
+  }
+
+  // No empties, no thins, no relevant run. Healthy state.
   if (overall_tier === "strong" && strongs.length >= 2) {
-    return `Roster is taking shape. Multiple positions covered with depth, ranked well in the league.`;
+    return "Roster taking shape. Multiple positions covered with depth.";
   }
   if (overall_tier === "strong") {
-    return `Solid build forming. Starters covered, value pickups on the board.`;
+    return "Starters covered. Value pickups available.";
   }
   if (overall_tier === "solid") {
-    return `On track. Holes are normal for this point in the draft.`;
+    return "On track. No urgent gaps at this stage.";
   }
   if (overall_tier === "mixed") {
-    return `Mixed signals. Roster build has gaps worth verifying before the next pick.`;
+    return "Mixed signals across roster build and league rank.";
   }
-  return `Off-pace by league-value rank. Trade-up leverage may help close the gap.`;
+  return "Off-pace by league-value rank.";
 }
 
 function composeCallouts(args: {

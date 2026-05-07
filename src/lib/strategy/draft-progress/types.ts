@@ -84,7 +84,14 @@ export type DraftProgress = {
 
   // Secondary metrics, condensed.
   league_rank: ProgressMetric;
-  pick_sharpness: ProgressMetric;
+  // Renamed from pick_sharpness 2026-05-08. Old metric showed a single
+  // negative number for the earliest lock; users read it as "your
+  // sharpness is negative" instead of "decisive when scarcity said go."
+  // best_value focuses on the positive direction (market gifts that
+  // fell past ADP into the user's slot). Sharp locks (the negative
+  // direction) remain in the SHARP POSITIONING sub-section so each
+  // signal renders once.
+  best_value: ProgressMetric;
 
   // Situational callouts. Each may be null/empty when not relevant.
   position_run: PositionRun | null;
