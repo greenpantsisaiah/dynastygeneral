@@ -41,6 +41,14 @@ export default async function PricingPage() {
               We'll always have a meaningful free tier. The post-beta caps
               are based on actual unit cost, not artificial scarcity.
             </p>
+            <p className="mt-6 mx-auto max-w-2xl text-sm leading-relaxed text-muted">
+              Calibration receipt: engine v1 averages Spearman 0.421 across
+              2022-2024 dynasty cumulative outcomes vs FantasyPros 0.365 and
+              KeepTradeCut 0.346.{" "}
+              <Link href="/scoreboard" className="text-foreground underline">
+                See the scoreboard →
+              </Link>
+            </p>
           </div>
         </section>
 
@@ -66,9 +74,11 @@ export default async function PricingPage() {
                 {(beta
                   ? [
                       "Coach chat with full league context + web search",
-                      "Intelligence briefings on demand",
-                      "Decision card with 5-deep Next Picks Plan + Counter-view",
-                      "5-year Contender Outlook + Decision Quadrant",
+                      "Trade Strategy Map: named opponent leverage targets + trade window timing",
+                      "Inflection Bifurcation alerts: Story A / B framing on aging-cliff, rookie-debut, post-injury roster players",
+                      "Decision card with 5-deep Next Picks Plan + opponent-game-theory survival math",
+                      "Intelligence briefings + 5-year Contender Outlook",
+                      "Trade analyzer (incoming + outbound) with shareable verdict URLs",
                       "Scout report on any Sleeper username",
                       "Connect multiple leagues",
                     ]
@@ -76,9 +86,11 @@ export default async function PricingPage() {
                       "1 dynasty league connected",
                       "5 Coach turns / day",
                       "3 intelligence briefings / day",
+                      "Trade Strategy Map · always-on, no daily cap",
+                      "Inflection Bifurcation alerts on your roster · always-on",
                       "Decision card with 5-deep Next Picks Plan",
+                      "3 shareable verdict URLs / day",
                       "Scout report on any Sleeper username · always unlimited",
-                      "Verdict + League Spectrum + opponent characterizations",
                       "Local-only chat history (no cross-device sync)",
                     ]
                 ).map((f, i) => (
@@ -132,6 +144,7 @@ export default async function PricingPage() {
                       "Help cover hosting + AI engine costs",
                       "Cross-device chat history sync",
                       "War Room: pinned briefings sync across devices",
+                      "Verdict library: every shared trade verdict you've minted, with view counts",
                       "Lock in current pricing before post-beta tightening",
                       "Direct line on feedback (your account email is on every report)",
                       "Same daily budget cap as Free during beta",
@@ -139,7 +152,9 @@ export default async function PricingPage() {
                   : [
                       "Unlimited Coach turns and briefings",
                       "Unlimited dynasty leagues connected",
+                      "Unlimited shareable verdict URLs",
                       "Cross-device chat history + War Room sync",
+                      "Verdict library: every shared trade verdict, view counts, delete tools",
                       "5-year Contender Outlook + Decision Quadrant",
                       "Lock in early-bird pricing for life",
                       "Direct line on feedback to the founder",
