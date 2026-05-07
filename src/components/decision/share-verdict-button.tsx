@@ -97,6 +97,12 @@ export function ShareVerdictButton(props: Props) {
         >
           Open →
         </a>
+        <a
+          href="/account/shared-verdicts"
+          className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent"
+        >
+          Manage →
+        </a>
       </div>
     );
   }

@@ -205,3 +205,96 @@ export function publicVerdictUrl(short_code: string): string {
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://dynastygeneral.app";
   return `${base.replace(/\/$/, "")}/t/${short_code}`;
 }
+
+export type SharedVerdictListing = {
+  short_code: string;
+  mode: SharedVerdictMode;
+  league_id: string | null;
+  team_display: string | null;
+  confidence: number | null;
+  created_at: string;
+  expires_at: string;
+  view_count: number;
+  // One-line headline derived from the saved output, so the
+  // dashboard can show a meaningful preview without re-rendering
+  // the whole verdict.
+  headline: string;
+};
+
+/**
+ * List shares created by a specific user. Used by the share
+ * dashboard at /account/shared-verdicts. RLS would restrict the
+ * read to the user's own rows anyway, but we filter by user_id
+ * explicitly for clarity. Newest first; expired rows excluded.
+ */
+export async function listSharesForUser(
+  userId: string,
+  limit = 100,
+): Promise<SharedVerdictListing[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("shared_trade_verdicts")
+    .select(
+      "short_code, mode, league_id, team_display, confidence, created_at, expires_at, view_count, output",
+    )
+    .eq("user_id", userId)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error || !data) return [];
+
+  return data.map((row) => {
+    const out = row.output as Record<string, unknown>;
+    const headline = headlineFromOutput(row.mode, out);
+    return {
+      short_code: row.short_code,
+      mode: row.mode as SharedVerdictMode,
+      league_id: row.league_id,
+      team_display: row.team_display,
+      confidence: row.confidence,
+      created_at: row.created_at,
+      expires_at: row.expires_at,
+      view_count: row.view_count,
+      headline,
+    };
+  });
+}
+
+function headlineFromOutput(
+  mode: string,
+  out: Record<string, unknown>,
+): string {
+  if (mode === "incoming") {
+    const action = String(out.action ?? "").toUpperCase();
+    const recommendation = String(out.recommendation ?? "");
+    const trimmed =
+      recommendation.length > 100
+        ? recommendation.slice(0, 100).replace(/\s+\S*$/, "") + "..."
+        : recommendation;
+    return action ? `${action}: ${trimmed}` : trimmed;
+  }
+  const angle = String(out.attack_angle ?? "");
+  return angle.length > 110
+    ? angle.slice(0, 110).replace(/\s+\S*$/, "") + "..."
+    : angle;
+}
+
+/**
+ * Delete a share by short_code. RLS enforces that auth.uid() must
+ * match the row's user_id, so passing an unowned short_code returns
+ * silently with no rows affected. Returns true when a row was
+ * actually deleted.
+ */
+export async function deleteSharedVerdict(
+  short_code: string,
+): Promise<boolean> {
+  if (!isValidShortCode(short_code)) return false;
+  const supabase = await createClient();
+  const { error, count } = await supabase
+    .from("shared_trade_verdicts")
+    .delete({ count: "exact" })
+    .eq("short_code", short_code);
+  if (error) return false;
+  return (count ?? 0) > 0;
+}
