@@ -245,7 +245,7 @@ function run() {
     });
     check("total ≈ 0", result != null && approxEqual(result.total_ev!, 0), `actual: ${result?.total_ev}`);
     check("tier = solid", result?.tier === "solid");
-    check("summary mentions 'at market rate'", result?.summary.includes("at market rate"), `summary: ${result?.summary}`);
+    check("summary mentions 'at market rate'", result?.summary.includes("at market rate") === true, `summary: ${result?.summary}`);
   }
 
   console.log(`\n${passed} passed · ${failed} failed`);

@@ -495,13 +495,42 @@ export async function POST(
   // every rostered player keeps the Coach's trade math grounded for
   // any in-league trade target.
   //
-  // Cost: 12 teams * ~10 players + 30 available + me = ~150 IDs.
+  // Decision-card player IDs: every player the Decision card surfaces
+  // (standing call + top_candidates + quadrant_candidates) MUST also
+  // appear in Coach's top_available + pricing valueIds, even if their
+  // FantasyCalc value puts them past index 30 in the harmonized pool.
+  // Bug 2026-05-08 izzydabomb session: Coach said "D'Andre Swift
+  // isn't in the available pool. He's been drafted" while the
+  // Decision card was simultaneously surfacing Swift in the WIN-NOW
+  // lane. SNAPSHOT diagnosis: Coach received system_decision.
+  // recommendation = Swift but top_available (sliced to top-30 by
+  // KTC value) did not contain him; Swift's value 22 ranked him past
+  // index 30. The model interpreted absence as "drafted." Internal
+  // contradiction in the snapshot. Fix: include all Decision-card
+  // player IDs in both top_available and pricing.valueIds so the
+  // payload is self-consistent.
+  const decisionCardPlayerIds = new Set<string>();
+  if (decision) {
+    if (decision.recommendation?.player_id) {
+      decisionCardPlayerIds.add(decision.recommendation.player_id);
+    }
+    for (const c of decision.top_candidates ?? []) {
+      if (c.player_id) decisionCardPlayerIds.add(c.player_id);
+    }
+    for (const c of decision.quadrant_candidates ?? []) {
+      if (c.player_id) decisionCardPlayerIds.add(c.player_id);
+    }
+  }
+
+  // Cost: 12 teams * ~10 players + 30 available + decision-card
+  // candidates (typically 4-12) + me = ~150-180 IDs.
   // FantasyCalc cache holds 200+; one-time lookup, no extra fetch.
   const valueIds = new Set<string>();
   for (const r of snapshot.rosters) {
     for (const id of r.player_ids) valueIds.add(id);
   }
   for (const p of available.slice(0, 30)) valueIds.add(p.id);
+  for (const id of decisionCardPlayerIds) valueIds.add(id);
   // Price ALL picks in rounds 1-8 across the league, not just the
   // user's own schedule. Coach trade-analysis bug 2026-05-05: when a
   // trade involved a counterparty's pick (1.09 in the founder's case),
@@ -668,23 +697,43 @@ export async function POST(
         },
       };
     }),
-    top_available: available.slice(0, 30).map((p) => {
-      const v = playerValueMap.get(p.id);
-      return {
-        name: p.name,
-        pos: p.position,
-        team: p.team,
-        age: p.age,
-        sleeper_rank: p.search_rank,
-        adp: p.adp,
-        is_rookie: p.is_rookie,
-        // KTC-equivalent value (0-100). Bound trade asks using this
-        // for any player on this list. Null when FantasyCalc didn't
-        // ship a value for this player (rare; usually pre-NFL-draft
-        // rookie or recent waiver).
-        value: v ? v.value : null,
+    top_available: (() => {
+      const buildEntry = (p: (typeof available)[number]) => {
+        const v = playerValueMap.get(p.id);
+        return {
+          name: p.name,
+          pos: p.position,
+          team: p.team,
+          age: p.age,
+          sleeper_rank: p.search_rank,
+          adp: p.adp,
+          is_rookie: p.is_rookie,
+          // KTC-equivalent value (0-100). Bound trade asks using this
+          // for any player on this list. Null when FantasyCalc didn't
+          // ship a value for this player (rare; usually pre-NFL-draft
+          // rookie or recent waiver).
+          value: v ? v.value : null,
+        };
       };
-    }),
+      const seen = new Set<string>();
+      const entries: ReturnType<typeof buildEntry>[] = [];
+      for (const p of available.slice(0, 30)) {
+        seen.add(p.id);
+        entries.push(buildEntry(p));
+      }
+      // Append any Decision-card player whose ID is past the top-30
+      // slice. Guarantees the payload never says "Swift is the lean"
+      // while top_available omits Swift. See decisionCardPlayerIds
+      // construction above for the bug-class history.
+      for (const id of decisionCardPlayerIds) {
+        if (seen.has(id)) continue;
+        const p = available.find((a) => a.id === id);
+        if (!p) continue;
+        seen.add(id);
+        entries.push(buildEntry(p));
+      }
+      return entries;
+    })(),
     nfl_draft_live: isNflDraftWindowActive(),
   };
 
