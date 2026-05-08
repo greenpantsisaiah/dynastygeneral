@@ -277,4 +277,11 @@ export type Decision = {
     detail: string; // longer reasoning, 1-2 sentences
     suggested_player: string | null; // e.g. "Trevor Lawrence" if specific
   } | null;
+  // Counterintuitive-pick disclaimer. Populated when the standing
+  // call is a sharp lock (taken 10+ picks before ADP). Voice A line
+  // the redesigned UI renders as a transitional band above the
+  // standing call: "Counterintuitive lock. Mahomes would normally
+  // fall 14 more picks. Survival to your next slot is 35%. Trust
+  // the math." Null when the standing call is not a sharp lock.
+  feel_weird_disclaimer: string | null;
 };

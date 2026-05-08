@@ -1771,6 +1771,18 @@ export function synthesizeDecision(args: {
     nextUserPickNo,
   );
 
+  // Counterintuitive-pick disclaimer. When the standing call is a
+  // sharp lock (taken 10+ picks before ADP), the redesigned UI shows
+  // a Voice A line above the call: "Counterintuitive lock. Mahomes
+  // would normally fall 14 more picks. Survival to your next slot
+  // is 35%. Trust the math." Null when the call is at-or-past ADP
+  // (a market discount, not a sharp lock).
+  const feel_weird_disclaimer = composeFeelWeirdDisclaimer({
+    winner,
+    currentPickNo: current.pick_no,
+    nextUserPickNo,
+  });
+
   return {
     pick_label: current.pick_label,
     pick_no: current.pick_no,
@@ -1796,5 +1808,50 @@ export function synthesizeDecision(args: {
     scarcity_callout,
     emergency_trade_up,
     counter_view,
+    feel_weird_disclaimer,
   };
+}
+
+/**
+ * "This will feel weird, hear me out" disclaimer. Triggers when the
+ * standing call is a sharp lock: taken 10+ picks before ADP. Voice
+ * A: terse, evidence-cited, no preamble.
+ *
+ * Returns null when the call is at-or-past ADP (a market discount,
+ * not a sharp lock; the user is getting the asset, not reaching for
+ * it).
+ */
+const SHARP_LOCK_GAP_THRESHOLD = 10;
+
+function composeFeelWeirdDisclaimer(args: {
+  winner: ScoredCandidate;
+  currentPickNo: number;
+  nextUserPickNo: number;
+}): string | null {
+  const { winner, currentPickNo, nextUserPickNo } = args;
+  const adp = winner.player.adp;
+  if (typeof adp !== "number") return null;
+  // gap = adp - currentPickNo. Positive = player normally goes
+  // LATER (we're reaching). Negative = player would normally already
+  // be gone (market discount; not a sharp lock).
+  const gap = adp - currentPickNo;
+  if (gap < SHARP_LOCK_GAP_THRESHOLD) return null;
+
+  const survivalPct = survivalPctFor({
+    player: winner.player,
+    availability: availabilityAt(winner.player, nextUserPickNo),
+    signal: { direction: "neutral", note: null, per_pick_demand: 0 },
+    available: [],
+    gap: {
+      opponents: [],
+      total_demand_by_position: { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
+      primary_opponent: null,
+    },
+  });
+
+  const survivalText =
+    survivalPct != null
+      ? `Survival to your next slot is ${survivalPct}%.`
+      : "Survival math unavailable.";
+  return `Counterintuitive lock. ${winner.player.name} would normally fall ${Math.round(gap)} more picks. ${survivalText} Trust the math.`;
 }
