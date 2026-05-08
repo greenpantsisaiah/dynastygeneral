@@ -869,12 +869,26 @@ export default async function LeagueHubPage({
       // keeper slate into a single identity readout. Per founder
       // direction 2026-05-08: characterizing the user's team has
       // always been core mission; this is the consolidation surface.
+      // Build playerAges from playersMap so the team-identity
+      // comparator can compute young_skew / old_skew dimensions.
+      // Cheap (already-resolved players); per memory project_emotional_
+      // continuity_through_plan_disruption: comparator is one of the
+      // "system thinks out loud" features we want pre-staged ahead of
+      // the UI refresh.
+      const playerAges = new Map<string, number | null>();
+      for (const id of leagueSnapshot.rosters.flatMap(
+        (r) => r.player_ids ?? [],
+      )) {
+        const sp = playersMap.get(id);
+        playerAges.set(id, typeof sp?.age === "number" ? sp.age : null);
+      }
       teamIdentity = analyzeTeamIdentity({
         snap: leagueSnapshot,
         rankedArchetypes,
         inflections: inflectionItems,
         playerValueMap: lrValueMap,
         playerNameLookup,
+        playerAges,
       });
     } catch (err) {
       console.error("[hub:league-read+inflections]", err);

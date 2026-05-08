@@ -11,8 +11,13 @@ import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { Position, RankedArchetype } from "../archetypes/schema";
 import type { InflectionContext } from "@/lib/engine/inflection";
 import { getHardStarterReqs } from "@/lib/engine/roster-fit";
+import {
+  buildUserFeatureVector,
+  findBestComparator,
+} from "./comparators";
 import type {
   BuildArchetypeReadout,
+  ComparatorReadout,
   ForwardProjection,
   PositionRoomFingerprint,
   RiskFingerprint,
@@ -33,8 +38,12 @@ export function analyzeTeamIdentity(args: {
     name: string;
     position: string | null;
   } | null;
+  // OPTIONAL: per-player-id age. When provided, drives the comparator-
+  // team-narrative feature vector (young_skew, old_skew dimensions).
+  // When omitted, comparator is null. Hub passes via playersMap.get(id)?.age.
+  playerAges?: Map<string, number | null>;
 }): TeamIdentity | null {
-  const { snap, rankedArchetypes, inflections, playerValueMap, playerNameLookup } = args;
+  const { snap, rankedArchetypes, inflections, playerValueMap, playerNameLookup, playerAges } = args;
   const myRoster = snap.rosters.find((r) => r.is_me);
   if (!myRoster) return null;
 
@@ -400,5 +409,41 @@ export function analyzeTeamIdentity(args: {
       ? `${headlineParts.join(" · ")}.`
       : "Identity is forming. Take a few more picks and the engine will name your build.";
 
-  return { headline, build, position_room, risk, forward };
+  // Comparator team narrative. Match the user's roster shape against
+  // the curated NFL-team library. Returns null when the best match
+  // doesn't clear the confidence floor or when ages are unavailable.
+  // The data layer ships ahead of the UI refresh; the redesigned
+  // panel will choose how to render it.
+  let comparator: ComparatorReadout | null = null;
+  try {
+    if (playerAges && playerAges.size > 0) {
+      const playerPositions = new Map<
+        string,
+        Position | null
+      >();
+      for (const id of myRoster.player_ids ?? []) {
+        const meta = playerNameLookup(id);
+        const pos = meta?.position?.toUpperCase() ?? null;
+        playerPositions.set(
+          id,
+          pos === "QB" || pos === "RB" || pos === "WR" || pos === "TE"
+            ? (pos as Position)
+            : null,
+        );
+      }
+      const featureVector = buildUserFeatureVector({
+        snap,
+        playerValueMap,
+        playerAges,
+        playerPositions,
+      });
+      if (featureVector) {
+        comparator = findBestComparator(featureVector);
+      }
+    }
+  } catch (err) {
+    console.error("[team-identity:comparator]", err);
+  }
+
+  return { headline, build, position_room, risk, forward, comparator };
 }

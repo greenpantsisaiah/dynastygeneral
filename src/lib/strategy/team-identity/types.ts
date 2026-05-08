@@ -85,6 +85,19 @@ export type ForwardProjection = {
   max_keepers: number | null;
 };
 
+// Closest historical NFL team comparator for the user's roster shape.
+// Data layer ships ahead of the UI refresh; the redesigned panel
+// will choose how to render it. Null when no match clears the
+// similarity floor (early in draft, sparse roster, idiosyncratic
+// shape).
+export type ComparatorReadout = {
+  team: string;
+  season: number;
+  similarity: number;
+  narrative: string;
+  confidence_label: "strong" | "loose";
+};
+
 export type TeamIdentity = {
   // One-line story that summarizes everything else. Renders at the
   // top of the panel; doubles as a screenshot-share line.
@@ -93,4 +106,8 @@ export type TeamIdentity = {
   position_room: PositionRoomFingerprint;
   risk: RiskFingerprint;
   forward: ForwardProjection;
+  // Closest NFL team comparator for the roster shape. Null when no
+  // match clears the confidence floor; the panel hides the line
+  // rather than forcing a weak match.
+  comparator: ComparatorReadout | null;
 };
