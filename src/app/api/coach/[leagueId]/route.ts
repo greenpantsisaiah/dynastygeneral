@@ -42,6 +42,8 @@ import {
   groupNotesByOpponent,
   readOpponentNotesForLeague,
 } from "@/lib/opponent-notes/storage";
+import { buildLeagueReadFromSnapshot } from "@/lib/strategy/league-read";
+import { buildInflectionsFromSnapshot } from "@/lib/engine/inflection";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
@@ -458,6 +460,62 @@ export async function POST(
     console.error("[coach:decision-synthesis]", err);
   }
 
+  // League read + inflections. Both are existing engine outputs the
+  // hub renders; Coach should see them too so the system_prompt rules
+  // they reference (league_read trade-leverage proactive surface +
+  // inflection bifurcation framing) actually bind. Built lazily and
+  // best-effort: if either fails, Coach still works on the rest of
+  // the context.
+  let leagueRead: ReturnType<typeof buildLeagueReadFromSnapshot> | null = null;
+  let inflectionItems: ReturnType<typeof buildInflectionsFromSnapshot> = [];
+  try {
+    const allRosterIds = new Set<string>();
+    for (const r of snapshot.rosters) {
+      for (const id of r.player_ids ?? []) allRosterIds.add(id);
+    }
+    for (const p of snapshot.draft.picks_made) {
+      if (p.player_id) allRosterIds.add(p.player_id);
+    }
+    const playersMap = await resolvePlayers([...allRosterIds]);
+
+    const lrValueMap = new Map<
+      string,
+      { value: number; overall_rank: number | null }
+    >();
+    if (coachPlayerValues) {
+      for (const [id, value] of Object.entries(coachPlayerValues)) {
+        lrValueMap.set(id, {
+          value,
+          overall_rank: coachKtcOverallRanks?.[id] ?? null,
+        });
+      }
+    }
+
+    const playerNameLookup = (id: string) => {
+      const sp = playersMap.get(id);
+      if (!sp) return null;
+      const combined = [sp.first_name, sp.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      const name = sp.full_name ?? combined ?? id;
+      return { name, position: sp.position ?? null };
+    };
+
+    leagueRead = buildLeagueReadFromSnapshot({
+      snap: snapshot,
+      playerValueMap: lrValueMap,
+      playerNameLookup,
+    });
+
+    inflectionItems = buildInflectionsFromSnapshot({
+      snap: snapshot,
+      playersMap,
+    });
+  } catch (err) {
+    console.error("[coach:league-read+inflections]", err);
+  }
+
   // Trim context to what's useful in chat. Top 30 available players
   // (covers the realistic queue), all ranked archetypes, opponents +
   // their trade angles, windows.
@@ -771,6 +829,16 @@ export async function POST(
       }
       return entries;
     })(),
+    // League read: trade-leverage synthesis + structural constraints.
+    // Coach uses this to lead with strategic framing per the
+    // system_prompt's "auto-lead with trade leverage during active
+    // drafts" rule. Null when synthesis failed (best-effort).
+    league_read: leagueRead,
+    // Inflection windows on rostered + relevant available players.
+    // Drives the system_prompt's "inflection bifurcation framing"
+    // rule (mandatory bimodal framing for aging-cliff / rookie-debut
+    // / post-injury players).
+    inflections: inflectionItems,
     nfl_draft_live: isNflDraftWindowActive(),
   };
 
