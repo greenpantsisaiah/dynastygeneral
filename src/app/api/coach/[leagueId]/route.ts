@@ -38,6 +38,10 @@ import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { buildOpponentReadout } from "@/lib/strategy/opponents/observe";
 import { buildOpponentTradeHistory } from "@/lib/strategy/opponents/trade-history";
+import {
+  groupNotesByOpponent,
+  readOpponentNotesForLeague,
+} from "@/lib/opponent-notes/storage";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
@@ -367,6 +371,27 @@ export async function POST(
   const opponents = buildOpponentReadout(snapshot);
   const windows = computeWindows(snapshot);
   const pickApproach = buildPickApproach(snapshot, ranked);
+
+  // Counterparty-stated-plans: persistent notes the user logs about
+  // opponents (stated plans, trade intent, trigger conditions, psych
+  // reads). Per opponent-dossier moat pattern: opponent quotes are
+  // named-pressure ammunition for trade construction. Anonymous-dev
+  // sessions skip the read since they don't have a real user_id.
+  let opponentNotesByRoster = new Map<
+    number,
+    Awaited<ReturnType<typeof readOpponentNotesForLeague>>
+  >();
+  if (gate.user.id !== "anonymous-dev") {
+    try {
+      const notes = await readOpponentNotesForLeague({
+        userId: gate.user.id,
+        leagueId,
+      });
+      opponentNotesByRoster = groupNotesByOpponent(notes);
+    } catch (err) {
+      console.error("[coach:opponent-notes]", err);
+    }
+  }
   let available = await getAvailableForRequest(snapshot).catch(() => []);
 
   // Mirror the hub's value-resolve + rerank pipeline so coach's
@@ -675,6 +700,17 @@ export async function POST(
         tradedPicks: snapshot.draft.traded_picks,
         currentSeason: snapshot.season,
       });
+      // User-logged notes about this opponent. Most-recent first.
+      // Coach treats these as named-pressure ammunition per the
+      // existing system-prompt rule "USE the opponent's own words."
+      // Limited to 5 most-recent per opponent to bound prompt size.
+      const notes = (opponentNotesByRoster.get(t.roster_id) ?? [])
+        .slice(0, 5)
+        .map((n) => ({
+          kind: n.kind,
+          body: n.body,
+          logged_at: n.created_at,
+        }));
       return {
         owner: t.owner_name,
         roster_id: t.roster_id,
@@ -695,6 +731,7 @@ export async function POST(
           current_picks_sent: tradeHistory.current_picks_sent,
           current_picks_received: tradeHistory.current_picks_received,
         },
+        notes,
       };
     }),
     top_available: (() => {

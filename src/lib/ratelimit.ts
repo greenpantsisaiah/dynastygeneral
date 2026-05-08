@@ -29,7 +29,8 @@ type BucketName =
   | "waitlist"
   | "account-action"
   | "verdict-share-create"
-  | "verdict-share-view";
+  | "verdict-share-view"
+  | "opponent-notes";
 
 type LimitSpec = {
   // Requests allowed
@@ -86,6 +87,11 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // are cheap (one row read + one counter bump). Per-IP cap stops
   // a bot from inflating view_count en masse.
   "verdict-share-view": { requests: 60, window: "1 m" },
+  // Opponent-notes mutations (create + delete). Auth-required; a real
+  // user logs at most a handful of notes per session, but mid-draft
+  // peaks can hit ~10 in a tight window. 30/min keeps room while
+  // bounding a compromised account.
+  "opponent-notes": { requests: 30, window: "1 m" },
 };
 
 let redis: Redis | null = null;
