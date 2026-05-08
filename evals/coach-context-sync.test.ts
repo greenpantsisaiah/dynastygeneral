@@ -124,6 +124,12 @@ const BINDINGS: Binding[] = [
     promptCitation: "opponents[].notes",
     routeShips: ["readOpponentNotesForLeague", "groupNotesByOpponent"],
   },
+  {
+    rule: "Sloan-mode register switch",
+    fieldRef: "sloan_mode",
+    promptCitation: "sloan_mode",
+    routeShips: ["sloan_mode", "readSloanMode"],
+  },
 ];
 
 /**
