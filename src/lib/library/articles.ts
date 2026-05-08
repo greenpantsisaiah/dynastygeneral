@@ -7,9 +7,15 @@
  */
 
 import { article as agingCliffRb } from "./articles/aging-cliff-rb";
+import { article as leagueAvgEvBankIsNegative } from "./articles/league-avg-ev-bank-is-negative";
+import { article as whatRookieAdpActuallyMeasures } from "./articles/what-rookie-adp-actually-measures";
 import type { LibraryArticle } from "./types";
 
-const ALL_ARTICLES: LibraryArticle[] = [agingCliffRb];
+const ALL_ARTICLES: LibraryArticle[] = [
+  agingCliffRb,
+  leagueAvgEvBankIsNegative,
+  whatRookieAdpActuallyMeasures,
+];
 
 export function getAllArticles(): LibraryArticle[] {
   return [...ALL_ARTICLES].sort((a, b) =>
