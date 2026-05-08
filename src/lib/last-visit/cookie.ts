@@ -42,6 +42,13 @@ export type LastVisitFingerprint = {
   // The user's roster size at last render. Lets us detect whether
   // the user themselves picked since last visit.
   my_roster_size: number;
+  // Player IDs that were in the user's plan at last render
+  // (standing call + top_candidates + next_picks_plan targets,
+  // deduped, capped at 20). When a plan player gets drafted by
+  // another roster between visits, plan-disruption detection
+  // surfaces the "they grabbed X" acknowledgment. Optional; older
+  // cookies without this field are treated as no-prior-plan.
+  plan_player_ids?: string[];
 };
 
 function cookieNameFor(leagueId: string): string {
