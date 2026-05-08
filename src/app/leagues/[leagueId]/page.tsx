@@ -73,6 +73,8 @@ import { DecisionCard } from "@/components/league/decision-card";
 import { TradeStrategyPanel } from "@/components/league/trade-strategy-panel";
 import { InflectionPanel } from "@/components/league/inflection-panel";
 import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
+import { LastVisitWriter } from "@/components/system/last-visit-writer";
+import { buildPlanPlayerIds } from "@/lib/last-visit/plan-disruption";
 import { TeamIdentityPanel } from "@/components/league/team-identity-panel";
 import {
   analyzeTeamIdentity,
@@ -1325,6 +1327,44 @@ export default async function LeagueHubPage({
                   problem the synthesis fix already solved. WindowsBar
                   meters retained as math (CAN-WIN-NOW vs FUTURE scores
                   are league-state observations, not user declarations). */}
+
+              {/* Last-visit fingerprint writer. Invisible client
+                  component that POSTs the current snapshot's
+                  fingerprint to /api/last-visit after mount, so the
+                  next hub render can compute the "Since [time]: ..."
+                  digest + plan-disruption acknowledgment. The read
+                  side renders with the visual redesign; this ships
+                  the write side now so users start accruing
+                  fingerprints immediately. */}
+              {leagueSnapshot && (
+                <LastVisitWriter
+                  leagueId={leagueId}
+                  fingerprint={{
+                    v: 1,
+                    ts: new Date().toISOString(),
+                    total_picks_made: leagueSnapshot.draft.picks_made.length,
+                    standing_call_id:
+                      decision?.recommendation.player_id ?? null,
+                    ev_bank_total: draftProgress?.ev_bank?.total_ev ?? null,
+                    my_roster_size:
+                      leagueSnapshot.rosters.find((r) => r.is_me)?.player_ids
+                        .length ?? 0,
+                    plan_player_ids: buildPlanPlayerIds({
+                      recommendation_id:
+                        decision?.recommendation.player_id ?? null,
+                      top_candidate_ids:
+                        decision?.top_candidates.map((c) => c.player_id) ??
+                        [],
+                      // next_picks_plan exposes player NAMES not IDs, so
+                      // we cannot extend the plan-disruption set from
+                      // there without an extra name-to-id round trip.
+                      // Recommendation + top_candidates IDs cover the
+                      // most-relevant snipe surface today.
+                      next_picks_plan_target_ids: [],
+                    }),
+                  }}
+                />
+              )}
 
               {/* Team Identity hero card. "This is your team" at the
                   top of the hub. Combines archetype, position room

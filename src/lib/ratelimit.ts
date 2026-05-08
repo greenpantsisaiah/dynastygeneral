@@ -30,7 +30,8 @@ type BucketName =
   | "account-action"
   | "verdict-share-create"
   | "verdict-share-view"
-  | "opponent-notes";
+  | "opponent-notes"
+  | "last-visit";
 
 type LimitSpec = {
   // Requests allowed
@@ -92,6 +93,11 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // peaks can hit ~10 in a tight window. 30/min keeps room while
   // bounding a compromised account.
   "opponent-notes": { requests: 30, window: "1 m" },
+  // Last-visit fingerprint writes. One write per hub render; a user
+  // can rapidly refresh the hub mid-draft (5-10 times in a minute is
+  // plausible). 60/min covers worst-case real usage and stops a
+  // misconfigured client from looping infinitely.
+  "last-visit": { requests: 60, window: "1 m" },
 };
 
 let redis: Redis | null = null;
