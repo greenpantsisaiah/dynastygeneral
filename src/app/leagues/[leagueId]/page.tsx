@@ -69,12 +69,16 @@ import { getMyRoster } from "@/lib/strategy/league-state/snapshot";
 import { getOptionalUser, getTier } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PlaysFromHere } from "@/components/league/plays-from-here";
-import { DecisionCard } from "@/components/league/decision-card";
+// DecisionCard parked: superseded by TheCall (the redesigned standing-
+// call surface). The component file stays in the codebase pending
+// review of TheCall in production; once confirmed, DecisionCard +
+// its tests can be deleted in a follow-up commit.
 import { TradeStrategyPanel } from "@/components/league/trade-strategy-panel";
 import { InflectionPanel } from "@/components/league/inflection-panel";
 import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
 import { LastVisitWriter } from "@/components/system/last-visit-writer";
 import { buildPlanPlayerIds } from "@/lib/last-visit/plan-disruption";
+import { TheCall } from "@/components/league/the-call/the-call";
 import { TeamIdentityPanel } from "@/components/league/team-identity-panel";
 import {
   analyzeTeamIdentity,
@@ -1417,61 +1421,18 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {/* Order per user feedback 2026-04-27: Decision first
-                  (the standing call), then Value plays directly under
-                  it (max-dynasty-value + buy-low-flip-later are
-                  decision-adjacent, not bottom-of-page context), then
-                  Decision Quadrant, then SWOT, then league context. */}
+              {/* The Call: redesigned standing-call surface (Phase B
+                  of the UI redesign). Replaces the legacy DecisionCard.
+                  Reads canonical Decision data only; no parallel
+                  computation. computeWhatIfReadout, laneDefinitionsForFormat,
+                  and survival/EV math are all consumed from canonical
+                  helpers. Sloan-mode toggle in the local Bridge flips
+                  the register inline. */}
               {decision && (
-                <DecisionCard
+                <TheCall
                   decision={decision}
-                  trajectory={leagueBriefing?.trajectory}
-                  horizonDial={leagueBriefing?.dials.horizon}
-                  leagueId={leagueId}
                   leagueType={leagueSnapshot?.league_type ?? "unknown"}
                   maxKeepers={leagueSnapshot?.max_keepers ?? null}
-                  recentPicks={(() => {
-                    if (!leagueSnapshot) return [];
-                    const ownerByRosterId = new Map(
-                      leagueSnapshot.rosters.map((r) => [
-                        r.roster_id,
-                        r.owner_name,
-                      ]),
-                    );
-                    const picks = leagueSnapshot.draft.picks_made;
-                    const recent = picks.slice(-15);
-                    return recent.map((p) => ({
-                      pick_no: p.pick_no,
-                      player_id: p.player_id,
-                      owner_name:
-                        ownerByRosterId.get(p.roster_id) ?? null,
-                    }));
-                  })()}
-                  tierAnnotations={(() => {
-                    if (!tierMap) return undefined;
-                    const m = new Map<
-                      string,
-                      import("@/components/league/decision-card").TierAnnotation
-                    >();
-                    for (const pos of tierMap.positions) {
-                      // Build a per-tier metadata lookup so each player
-                      // can know how many players sit in the tier just
-                      // below them. Critical for "next tier deep / scarce"
-                      // framing.
-                      const byTierNum = new Map(
-                        pos.tiers.map((t) => [t.tier, t]),
-                      );
-                      for (const player of pos.top_tier_players) {
-                        const nextTier = byTierNum.get(player.tier + 1);
-                        m.set(player.player_id, {
-                          tier: player.tier,
-                          isLastInTier: player.is_last_in_tier,
-                          nextTierCount: nextTier?.count ?? null,
-                        });
-                      }
-                    }
-                    return m;
-                  })()}
                 />
               )}
 

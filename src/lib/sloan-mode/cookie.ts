@@ -3,28 +3,27 @@
  *
  * Sloan mode is a single toggle that flips the entire UI register
  * from Voice A (default brand) to Voice B (model-transparent
- * register). Same data; different reader posture. Confidence
- * intervals, signal scorecards, model provenance, and dial values
- * become visible inline. The toggle does not change the visual
- * shape of any surface; the user's muscle memory survives.
+ * register). Same data; different reader posture.
  *
  * Cookie-mirrored so server-rendered surfaces can switch register
- * without a client round-trip. Pattern matches the WindowsBar /
- * judgment-profile cookie mirror.
+ * without a client round-trip.
+ *
+ * Server-only: imports next/headers. The shared cookie name +
+ * SloanMode type live in `./types.ts` so client components (the
+ * useSloanMode hook) can import them without pulling next/headers
+ * into the browser bundle.
  */
 
 import { cookies } from "next/headers";
+import {
+  SLOAN_COOKIE_NAME,
+  SLOAN_MAX_AGE_S,
+  type SloanMode,
+  isSloanMode,
+} from "./types";
 
-export const SLOAN_COOKIE_NAME = "dg_sloan";
-const SLOAN_MAX_AGE_S = 60 * 60 * 24 * 365; // 1 year
-
-export type SloanMode = "off" | "on";
-
-const VALID: ReadonlySet<SloanMode> = new Set(["off", "on"]);
-
-function isSloanMode(s: string): s is SloanMode {
-  return VALID.has(s as SloanMode);
-}
+export type { SloanMode };
+export { SLOAN_COOKIE_NAME };
 
 /**
  * Read sloan mode from cookies. Defaults to "off" (polished casual

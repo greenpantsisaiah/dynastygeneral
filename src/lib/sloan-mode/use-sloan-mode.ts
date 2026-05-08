@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { SLOAN_COOKIE_NAME, type SloanMode } from "./cookie";
+import { SLOAN_COOKIE_NAME, type SloanMode } from "./types";
 
 function readCookieValue(name: string): string | null {
   if (typeof document === "undefined") return null;
