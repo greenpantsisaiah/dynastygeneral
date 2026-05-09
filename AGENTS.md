@@ -15,3 +15,15 @@ Read these before fixing bugs, adding surfaces, or touching the strategy engine.
 Before writing any helper that returns a number, label, or boolean used in user-facing copy or scoring, check the canonical-sources index. Re-implementing a domain that already has a canonical is the bug class we keep paying for. CI enforces a subset via `evals/anti-patterns.test.ts`.
 
 @CANONICAL_SOURCES.md
+
+# Redesign intentions (locked)
+
+Before making any structural UI / layout / IA decision, read the redesign intentions. This is the canonical record of principles, voice, IA, stage adaptation, and audit of what's shipped vs. drifted vs. parked. Survives compression.
+
+@REDESIGN_INTENTIONS.md
+
+# Brand voice (locked)
+
+Voice A is the brand. Voice C is rejected. No em dashes. No hedging openers. No linkbait. Numbers always have units and reachable provenance.
+
+@BRAND_VOICE.md
