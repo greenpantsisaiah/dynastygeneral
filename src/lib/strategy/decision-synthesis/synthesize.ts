@@ -1823,6 +1823,26 @@ export function synthesizeDecision(args: {
  */
 const SHARP_LOCK_GAP_THRESHOLD = 10;
 
+// Two flavors of counterintuitive disclaimer, both Voice A.
+//
+// Sharp lock: standing call taken 10+ picks BEFORE ADP. The user
+// is "reaching" by market terms; we are recommending the lock
+// because survival to their next slot is low.
+//
+// Counterintuitive value: standing call FELL 15+ picks past ADP and
+// is still on the board. The user's gut may want to fill a position
+// hole instead; we are recommending the value asset because the EV
+// math says taking the rare market gift outweighs the depth fill.
+//
+// Both directions deserve language because both feel weird to a
+// founder who is reading Sleeper's UI ADP and pattern-matching on
+// "the obvious play." 2026-05-08 izzydabomb session named the value-
+// side gap explicitly: "I'm thinking Jordan Mason, Kaytron Allen,
+// Jonathan Brooks, Zach Charbonnet here. You're going super
+// youngsters for some reason. What am I missing?" The model was
+// right; the disclaimer was missing.
+const VALUE_FALL_DISCLAIMER_GAP = 15;
+
 function composeFeelWeirdDisclaimer(args: {
   winner: ScoredCandidate;
   currentPickNo: number;
@@ -1831,11 +1851,12 @@ function composeFeelWeirdDisclaimer(args: {
   const { winner, currentPickNo, nextUserPickNo } = args;
   const adp = winner.player.adp;
   if (typeof adp !== "number") return null;
-  // gap = adp - currentPickNo. Positive = player normally goes
-  // LATER (we're reaching). Negative = player would normally already
-  // be gone (market discount; not a sharp lock).
+  // gap = adp - currentPickNo.
+  //   Positive >= SHARP_LOCK_GAP_THRESHOLD: player normally goes
+  //     LATER (we're reaching for a sharp lock).
+  //   Negative <= -VALUE_FALL_DISCLAIMER_GAP: player would normally
+  //     already be gone (rare market gift; counterintuitive value).
   const gap = adp - currentPickNo;
-  if (gap < SHARP_LOCK_GAP_THRESHOLD) return null;
 
   const survivalPct = survivalPctFor({
     player: winner.player,
@@ -1848,10 +1869,17 @@ function composeFeelWeirdDisclaimer(args: {
       primary_opponent: null,
     },
   });
-
   const survivalText =
     survivalPct != null
       ? `Survival to your next slot is ${survivalPct}%.`
       : "Survival math unavailable.";
-  return `Counterintuitive lock. ${winner.player.name} would normally fall ${Math.round(gap)} more picks. ${survivalText} Trust the math.`;
+
+  if (gap >= SHARP_LOCK_GAP_THRESHOLD) {
+    return `Counterintuitive lock. ${winner.player.name} would normally fall ${Math.round(gap)} more picks. ${survivalText} Trust the math.`;
+  }
+  if (gap <= -VALUE_FALL_DISCLAIMER_GAP) {
+    const fellBy = Math.abs(Math.round(gap));
+    return `Counterintuitive value. ${winner.player.name} normally goes ${fellBy} picks earlier (ADP ${Math.round(adp)}). The conventional play here is filling a position hole; the math says take the asset the market left on the floor.`;
+  }
+  return null;
 }
