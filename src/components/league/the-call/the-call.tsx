@@ -32,7 +32,10 @@
  */
 
 import { useMemo, useState } from "react";
-import type { Decision, DecisionTopCandidate } from "@/lib/strategy/decision-synthesis/types";
+import type {
+  Decision,
+  DecisionTopCandidate,
+} from "@/lib/strategy/decision-synthesis/types";
 import { computeWhatIfReadout } from "@/lib/strategy/decision-synthesis/whatif";
 import {
   laneDefinitionsForFormat,
@@ -74,15 +77,15 @@ export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
         sloanLoaded={isLoaded}
       />
 
-      {decision.feel_weird_disclaimer && (
-        <DisclaimerBand text={decision.feel_weird_disclaimer} />
-      )}
-
       <StandingCallHero
         decision={decision}
         whatifEv={whatif.standing_call_ev}
         sloanOn={mode === "on"}
       />
+
+      {decision.feel_weird_disclaimer && (
+        <DisclaimerBand text={decision.feel_weird_disclaimer} />
+      )}
 
       {decision.opponent_between_picks?.primary_opponent && (
         <OpponentGapLine
@@ -94,12 +97,6 @@ export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
           }
         />
       )}
-
-      <DecisionQuadrant
-        candidates={decision.quadrant_candidates}
-        leanId={decision.recommendation.player_id}
-        sloanOn={mode === "on"}
-      />
 
       <LaneStack
         lanes={lanes}
@@ -118,7 +115,19 @@ export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
         why={decision.why}
         nextPicks={decision.next_picks_plan}
       />
+
+      <Footnote pickLabel={decision.pick_label} />
     </section>
+  );
+}
+
+function Footnote({ pickLabel }: { pickLabel: string }) {
+  return (
+    <div className="px-5 py-3 border-t border-border-soft">
+      <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+        dynastygeneral.app · pick {pickLabel}
+      </p>
+    </div>
   );
 }
 
@@ -133,7 +142,6 @@ function Bridge({
   onToggleSloan: () => void;
   sloanLoaded: boolean;
 }) {
-  const wf = decision.window_frame;
   return (
     <header className="border-b border-border-soft px-5 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -145,7 +153,7 @@ function Bridge({
             Pick {decision.pick_label}
           </span>
           {decision.picks_until_me === 0 ? (
-            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-success">
+            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-success">
               On the clock
             </span>
           ) : (
@@ -169,25 +177,18 @@ function Bridge({
           Sloan {sloanOn ? "on" : "off"}
         </button>
       </div>
-      <p className="mt-2 text-[11px] leading-snug text-muted-2">
-        <span className="font-mono uppercase tracking-[0.14em] text-accent mr-2">
-          Build
-        </span>
-        {wf.label}. {wf.sentence}
-      </p>
     </header>
   );
 }
 
 function DisclaimerBand({ text }: { text: string }) {
+  // Disclaimer copy already begins "Counterintuitive lock." so no
+  // band label is needed (and the prior "Hear me out" header was
+  // Voice C drift that we explicitly rejected). The accent border
+  // and background carry the visual emphasis.
   return (
     <div className="border-b border-warning/40 bg-warning/5 px-5 py-3">
-      <div className="flex items-start gap-2">
-        <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-warning shrink-0 mt-0.5">
-          Hear me out
-        </span>
-        <p className="text-[12px] leading-snug text-foreground">{text}</p>
-      </div>
+      <p className="text-[12px] leading-snug text-foreground">{text}</p>
     </div>
   );
 }
@@ -206,8 +207,8 @@ function StandingCallHero({
     whatifEv == null
       ? null
       : whatifEv >= 0
-        ? `+${whatifEv.toFixed(1)} EV`
-        : `${whatifEv.toFixed(1)} EV`;
+        ? `+${whatifEv.toFixed(1)}`
+        : whatifEv.toFixed(1);
   const evColor =
     whatifEv == null
       ? "text-muted-2"
@@ -216,18 +217,25 @@ function StandingCallHero({
         : "text-danger";
   return (
     <div className="px-5 py-5 border-b border-border-soft">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          Standing call
-        </div>
-        <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
-          {r.rule.replace(/_/g, " ")}
-        </div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+        Standing call
       </div>
-      <h2 className="mt-2 text-2xl font-semibold leading-tight text-foreground">
-        {r.name}
-      </h2>
-      <div className="mt-1 flex flex-wrap items-baseline gap-3 font-mono text-[11px] text-muted">
+      <div className="mt-2 flex items-baseline justify-between gap-4">
+        <h2 className="text-2xl font-semibold leading-tight text-foreground">
+          {r.name}
+        </h2>
+        {evDisplay && (
+          <div className="flex flex-col items-end shrink-0">
+            <div className={`font-mono text-2xl font-semibold leading-none ${evColor}`}>
+              {evDisplay}
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-2 mt-1">
+              EV at this pick
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap items-baseline gap-3 font-mono text-[11px] text-muted">
         <span>
           {r.position}
           {r.team ? `-${r.team}` : ""}
@@ -246,9 +254,6 @@ function StandingCallHero({
               </span>
             )}
           </span>
-        )}
-        {evDisplay && (
-          <span className={`font-semibold ${evColor}`}>{evDisplay}</span>
         )}
       </div>
       <p className="mt-3 text-sm leading-relaxed text-foreground">
@@ -285,151 +290,11 @@ function OpponentGapLine({
   );
 }
 
-function DecisionQuadrant({
-  candidates,
-  leanId,
-  sloanOn,
-}: {
-  candidates: Decision["quadrant_candidates"];
-  leanId: string;
-  sloanOn: boolean;
-}) {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const hovered = candidates.find((c) => c.player_id === hoveredId) ?? null;
-  if (candidates.length === 0) return null;
-
-  // SVG layout: 100x100 viewBox with margins. Center axis at (50, 50).
-  // Horizon: -100..+100 mapped to 5..95 (5% margin). Confidence:
-  // 0..100 mapped to 95..5 (inverted; high confidence at top).
-  const xOf = (h: number) => 5 + ((h + 100) / 200) * 90;
-  const yOf = (c: number) => 95 - (c / 100) * 90;
-
-  return (
-    <div className="px-5 py-5 border-b border-border-soft">
-      <div className="flex items-baseline justify-between gap-3 mb-3">
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          Decision Quadrant
-        </div>
-        <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
-          {candidates.length} candidates
-        </div>
-      </div>
-      <div className="relative w-full" style={{ aspectRatio: "1 / 1", maxWidth: "320px" }}>
-        <svg
-          viewBox="0 0 100 100"
-          className="w-full h-full"
-          role="img"
-          aria-label="Decision Quadrant scatter"
-        >
-          {/* Quadrant grid */}
-          <line x1="50" y1="5" x2="50" y2="95" stroke="currentColor" strokeOpacity="0.15" strokeWidth="0.3" />
-          <line x1="5" y1="50" x2="95" y2="50" stroke="currentColor" strokeOpacity="0.15" strokeWidth="0.3" />
-          {/* Outer frame */}
-          <rect x="5" y="5" width="90" height="90" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="0.3" />
-          {candidates.map((c) => {
-            const cx = xOf(c.horizon_pct);
-            const cy = yOf(c.confidence_pct);
-            const isLean = c.player_id === leanId;
-            const isHovered = c.player_id === hoveredId;
-            const fillColor = laneFillFor(c.timeline_lane);
-            return (
-              <g key={c.player_id}>
-                {isLean && (
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r="4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeOpacity="0.7"
-                    strokeWidth="0.5"
-                  />
-                )}
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={isHovered ? "2.8" : "2.2"}
-                  fill={fillColor}
-                  stroke={isHovered ? "currentColor" : "none"}
-                  strokeWidth={isHovered ? "0.4" : "0"}
-                  className="cursor-pointer transition-all"
-                  onMouseEnter={() => setHoveredId(c.player_id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  onClick={() => setHoveredId(c.player_id)}
-                />
-              </g>
-            );
-          })}
-        </svg>
-        {/* Axis labels */}
-        <div className="absolute left-1 top-1 font-mono text-[8px] uppercase tracking-[0.14em] text-muted-2">
-          High conf
-        </div>
-        <div className="absolute left-1 bottom-1 font-mono text-[8px] uppercase tracking-[0.14em] text-muted-2">
-          Low conf
-        </div>
-        <div className="absolute right-1 bottom-1 font-mono text-[8px] uppercase tracking-[0.14em] text-success/80">
-          Future →
-        </div>
-        <div className="absolute left-1 bottom-3 font-mono text-[8px] uppercase tracking-[0.14em] text-warning/80">
-          ← Win-now
-        </div>
-      </div>
-      {hovered && (
-        <div className="mt-3 rounded-md border border-border-strong bg-surface px-3 py-2">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[13px] font-medium text-foreground">
-              {hovered.name}
-            </span>
-            <span className="font-mono text-[10px] text-muted-2">
-              {laneShortLabelFor(hovered.timeline_lane)}
-            </span>
-          </div>
-          <div className="mt-1 font-mono text-[10px] text-muted">
-            horizon {Math.round(hovered.horizon_pct)}, conf{" "}
-            {Math.round(hovered.confidence_pct)}
-            {sloanOn && hovered.constraint_note && (
-              <span className="block mt-1 text-warning">
-                {hovered.constraint_note}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-[11px] leading-snug text-foreground">
-            {hovered.primary_reason}
-          </p>
-        </div>
-      )}
-      {!hovered && (
-        <p className="mt-3 text-[11px] leading-snug text-muted-2">
-          Tap a dot for the candidate&apos;s rationale. Outer ring marks the
-          standing call. Color marks the timeline lane.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function laneFillFor(lane: "win-now" | "balanced" | "future"): string {
-  switch (lane) {
-    case "win-now":
-      return "rgb(var(--color-warning))";
-    case "balanced":
-      return "rgb(var(--color-foreground))";
-    case "future":
-      return "rgb(var(--color-success))";
-  }
-}
-
-function laneShortLabelFor(lane: "win-now" | "balanced" | "future"): string {
-  switch (lane) {
-    case "win-now":
-      return "Win-Now";
-    case "balanced":
-      return "Balanced";
-    case "future":
-      return "Future";
-  }
-}
+// Decision Quadrant moved to ./decision-quadrant.tsx; parked for the
+// /pick deep-dive route. Founder feedback 2026-05-08: the chart "tells
+// me nothing" without an interpretation headline. Stripped from the
+// hub-rendered The Call surface; will return on the deep-dive with a
+// real one-line interpretation above the scatter.
 
 function LaneStack({
   lanes,
@@ -554,7 +419,7 @@ function CandidateRow({
           {candidate.name}
           {candidate.is_lean && (
             <span className="ml-2 font-mono text-[9px] uppercase tracking-[0.18em] text-accent">
-              lean
+              the call
             </span>
           )}
         </div>
@@ -569,7 +434,7 @@ function CandidateRow({
             }`}
           >
             {whatif.delta_vs_standing_call >= 0 ? "+" : ""}
-            {whatif.delta_vs_standing_call.toFixed(1)} EV vs lean
+            {whatif.delta_vs_standing_call.toFixed(1)} EV vs the call
           </div>
         )}
       </div>

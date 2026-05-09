@@ -117,6 +117,11 @@ function run() {
       alt!.narrative.includes("Higher EV"),
       `narrative: ${alt!.narrative}`,
     );
+    check(
+      "narrative uses 'vs the call' not 'vs the lean'",
+      alt!.narrative.includes("vs the call") && !alt!.narrative.includes("vs the lean"),
+      `narrative: ${alt!.narrative}`,
+    );
   }
 
   console.log("\n── 4. Alternate with lower EV than standing call ──");

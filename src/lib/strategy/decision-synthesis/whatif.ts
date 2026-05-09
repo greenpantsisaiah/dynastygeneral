@@ -126,12 +126,12 @@ function composeNarrative(args: {
       ? ` Survival ${candidate.survival_pct}%.`
       : "";
   if (Math.abs(delta) <= 0.5) {
-    return `Roughly equivalent EV (${formatSigned(delta)} vs the lean).${survivalText}`;
+    return `Roughly equivalent EV (${formatSigned(delta)} vs the call).${survivalText}`;
   }
   if (delta > 0) {
-    return `Higher EV (${formatSigned(delta)} vs the lean).${survivalText} The market discount is bigger here.`;
+    return `Higher EV (${formatSigned(delta)} vs the call).${survivalText} The market discount is bigger here.`;
   }
-  return `Lower EV (${formatSigned(delta)} vs the lean).${survivalText} The lean is the better-priced asset.`;
+  return `Lower EV (${formatSigned(delta)} vs the call).${survivalText} The call is the better-priced asset.`;
 }
 
 function round2(n: number): number {
