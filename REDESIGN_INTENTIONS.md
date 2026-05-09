@@ -13,6 +13,23 @@ file, ask the founder, do not ship the drift.
 
 ## Core principles (locked, numbered)
 
+### 0. MIT-grade statistical floor (NEW principle, locked 2026-05-08)
+
+ADDED 2026-05-08 PM. Per founder direction: "NOTHING we say or do
+here should depart from our hard-earned, MIT-grade statistics model."
+
+Every quantitative claim in product chrome carries:
+- A defensible source (FantasyCalc, Sleeper variant, KTC, our
+  computed EV math, etc.)
+- A confidence band / margin of error visible inline by default
+  (not behind a toggle)
+- Provenance reachable on tap (variant name, sample size, model
+  component, methodology link)
+
+Hand-wavy claims do not ship. If we can't cite the source, we don't
+publish the number. This is the floor; it sits above every other
+principle.
+
 ### 1. Bottom-up redesign that reuses what works
 
 Old panels stay only when we choose them for their value. The redesign
@@ -51,14 +68,28 @@ Default surface is plainspoken. Numbers come with units. Color used
 sparingly. The user's first 1.5 seconds on any surface land them on
 the answer, not on a metric they have to interpret.
 
-### 6. Serious user gets dials, knobs, education
+### 6. Sloan-level always on (UPDATED 2026-05-08)
 
-Sloan-mode toggle flips the entire UI register from Voice A (default)
-to Voice B (clinical, model-transparent). Confidence intervals,
-signal scorecards, model provenance, and dial values surface inline.
-The serious user lives in Sloan mode; the casual user never sees it.
+UPDATED 2026-05-08 PM per founder direction: "Let's drop the sloan
+toggle and sloan it all for now, then decide to show it later or
+not."
 
-Both modes obey the hard rules.
+Sloan-level rigor is now the default state of the entire UI. CIs
+appear inline next to every number. Methodology citations sit one
+tap away. Signal scorecards are visible (not hidden behind a
+toggle). The toggle is dropped; we revisit later whether to add a
+"casual lite" mode that hides some of this for a less-rigorous
+reader.
+
+Voice A is still the default register (plainspoken, decisive); the
+density of the math is what changes when "Sloan-on" was previously
+toggled. That density is now permanent.
+
+Numbers always carry their CI in parentheses by default:
+- "+8.4 EV (+3 to +14)" not "+8.4 EV"
+- "21% survives (CI 14-29%)" not "21% survives"
+- "value 39 (range 35-43)" not "value 39"
+- "rank 1 of 12 (top 8% CI)" not "rank 1 of 12"
 
 ### 7. Knows the question emotionally + cognitively
 
@@ -67,16 +98,29 @@ question AND names the underlying emotional / strategic question
 underneath. "Should I trade for X?" carries the underlying "do I
 have enough now?" The product surfaces both.
 
-### 8. EV bank: mine first, theirs on demand, with confidence bands
+### 8. EV bank: 3-box row, second from the top
 
-The EV bank is the moat-grade differentiator. The user's per-pick
-contributions lead. The league comparison is an inline collapsible
-expander attached to the same widget, not a separate route or
-standalone widget. Range envelope (confidence band) renders for
-every roster.
+UPDATED 2026-05-08 PM after founder direction. The EV bank is not a
+single widget; it is a 3-box row that lives second-from-the-top of
+the hub (below the headline section, above the rest):
 
-Per founder direction 2026-05-08: "showing me mine and then expanding
-to theirs would be the obvious thing to do."
+- **Box 1: Your EV.** Per-pick bars + total + range (confidence band
+  always visible inline as margin of error).
+- **Box 2: League EV by team.** Per-team summary bars (mine
+  highlighted). Click a team to open a modal showing that team's
+  per-pick bars in the same shape as Box 1.
+- **Box 3: Upcoming events that recalculate EV.** Training camp,
+  weekly post-game recalc, injury news, NFL Draft window, etc.
+  Surfaces "what could move your number next, and when."
+
+The range envelope (confidence band) renders for every number in
+every box.
+
+Per founder direction 2026-05-08: "I'd think of it as a three item
+thing. Box 1 = my EV. Box 2 = league EV by team (can click one for
+a modal showing their picks like mine in box 1). Box 3 = Next events
+that will affect/recalculate EV (e.g. training camp, recalc after
+next week's games, injuries, etc.)."
 
 ### 9. Cool conversations + screenshots
 
@@ -314,6 +358,146 @@ selection lives in the hub render and uses
 | 2026-05-08 | "Your ADP and the ADP I'm used to seeing are different planets" | Surface every ADP variant on candidate cards via tap-to-reveal; Coach context includes adp_alternatives; system_prompt rule mandates variant + cross-reference |
 | 2026-05-08 | Forgot a ton of stuff in the rebuild | Brought back OpponentCharacterizations + SamePathThreatsCard + LeagueOutlook + SwotCard + LeagueDivergence + LeagueTable + BriefingFeed |
 | 2026-05-08 | Lanes is still here / can't locate EV | PENDING (this audit) |
+
+## Strategic Lanes (THE active-draft hero, locked 2026-05-08 PM)
+
+UPDATED 2026-05-08 PM per founder direction: "I preferred some
+earlier panels that had 3 picks if going this way, that way, the
+other way. Really helped me think." The drift was that The Call
+became "THE ONE PICK" with alternatives in lanes; the user wants
+multiple paths shown side-by-side as first-class options.
+
+Strategic Lanes mixes timeline horizon AND archetype paths in a
+format-aware way:
+
+**Dynasty leagues** (max_keepers >= 5 OR is_dynasty):
+- Time horizon (Win-Now / Balanced / Future) is huge because
+  keeper math compounds forever.
+- 3 lanes, each is a (horizon × archetype) pairing.
+- Examples: "Win-Now via QB Cartel" / "Balanced via Zero-RB
+  Recovery" / "Future via WR Stable."
+
+**Redraft + low-keeper** (max_keepers <= 4):
+- Time horizon mostly collapses to Win-Now (everyone is
+  win-now).
+- 3 lanes are archetype-primary.
+- Examples: "Anchor RB" / "Zero-RB" / "WR Stable."
+
+**Late-draft (round 10+)** during ANY format:
+- TierMap takes over from Strategic Lanes as the lead surface.
+- Tier ladder per position with drops named.
+- See visualization map below.
+
+Each lane card carries:
+- Header: archetype name + drift % (engine's read of how committed
+  user's roster is to this path) + horizon tag
+- Mini path diagram: 3 picks shown as connected nodes; each node
+  is candidate name + EV chip with CI
+- Lane sparkline: cumulative EV trajectory if user follows path
+- Horizon meter: stacked bar showing now-value vs future-value
+- "Why this path" one line of prose
+- One lane carries "THE CALL" badge for the engine's overall lean
+- Hover any node: full candidate detail (ADP variant, value with
+  range, survival CI)
+
+Color: archetype-tinted hue per lane.
+
+EV and Future-Trade Stock surface as chips inside each lane, not as
+separate lanes themselves.
+
+## Visualization map (538-editor pass, locked 2026-05-08 PM)
+
+Founder direction: "If you were an editor/designer for fivethirtyeight
+.com what visualization and data structures would you put on these
+things? The end result should be sexy charts and graphs, not just
+text, though not everything gets a sexy chart."
+
+Per-surface chart treatment:
+
+### EV Bank · Box 1 (Your EV)
+**Hero: cumulative EV trajectory line.** Stock-chart shape. X-axis =
+your pick number; Y-axis = cumulative EV banked. Each pick is a node
+on the line. Confidence ribbon shaded around the line as a translucent
+fan. Annotations name the picks that swung the bank. Sparkline summary
+above. Hover any node: player + raw EV + value + ADP variant +
+survival.
+
+### EV Bank · Box 2 (League by team)
+**Dot plot with CI bars.** Each team is a row; CI range as colored
+bar; team's median as a dot; mine highlighted. Sparkline column on
+the left: each team's per-pick trajectory in tiny form. Diverging
+green-red color. Hover team: their per-pick bars inline. Click:
+modal with their full trajectory chart.
+
+### EV Bank · Box 3 (Upcoming events)
+**Horizon timeline.** Calendar strip showing next ~6 weeks. Markers
+per event (training camp, post-game weekly recalc, injury report,
+NFL Draft window). Above the strip: fan chart of how EV could move
+under each event. Hover marker: event detail + EV swing range.
+
+### Strategic Lanes (active-draft hero)
+3 cards side-by-side (vertical stack on mobile). Each card per the
+spec above: mini path diagram + sparkline + horizon meter + EV
+chips + tap-to-expand for full candidate detail.
+
+### Tier Map (late-draft hero, RESTORED to component inventory)
+**Tier ladder per position.** 4 columns (QB/RB/WR/TE). Each column
+is a stack of colored tier bands; players within shown as labeled
+bricks. Drop between tiers rendered as a literal pixel gap with
+magnitude labeled. Pick-rate sparkline on top of each column showing
+recent run intensity. Hover brick: full player + ADP variant + value
++ survival.
+
+### Position Diagnostic
+**Position-strength heatmap row.** 4 cells across (QB/RB/WR/TE),
+each colored by strength tier. Inside each cell: total positional
+value + percentile vs league + your top player. Hover: full
+position breakdown.
+
+### Sharp Positioning + Best Value
+**Diverging dot plot of every pick's ADP delta.** Horizontal axis =
+pick number. Vertical = ADP delta. Each pick = dot; size = player
+value. Most-extreme picks annotated. Hover dot: variant ADP + market
+gap + EV contribution.
+
+### Standing Call (within "THE CALL" lane in Strategic Lanes)
+**Decision-confidence radial gauge** (small donut/arc with model
+confidence as a percentage with a CI ring). Plus horizontal stacked
+bar showing this pick's EV breakdown: market discount + value ×
+scarcity × survival. Each component labeled.
+
+### Opponent Gap Analysis
+**Demand heatmap row.** One cell per opponent in the gap, colored by
+their highest-demand position. Pick number labels above each cell.
+Plus opponent fingerprint sparkline below: that opponent's recent
+trade/pick activity.
+
+### Inflection Panel (bifurcation)
+**Bimodal distribution chart per player.** Two normal-curve humps
+with probability mass labeled. Signal scorecard table to the right:
+each signal as a row with observation + direction. Hover signal:
+source citation + sample size.
+
+### League Pulse / Activity
+**Stream graph of recent picks.** Picks colored by position; height
+shows volume per position over the last 12-15 picks.
+
+### Briefings (Intel)
+538-style article cards. Each briefing has hero chart + 2 supporting
+beats with mini visualizations + a one-decisive-number callout.
+
+### What stays text/numeric (no chart)
+- Player names, position, age, team
+- Disclaimer copy ("Counterintuitive lock", "Counterintuitive value")
+- "Why this path" prose lines
+- Scarcity callouts
+- Coach responses
+- Variant labels
+
+### Charting approach
+Inline SVG for sparklines, bars, dot plots. Reach for a charting
+library only when a chart genuinely needs interactive complexity.
+Voice A control over every pixel.
 
 ## Drift detection: questions to ask before any structural change
 

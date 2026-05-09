@@ -27,6 +27,7 @@ import type {
   EvBankPickEntry,
   LeagueEvBankReadout,
 } from "@/lib/strategy/ev-bank";
+import { EvTrajectoryChart } from "@/components/league/dashboard/ev-trajectory-chart";
 
 const TIER_BANNER_BORDER: Record<ProgressTier, string> = {
   strong: "border-success/60",
@@ -217,62 +218,52 @@ function EvBankSection({
   bank: EvBank;
   leagueBank: LeagueEvBankReadout | null;
 }) {
-  const totalEv = bank.total_ev;
-  const totalDisplay =
-    totalEv == null
-      ? "ungraded"
-      : totalEv >= 0
-        ? `+${totalEv.toFixed(1)}`
-        : totalEv.toFixed(1);
-  const totalColor =
-    totalEv == null
-      ? "text-foreground"
-      : totalEv >= 5
-        ? "text-success"
-        : totalEv >= -5
-          ? "text-foreground"
-          : totalEv >= -15
-            ? "text-warning"
-            : "text-danger";
-
-  // Bar scale: max abs ev_delta across entries drives the bar width.
-  // Falls back to 1 to avoid divide-by-zero on a single zero-delta entry.
+  // Bar scale for the per-pick detail view (kept as tap-to-expand).
   const maxAbsDelta = Math.max(
     1,
     ...bank.entries.map((e) => Math.abs(e.ev_delta ?? 0)),
   );
+  const [showPerPickBars, setShowPerPickBars] = useState(false);
 
   return (
-    <div className="border-t border-border-soft px-5 py-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          EV bank
-        </div>
-        <div className="flex items-baseline gap-3">
-          <span className={`font-mono text-lg font-semibold ${totalColor}`}>
-            {totalDisplay}
-          </span>
-          {bank.range_low != null && bank.range_high != null && (
-            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-              range {bank.range_low >= 0 ? "+" : ""}
-              {bank.range_low.toFixed(1)} to {bank.range_high >= 0 ? "+" : ""}
-              {bank.range_high.toFixed(1)}
-            </span>
-          )}
-        </div>
+    <div>
+      {/* Hero: cumulative EV trajectory line chart with confidence
+          ribbon. Per founder direction 2026-05-08 PM (538-editor
+          pass): "Sexy charts and graphs." Total + CI render in the
+          chart header; per-pick detail surfaces on hover. */}
+      <EvTrajectoryChart bank={bank} />
+
+      {/* Tap-to-expand per-pick bar detail. The trajectory chart
+          shows cumulative; this view shows each pick's contribution
+          as a horizontal diverging bar for users who want to read
+          pick-by-pick directly. */}
+      <div className="px-5 pb-4">
+        <button
+          type="button"
+          onClick={() => setShowPerPickBars((s) => !s)}
+          className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent transition-colors"
+          aria-expanded={showPerPickBars}
+        >
+          {showPerPickBars ? "Hide" : "Show"} per-pick bar detail
+        </button>
+        {showPerPickBars && (
+          <>
+            <div className="mt-3 space-y-1.5">
+              {bank.entries.map((entry) => (
+                <EvBankRow key={entry.player_id} entry={entry} maxAbs={maxAbsDelta} />
+              ))}
+            </div>
+            <p className="mt-3 text-[10px] leading-snug text-muted-2">
+              EV per pick = (value/100) × (pick − ADP). Range from realistic ADP noise of ±{bank.adp_noise_picks} picks. Sharp locks count negative against the bank by definition.
+            </p>
+          </>
+        )}
       </div>
-      <p className="mt-2 text-xs leading-snug text-muted">{bank.summary}</p>
-      <div className="mt-3 space-y-1.5">
-        {bank.entries.map((entry) => (
-          <EvBankRow key={entry.player_id} entry={entry} maxAbs={maxAbsDelta} />
-        ))}
-      </div>
-      <p className="mt-3 text-[10px] leading-snug text-muted-2">
-        EV per pick = (value/100) × (pick minus ADP). Range from realistic ADP noise of ±{bank.adp_noise_picks} picks. Sharp locks (player taken before ADP) count negative against the bank by definition; whether the lock was correct is a scarcity question answered in the Decision card.
-      </p>
 
       {leagueBank && leagueBank.ranked_count >= 2 && (
-        <LeagueComparisonExpander leagueBank={leagueBank} />
+        <div className="px-5 pb-4">
+          <LeagueComparisonExpander leagueBank={leagueBank} />
+        </div>
       )}
     </div>
   );
