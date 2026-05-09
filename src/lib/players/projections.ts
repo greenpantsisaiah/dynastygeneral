@@ -207,6 +207,71 @@ export function pickRedraftAdpFromVariants(
   return { value: null, variant: "none" };
 }
 
+/**
+ * Expose every available ADP variant for a player. Per founder
+ * feedback 2026-05-08: "your ADP and the ADP I'm used to seeing
+ * are different planets. How would I even know that or see the
+ * ADP it's referencing as such bargains?" Solution: stop hiding
+ * variants behind a single resolved number; surface all of them so
+ * the user can cross-reference against whatever variant their
+ * Sleeper UI happens to default to.
+ *
+ * Returns an array of { variant, value, label } for every variant
+ * Sleeper publishes. Variants with null / 999 sentinel are skipped.
+ * Caller picks a small comparison set to render alongside the
+ * format-matched primary.
+ */
+export type AdpVariantEntry = {
+  variant: string;
+  value: number;
+  // User-facing label, e.g., "Dynasty SF" / "Dynasty 1QB" / "Rookie".
+  // Voice A: terse, no jargon.
+  label: string;
+};
+
+const VARIANT_LABELS: Record<string, string> = {
+  adp_dynasty: "Dynasty",
+  adp_dynasty_2qb: "Dynasty SF",
+  adp_dynasty_ppr: "Dynasty PPR",
+  adp_dynasty_half_ppr: "Dynasty half-PPR",
+  adp_dynasty_std: "Dynasty std",
+  adp_2qb: "Redraft SF",
+  adp_ppr: "Redraft PPR",
+  adp_half_ppr: "Redraft half-PPR",
+  adp_std: "Redraft std",
+  adp_rookie: "Rookie pool",
+};
+
+export function getAllAdpVariants(
+  adp: PlayerAdp | undefined,
+): AdpVariantEntry[] {
+  if (!adp) return [];
+  const fields: Array<[keyof PlayerAdp, string]> = [
+    ["adp_dynasty", "adp_dynasty"],
+    ["adp_dynasty_2qb", "adp_dynasty_2qb"],
+    ["adp_dynasty_ppr", "adp_dynasty_ppr"],
+    ["adp_dynasty_half_ppr", "adp_dynasty_half_ppr"],
+    ["adp_dynasty_std", "adp_dynasty_std"],
+    ["adp_2qb", "adp_2qb"],
+    ["adp_ppr", "adp_ppr"],
+    ["adp_half_ppr", "adp_half_ppr"],
+    ["adp_std", "adp_std"],
+    ["adp_rookie", "adp_rookie"],
+  ];
+  const out: AdpVariantEntry[] = [];
+  for (const [key, variant] of fields) {
+    const v = adp[key];
+    if (typeof v === "number" && Number.isFinite(v) && v < 999) {
+      out.push({
+        variant,
+        value: v,
+        label: VARIANT_LABELS[variant] ?? variant,
+      });
+    }
+  }
+  return out;
+}
+
 export function pickAdpFromVariants(
   adp: PlayerAdp | undefined,
   fmt: AdpFormatKey,

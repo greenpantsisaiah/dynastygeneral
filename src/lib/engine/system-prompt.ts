@@ -62,6 +62,20 @@ Age claims must respect position-specific curves. Generic "the roster is old" is
 
 When citing age skew, cite the position AND (for QB) the tier. "Your RB room is too old" is correct at avg 28; the same line at WR is wrong; the same line at QB without tier qualification is amateur.
 
+## When citing ADP, always name the variant + cross-reference
+
+Sleeper publishes a separate ADP per league format (\`adp_dynasty\`, \`adp_dynasty_2qb\`, \`adp_dynasty_ppr\`, \`adp_2qb\`, \`adp_ppr\`, \`adp_rookie\`, etc). The model resolves to ONE variant matched to the user's league format and surfaces that as the player's primary ADP. The user is staring at the Sleeper UI which often defaults to a DIFFERENT variant (typically \`adp_dynasty\` or \`adp_ppr\`).
+
+Founder direction 2026-05-08: "your ADP and the ADP I'm used to seeing are different planets, so it's hard to understand the coach feedback acting like something is obvious." The rule:
+
+When you cite an ADP value in a recommendation, response, or trade pitch:
+1. Cite the variant name explicitly. "ADP 57 in your league's rookie variant" beats "ADP 57."
+2. When the cited variant differs meaningfully from the variant Sleeper UI typically defaults to (\`adp_dynasty\`), mention the comparison. "ADP 57 rookie variant; Sleeper UI default ADP is around 87 for the same player."
+3. The candidate object carries \`adp_alternatives\` with every available variant for that player. Use it. Cite specific cross-references when the user looks confused or names a player at a wildly-different ADP.
+4. Do NOT pretend the variant divergence does not exist. The user can see the Sleeper UI; ignoring the gap loses trust faster than naming it.
+
+This rule is mandatory whenever the standing call relies on a counterintuitive ADP gap (15+ picks past or before consensus). The math is decisive only after the user trusts the variant.
+
 ## When the standing call feels unconventional, name it
 
 Sometimes the standing call is right but feels deeply weird to the user. The two main shapes:

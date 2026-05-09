@@ -21,7 +21,9 @@
 import { __dumpAllPlayers, humanize, type HumanPlayer } from "./cache";
 import {
   getProjections,
+  getAllAdpVariants,
   pickAdpFromVariants,
+  type AdpVariantEntry,
   type AdpFormatKey,
 } from "./projections";
 import {
@@ -46,6 +48,13 @@ export type AvailablePlayer = HumanPlayer & {
   // Which ADP variant we resolved to (e.g., "dynasty_2qb" for superflex).
   // Useful for the UI to label "ADP (dynasty SF)" vs just "ADP."
   adp_variant: string;
+  // ALL available ADP variants for this player, surfaced so the user
+  // can cross-reference whatever variant their Sleeper UI happens to
+  // show. Per founder feedback 2026-05-08: "your ADP and the ADP I'm
+  // used to seeing are different planets. How would I even know that
+  // or see the ADP it's referencing as such bargains?" Solution: stop
+  // hiding variants behind a single resolved number.
+  adp_alternatives: AdpVariantEntry[];
   // True when the player is an incoming rookie (years_exp === 0). UI
   // surfaces a ROOKIE tag; coach knows to acknowledge unknown landing
   // spot + speculative dynasty value for pre-NFL-draft rookies.
@@ -174,6 +183,7 @@ export async function getAvailablePlayers(
       adpRaw,
       { ...fmtKey, isRookie: is_rookie, position: human.position },
     );
+    const adp_alternatives = getAllAdpVariants(adpRaw);
     return {
       ...human,
       search_rank,
@@ -185,6 +195,7 @@ export async function getAvailablePlayers(
       ),
       adp,
       adp_variant,
+      adp_alternatives,
       is_rookie,
     };
   });

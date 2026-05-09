@@ -242,7 +242,15 @@ function StandingCallHero({
         </span>
         {r.age != null && <span>age {r.age}</span>}
         {r.adp != null && (
-          <span>ADP {Math.round(r.adp)}</span>
+          <span>
+            ADP {Math.round(r.adp)}
+            {r.adp_variant && (
+              <span className="text-muted-2">
+                {" "}
+                ({prettyVariantLabel(r.adp_variant)})
+              </span>
+            )}
+          </span>
         )}
         {r.value != null && (
           <span>
@@ -256,9 +264,88 @@ function StandingCallHero({
           </span>
         )}
       </div>
+      {r.adp_alternatives && r.adp_alternatives.length > 1 && (
+        <AdpVariantsBlock
+          resolvedVariant={r.adp_variant ?? null}
+          alternatives={r.adp_alternatives}
+        />
+      )}
       <p className="mt-3 text-sm leading-relaxed text-foreground">
         {r.primary_reason}
       </p>
+    </div>
+  );
+}
+
+function prettyVariantLabel(variant: string): string {
+  // Strip the te_premium_adj suffix the engine uses internally; the
+  // user only needs the base variant name.
+  const base = variant.replace(/_te_premium_adj$/, "");
+  const map: Record<string, string> = {
+    rookie: "rookie pool",
+    dynasty: "dynasty",
+    dynasty_2qb: "dynasty SF",
+    dynasty_ppr: "dynasty PPR",
+    dynasty_half_ppr: "dynasty half-PPR",
+    dynasty_std: "dynasty std",
+    "2qb": "redraft SF",
+    ppr: "redraft PPR",
+    half_ppr: "redraft half-PPR",
+    std: "redraft std",
+  };
+  return map[base] ?? base;
+}
+
+function AdpVariantsBlock({
+  resolvedVariant,
+  alternatives,
+}: {
+  resolvedVariant: string | null;
+  alternatives: NonNullable<DecisionTopCandidate["adp_alternatives"]>;
+}) {
+  const [open, setOpen] = useState(false);
+  if (alternatives.length === 0) return null;
+  // Strip the te_premium_adj suffix when matching the resolved variant
+  // so the underlying variant lights up correctly.
+  const resolvedBase = resolvedVariant?.replace(/_te_premium_adj$/, "") ?? null;
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent transition-colors"
+        aria-expanded={open}
+      >
+        {open ? "Hide" : "See"} all ADP variants ({alternatives.length})
+      </button>
+      {open && (
+        <div className="mt-2 rounded-md border border-border-soft bg-surface px-3 py-2">
+          <p className="text-[10px] leading-relaxed text-muted-2 mb-2">
+            Sleeper publishes a separate ADP per league format. The
+            value above came from the variant matched to your league.
+            Cross-reference whichever one your Sleeper UI is showing.
+          </p>
+          <ul className="space-y-1 text-[11px] leading-tight">
+            {alternatives.map((a) => {
+              const isResolved = a.variant === resolvedBase;
+              return (
+                <li
+                  key={a.variant}
+                  className={`grid grid-cols-[140px_60px_1fr] gap-2 font-mono ${
+                    isResolved ? "text-foreground font-semibold" : "text-muted"
+                  }`}
+                >
+                  <span>{a.label}</span>
+                  <span className="text-right">{Math.round(a.value)}</span>
+                  <span className="text-[9px] uppercase tracking-[0.14em] text-muted-2">
+                    {isResolved ? "matched to your league" : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

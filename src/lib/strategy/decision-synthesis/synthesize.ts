@@ -222,6 +222,8 @@ function toDecisionCandidate(
     age: p.age,
     search_rank: p.search_rank,
     adp: p.adp,
+    adp_variant: p.adp_variant,
+    adp_alternatives: p.adp_alternatives ?? [],
     is_rookie: p.is_rookie,
     value: typeof v === "number" ? Math.round(v) : null,
     ktc_overall_rank: typeof r === "number" ? r : null,

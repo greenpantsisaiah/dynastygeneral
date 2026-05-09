@@ -803,6 +803,13 @@ export async function POST(
           age: p.age,
           sleeper_rank: p.search_rank,
           adp: p.adp,
+          adp_variant: p.adp_variant,
+          // ADP variant breakdown so Coach can cite cross-reference
+          // values when explaining a counterintuitive call. Per
+          // founder feedback 2026-05-08: the Sleeper UI default ADP
+          // looks like "different planets" from the model's value
+          // unless we surface the variants explicitly.
+          adp_alternatives: p.adp_alternatives ?? [],
           is_rookie: p.is_rookie,
           // KTC-equivalent value (0-100). Bound trade asks using this
           // for any player on this list. Null when FantasyCalc didn't

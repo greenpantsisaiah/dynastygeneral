@@ -18,6 +18,7 @@
 
 import type { Position } from "../archetypes/schema";
 import type { PickDensityKind } from "../league-state/snapshot";
+import type { AdpVariantEntry } from "@/lib/players/projections";
 
 // The rule that ultimately broke the tie and produced the recommendation.
 // Used by the UI to choose framing (red-urgent vs green-value vs
@@ -81,6 +82,16 @@ export type DecisionCandidate = {
   age: number | null;
   search_rank: number;
   adp: number | null;
+  // The variant tag the model resolved to (e.g., "rookie",
+  // "dynasty_2qb"). Surfaced on the card so the user knows which
+  // variant the cited number came from.
+  adp_variant?: string;
+  // All available ADP variants for this player. Surfaced as a
+  // tap-to-reveal block so the user can cross-reference the model's
+  // resolved value against whatever variant their Sleeper UI
+  // happens to default to. Per founder feedback 2026-05-08: "your
+  // ADP and the ADP I'm used to seeing are different planets."
+  adp_alternatives?: AdpVariantEntry[];
   is_rookie?: boolean;
   // KTC-equivalent dynasty value, FantasyCalc-sourced and normalized
   // 0-100 by top-3 average (so the game's best player is ~100 and a
