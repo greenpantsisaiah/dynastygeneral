@@ -31,17 +31,9 @@
  * automatically reflects it. No parallel implementations live here.
  */
 
-import { useMemo, useState } from "react";
-import type {
-  Decision,
-  DecisionTopCandidate,
-} from "@/lib/strategy/decision-synthesis/types";
-import { computeWhatIfReadout } from "@/lib/strategy/decision-synthesis/whatif";
-import {
-  laneDefinitionsForFormat,
-  type LaneDefinition,
-} from "@/lib/engine/build-trajectory";
-import { useSloanMode } from "@/lib/sloan-mode/use-sloan-mode";
+import { useState } from "react";
+import type { Decision } from "@/lib/strategy/decision-synthesis/types";
+import { StrategicLanes } from "./strategic-lanes";
 
 export type TheCallProps = {
   decision: Decision;
@@ -50,38 +42,12 @@ export type TheCallProps = {
 };
 
 export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
-  const { mode, toggle, isLoaded } = useSloanMode();
-  const lanes = useMemo(
-    () => laneDefinitionsForFormat(leagueType, maxKeepers),
-    [leagueType, maxKeepers],
-  );
-  const whatif = useMemo(
-    () =>
-      computeWhatIfReadout({
-        standingCallId: decision.recommendation.player_id,
-        candidates: decision.top_candidates,
-        currentPickNo: decision.pick_no,
-      }),
-    [decision.recommendation.player_id, decision.top_candidates, decision.pick_no],
-  );
-
   return (
     <section
       className="mb-6 overflow-hidden rounded-lg border-2 border-accent/60"
       aria-label="The Call"
     >
-      <Bridge
-        decision={decision}
-        sloanOn={mode === "on"}
-        onToggleSloan={() => void toggle()}
-        sloanLoaded={isLoaded}
-      />
-
-      <StandingCallHero
-        decision={decision}
-        whatifEv={whatif.standing_call_ev}
-        sloanOn={mode === "on"}
-      />
+      <Bridge decision={decision} />
 
       {decision.feel_weird_disclaimer && (
         <DisclaimerBand text={decision.feel_weird_disclaimer} />
@@ -98,11 +64,10 @@ export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
         />
       )}
 
-      <LaneStack
-        lanes={lanes}
-        candidates={decision.top_candidates}
-        whatifEntries={whatif.entries}
-        sloanOn={mode === "on"}
+      <StrategicLanes
+        decision={decision}
+        leagueType={leagueType}
+        maxKeepers={maxKeepers}
       />
 
       {decision.scarcity_callout && (
@@ -111,10 +76,7 @@ export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
 
       {decision.counter_view && <CounterView counter={decision.counter_view} />}
 
-      <WhyAndNext
-        why={decision.why}
-        nextPicks={decision.next_picks_plan}
-      />
+      <WhyAndNext why={decision.why} nextPicks={decision.next_picks_plan} />
 
       <Footnote pickLabel={decision.pick_label} />
     </section>
@@ -131,51 +93,26 @@ function Footnote({ pickLabel }: { pickLabel: string }) {
   );
 }
 
-function Bridge({
-  decision,
-  sloanOn,
-  onToggleSloan,
-  sloanLoaded,
-}: {
-  decision: Decision;
-  sloanOn: boolean;
-  onToggleSloan: () => void;
-  sloanLoaded: boolean;
-}) {
+function Bridge({ decision }: { decision: Decision }) {
   return (
     <header className="border-b border-border-soft px-5 py-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="flex items-baseline gap-3">
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            The Call
+      <div className="flex flex-wrap items-baseline gap-3">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          The Call
+        </span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+          Pick {decision.pick_label}
+        </span>
+        {decision.picks_until_me === 0 ? (
+          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-success">
+            On the clock
           </span>
+        ) : (
           <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
-            Pick {decision.pick_label}
+            {decision.picks_until_me} pick
+            {decision.picks_until_me === 1 ? "" : "s"} away
           </span>
-          {decision.picks_until_me === 0 ? (
-            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-success">
-              On the clock
-            </span>
-          ) : (
-            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
-              {decision.picks_until_me} pick
-              {decision.picks_until_me === 1 ? "" : "s"} away
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onToggleSloan}
-          disabled={!sloanLoaded}
-          className={`font-mono text-[9px] uppercase tracking-[0.18em] rounded-full border px-2 py-0.5 transition-colors ${
-            sloanOn
-              ? "border-accent text-accent bg-accent/10"
-              : "border-border-strong text-muted-2 hover:text-foreground"
-          }`}
-          title="Sloan mode: confidence intervals and model provenance surface inline. Same data, different reading register."
-        >
-          Sloan {sloanOn ? "on" : "off"}
-        </button>
+        )}
       </div>
     </header>
   );
@@ -193,162 +130,6 @@ function DisclaimerBand({ text }: { text: string }) {
   );
 }
 
-function StandingCallHero({
-  decision,
-  whatifEv,
-  sloanOn,
-}: {
-  decision: Decision;
-  whatifEv: number | null;
-  sloanOn: boolean;
-}) {
-  const r = decision.recommendation;
-  const evDisplay =
-    whatifEv == null
-      ? null
-      : whatifEv >= 0
-        ? `+${whatifEv.toFixed(1)}`
-        : whatifEv.toFixed(1);
-  const evColor =
-    whatifEv == null
-      ? "text-muted-2"
-      : whatifEv >= 0
-        ? "text-success"
-        : "text-danger";
-  return (
-    <div className="px-5 py-5 border-b border-border-soft">
-      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-        Standing call
-      </div>
-      <div className="mt-2 flex items-baseline justify-between gap-4">
-        <h2 className="text-2xl font-semibold leading-tight text-foreground">
-          {r.name}
-        </h2>
-        {evDisplay && (
-          <div className="flex flex-col items-end shrink-0">
-            <div className={`font-mono text-2xl font-semibold leading-none ${evColor}`}>
-              {evDisplay}
-            </div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-2 mt-1">
-              EV at this pick
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="mt-2 flex flex-wrap items-baseline gap-3 font-mono text-[11px] text-muted">
-        <span>
-          {r.position}
-          {r.team ? `-${r.team}` : ""}
-        </span>
-        {r.age != null && <span>age {r.age}</span>}
-        {r.adp != null && (
-          <span>
-            ADP {Math.round(r.adp)}
-            {r.adp_variant && (
-              <span className="text-muted-2">
-                {" "}
-                ({prettyVariantLabel(r.adp_variant)})
-              </span>
-            )}
-          </span>
-        )}
-        {r.value != null && (
-          <span>
-            value {Math.round(r.value)}
-            {sloanOn && r.ktc_overall_rank != null && (
-              <span className="text-muted-2">
-                {" "}
-                (KTC #{r.ktc_overall_rank})
-              </span>
-            )}
-          </span>
-        )}
-      </div>
-      {r.adp_alternatives && r.adp_alternatives.length > 1 && (
-        <AdpVariantsBlock
-          resolvedVariant={r.adp_variant ?? null}
-          alternatives={r.adp_alternatives}
-        />
-      )}
-      <p className="mt-3 text-sm leading-relaxed text-foreground">
-        {r.primary_reason}
-      </p>
-    </div>
-  );
-}
-
-function prettyVariantLabel(variant: string): string {
-  // Strip the te_premium_adj suffix the engine uses internally; the
-  // user only needs the base variant name.
-  const base = variant.replace(/_te_premium_adj$/, "");
-  const map: Record<string, string> = {
-    rookie: "rookie pool",
-    dynasty: "dynasty",
-    dynasty_2qb: "dynasty SF",
-    dynasty_ppr: "dynasty PPR",
-    dynasty_half_ppr: "dynasty half-PPR",
-    dynasty_std: "dynasty std",
-    "2qb": "redraft SF",
-    ppr: "redraft PPR",
-    half_ppr: "redraft half-PPR",
-    std: "redraft std",
-  };
-  return map[base] ?? base;
-}
-
-function AdpVariantsBlock({
-  resolvedVariant,
-  alternatives,
-}: {
-  resolvedVariant: string | null;
-  alternatives: NonNullable<DecisionTopCandidate["adp_alternatives"]>;
-}) {
-  const [open, setOpen] = useState(false);
-  if (alternatives.length === 0) return null;
-  // Strip the te_premium_adj suffix when matching the resolved variant
-  // so the underlying variant lights up correctly.
-  const resolvedBase = resolvedVariant?.replace(/_te_premium_adj$/, "") ?? null;
-  return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent transition-colors"
-        aria-expanded={open}
-      >
-        {open ? "Hide" : "See"} all ADP variants ({alternatives.length})
-      </button>
-      {open && (
-        <div className="mt-2 rounded-md border border-border-soft bg-surface px-3 py-2">
-          <p className="text-[10px] leading-relaxed text-muted-2 mb-2">
-            Sleeper publishes a separate ADP per league format. The
-            value above came from the variant matched to your league.
-            Cross-reference whichever one your Sleeper UI is showing.
-          </p>
-          <ul className="space-y-1 text-[11px] leading-tight">
-            {alternatives.map((a) => {
-              const isResolved = a.variant === resolvedBase;
-              return (
-                <li
-                  key={a.variant}
-                  className={`grid grid-cols-[140px_60px_1fr] gap-2 font-mono ${
-                    isResolved ? "text-foreground font-semibold" : "text-muted"
-                  }`}
-                >
-                  <span>{a.label}</span>
-                  <span className="text-right">{Math.round(a.value)}</span>
-                  <span className="text-[9px] uppercase tracking-[0.14em] text-muted-2">
-                    {isResolved ? "matched to your league" : ""}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function OpponentGapLine({
   ownerName,
@@ -383,179 +164,6 @@ function OpponentGapLine({
 // hub-rendered The Call surface; will return on the deep-dive with a
 // real one-line interpretation above the scatter.
 
-function LaneStack({
-  lanes,
-  candidates,
-  whatifEntries,
-  sloanOn,
-}: {
-  lanes: LaneDefinition[];
-  candidates: DecisionTopCandidate[];
-  whatifEntries: ReturnType<typeof computeWhatIfReadout>["entries"];
-  sloanOn: boolean;
-}) {
-  const byLane = new Map<string, DecisionTopCandidate[]>();
-  for (const c of candidates) {
-    const list = byLane.get(c.timeline_lane);
-    if (list) list.push(c);
-    else byLane.set(c.timeline_lane, [c]);
-  }
-  const whatifById = new Map(
-    whatifEntries.map((e) => [e.player_id, e]),
-  );
-  return (
-    <div className="border-b border-border-soft px-5 py-5 space-y-3">
-      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-        Lanes
-      </div>
-      {lanes.map((lane) => {
-        const inLane = byLane.get(lane.id) ?? [];
-        if (inLane.length === 0) return null;
-        const primary = inLane[0];
-        const alts = inLane.slice(1);
-        return (
-          <LaneCard
-            key={lane.id}
-            lane={lane}
-            primary={primary}
-            alts={alts}
-            whatifById={whatifById}
-            sloanOn={sloanOn}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function LaneCard({
-  lane,
-  primary,
-  alts,
-  whatifById,
-  sloanOn,
-}: {
-  lane: LaneDefinition;
-  primary: DecisionTopCandidate;
-  alts: DecisionTopCandidate[];
-  whatifById: Map<string, ReturnType<typeof computeWhatIfReadout>["entries"][number]>;
-  sloanOn: boolean;
-}) {
-  const toneBorder =
-    lane.tone === "warning"
-      ? "border-warning/40"
-      : lane.tone === "success"
-        ? "border-success/40"
-        : "border-border-strong";
-  const toneText =
-    lane.tone === "warning"
-      ? "text-warning"
-      : lane.tone === "success"
-        ? "text-success"
-        : "text-foreground";
-  return (
-    <div className={`rounded-md border ${toneBorder} bg-surface/50 px-4 py-3`}>
-      <div className="flex items-baseline justify-between gap-3">
-        <div className={`font-mono text-[10px] uppercase tracking-[0.18em] ${toneText}`}>
-          {lane.label}
-        </div>
-        <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
-          {lane.blurb}
-        </div>
-      </div>
-      <CandidateRow candidate={primary} whatifById={whatifById} sloanOn={sloanOn} primary />
-      {alts.map((c) => (
-        <CandidateRow
-          key={c.player_id}
-          candidate={c}
-          whatifById={whatifById}
-          sloanOn={sloanOn}
-        />
-      ))}
-    </div>
-  );
-}
-
-function CandidateRow({
-  candidate,
-  whatifById,
-  sloanOn,
-  primary,
-}: {
-  candidate: DecisionTopCandidate;
-  whatifById: Map<string, ReturnType<typeof computeWhatIfReadout>["entries"][number]>;
-  sloanOn: boolean;
-  primary?: boolean;
-}) {
-  const whatif = whatifById.get(candidate.player_id);
-  const survivalLabel = candidate.availability_next_pick
-    ? candidate.availability_next_pick.replace("_", " ")
-    : null;
-  const survivalColor =
-    candidate.availability_next_pick === "likely_here"
-      ? "text-success"
-      : candidate.availability_next_pick === "coin_flip"
-        ? "text-warning"
-        : candidate.availability_next_pick === "probably_gone"
-          ? "text-danger"
-          : "text-muted-2";
-  return (
-    <div className={primary ? "mt-3" : "mt-3 pt-3 border-t border-border-soft"}>
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="text-[14px] font-semibold text-foreground">
-          {candidate.name}
-          {candidate.is_lean && (
-            <span className="ml-2 font-mono text-[9px] uppercase tracking-[0.18em] text-accent">
-              the call
-            </span>
-          )}
-        </div>
-        {whatif?.delta_vs_standing_call != null && !candidate.is_lean && (
-          <div
-            className={`font-mono text-[11px] font-semibold ${
-              whatif.delta_vs_standing_call > 0
-                ? "text-success"
-                : whatif.delta_vs_standing_call < 0
-                  ? "text-danger"
-                  : "text-muted-2"
-            }`}
-          >
-            {whatif.delta_vs_standing_call >= 0 ? "+" : ""}
-            {whatif.delta_vs_standing_call.toFixed(1)} EV vs the call
-          </div>
-        )}
-      </div>
-      <div className="mt-1 flex flex-wrap items-baseline gap-3 font-mono text-[10px] text-muted">
-        <span>
-          {candidate.position}
-          {candidate.team ? `-${candidate.team}` : ""}
-        </span>
-        {candidate.age != null && <span>age {candidate.age}</span>}
-        {candidate.adp != null && (
-          <span>ADP {Math.round(candidate.adp)}</span>
-        )}
-        {candidate.value != null && (
-          <span>value {Math.round(candidate.value)}</span>
-        )}
-        {survivalLabel && candidate.survival_pct != null && (
-          <span className={survivalColor}>
-            {survivalLabel} {candidate.survival_pct}%
-          </span>
-        )}
-      </div>
-      {sloanOn && candidate.opponent_signal?.note && (
-        <p className="mt-1 text-[11px] leading-snug text-muted-2">
-          {candidate.opponent_signal.note}
-        </p>
-      )}
-      {whatif && (
-        <p className="mt-2 text-[12px] leading-snug text-muted">
-          {whatif.narrative}
-        </p>
-      )}
-    </div>
-  );
-}
 
 function ScarcityCallout({ text }: { text: string }) {
   return (
