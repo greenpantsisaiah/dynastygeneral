@@ -79,9 +79,9 @@ import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
 import { LastVisitWriter } from "@/components/system/last-visit-writer";
 import { buildPlanPlayerIds } from "@/lib/last-visit/plan-disruption";
 import { TheCall } from "@/components/league/the-call/the-call";
-import { EvBankChip } from "@/components/league/triage/ev-bank-chip";
-import { ActivityLauncher } from "@/components/league/triage/activity-launcher";
 import { LibraryTeaser } from "@/components/league/triage/library-teaser";
+import { DashboardSection } from "@/components/league/dashboard/dashboard-section";
+import { LeagueEvBankLeaderboard } from "@/components/league/team/league-ev-bank-leaderboard";
 import { TeamIdentityPanel } from "@/components/league/team-identity-panel";
 import {
   analyzeTeamIdentity,
@@ -1390,16 +1390,15 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {/* TRIAGE HUB (post-redesign architectural pivot
-                  2026-05-08): the hub became a triage page, not a
-                  content tower. Heavy panels moved to focused
-                  routes (/team, /trade, /strategy, /intel, /coach).
-                  This block renders the at-a-glance triage surface:
-                  EV bank with league chart, The Call (decision-time
-                  is most-actionable), critical decision-adjacent
-                  glances, activity launcher, library teaser. */}
+              {/* DASHBOARD HUB (post-feedback rebuild 2026-05-08):
+                  the route-split pivot was wrong; the hub returns to
+                  a single page with clear sections. Each section owns
+                  one question and contains rich visual content;
+                  expand / collapse on the tile, no navigation cost.
+                  Mirrors the Coach panel's section identity. */}
 
-              {/* League Pulse banner: critical alert when present. */}
+              {/* Critical alerts: league pulse + future on-the-clock /
+                  plan-disruption banners. */}
               {strategyLab?.league_pulse.headline && (
                 <div className="mb-6 rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm leading-relaxed text-foreground">
                   <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
@@ -1409,26 +1408,7 @@ export default async function LeagueHubPage({
                 </div>
               )}
 
-              {/* EV Bank chip with league-relative micro chart. The
-                  full leaderboard with confidence bands lives on
-                  /team. Per founder feedback 2026-05-08: "I want the
-                  full league EV so I can look at how I stand
-                  relatively." */}
-              {leagueEvBank && leagueEvBank.ranked_count > 0 && (
-                <div className="mb-6">
-                  <EvBankChip
-                    bank={leagueEvBank}
-                    href={`/leagues/${leagueId}/team${
-                      cleanedUsername
-                        ? `?username=${encodeURIComponent(cleanedUsername)}`
-                        : ""
-                    }`}
-                  />
-                </div>
-              )}
-
-              {/* Watchlist strip. "Your guys" at-a-glance pre-pick.
-                  Decision-adjacent so it stays on the hub. */}
+              {/* Watchlist strip: "your guys" quick-glance at the top. */}
               {leagueSnapshot && (
                 <WatchlistStrip
                   leagueId={leagueId}
@@ -1458,52 +1438,107 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {/* The Call: standing call lives on the hub during
-                  active drafts because it is the most-actionable
-                  thing right now. Reads canonical Decision data
-                  only; no parallel computation. */}
+              {/* SECTION: The Call. Standing call lives here during
+                  active drafts; most actionable thing right now.
+                  TheCall already has its own accent-bordered chrome
+                  so we render it directly without a DashboardSection
+                  wrapper (would be a doubled box). */}
               {decision && (
-                <TheCall
-                  decision={decision}
-                  leagueType={leagueSnapshot?.league_type ?? "unknown"}
-                  maxKeepers={leagueSnapshot?.max_keepers ?? null}
-                />
+                <div className="mb-8">
+                  <TheCall
+                    decision={decision}
+                    leagueType={leagueSnapshot?.league_type ?? "unknown"}
+                    maxKeepers={leagueSnapshot?.max_keepers ?? null}
+                  />
+                </div>
               )}
 
-              {/* Activity launcher: 5 cards routing to focused
-                  surfaces. Per founder feedback 2026-05-08: the page
-                  felt like an endless scroll; weather-page model is
-                  triage + dig-into-the-thing-you-want. */}
-              <ActivityLauncher
-                leagueId={leagueId}
-                username={cleanedUsername || null}
-                draftActive={draftActive}
-                picksUntilMe={pickApproach?.picks_until_me ?? null}
-              />
+              {/* SECTION: How you're doing. EV bank with per-pick
+                  bars + league leaderboard + position diagnostic +
+                  sharp positioning + wins/gaps + Windows. Founder
+                  feedback 2026-05-08: Windows belongs near EV bank;
+                  full league EV with confidence bands belongs on the
+                  hub, not behind a navigation. */}
+              <DashboardSection
+                label="How you're doing"
+                title="Your bank, your fits, your sharp positioning"
+                tagline="Where the model thinks you stand vs the league. Numbers + per-pick contributions + confidence bands."
+                defaultOpen={true}
+              >
+                {draftProgress && <DraftProgressPanel data={draftProgress} />}
+                {leagueEvBank && leagueEvBank.ranked_count > 0 && (
+                  <LeagueEvBankLeaderboard bank={leagueEvBank} />
+                )}
+                {windows && sleeperUser && (
+                  <WindowsBar leagueId={leagueId} windows={windows} />
+                )}
+              </DashboardSection>
 
-              {/* Library teaser: 1 contextually-relevant article. Per
-                  principle 3: surfaced rather than yelling. */}
-              <LibraryTeaser
-                contextTags={(() => {
-                  const tags: string[] = [];
-                  if (leagueSnapshot?.format === "superflex" || leagueSnapshot?.format === "2qb") {
-                    tags.push("superflex");
-                  }
-                  if (leagueSnapshot?.scoring.includes("TE-premium")) {
-                    tags.push("TE-premium");
-                  }
-                  if (leagueSnapshot?.league_type === "dynasty") {
-                    tags.push("dynasty");
-                  }
-                  if (leagueSnapshot?.league_type === "keeper") {
-                    tags.push("dynasty"); // keeper articles often share dynasty tag
-                  }
-                  if (draftActive) {
-                    tags.push("ADP", "EV", "rookies");
-                  }
-                  return tags;
-                })()}
-              />
+              {/* SECTION: Your Team. Identity, comparator, risk
+                  fingerprint, lineup talent rank, keeper slate,
+                  inflection windows on rostered players. */}
+              <DashboardSection
+                label="Your team"
+                title="Who you're building"
+                tagline="Identity, comparator, risk fingerprint, contender outlook."
+                defaultOpen={true}
+              >
+                {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                {inflectionItems.length > 0 && (
+                  <InflectionPanel items={inflectionItems} />
+                )}
+                {contenderOutlook && (
+                  <ContenderOutlookCard outlook={contenderOutlook} />
+                )}
+              </DashboardSection>
+
+              {/* SECTION: The League. Trade leverage, opponent
+                  intel, league-wide signals. Collapsed by default
+                  outside trade windows; quickly expandable. */}
+              {leagueRead && (
+                <DashboardSection
+                  label="The league"
+                  title="Trade leverage and opponent reads"
+                  tagline="Where the soft spots are; who needs what."
+                  defaultOpen={false}
+                >
+                  <TradeStrategyPanel data={leagueRead} />
+                </DashboardSection>
+              )}
+
+              {/* SECTION: Intel + Library. 538-style explainer
+                  surfaced contextually + statistical methodology. */}
+              <DashboardSection
+                label="Intel"
+                title="What the model is reading"
+                tagline="Library articles + methodology surfaced when relevant."
+                defaultOpen={false}
+              >
+                <LibraryTeaser
+                  contextTags={(() => {
+                    const tags: string[] = [];
+                    if (
+                      leagueSnapshot?.format === "superflex" ||
+                      leagueSnapshot?.format === "2qb"
+                    ) {
+                      tags.push("superflex");
+                    }
+                    if (leagueSnapshot?.scoring.includes("TE-premium")) {
+                      tags.push("TE-premium");
+                    }
+                    if (leagueSnapshot?.league_type === "dynasty") {
+                      tags.push("dynasty");
+                    }
+                    if (leagueSnapshot?.league_type === "keeper") {
+                      tags.push("dynasty");
+                    }
+                    if (draftActive) {
+                      tags.push("ADP", "EV", "rookies");
+                    }
+                    return tags;
+                  })()}
+                />
+              </DashboardSection>
             </div>
 
             {/* Coach column: sticky on desktop, inline on mobile. */}
