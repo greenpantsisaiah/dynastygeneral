@@ -1438,12 +1438,16 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {/* SECTION: The Call. Standing call lives here during
-                  active drafts; most actionable thing right now.
-                  TheCall already has its own accent-bordered chrome
-                  so we render it directly without a DashboardSection
-                  wrapper (would be a doubled box). */}
-              {decision && (
+              {/* Stage-adaptive section ordering. The Call only
+                  renders during active drafts; pre-draft and post-
+                  draft hubs lead with planning + trade leverage
+                  surfaces respectively. Founder feedback 2026-05-08:
+                  "The Call should only show up while drafting, right?
+                  Need a pre-draft and post-draft plan, probably
+                  focused more on trades, opportunities, etc." */}
+
+              {/* SECTION: The Call (active draft only). */}
+              {draftActive && decision && (
                 <div className="mb-8">
                   <TheCall
                     decision={decision}
@@ -1453,35 +1457,66 @@ export default async function LeagueHubPage({
                 </div>
               )}
 
-              {/* SECTION: How you're doing. EV bank with per-pick
-                  bars + league leaderboard + position diagnostic +
-                  sharp positioning + wins/gaps + Windows. Founder
-                  feedback 2026-05-08: Windows belongs near EV bank;
-                  full league EV with confidence bands belongs on the
-                  hub, not behind a navigation. */}
-              <DashboardSection
-                label="How you're doing"
-                title="Your bank, your fits, your sharp positioning"
-                tagline="Where the model thinks you stand vs the league. Numbers + per-pick contributions + confidence bands."
-                defaultOpen={true}
-              >
-                {draftProgress && <DraftProgressPanel data={draftProgress} />}
-                {leagueEvBank && leagueEvBank.ranked_count > 0 && (
-                  <LeagueEvBankLeaderboard bank={leagueEvBank} />
-                )}
-                {windows && sleeperUser && (
-                  <WindowsBar leagueId={leagueId} windows={windows} />
-                )}
-              </DashboardSection>
+              {/* SECTION: Pre-draft prep (pre-draft / no-draft only).
+                  When the user lands on the hub before the draft has
+                  started, the most-actionable thing is preparing the
+                  build, not making a pick. Surfaces Team Identity
+                  preview + Library articles for prep. */}
+              {!draftActive && draftState?.status !== "complete" && (
+                <DashboardSection
+                  label="Pre-draft prep"
+                  title="Plan the build before the clock starts"
+                  tagline="Keepers, comparator, expected build, prep articles."
+                  defaultOpen={true}
+                  emphasize={true}
+                >
+                  {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                  <LibraryTeaser
+                    contextTags={(() => {
+                      const tags: string[] = ["ADP", "rookies"];
+                      if (
+                        leagueSnapshot?.format === "superflex" ||
+                        leagueSnapshot?.format === "2qb"
+                      )
+                        tags.push("superflex");
+                      if (leagueSnapshot?.league_type === "dynasty")
+                        tags.push("dynasty");
+                      if (leagueSnapshot?.league_type === "keeper")
+                        tags.push("dynasty");
+                      return tags;
+                    })()}
+                  />
+                </DashboardSection>
+              )}
 
-              {/* SECTION: Your Team. Identity, comparator, risk
-                  fingerprint, lineup talent rank, keeper slate,
-                  inflection windows on rostered players. */}
+              {/* SECTION: How you're doing. Always renders when
+                  draft has started (active or complete). Hidden
+                  pre-draft (no picks made yet means EV bank +
+                  position diagnostic have nothing to say). */}
+              {(draftActive || draftState?.status === "complete") && (
+                <DashboardSection
+                  label="How you're doing"
+                  title="Your bank, your fits, your sharp positioning"
+                  tagline="Where the model thinks you stand vs the league. Numbers + per-pick contributions + confidence bands."
+                  defaultOpen={true}
+                >
+                  {draftProgress && <DraftProgressPanel data={draftProgress} />}
+                  {leagueEvBank && leagueEvBank.ranked_count > 0 && (
+                    <LeagueEvBankLeaderboard bank={leagueEvBank} />
+                  )}
+                  {windows && sleeperUser && (
+                    <WindowsBar leagueId={leagueId} windows={windows} />
+                  )}
+                </DashboardSection>
+              )}
+
+              {/* SECTION: Your team. Always renders. Identity,
+                  comparator, risk fingerprint, contender outlook. */}
               <DashboardSection
                 label="Your team"
                 title="Who you're building"
                 tagline="Identity, comparator, risk fingerprint, contender outlook."
-                defaultOpen={true}
+                defaultOpen={!draftActive}
               >
                 {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
                 {inflectionItems.length > 0 && (
@@ -1492,26 +1527,49 @@ export default async function LeagueHubPage({
                 )}
               </DashboardSection>
 
-              {/* SECTION: The League. Trade leverage, opponent
-                  intel, league-wide signals. Collapsed by default
-                  outside trade windows; quickly expandable. */}
-              {leagueRead && (
+              {/* SECTION: The league. Trade leverage, opponent
+                  intel, league-wide signals. Default-open varies by
+                  stage: collapsed during drafts (The Call dominates
+                  attention) and expanded post-draft / pre-draft
+                  (trade leverage IS the activity). */}
+              {(leagueRead ||
+                leagueOutlook ||
+                opponentCharacterizations.length > 0 ||
+                pathCompetition) && (
                 <DashboardSection
                   label="The league"
                   title="Trade leverage and opponent reads"
-                  tagline="Where the soft spots are; who needs what."
-                  defaultOpen={false}
+                  tagline="Where the soft spots are, who needs what, what to send."
+                  defaultOpen={!draftActive}
+                  emphasize={!draftActive && draftState?.status === "complete"}
                 >
-                  <TradeStrategyPanel data={leagueRead} />
+                  {leagueRead && <TradeStrategyPanel data={leagueRead} />}
+                  {opponentCharacterizations.length > 0 && (
+                    <OpponentCharacterizations
+                      items={opponentCharacterizations}
+                    />
+                  )}
+                  {pathCompetition && (
+                    <SamePathThreatsCard competition={pathCompetition} />
+                  )}
+                  {leagueOutlook && leagueSnapshot && (
+                    <>
+                      <SwotCard
+                        swot={computeSwot(leagueSnapshot, leagueOutlook)}
+                      />
+                      <LeagueDivergence outlook={leagueOutlook} />
+                      <LeagueTable outlook={leagueOutlook} />
+                    </>
+                  )}
                 </DashboardSection>
               )}
 
-              {/* SECTION: Intel + Library. 538-style explainer
-                  surfaced contextually + statistical methodology. */}
+              {/* SECTION: Intel. Library + briefings + news +
+                  alerts. Collapsed by default. */}
               <DashboardSection
                 label="Intel"
                 title="What the model is reading"
-                tagline="Library articles + methodology surfaced when relevant."
+                tagline="Library articles + briefings + statistical methodology."
                 defaultOpen={false}
               >
                 <LibraryTeaser
@@ -1538,6 +1596,32 @@ export default async function LeagueHubPage({
                     return tags;
                   })()}
                 />
+                {sleeperUser && (
+                  <BriefingFeed
+                    leagueId={leagueId}
+                    username={cleanedUsername}
+                    currentRosters={
+                      leagueSnapshot
+                        ? (() => {
+                            const out: Record<
+                              string,
+                              Record<string, number>
+                            > = {};
+                            for (const r of leagueSnapshot.rosters) {
+                              if (r.owner_name) {
+                                out[r.owner_name] = r.position_counts;
+                                if (r.is_me) out["you"] = r.position_counts;
+                              }
+                            }
+                            return out;
+                          })()
+                        : null
+                    }
+                    currentPickNo={
+                      leagueSnapshot?.draft.next_pick_no ?? null
+                    }
+                  />
+                )}
               </DashboardSection>
             </div>
 
