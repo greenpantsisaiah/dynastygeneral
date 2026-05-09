@@ -12,6 +12,9 @@
  * sharpness.
  */
 
+"use client";
+
+import { useState } from "react";
 import type {
   DraftProgress,
   PositionDiagnostic,
@@ -19,7 +22,11 @@ import type {
   ProgressMetric,
   ProgressTier,
 } from "@/lib/strategy/draft-progress";
-import type { EvBank, EvBankPickEntry } from "@/lib/strategy/ev-bank";
+import type {
+  EvBank,
+  EvBankPickEntry,
+  LeagueEvBankReadout,
+} from "@/lib/strategy/ev-bank";
 
 const TIER_BANNER_BORDER: Record<ProgressTier, string> = {
   strong: "border-success/60",
@@ -70,7 +77,19 @@ const METRIC_VALUE_COLOR: Record<ProgressTier, string> = {
   off_track: "text-danger",
 };
 
-export function DraftProgressPanel({ data }: { data: DraftProgress | null }) {
+export function DraftProgressPanel({
+  data,
+  leagueBank,
+}: {
+  data: DraftProgress | null;
+  // Optional league EV bank readout. When provided and at least 2
+  // rosters have resolved totals, the EV bank section gains a
+  // collapsible "compare to your league" expander rendering the
+  // leaderboard inline. Per founder feedback 2026-05-08: "showing
+  // me mine and then expanding to theirs would be the obvious
+  // thing to do."
+  leagueBank?: LeagueEvBankReadout | null;
+}) {
   if (!data) return null;
   if (data.picks_made_by_user === 0) return null;
 
@@ -185,13 +204,19 @@ export function DraftProgressPanel({ data }: { data: DraftProgress | null }) {
       )}
 
       {data.ev_bank && data.ev_bank.entries.length > 0 && (
-        <EvBankSection bank={data.ev_bank} />
+        <EvBankSection bank={data.ev_bank} leagueBank={leagueBank ?? null} />
       )}
     </section>
   );
 }
 
-function EvBankSection({ bank }: { bank: EvBank }) {
+function EvBankSection({
+  bank,
+  leagueBank,
+}: {
+  bank: EvBank;
+  leagueBank: LeagueEvBankReadout | null;
+}) {
   const totalEv = bank.total_ev;
   const totalDisplay =
     totalEv == null
@@ -245,6 +270,133 @@ function EvBankSection({ bank }: { bank: EvBank }) {
       <p className="mt-3 text-[10px] leading-snug text-muted-2">
         EV per pick = (value/100) × (pick minus ADP). Range from realistic ADP noise of ±{bank.adp_noise_picks} picks. Sharp locks (player taken before ADP) count negative against the bank by definition; whether the lock was correct is a scarcity question answered in the Decision card.
       </p>
+
+      {leagueBank && leagueBank.ranked_count >= 2 && (
+        <LeagueComparisonExpander leagueBank={leagueBank} />
+      )}
+    </div>
+  );
+}
+
+function LeagueComparisonExpander({
+  leagueBank,
+}: {
+  leagueBank: LeagueEvBankReadout;
+}) {
+  const [open, setOpen] = useState(false);
+  const ranked = leagueBank.rosters.filter((r) => r.total_ev != null);
+  const maxAbs = Math.max(
+    1,
+    ...ranked.map((r) => Math.abs(r.total_ev ?? 0)),
+  );
+  const myPctText =
+    leagueBank.my_percentile != null
+      ? `${Math.round(leagueBank.my_percentile)}th pct`
+      : null;
+  const myRankText =
+    leagueBank.my_rank != null
+      ? `rank ${leagueBank.my_rank} of ${leagueBank.ranked_count}`
+      : null;
+  const leagueAvgText =
+    leagueBank.league_avg != null
+      ? `league avg ${
+          leagueBank.league_avg >= 0
+            ? `+${leagueBank.league_avg.toFixed(1)}`
+            : leagueBank.league_avg.toFixed(1)
+        }`
+      : null;
+  return (
+    <div className="mt-4 border-t border-border-soft pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-baseline justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent transition-colors"
+        aria-expanded={open}
+      >
+        <span>
+          {open ? "Hide" : "See"} how the league stands
+        </span>
+        <span className="text-muted-2">
+          {[myRankText, myPctText, leagueAvgText].filter(Boolean).join(" · ")}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-1.5">
+          {ranked.map((r, i) => {
+            const total = r.total_ev ?? 0;
+            const widthPct = (Math.abs(total) / maxAbs) * 50;
+            const isPositive = total >= 0;
+            const barColor = r.is_me
+              ? isPositive
+                ? "bg-success"
+                : "bg-danger"
+              : isPositive
+                ? "bg-success/40"
+                : "bg-danger/40";
+            const rangeText =
+              r.range_low != null && r.range_high != null
+                ? `${
+                    r.range_low >= 0
+                      ? `+${r.range_low.toFixed(1)}`
+                      : r.range_low.toFixed(1)
+                  } to ${
+                    r.range_high >= 0
+                      ? `+${r.range_high.toFixed(1)}`
+                      : r.range_high.toFixed(1)
+                  }`
+                : null;
+            return (
+              <div
+                key={r.roster_id}
+                className={`grid grid-cols-[28px_100px_1fr_56px] items-center gap-2 text-[11px] leading-tight ${
+                  r.is_me
+                    ? "rounded-md bg-accent/5 px-2 py-1 -mx-2"
+                    : ""
+                }`}
+              >
+                <span className="font-mono text-[10px] text-muted-2">
+                  {i + 1}
+                </span>
+                <span
+                  className={`truncate ${
+                    r.is_me ? "text-foreground font-semibold" : "text-foreground"
+                  }`}
+                >
+                  {r.is_me
+                    ? "You"
+                    : r.owner_name ?? `Roster ${r.roster_id}`}
+                </span>
+                <div className="relative h-2 rounded-full bg-border-soft/30">
+                  <div
+                    className="absolute left-1/2 top-0 h-full w-px bg-border-strong"
+                    aria-hidden="true"
+                  />
+                  <div
+                    className={`absolute top-0 h-full rounded-full ${barColor}`}
+                    style={{
+                      width: `${widthPct}%`,
+                      [isPositive ? "left" : "right"]: "50%",
+                    }}
+                  />
+                </div>
+                <div
+                  className={`font-mono text-right ${
+                    isPositive ? "text-success" : "text-danger"
+                  }`}
+                >
+                  {isPositive ? "+" : ""}
+                  {total.toFixed(1)}
+                </div>
+                {rangeText && (
+                  <div className="col-span-4 font-mono text-[9px] text-muted-2 pl-[130px]">
+                    range {rangeText}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

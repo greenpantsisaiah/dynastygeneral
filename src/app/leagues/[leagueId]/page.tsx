@@ -81,7 +81,10 @@ import { buildPlanPlayerIds } from "@/lib/last-visit/plan-disruption";
 import { TheCall } from "@/components/league/the-call/the-call";
 import { LibraryTeaser } from "@/components/league/triage/library-teaser";
 import { DashboardSection } from "@/components/league/dashboard/dashboard-section";
-import { LeagueEvBankLeaderboard } from "@/components/league/team/league-ev-bank-leaderboard";
+// LeagueEvBankLeaderboard standalone widget removed: the league
+// comparison is now an inline collapsible expander attached to the
+// EV bank section inside DraftProgressPanel. Per founder feedback:
+// "show me mine, then expand to theirs."
 import { TeamIdentityPanel } from "@/components/league/team-identity-panel";
 import {
   analyzeTeamIdentity,
@@ -1492,17 +1495,24 @@ export default async function LeagueHubPage({
               {/* SECTION: How you're doing. Always renders when
                   draft has started (active or complete). Hidden
                   pre-draft (no picks made yet means EV bank +
-                  position diagnostic have nothing to say). */}
+                  position diagnostic have nothing to say). The EV
+                  bank's per-pick bars (mine) lead; league
+                  comparison is a collapsible expander attached to
+                  the same widget. Founder feedback 2026-05-08:
+                  "showing me mine and then expanding to theirs would
+                  be the obvious thing to do." */}
               {(draftActive || draftState?.status === "complete") && (
                 <DashboardSection
                   label="How you're doing"
                   title="Your bank, your fits, your sharp positioning"
-                  tagline="Where the model thinks you stand vs the league. Numbers + per-pick contributions + confidence bands."
+                  tagline="Per-pick EV breakdown + position fits + sharp positioning. Tap inside the EV bank to compare to your league."
                   defaultOpen={true}
                 >
-                  {draftProgress && <DraftProgressPanel data={draftProgress} />}
-                  {leagueEvBank && leagueEvBank.ranked_count > 0 && (
-                    <LeagueEvBankLeaderboard bank={leagueEvBank} />
+                  {draftProgress && (
+                    <DraftProgressPanel
+                      data={draftProgress}
+                      leagueBank={leagueEvBank}
+                    />
                   )}
                   {windows && sleeperUser && (
                     <WindowsBar leagueId={leagueId} windows={windows} />
