@@ -79,6 +79,9 @@ import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
 import { LastVisitWriter } from "@/components/system/last-visit-writer";
 import { buildPlanPlayerIds } from "@/lib/last-visit/plan-disruption";
 import { TheCall } from "@/components/league/the-call/the-call";
+import { EvBankChip } from "@/components/league/triage/ev-bank-chip";
+import { ActivityLauncher } from "@/components/league/triage/activity-launcher";
+import { LibraryTeaser } from "@/components/league/triage/library-teaser";
 import { TeamIdentityPanel } from "@/components/league/team-identity-panel";
 import {
   analyzeTeamIdentity,
@@ -96,6 +99,10 @@ import {
   analyzeDraftProgress,
   type DraftProgress,
 } from "@/lib/strategy/draft-progress";
+import {
+  analyzeLeagueEvBank,
+  type LeagueEvBankReadout,
+} from "@/lib/strategy/ev-bank";
 import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
@@ -763,6 +770,7 @@ export default async function LeagueHubPage({
   let inflectionItems: InflectionContext[] = [];
   let draftProgress: DraftProgress | null = null;
   let teamIdentity: TeamIdentity | null = null;
+  let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
       // Resolve all rostered players (including ones in picks_made
@@ -867,6 +875,18 @@ export default async function LeagueHubPage({
         playerNameLookup,
         getAdp,
         availablePool: availablePlayers,
+      });
+
+      // League-relative EV bank leaderboard. Per founder feedback
+      // 2026-05-08: "the EV is cool but I want full league EV so I
+      // can look at how I stand relatively." computeLeagueEvBank
+      // produces per-roster totals + range envelopes + the user's
+      // percentile rank. Surfaced on the triage hub as a micro
+      // chart and on /team in full leaderboard form.
+      leagueEvBank = analyzeLeagueEvBank({
+        snap: leagueSnapshot,
+        playerValueMap: lrValueMap,
+        getAdp,
       });
 
       // Team Identity. The "this is your team" hero card. Combines
@@ -1370,28 +1390,45 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {/* Team Identity hero card. "This is your team" at the
-                  top of the hub. Combines archetype, position room
-                  fingerprint, risk fingerprint, lineup talent rank,
-                  and likely keeper slate. Per founder direction
-                  2026-05-08: characterizing the user's team has been
-                  core mission; this is the consolidation surface. */}
-              <TeamIdentityPanel data={teamIdentity} />
+              {/* TRIAGE HUB (post-redesign architectural pivot
+                  2026-05-08): the hub became a triage page, not a
+                  content tower. Heavy panels moved to focused
+                  routes (/team, /trade, /strategy, /intel, /coach).
+                  This block renders the at-a-glance triage surface:
+                  EV bank with league chart, The Call (decision-time
+                  is most-actionable), critical decision-adjacent
+                  glances, activity launcher, library teaser. */}
 
-              {/* Draft Progress scorecard. "How are you doing in this
-                  draft" at-a-glance answer for the multi-draft user
-                  who returns after a day or two. Below Team Identity
-                  so identity comes before performance. */}
-              <DraftProgressPanel data={draftProgress} />
-
-              {windows && sleeperUser && (
-                <WindowsBar leagueId={leagueId} windows={windows} />
+              {/* League Pulse banner: critical alert when present. */}
+              {strategyLab?.league_pulse.headline && (
+                <div className="mb-6 rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm leading-relaxed text-foreground">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+                    League pulse ·
+                  </span>{" "}
+                  {strategyLab.league_pulse.headline}
+                </div>
               )}
 
-              {/* Watchlist strip. Renders only when the user has at
-                  least one watched player; auto-listens to localStorage
-                  changes so adds/removes anywhere update live. Pinned
-                  above Decision so users glance at "their guys" first. */}
+              {/* EV Bank chip with league-relative micro chart. The
+                  full leaderboard with confidence bands lives on
+                  /team. Per founder feedback 2026-05-08: "I want the
+                  full league EV so I can look at how I stand
+                  relatively." */}
+              {leagueEvBank && leagueEvBank.ranked_count > 0 && (
+                <div className="mb-6">
+                  <EvBankChip
+                    bank={leagueEvBank}
+                    href={`/leagues/${leagueId}/team${
+                      cleanedUsername
+                        ? `?username=${encodeURIComponent(cleanedUsername)}`
+                        : ""
+                    }`}
+                  />
+                </div>
+              )}
+
+              {/* Watchlist strip. "Your guys" at-a-glance pre-pick.
+                  Decision-adjacent so it stays on the hub. */}
               {leagueSnapshot && (
                 <WatchlistStrip
                   leagueId={leagueId}
@@ -1421,13 +1458,10 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {/* The Call: redesigned standing-call surface (Phase B
-                  of the UI redesign). Replaces the legacy DecisionCard.
-                  Reads canonical Decision data only; no parallel
-                  computation. computeWhatIfReadout, laneDefinitionsForFormat,
-                  and survival/EV math are all consumed from canonical
-                  helpers. Sloan-mode toggle in the local Bridge flips
-                  the register inline. */}
+              {/* The Call: standing call lives on the hub during
+                  active drafts because it is the most-actionable
+                  thing right now. Reads canonical Decision data
+                  only; no parallel computation. */}
               {decision && (
                 <TheCall
                   decision={decision}
@@ -1436,141 +1470,40 @@ export default async function LeagueHubPage({
                 />
               )}
 
-              {draftActive && (
-                <>
-                  {/* League Pulse banner: the one Strategy-Lab signal
-                      worth keeping per user feedback 2026-04-24. */}
-                  {strategyLab?.league_pulse.headline && (
-                    <div className="mt-8 rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm leading-relaxed text-foreground">
-                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
-                        League pulse ·
-                      </span>{" "}
-                      {strategyLab.league_pulse.headline}
-                    </div>
-                  )}
-
-                  <StrategicForks
-                    ranked={rankedArchetypes}
-                    available={availablePlayers}
-                    snapshot={leagueSnapshot}
-                    myPickLabel={pickApproach?.my_pick_label ?? null}
-                    playerValuesById={playerValuesByIdJson}
-                    currentPickNo={
-                      leagueSnapshot?.draft.next_pick_no ?? null
-                    }
-                    pathCompetition={pathCompetition}
-                  />
-
-                  {tierMap && draftActive && (
-                    <div className="mt-4">
-                      <TierMap data={tierMap} />
-                    </div>
-                  )}
-
-                  {pickApproach && (
-                    <div className="mt-3 text-right text-xs text-muted">
-                      Need deeper analysis with custom context for this pick?{" "}
-                      <Link
-                        href={onClockHref}
-                        className="text-accent hover:underline"
-                      >
-                        Open the on-clock form →
-                      </Link>
-                    </div>
-                  )}
-
-                  {/* Trade Strategy Panel. Surfaces league-read
-                      trade-leverage synthesis below the Decision card.
-                      Closes the chat-gap from 2026-05-07: founder
-                      repeatedly went to Coach for this; now visible
-                      first-class. v1 design, redesign queued. */}
-                  <TradeStrategyPanel data={leagueRead} />
-
-                  {/* Inflection Panel. Surfaces high-variance roster
-                      players (aging cliff, rookie debut, post-injury)
-                      with Story A / B bifurcation, signal scorecard,
-                      and named historical comparators. Per the
-                      2026-05-07 statistical-architecture decision:
-                      single-point predictions are statistically wrong
-                      for inflection-window players; show the
-                      bifurcation, let the user decide. */}
-                  <InflectionPanel items={inflectionItems} />
-                </>
-              )}
-
-              {decision && decision.quadrant_candidates.length > 0 && (
-                <DecisionQuadrant
-                  candidates={decision.quadrant_candidates}
-                  pickLabel={decision.pick_label}
-                  leagueId={leagueId}
-                  currentUserPickNo={decision.pick_no}
-                />
-              )}
-
-              {journalEntries.length > 0 && (
-                <DraftJournal
-                  leagueId={leagueId}
-                  serverEntries={journalEntries}
-                />
-              )}
-
-              {leagueOutlook && leagueSnapshot && (
-                <div className="mt-6 space-y-6">
-                  <SwotCard
-                    swot={computeSwot(leagueSnapshot, leagueOutlook)}
-                  />
-                  <LeagueDivergence outlook={leagueOutlook} />
-                  <LeagueTable outlook={leagueOutlook} />
-                </div>
-              )}
-
-              <PlaysFromHere plays={playsFromHere} />
-
-              <LiveStrategyBoard
+              {/* Activity launcher: 5 cards routing to focused
+                  surfaces. Per founder feedback 2026-05-08: the page
+                  felt like an endless scroll; weather-page model is
+                  triage + dig-into-the-thing-you-want. */}
+              <ActivityLauncher
                 leagueId={leagueId}
-                ranked={rankedArchetypes}
-                isIdentified={!!sleeperUser}
-                draftStatus={draftState?.status ?? null}
+                username={cleanedUsername || null}
+                draftActive={draftActive}
+                picksUntilMe={pickApproach?.picks_until_me ?? null}
               />
 
-              {opponentCharacterizations.length > 0 && (
-                <OpponentCharacterizations items={opponentCharacterizations} />
-              )}
-
-              {/* Path competition lives below opponent characterizations
-                  per user feedback 2026-04-24: this is per-opponent
-                  intel, naturally a sub-view of the opponent panel
-                  rather than a high-priority surface above the picks. */}
-              {pathCompetition && (
-                <SamePathThreatsCard competition={pathCompetition} />
-              )}
-
-              {sleeperUser && (
-                <BriefingFeed
-                  leagueId={leagueId}
-                  username={cleanedUsername}
-                  currentRosters={
-                    leagueSnapshot
-                      ? (() => {
-                          const out: Record<
-                            string,
-                            Record<string, number>
-                          > = {};
-                          for (const r of leagueSnapshot.rosters) {
-                            if (r.owner_name) {
-                              out[r.owner_name] = r.position_counts;
-                              if (r.is_me) out["you"] = r.position_counts;
-                            }
-                          }
-                          return out;
-                        })()
-                      : null
+              {/* Library teaser: 1 contextually-relevant article. Per
+                  principle 3: surfaced rather than yelling. */}
+              <LibraryTeaser
+                contextTags={(() => {
+                  const tags: string[] = [];
+                  if (leagueSnapshot?.format === "superflex" || leagueSnapshot?.format === "2qb") {
+                    tags.push("superflex");
                   }
-                  currentPickNo={
-                    leagueSnapshot?.draft.next_pick_no ?? null
+                  if (leagueSnapshot?.scoring.includes("TE-premium")) {
+                    tags.push("TE-premium");
                   }
-                />
-              )}
+                  if (leagueSnapshot?.league_type === "dynasty") {
+                    tags.push("dynasty");
+                  }
+                  if (leagueSnapshot?.league_type === "keeper") {
+                    tags.push("dynasty"); // keeper articles often share dynasty tag
+                  }
+                  if (draftActive) {
+                    tags.push("ADP", "EV", "rookies");
+                  }
+                  return tags;
+                })()}
+              />
             </div>
 
             {/* Coach column: sticky on desktop, inline on mobile. */}
