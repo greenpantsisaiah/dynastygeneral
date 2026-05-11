@@ -21,12 +21,19 @@
 
 import { useMemo, useState } from "react";
 import type { EvBank, EvBankPickEntry } from "@/lib/strategy/ev-bank";
+import type { LeagueEvBankReadout } from "@/lib/strategy/ev-bank/league";
 
 export type EvTrajectoryChartProps = {
   bank: EvBank;
+  // Optional league context for the overlay reference line + header
+  // comparison ("league avg +12.4 · you rank 1 of 12 (100th pct)").
+  // When provided and at least 2 rosters have resolved totals, the
+  // chart renders a faint horizontal line at the league average and
+  // adds a one-line comparison summary above the plot.
+  leagueBank?: LeagueEvBankReadout | null;
 };
 
-export function EvTrajectoryChart({ bank }: EvTrajectoryChartProps) {
+export function EvTrajectoryChart({ bank, leagueBank }: EvTrajectoryChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const trajectory = useMemo(() => buildTrajectory(bank), [bank]);
@@ -67,6 +74,12 @@ export function EvTrajectoryChart({ bank }: EvTrajectoryChartProps) {
   const hovered =
     hoveredIdx != null ? trajectory.points[hoveredIdx] : null;
 
+  const leagueAvg =
+    leagueBank && leagueBank.ranked_count >= 2 ? leagueBank.league_avg : null;
+  const leagueCompareLine = leagueBank
+    ? buildLeagueCompareLine(leagueBank)
+    : null;
+
   return (
     <div className="px-5 py-5 border-t border-border-soft">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -92,6 +105,11 @@ export function EvTrajectoryChart({ bank }: EvTrajectoryChartProps) {
               </>
             )}
           </p>
+          {leagueCompareLine && (
+            <p className="mt-1 font-mono text-[10px] text-muted-2">
+              {leagueCompareLine}
+            </p>
+          )}
         </div>
         <SparklineSummary points={trajectory.points} />
       </div>
@@ -101,6 +119,7 @@ export function EvTrajectoryChart({ bank }: EvTrajectoryChartProps) {
           trajectory={trajectory}
           hoveredIdx={hoveredIdx}
           onHover={setHoveredIdx}
+          leagueAvg={leagueAvg}
         />
       </div>
 
@@ -209,10 +228,12 @@ function TrajectorySvg({
   trajectory,
   hoveredIdx,
   onHover,
+  leagueAvg,
 }: {
   trajectory: Trajectory;
   hoveredIdx: number | null;
   onHover: (idx: number | null) => void;
+  leagueAvg: number | null;
 }) {
   const { points, yMin, yMax } = trajectory;
   const n = points.length;
@@ -221,6 +242,12 @@ function TrajectorySvg({
   const yOf = (v: number) =>
     MARGIN_TOP + ((yMax - v) / (yMax - yMin)) * PLOT_HEIGHT;
   const yZero = yOf(0);
+  // Only render the league-avg line if it sits inside the plot range;
+  // a sentinel value outside [yMin, yMax] would draw at the clipped
+  // edge and confuse the reader.
+  const showLeagueAvg =
+    leagueAvg != null && leagueAvg >= yMin && leagueAvg <= yMax;
+  const yLeagueAvg = showLeagueAvg ? yOf(leagueAvg!) : null;
 
   // Main line path through cumulative points.
   const linePath = points
@@ -275,11 +302,41 @@ function TrajectorySvg({
           strokeWidth="0.15"
         />
 
+        {/* League-average reference line + label. Renders only when
+            comparison data is present and the value lands inside the
+            plot range. Founder asked for "how my EV compares to league
+            leaders or the average"; this is the average half of it. */}
+        {showLeagueAvg && yLeagueAvg != null && (
+          <g>
+            <line
+              x1={MARGIN_LEFT}
+              y1={yLeagueAvg}
+              x2={VIEW_WIDTH - MARGIN_RIGHT}
+              y2={yLeagueAvg}
+              stroke="var(--color-muted)"
+              strokeOpacity="0.55"
+              strokeWidth="0.18"
+              strokeDasharray="0.4 0.8"
+            />
+            <text
+              x={VIEW_WIDTH - MARGIN_RIGHT - 0.5}
+              y={yLeagueAvg - 1}
+              textAnchor="end"
+              fontSize="2.2"
+              fill="var(--color-muted)"
+              fontFamily="ui-monospace, monospace"
+            >
+              league avg {leagueAvg! >= 0 ? "+" : ""}
+              {leagueAvg!.toFixed(1)}
+            </text>
+          </g>
+        )}
+
         {/* Confidence ribbon */}
         {ribbonPath && (
           <path
             d={ribbonPath}
-            fill="rgb(var(--color-accent))"
+            fill="var(--color-accent)"
             fillOpacity="0.12"
             stroke="none"
           />
@@ -289,7 +346,7 @@ function TrajectorySvg({
         <path
           d={linePath}
           fill="none"
-          stroke="rgb(var(--color-accent))"
+          stroke="var(--color-accent)"
           strokeOpacity="0.85"
           strokeWidth="0.5"
           strokeLinecap="round"
@@ -297,15 +354,20 @@ function TrajectorySvg({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Nodes */}
+        {/* Nodes. Pick labels render only at sampled indices so 20+
+            picks don't overlap into illegible text (first, last, plus
+            up to 3 evenly spaced interior picks). The hover tooltip
+            shows the exact pick + player for any node, so the axis
+            doesn't need every label. */}
         {points.map((p, i) => {
           const cx = xOf(i);
           const cy = yOf(p.cumulative);
           const isHover = hoveredIdx === i;
           const isPositive = p.cumulative >= 0;
           const fill = isPositive
-            ? "rgb(var(--color-success))"
-            : "rgb(var(--color-danger))";
+            ? "var(--color-success)"
+            : "var(--color-danger)";
+          const showLabel = shouldShowAxisLabel(i, points.length);
           return (
             <g key={p.entry.player_id}>
               <circle
@@ -313,7 +375,7 @@ function TrajectorySvg({
                 cy={cy}
                 r={isHover ? 1.6 : 1.0}
                 fill={fill}
-                stroke="rgb(var(--color-foreground))"
+                stroke="var(--color-foreground)"
                 strokeOpacity="0.6"
                 strokeWidth={isHover ? 0.4 : 0.0}
                 className="transition-all"
@@ -330,17 +392,18 @@ function TrajectorySvg({
                 onClick={() => onHover(i)}
                 style={{ cursor: "pointer" }}
               />
-              {/* X-axis pick label */}
-              <text
-                x={cx}
-                y={MARGIN_TOP + PLOT_HEIGHT + 8}
-                textAnchor="middle"
-                fontSize="2.4"
-                fill="rgb(var(--color-muted-2))"
-                fontFamily="ui-monospace, monospace"
-              >
-                {p.pickLabel}
-              </text>
+              {showLabel && (
+                <text
+                  x={cx}
+                  y={MARGIN_TOP + PLOT_HEIGHT + 8}
+                  textAnchor="middle"
+                  fontSize="2.4"
+                  fill="var(--color-muted-2)"
+                  fontFamily="ui-monospace, monospace"
+                >
+                  {p.pickLabel}
+                </text>
+              )}
             </g>
           );
         })}
@@ -351,7 +414,7 @@ function TrajectorySvg({
           y={MARGIN_TOP + 1.5}
           textAnchor="end"
           fontSize="2.4"
-          fill="rgb(var(--color-muted-2))"
+          fill="var(--color-muted-2)"
           fontFamily="ui-monospace, monospace"
         >
           {yMax >= 0 ? "+" : ""}
@@ -362,7 +425,7 @@ function TrajectorySvg({
           y={MARGIN_TOP + PLOT_HEIGHT}
           textAnchor="end"
           fontSize="2.4"
-          fill="rgb(var(--color-muted-2))"
+          fill="var(--color-muted-2)"
           fontFamily="ui-monospace, monospace"
         >
           {yMin >= 0 ? "+" : ""}
@@ -447,4 +510,44 @@ function HoveredNodeTooltip({
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Decide whether to render an axis label at this index. At small N
+ * (<=6) every pick gets its label. At larger N we sample first + last
+ * + ~3 evenly spaced interior points so labels never overlap. Hover
+ * still shows the exact pick + player for any node, so the axis is
+ * orientation, not a full index.
+ */
+function shouldShowAxisLabel(idx: number, total: number): boolean {
+  if (total <= 6) return true;
+  if (idx === 0 || idx === total - 1) return true;
+  const step = Math.max(1, Math.floor((total - 1) / 4));
+  return idx % step === 0;
+}
+
+/**
+ * Compose the one-line league-comparison summary that sits below the
+ * "Cumulative EV banked across N picks" line. Pulls rank + percentile
+ * + league average from the readout. Returns null when there isn't
+ * enough comparison data to be meaningful (need >= 2 ranked rosters).
+ */
+function buildLeagueCompareLine(
+  leagueBank: LeagueEvBankReadout,
+): string | null {
+  if (leagueBank.ranked_count < 2) return null;
+  const parts: string[] = [];
+  if (leagueBank.league_avg != null) {
+    parts.push(
+      `league avg ${leagueBank.league_avg >= 0 ? "+" : ""}${leagueBank.league_avg.toFixed(1)}`,
+    );
+  }
+  if (leagueBank.my_rank != null) {
+    parts.push(`you rank ${leagueBank.my_rank} of ${leagueBank.ranked_count}`);
+  }
+  if (leagueBank.my_percentile != null) {
+    parts.push(`${Math.round(leagueBank.my_percentile)}th pct`);
+  }
+  if (parts.length === 0) return null;
+  return parts.join(" · ");
 }

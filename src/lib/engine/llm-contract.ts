@@ -35,6 +35,21 @@ export type FormatRules = {
   rb_starters_max: number;
   wr_starters_max: number;
   te_starters_max: number;
+  /**
+   * Hard K and DST starter counts. Most leagues don't roster either,
+   * but some do. When > 0, the position is real and should be
+   * acknowledged; the system prompt has an explicit rule that
+   * Coach must not deny K / DST when these are non-zero (founder
+   * report 2026-05-11: "I couldn't convince the Coach that K and DST
+   * are in this league"). K and DST don't get flex eligibility,
+   * so the max equals the hard-slot count.
+   */
+  k_starters_max: number;
+  dst_starters_max: number;
+  /** True when the league rosters at least one K slot. */
+  has_k: boolean;
+  /** True when the league rosters at least one DST slot. */
+  has_dst: boolean;
   /** True when the league starts ≥2 QBs (superflex / 2QB). */
   second_qb_starts: boolean;
   /** True when scoring includes a TE-premium multiplier. */
@@ -136,11 +151,19 @@ export function buildFormatRulesFromSnapshot(
   const teStartersMax = ss.hard.TE + flexSlots + recFlexSlots;
   const rbStartersMax = ss.hard.RB + flexSlots;
   const wrStartersMax = ss.hard.WR + flexSlots + recFlexSlots;
+  // K and DST: hard slots only (no flex eligibility in any standard
+  // Sleeper format). Most leagues run 0 of each; some run 1 of each.
+  const kStartersMax = ss.hard.K ?? 0;
+  const dstStartersMax = ss.hard.DST ?? 0;
   return {
     qb_starters_max: qbStartersMax,
     rb_starters_max: rbStartersMax,
     wr_starters_max: wrStartersMax,
     te_starters_max: teStartersMax,
+    k_starters_max: kStartersMax,
+    dst_starters_max: dstStartersMax,
+    has_k: kStartersMax > 0,
+    has_dst: dstStartersMax > 0,
     second_qb_starts: qbStartersMax >= 2,
     te_premium: snap.scoring.includes("TE-premium"),
     is_superflex: isSF,
@@ -184,12 +207,21 @@ export function buildFormatRulesFromRosterPositions(args: {
   const teStartersMax = countSlot("TE") + flexCount + recFlexCount;
   const rbStartersMax = countSlot("RB") + flexCount;
   const wrStartersMax = countSlot("WR") + flexCount + recFlexCount;
+  // K and DEF / DST: count both raw slot names. Sleeper uses "DEF"
+  // historically; some leagues / formats use "DST". Treat as the same
+  // position.
+  const kStartersMax = countSlot("K");
+  const dstStartersMax = countSlot("DEF") + countSlot("DST");
   const tePremium = scoringHighlights.some((s) => /TE.?premium|TEP/i.test(s));
   return {
     qb_starters_max: qbStartersMax,
     rb_starters_max: rbStartersMax,
     wr_starters_max: wrStartersMax,
     te_starters_max: teStartersMax,
+    k_starters_max: kStartersMax,
+    dst_starters_max: dstStartersMax,
+    has_k: kStartersMax > 0,
+    has_dst: dstStartersMax > 0,
     second_qb_starts: qbStartersMax >= 2,
     te_premium: tePremium,
     is_superflex: isSuperflex,

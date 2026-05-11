@@ -50,8 +50,14 @@ export type SanityIssue = {
 // Top 50: tolerance 15. Mid-board has more legitimate disagreement
 //   (positional valuation, age, breakout potential), so widen.
 // Top 100: tolerance 25. Tail of the consensus zone.
-// Past 100: skip; the consensus signal is too weak to validate.
+// Past 100: skip ordering checks; the consensus signal is too weak
+//   to validate ORDER (legitimate analyst disagreement past #100 is
+//   the rule, not the exception). Presence is a different question:
+//   whether a top-200 consensus player is in the pool at all is
+//   binary and answerable regardless of ordering signal strength.
+//   COMPLETENESS_LIMIT extends the membership check accordingly.
 const SANITY_LIMIT = 100;
+const COMPLETENESS_LIMIT = 200;
 function toleranceFor(consensusRank: number): number {
   if (consensusRank <= 12) return 8;
   if (consensusRank <= 50) return 15;
@@ -140,7 +146,7 @@ export function summarizeSanityIssues(issues: SanityIssue[]): string {
 
 /**
  * One detected MISSING player. Different question than SanityIssue:
- * presence vs ordering. A consensus top-100 player who is in neither
+ * presence vs ordering. A consensus top-200 player who is in neither
  * the available pool nor the drafted set is silently absent from the
  * engine's view. Severe class of bug per user 2026-04-25 (Sam LaPorta
  * incident): the Coach couldn't reason about LaPorta because he
@@ -155,15 +161,21 @@ export type MissingPlayerIssue = {
 };
 
 /**
- * Walk the consensus baseline (FantasyCalc top-100 by overall_rank);
+ * Walk the consensus baseline (FantasyCalc top-200 by overall_rank);
  * for each consensus player, verify they're either in `available` OR
- * in the drafted set. A consensus top-100 player in neither is
+ * in the drafted set. A consensus top-200 player in neither is
  * silently missing from the engine. Returns the missing list sorted
  * by consensus rank ascending so the most-egregious gaps come first.
  *
  * Complement to `runRankingSanityChecks`, which only validates
  * ordering of players already in the pool. The two checks together
- * cover both failure modes: wrong order vs wrong members.
+ * cover both failure modes: wrong order vs wrong members. The
+ * presence question (this function) extends to top-200 because the
+ * upstream search_rank pre-sort cap can drop dynasty-valued players
+ * with weak NFL relevance whose FantasyCalc consensus rank sits in
+ * the 100-200 band; a check that stops at 100 leaves that whole band
+ * silent (the failure mode the founder hit 2026-05-08 when the pool
+ * was "missing half the players").
  *
  * Empty result = engine pool is complete relative to consensus.
  * Any non-empty result is a hard alarm, not advisory; the hub
@@ -181,7 +193,7 @@ export function runCompletenessSanityChecks(args: {
   const issues: MissingPlayerIssue[] = [];
   for (const [pid, pv] of playerValues) {
     if (pv.overall_rank == null) continue;
-    if (pv.overall_rank > SANITY_LIMIT) continue;
+    if (pv.overall_rank > COMPLETENESS_LIMIT) continue;
     if (availableIds.has(pid)) continue;
     if (draftedIds.has(pid)) continue;
     issues.push({
@@ -206,5 +218,5 @@ export function summarizeCompletenessIssues(
       (i) =>
         `${i.name} (${i.position}, consensus #${i.consensus_rank})`,
     );
-  return `completeness: ${issues.length} top-100 player${issues.length === 1 ? "" : "s"} silently missing from pool. Top: ${head.join("; ")}`;
+  return `completeness: ${issues.length} top-${COMPLETENESS_LIMIT} player${issues.length === 1 ? "" : "s"} silently missing from pool. Top: ${head.join("; ")}`;
 }

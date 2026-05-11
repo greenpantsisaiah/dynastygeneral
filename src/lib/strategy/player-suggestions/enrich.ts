@@ -76,12 +76,54 @@ function reasonForArchetype(
   return `Age ${player.age}, ${player.team ?? "FA"}`;
 }
 
+/**
+ * Compute the realistic relevant-player pool size for this league.
+ *
+ * The number of players that can plausibly get drafted is
+ * `total_teams × roster_size`. A 12-team dynasty league with 30-man
+ * rosters drafts 360 players. A 12-team keeper league with 25-man
+ * rosters drafts 300. Even a 10-team redraft drafts 160.
+ *
+ * Anyone past that line cannot be drafted by definition; anyone
+ * inside that line should be in our analysis pool. The previous
+ * hard 200 cap was BELOW the actual draft size for most dynasty +
+ * keeper formats, which guaranteed the user would see "missing
+ * players" in the late rounds, in waiver/trade context, and in
+ * Coach lookups. Per founder 2026-05-09: "Shouldn't we be including
+ * analysis on... who 12 man league with 30 man rosters might
+ * actually draft? That's the top 360 players, plus add another
+ * 200-300 for margin of error."
+ *
+ * Math: realistic_drafted = total_teams × roster_size, plus a
+ * margin to cover (a) post-draft trade/waiver candidates the user
+ * may want analyzed, (b) ADP variance at the back of the draft, and
+ * (c) the pre-NFL-draft rookie cohort whose Sleeper search_rank is
+ * unstable. Margin is `MARGIN_PLAYERS` players, not a percentage,
+ * because the bottom of the relevant universe is fixed by NFL
+ * rosters not league shape. Floored at `MIN_POOL_SIZE` so even
+ * tiny leagues (8-team × 16) get enough headroom.
+ */
+const MARGIN_PLAYERS = 250;
+const MIN_POOL_SIZE = 500;
+
+export function realisticPoolSize(snap: LeagueSnapshot): number {
+  const slots = snap.starter_slots;
+  const hardSum = Object.values(slots.hard).reduce((a, b) => a + b, 0);
+  const rosterSize =
+    hardSum + slots.flex + slots.superflex + slots.rec_flex + slots.bench;
+  if (rosterSize <= 0) return MIN_POOL_SIZE;
+  const realistic = snap.total_teams * rosterSize + MARGIN_PLAYERS;
+  return Math.max(realistic, MIN_POOL_SIZE);
+}
+
 export async function getAvailableForRequest(
   snap: LeagueSnapshot,
 ): Promise<AvailablePlayer[]> {
   // Single fetch per request. Callers pass this into both enrichment
-  // helpers below to avoid hitting the player cache twice.
-  return getAvailablePlayers(snap, { limit: 200 });
+  // helpers below to avoid hitting the player cache twice. Limit
+  // sized to the realistic relevant-player universe for this league
+  // shape; see realisticPoolSize for the reasoning.
+  return getAvailablePlayers(snap, { limit: realisticPoolSize(snap) });
 }
 
 export function enrichRankedWithCandidates(

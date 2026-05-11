@@ -144,17 +144,57 @@ between them. ALWAYS factor density into your call:
 When relevant, name the next 1-2 user picks by label (e.g. "9.10 then
 9.12 back-to-back") so the user sees the schedule reasoning.
 
-## Position gating
+## Position gating (read both directions)
 
-Only treat positions present in league.starter_slots.hard (with a
-count above 0) as rostered. If hard.K = 0 or hard.DST = 0 or hard.TE
-= 0 in this league, NEVER flag the user or any opponent for "zero"
-at that position. Different leagues roster different positions;
-respect the format.
+The roster has exactly the positions present in
+\`league.starter_slots.hard\` (with a count above 0), plus any flex
+slots. Two symmetric rules govern Coach output:
+
+1. ABSENT POSITIONS ARE NOT "ZERO." If hard.K = 0 or hard.DST = 0
+   or hard.TE = 0, NEVER flag the user or any opponent for being
+   "thin at K" or "missing a defense." The position does not exist
+   in this league.
+
+2. PRESENT POSITIONS ARE REAL. If hard.K > 0 (or
+   format_rules.has_k = true) or hard.DST > 0 (or
+   format_rules.has_dst = true), K and DST ARE part of this
+   league's roster. Acknowledge them when the user asks. Don't
+   claim "this league doesn't have kickers" or "we don't draft
+   defense" when the format rules say otherwise. K and DST are
+   late-round picks by convention; reasonable framing is "round
+   N or later, after starters are locked," not "they don't exist."
+   Founder report 2026-05-11: "I couldn't convince the Coach that
+   K and DST are in this league." Coach denied the format even
+   when the snapshot clearly rostered both. This rule binds
+   directly to format_rules.has_k and format_rules.has_dst.
+
+## Player availability (NEVER hallucinate that a player has been drafted)
+
+top_available is the COMPLETE realistic draft pool for this league
+(total_teams × roster_size + margin). Every undrafted player who
+could plausibly be drafted is in this list. The list is two-tiered:
+top entries carry adp_alternatives; tail entries are compact (name,
+position, team, age, ADP, value, is_rookie). Compact entries are
+fully present and on the board; the missing adp_alternatives is a
+token-budget optimization, not a signal of partial data.
+
+How to answer "is X available / has X been drafted":
+  1. Search top_available by name. If X is there, X is on the board.
+     Say so. Use the full entry for recommendation reasoning; use the
+     compact entry for presence confirmation.
+  2. If X is NOT in top_available, check draft.picks_made. Match by
+     player_id. If you find X in picks_made, X has been drafted.
+     Cite the pick (round.slot).
+  3. If X is in neither, X is outside the realistic draft pool for
+     this league (deep waiver / retired / not on Sleeper). Say that
+     directly. NEVER claim X has been drafted without confirming via
+     picks_made; that fabrication broke trust in a 2026-05-09 live
+     draft when top-25 Sleeper players were reported as "drafted"
+     while sitting on the board.
 
 ## Rookies
 
-The available pool now includes incoming rookies (is_rookie = true).
+The available pool includes incoming rookies (is_rookie = true).
 Pre-NFL-draft rookies often have no team, no age, and no Sleeper ADP
 yet. When the user asks about a rookie:
   - Acknowledge that landing spot is unknown until the NFL draft.
@@ -162,8 +202,9 @@ yet. When the user asks about a rookie:
     and prospect grade, not stat projections.
   - For startup rookie picks, lean on rookie ADP (variant: "rookie")
     and the user's roster horizon to give a directional take.
-  - If the user names a specific rookie not in the top_available
-    snapshot, say so directly. Don't fabricate stats.
+  - Availability check follows the rule above: top_available
+    presence = on the board; absence + picks_made hit = drafted;
+    absence from both = outside the realistic pool.
 
 ## Trade initiation (proactive + reactive)
 
@@ -613,7 +654,14 @@ export async function POST(
   for (const r of snapshot.rosters) {
     for (const id of r.player_ids) valueIds.add(id);
   }
-  for (const p of available.slice(0, 30)) valueIds.add(p.id);
+  // Price every player in the realistic draft pool, not a top-30 KTC
+  // slice. Founder report 2026-05-09: Coach hallucinated "X has been
+  // drafted" for top-25 Sleeper players who were actually on the board
+  // but past the top-30 KTC window. Pricing only the top 30 means any
+  // trade math against a mid-pool player either hedges or fabricates.
+  // The realistic pool is already sized to `realisticPoolSize(snap)`
+  // (total_teams × roster_size + margin), so this is bounded.
+  for (const p of available) valueIds.add(p.id);
   for (const id of decisionCardPlayerIds) valueIds.add(id);
   // Price ALL picks in rounds 1-8 across the league, not just the
   // user's own schedule. Coach trade-analysis bug 2026-05-05: when a
@@ -794,7 +842,24 @@ export async function POST(
       };
     }),
     top_available: (() => {
-      const buildEntry = (p: (typeof available)[number]) => {
+      // top_available now ships the FULL realistic draft pool, not a
+      // top-30 KTC slice. Founder report 2026-05-09: Coach kept
+      // hallucinating "X has been drafted" for top-25 Sleeper players
+      // who were actually on the board, because absence from the
+      // top-30 slice was misread as drafted. The realistic pool is
+      // sized to `realisticPoolSize(snap)` upstream (total_teams ×
+      // roster_size + margin), so every player who could plausibly
+      // get drafted is included.
+      //
+      // Two-tier shape to keep token cost bounded:
+      //   - Top 60 by KTC value + every decision-card player: FULL
+      //     entry with adp_alternatives. These are the candidates
+      //     Coach actively reasons about and recommends.
+      //   - Remaining pool: COMPACT entry (no adp_alternatives) for
+      //     presence verification + basic profile. Coach can confirm
+      //     "yes X is on the board" + cite age/position/value without
+      //     paying the variant-breakdown tax for every mid-pool player.
+      const fullEntry = (p: (typeof available)[number]) => {
         const v = playerValueMap.get(p.id);
         return {
           name: p.name,
@@ -804,36 +869,50 @@ export async function POST(
           sleeper_rank: p.search_rank,
           adp: p.adp,
           adp_variant: p.adp_variant,
-          // ADP variant breakdown so Coach can cite cross-reference
-          // values when explaining a counterintuitive call. Per
-          // founder feedback 2026-05-08: the Sleeper UI default ADP
-          // looks like "different planets" from the model's value
-          // unless we surface the variants explicitly.
           adp_alternatives: p.adp_alternatives ?? [],
           is_rookie: p.is_rookie,
-          // KTC-equivalent value (0-100). Bound trade asks using this
-          // for any player on this list. Null when FantasyCalc didn't
-          // ship a value for this player (rare; usually pre-NFL-draft
-          // rookie or recent waiver).
           value: v ? v.value : null,
         };
       };
-      const seen = new Set<string>();
-      const entries: ReturnType<typeof buildEntry>[] = [];
-      for (const p of available.slice(0, 30)) {
-        seen.add(p.id);
-        entries.push(buildEntry(p));
+      const compactEntry = (p: (typeof available)[number]) => {
+        const v = playerValueMap.get(p.id);
+        return {
+          name: p.name,
+          pos: p.position,
+          team: p.team,
+          age: p.age,
+          sleeper_rank: p.search_rank,
+          adp: p.adp,
+          adp_variant: p.adp_variant,
+          is_rookie: p.is_rookie,
+          value: v ? v.value : null,
+        };
+      };
+      const fullIds = new Set<string>();
+      const entries: Array<
+        ReturnType<typeof fullEntry> | ReturnType<typeof compactEntry>
+      > = [];
+      // Tier 1: top 60 by KTC get full entries.
+      for (const p of available.slice(0, 60)) {
+        fullIds.add(p.id);
+        entries.push(fullEntry(p));
       }
-      // Append any Decision-card player whose ID is past the top-30
-      // slice. Guarantees the payload never says "Swift is the lean"
-      // while top_available omits Swift. See decisionCardPlayerIds
-      // construction above for the bug-class history.
+      // Decision-card players past index 60 also get full entries; they
+      // are by definition decision-relevant.
       for (const id of decisionCardPlayerIds) {
-        if (seen.has(id)) continue;
+        if (fullIds.has(id)) continue;
         const p = available.find((a) => a.id === id);
         if (!p) continue;
-        seen.add(id);
-        entries.push(buildEntry(p));
+        fullIds.add(id);
+        entries.push(fullEntry(p));
+      }
+      // Tier 2: every other player in the realistic pool gets a compact
+      // entry. Eliminates the "X has been drafted" hallucination class
+      // by guaranteeing every undrafted relevant player is in the
+      // snapshot, while keeping token cost manageable.
+      for (const p of available) {
+        if (fullIds.has(p.id)) continue;
+        entries.push(compactEntry(p));
       }
       return entries;
     })(),

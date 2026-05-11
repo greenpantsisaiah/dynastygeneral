@@ -33,7 +33,23 @@ import {
 } from "./age-curve";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 
-const DYNASTY_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
+// Skill positions are always eligible. K and DST are conditionally
+// eligible: included in the available pool only when the league
+// rosters them (snap.starter_slots.hard.K > 0 or .DST > 0). Founder
+// report 2026-05-11: "This draft had kickers and defense in it. I
+// couldn't convince the Coach of that. Some drafts will have them.
+// We need to read this from roster settings and include them in
+// advice." Hardcoding K and DST out of the pool meant Coach saw zero
+// K / DST candidates even when the league rostered both, and
+// generalized that absence to "this league doesn't have K / DST."
+const SKILL_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
+
+function eligiblePositionsFor(snap: LeagueSnapshot): Set<string> {
+  const set = new Set(SKILL_POSITIONS);
+  if ((snap.starter_slots.hard.K ?? 0) > 0) set.add("K");
+  if ((snap.starter_slots.hard.DST ?? 0) > 0) set.add("DST");
+  return set;
+}
 
 export type AvailablePlayer = HumanPlayer & {
   search_rank: number;
@@ -121,11 +137,12 @@ export async function getAvailablePlayers(
     }
   }
   const all = await __dumpAllPlayers();
+  const eligiblePositions = eligiblePositionsFor(snap);
   const ranked = all
     .filter((p) => !drafted.has(p.player_id))
     .filter((p) => {
       const pos = (p.position ?? "").toUpperCase();
-      return DYNASTY_POSITIONS.has(pos);
+      return eligiblePositions.has(pos);
     })
     .filter((p) => typeof p.search_rank === "number" && p.search_rank > 0)
     // Filter to plausibly-current NFL players. Layered rules:
@@ -142,7 +159,17 @@ export async function getAvailablePlayers(
     //   3. Team required UNLESS sophomore (age ≤ 23, years_exp ≤ 1).
     //      Cuts Ruggs (22, 2 yrs, no team) while keeping 2nd-year
     //      unsigned prospects.
+    //   4. K and DST bypass the age cap entirely. Kicker careers run
+    //      long (Vinatieri, Tucker, Gould) and DST is a team unit with
+    //      no individual age. Applying the skill-position cap would
+    //      silently drop them. They still need a team and a
+    //      search_rank.
     .filter((p) => {
+      const pos = (p.position ?? "").toUpperCase();
+      if (pos === "K" || pos === "DST" || pos === "DEF") {
+        const team = (p.team ?? "").trim();
+        return team.length > 0;
+      }
       if (p.years_exp === 0) return true;
       if (typeof p.age !== "number") return false;
       if (p.age > positionAgeCutoff(p.position ?? null)) return false;
@@ -155,10 +182,23 @@ export async function getAvailablePlayers(
       return isSophomorePlus;
     })
     .sort((a, b) => (a.search_rank ?? 9999) - (b.search_rank ?? 9999))
-    // Pull a wider window before dynasty re-sort. The dynasty heuristic
-    // can lift a #150 search_rank rookie above a #100 search_rank vet,
-    // so we need enough of the long tail to actually re-order.
-    .slice(0, Math.max(limit * 2, 400));
+    // Pull a wide window before dynasty re-sort. Sleeper's search_rank
+    // is biased toward NFL relevance and prices in plenty of low-NFL-
+    // value veterans ahead of high-dynasty-value players (Khalil Shakir,
+    // Sam LaPorta, late-breakout WRs, post-rookie-deal RBs with trade
+    // catalysts). The downstream KTC harmonization + rerankByConsensus
+    // can rescue these players IF they make it into the enrichment loop;
+    // they cannot be rescued if they were already dropped here. The
+    // post-filter pool (QB/RB/WR/TE × within-position age cap × has
+    // search_rank × team-or-sophomore) is naturally bounded at roughly
+    // 1000-1500 plausibly-current skill players. We pull 3x the output
+    // limit (floor 2000) so the dynasty re-sort has the entire long
+    // tail to work with regardless of league shape, while still bounding
+    // the enrichment loop on degenerate inputs (e.g., a future Sleeper
+    // schema change that surfaces practice-squad-tier search_ranks past
+    // ~3000). The final trim to `limit` (line 205) ensures downstream
+    // callers see no behavior change in size, only in membership.
+    .slice(0, Math.max(limit * 3, 2000));
 
   const isSuperflex =
     snap.format === "superflex" || snap.format === "2qb";

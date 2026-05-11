@@ -335,12 +335,27 @@ function computeBestValueMetric(args: {
     };
   }
 
+  // delta = pick_no - adp. POSITIVE = player fell past ADP into your
+  // slot (value pickup). NEGATIVE = you picked the player before ADP
+  // (sharp lock / reach). The original code computed `adp - pick_no`
+  // and labelled positive results "fell past ADP," which inverted the
+  // sign and surfaced REACHES as value picks. 2026-05-11 izzydabomb
+  // draft: Jordan Mason at pick 105 with ADP 169 produced delta +64 on
+  // the inverted math, was celebrated as "Fell 64 picks past ADP," but
+  // the EV bank correctly reported -8.3 EV for the same pick. Two
+  // surfaces in the same panel directly contradicted each other.
+  // Single source of truth: pick_no - adp, same direction the EV bank
+  // uses.
   type Resolved = { pick_no: number; player_id: string; delta: number };
   const resolved: Resolved[] = [];
   for (const p of myPicks) {
     const adp = getAdp(p.player_id);
     if (adp == null) continue;
-    resolved.push({ pick_no: p.pick_no, player_id: p.player_id, delta: adp - p.pick_no });
+    resolved.push({
+      pick_no: p.pick_no,
+      player_id: p.player_id,
+      delta: p.pick_no - adp,
+    });
   }
 
   if (resolved.length === 0) {
@@ -548,12 +563,13 @@ function composeCallouts(args: {
   const watch_outs: string[] = [];
   const sharp_positioning: string[] = [];
 
-  // Best ADP value pick
+  // Best ADP value pick. delta = pick_no - adp; POSITIVE = fell past
+  // ADP into your slot. Matches computeBestValueMetric + the EV bank.
   let bestValue: { player_id: string; delta: number } | null = null;
   for (const p of myPicks) {
     const adp = getAdp(p.player_id);
     if (adp == null) continue;
-    const delta = adp - p.pick_no;
+    const delta = p.pick_no - adp;
     if (delta < 10) continue;
     if (!bestValue || delta > bestValue.delta) {
       bestValue = { player_id: p.player_id, delta };
@@ -581,11 +597,15 @@ function composeCallouts(args: {
     }
   }
 
-  // Sharp positioning callouts: early locks
+  // Sharp positioning callouts: early locks. delta = pick_no - adp;
+  // NEGATIVE = picked before ADP (scarcity-driven lock). Threshold of
+  // -10 surfaces only meaningful locks, not at-market picks. With the
+  // sign fix on 2026-05-11 this no longer mislabels value picks as
+  // sharp locks (Mahomes/Warren/Tate were value pickups, not locks).
   for (const p of myPicks) {
     const adp = getAdp(p.player_id);
     if (adp == null) continue;
-    const delta = adp - p.pick_no;
+    const delta = p.pick_no - adp;
     if (delta > -10) continue;
     const meta = playerNameLookup(p.player_id);
     const name = meta?.name ?? p.player_id;

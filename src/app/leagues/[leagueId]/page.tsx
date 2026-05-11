@@ -414,15 +414,25 @@ export default async function LeagueHubPage({
       > | null = null;
       try {
         const valueIds: string[] = [];
-        const me = snapshot.rosters.find((r) => r.is_me);
-        if (me) for (const id of me.player_ids) valueIds.push(id);
-        // Look up KTC values for the FULL available pool, not just the
-        // top 100 by dynasty_rank. The 100-cap meant any consensus-tier
-        // player whose Sleeper search_rank put him outside the top 100
-        // (Khalil Shakir, deep-tier WRs/RBs) never received a tier-1
-        // KTC ranking and got buried below worse-by-consensus tier-1
-        // KTC players in the rerank cascade. Shakir incident,
-        // 2026-04-26: invisible to Decision card despite real WR need.
+        // Resolve KTC values for EVERY rostered player across the
+        // league, not just the user's roster. Without this,
+        // `computeLeagueRankMetric` walks `r.player_ids` for opponents
+        // and sums values that aren't in the map, producing totals of
+        // 0 and a bogus "Lead X pts over #2 (100%)" framing. Founder
+        // report 2026-05-11 (completed draft): "Lead 638 pts over #2
+        // (100%)". The 100% lead was structural: opponents were not
+        // being priced. Coach already prices the full league via its
+        // own route; the hub was the outlier.
+        for (const r of snapshot.rosters) {
+          for (const id of r.player_ids) valueIds.push(id);
+        }
+        // Plus the FULL available pool. The available-pool inclusion
+        // exists to feed `rerankByConsensus` across every player the
+        // engine might rank. A prior 100-cap meant consensus-tier
+        // players whose Sleeper `search_rank` put them outside the top
+        // 100 (Khalil Shakir, deep-tier WRs/RBs) never received a
+        // tier-1 KTC ranking and got buried below worse-by-consensus
+        // tier-1 KTC players in the rerank cascade (Shakir 2026-04-26).
         // FantasyCalc resolver hits a single cached map; expanding the
         // ID list is O(n) lookups, not extra network.
         for (const p of availablePlayers) valueIds.push(p.id);

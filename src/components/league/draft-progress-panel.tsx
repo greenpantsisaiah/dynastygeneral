@@ -230,8 +230,10 @@ function EvBankSection({
       {/* Hero: cumulative EV trajectory line chart with confidence
           ribbon. Per founder direction 2026-05-08 PM (538-editor
           pass): "Sexy charts and graphs." Total + CI render in the
-          chart header; per-pick detail surfaces on hover. */}
-      <EvTrajectoryChart bank={bank} />
+          chart header; per-pick detail surfaces on hover. League
+          context (avg reference line + rank/percentile line below the
+          headline) renders when leagueBank is provided. */}
+      <EvTrajectoryChart bank={bank} leagueBank={leagueBank} />
 
       {/* Tap-to-expand per-pick bar detail. The trajectory chart
           shows cumulative; this view shows each pick's contribution
