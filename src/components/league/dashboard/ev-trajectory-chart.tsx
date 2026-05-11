@@ -313,7 +313,7 @@ function TrajectorySvg({
               y1={yLeagueAvg}
               x2={VIEW_WIDTH - MARGIN_RIGHT}
               y2={yLeagueAvg}
-              stroke="var(--color-muted)"
+              stroke="var(--muted)"
               strokeOpacity="0.55"
               strokeWidth="0.18"
               strokeDasharray="0.4 0.8"
@@ -323,7 +323,7 @@ function TrajectorySvg({
               y={yLeagueAvg - 1}
               textAnchor="end"
               fontSize="2.2"
-              fill="var(--color-muted)"
+              fill="var(--muted)"
               fontFamily="ui-monospace, monospace"
             >
               league avg {leagueAvg! >= 0 ? "+" : ""}
@@ -336,7 +336,7 @@ function TrajectorySvg({
         {ribbonPath && (
           <path
             d={ribbonPath}
-            fill="var(--color-accent)"
+            fill="var(--accent)"
             fillOpacity="0.12"
             stroke="none"
           />
@@ -346,7 +346,7 @@ function TrajectorySvg({
         <path
           d={linePath}
           fill="none"
-          stroke="var(--color-accent)"
+          stroke="var(--accent)"
           strokeOpacity="0.85"
           strokeWidth="0.5"
           strokeLinecap="round"
@@ -365,19 +365,19 @@ function TrajectorySvg({
           const isHover = hoveredIdx === i;
           const isPositive = p.cumulative >= 0;
           const fill = isPositive
-            ? "var(--color-success)"
-            : "var(--color-danger)";
+            ? "var(--success)"
+            : "var(--danger)";
           const showLabel = shouldShowAxisLabel(i, points.length);
           return (
             <g key={p.entry.player_id}>
               <circle
                 cx={cx}
                 cy={cy}
-                r={isHover ? 1.6 : 1.0}
+                r={isHover ? 2.4 : 1.6}
                 fill={fill}
-                stroke="var(--color-foreground)"
-                strokeOpacity="0.6"
-                strokeWidth={isHover ? 0.4 : 0.0}
+                stroke="var(--foreground)"
+                strokeOpacity="0.8"
+                strokeWidth={isHover ? 0.5 : 0.25}
                 className="transition-all"
                 vectorEffect="non-scaling-stroke"
               />
@@ -398,7 +398,7 @@ function TrajectorySvg({
                   y={MARGIN_TOP + PLOT_HEIGHT + 8}
                   textAnchor="middle"
                   fontSize="2.4"
-                  fill="var(--color-muted-2)"
+                  fill="var(--muted-2)"
                   fontFamily="ui-monospace, monospace"
                 >
                   {p.pickLabel}
@@ -414,7 +414,7 @@ function TrajectorySvg({
           y={MARGIN_TOP + 1.5}
           textAnchor="end"
           fontSize="2.4"
-          fill="var(--color-muted-2)"
+          fill="var(--muted-2)"
           fontFamily="ui-monospace, monospace"
         >
           {yMax >= 0 ? "+" : ""}
@@ -425,7 +425,7 @@ function TrajectorySvg({
           y={MARGIN_TOP + PLOT_HEIGHT}
           textAnchor="end"
           fontSize="2.4"
-          fill="var(--color-muted-2)"
+          fill="var(--muted-2)"
           fontFamily="ui-monospace, monospace"
         >
           {yMin >= 0 ? "+" : ""}
