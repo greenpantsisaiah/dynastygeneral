@@ -117,13 +117,21 @@ function positionAgeMult(position: string | null, age: number): number {
       if (age === 32 || age === 33) return 0.55;
       return 0;
     case "TE":
-      if (age >= 25 && age <= 30) return 1.0;
-      if (age === 23 || age === 24 || age === 31 || age === 32) return 0.85;
-      if (age === 33 || age === 34) return 0.55;
+      // Narrowed peak 26-30 (was 25-30) per age-curve validation
+      // 2026-05-12: starter-tier TE age 25 produces 0.78 of peak, not
+      // 1.0. Age 23 produces 0.73, demoted from 0.85 to the cliff band.
+      if (age >= 26 && age <= 30) return 1.0;
+      if (age === 24 || age === 25 || age === 31 || age === 32) return 0.85;
+      if (age === 23 || age === 33 || age === 34) return 0.55;
       return 0;
     case "QB":
-      if (age >= 26 && age <= 33) return 1.0;
-      if ((age >= 24 && age <= 25) || (age >= 34 && age <= 36)) return 0.85;
+      // Widened peak lower-bound to 23 (was 26) per age-curve validation
+      // 2026-05-12: starter-tier QB age 23-25 produces 0.86-0.95 of peak;
+      // the prior 0x at age 23 and 0.85x at 24-25 was too harsh. Rookie
+      // and second-year starters (Daniels, Stroud, Bryce, Williams shape)
+      // are real now and the model should treat them as peak.
+      if (age >= 23 && age <= 33) return 1.0;
+      if (age >= 34 && age <= 36) return 0.85;
       if (age === 37 || age === 38) return 0.6;
       return 0;
     default:
@@ -152,12 +160,15 @@ function balancedBase(position: string | null, age: number): number {
       if (age === 23 || age === 24 || age === 29) return 50;
       return 0;
     case "TE":
+      // Narrowed prime band per age-curve validation 2026-05-12.
       if (age >= 26 && age <= 29) return 70;
-      if (age === 24 || age === 25 || age === 30) return 50;
+      if (age === 25 || age === 30) return 50;
       return 0;
     case "QB":
-      if (age >= 27 && age <= 31) return 70;
-      if (age === 25 || age === 26 || age === 32) return 50;
+      // Widened lower-bound per age-curve validation 2026-05-12:
+      // starter QBs at age 23-25 produce at the prime band's high end.
+      if (age >= 25 && age <= 31) return 70;
+      if (age === 23 || age === 24 || age === 32) return 50;
       return 0;
     default:
       return 0;

@@ -16,9 +16,9 @@ Survivorship caveat: the Sleeper player cache only contains players still in the
 
 | Age | N | Median PPG | p25 | p75 | Empirical mult | Model mult | Verdict |
 |---|---|---|---|---|---|---|---|
-| 23 | 5 | 20.3 | 19.1 | 21.5 | 0.90 | 0.00 | we underprice |
-| 24 | 5 | 19.4 | 18.3 | 19.4 | 0.86 | 0.85 | match |
-| 25 | 6 | 21.3 | 18.6 | 21.5 | 0.95 | 0.85 | we underprice |
+| 23 | 5 | 20.3 | 19.1 | 21.5 | 0.90 | 1.00 | match |
+| 24 | 5 | 19.4 | 18.3 | 19.4 | 0.86 | 1.00 | we overprice |
+| 25 | 6 | 21.3 | 18.6 | 21.5 | 0.95 | 1.00 | match |
 | 26 | 7 | 19.1 | 18.1 | 24.2 | 0.85 | 1.00 | we overprice |
 | 27 | 6 | 22.5 | 18.4 | 22.6 | 1.00 | 1.00 | match |
 | 28 | 4 | 18.4 | 17.7 | 22.0 | 0.82 | 1.00 | we overprice |
@@ -63,9 +63,9 @@ Empirical cliff: no clear cliff in sampled range.
 
 | Age | N | Median PPG | p25 | p75 | Empirical mult | Model mult | Verdict |
 |---|---|---|---|---|---|---|---|
-| 23 | 6 | 9.6 | 9.3 | 10.7 | 0.73 | 0.85 | we overprice |
+| 23 | 6 | 9.6 | 9.3 | 10.7 | 0.73 | 0.55 | we underprice |
 | 24 | 5 | 12.4 | 10.7 | 12.7 | 0.95 | 0.85 | match |
-| 25 | 5 | 10.1 | 9.9 | 14.6 | 0.78 | 1.00 | we overprice |
+| 25 | 5 | 10.1 | 9.9 | 14.6 | 0.78 | 0.85 | match |
 | 26 | 4 | 12.6 | 11.1 | 12.7 | 0.96 | 1.00 | match |
 | 28 | 6 | 13.1 | 10.6 | 13.4 | 1.00 | 1.00 | match |
 
@@ -81,9 +81,9 @@ Empirical cliff: no clear cliff in sampled range.
 |---|---|---|---|---|---|---|---|
 | 21 | 5 | 15.9 | 14.4 | 17.6 | 0.95 | 0.00 | we underprice |
 | 22 | 12 | 13.7 | 11.8 | 16.4 | 0.82 | 0.00 | we underprice |
-| 23 | 17 | 12.9 | 12.0 | 18.0 | 0.77 | 0.00 | we underprice |
-| 24 | 27 | 11.6 | 7.4 | 18.3 | 0.69 | 0.85 | we overprice |
-| 25 | 21 | 16.3 | 10.5 | 20.2 | 0.97 | 0.85 | we underprice |
+| 23 | 17 | 12.9 | 12.0 | 18.0 | 0.77 | 1.00 | we overprice |
+| 24 | 27 | 11.6 | 7.4 | 18.3 | 0.69 | 1.00 | we overprice |
+| 25 | 21 | 16.3 | 10.5 | 20.2 | 0.97 | 1.00 | match |
 | 26 | 18 | 16.1 | 12.4 | 18.8 | 0.96 | 1.00 | match |
 | 27 | 16 | 16.8 | 11.3 | 18.7 | 1.00 | 1.00 | match |
 | 28 | 14 | 16.7 | 13.1 | 17.7 | 0.99 | 1.00 | match |
@@ -143,9 +143,9 @@ Empirical cliff: median PPG first drops materially at age 23.
 |---|---|---|---|---|---|---|---|
 | 21 | 14 | 5.1 | 2.3 | 7.6 | 0.39 | 0.00 | we underprice |
 | 22 | 40 | 3.3 | 1.0 | 4.6 | 0.25 | 0.00 | we underprice |
-| 23 | 52 | 2.3 | 1.3 | 5.7 | 0.18 | 0.85 | we overprice |
+| 23 | 52 | 2.3 | 1.3 | 5.7 | 0.18 | 0.55 | we overprice |
 | 24 | 66 | 2.8 | 1.0 | 4.8 | 0.21 | 0.85 | we overprice |
-| 25 | 62 | 2.3 | 1.1 | 5.7 | 0.18 | 1.00 | we overprice |
+| 25 | 62 | 2.3 | 1.1 | 5.7 | 0.18 | 0.85 | we overprice |
 | 26 | 46 | 2.5 | 1.0 | 6.7 | 0.19 | 1.00 | we overprice |
 | 27 | 43 | 3.4 | 1.1 | 7.2 | 0.26 | 1.00 | we overprice |
 | 28 | 35 | 3.2 | 1.6 | 8.3 | 0.24 | 1.00 | we overprice |

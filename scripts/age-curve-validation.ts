@@ -176,13 +176,13 @@ function modelMult(position: string, age: number): number {
       if (age === 32 || age === 33) return 0.55;
       return 0;
     case "TE":
-      if (age >= 25 && age <= 30) return 1.0;
-      if (age === 23 || age === 24 || age === 31 || age === 32) return 0.85;
-      if (age === 33 || age === 34) return 0.55;
+      if (age >= 26 && age <= 30) return 1.0;
+      if (age === 24 || age === 25 || age === 31 || age === 32) return 0.85;
+      if (age === 23 || age === 33 || age === 34) return 0.55;
       return 0;
     case "QB":
-      if (age >= 26 && age <= 33) return 1.0;
-      if ((age >= 24 && age <= 25) || (age >= 34 && age <= 36)) return 0.85;
+      if (age >= 23 && age <= 33) return 1.0;
+      if (age >= 34 && age <= 36) return 0.85;
       if (age === 37 || age === 38) return 0.6;
       return 0;
     default:
