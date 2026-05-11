@@ -2,14 +2,25 @@
  * Per-player + per-roster lane scoring.
  *
  *   scorePlayerPerLane(player, snap)
- *     → Record<LaneId, number>  (full vector, 0-100 per lane)
+ *     → Record<LaneId, number>  (full vector, 0-100 per base lane;
+ *                                derived lanes omitted because they
+ *                                don't have per-player scoring)
  *
- *   aggregateRosterIdentity({ roster, playerLookup, playerValueMap, snap })
- *     → LaneMembership[]        (one per applicable lane, IN/CLOSE/NOT_IN)
+ *   aggregateRosterIdentity({ playerIds, playerLookup, playerValueMap, snap })
+ *     → LaneMembership[]        (one per applicable base lane plus
+ *                                applicable derived lanes; each
+ *                                classified IN / CLOSE / NOT_IN)
  *
- * The roster aggregator filters to lanes whose `appliesTo(snap)`
- * returns true. A 1QB league won't see QB Cartel; a non-TE-premium
- * league won't see TE-Premium Lock. Both states are correct.
+ * Threshold logic per audit (2026-05-12):
+ *   - Roster-shape lanes (win_now_floor / balanced / future_stock)
+ *     scale thresholds by formatScaleFactor(snap) so smaller leagues
+ *     don't share the 12-team SF starter-9 bar.
+ *   - Archetype lanes (rb_bellcow / wr_anchor / ...) use absolute
+ *     thresholds because the tier definition is league-size-agnostic.
+ *   - WR Stable enforces a min-of-top-K guard (no anchor-plus-fillers
+ *     loopholes; "stable" requires uniform contribution).
+ *   - Derived lanes (Sustained Contender, Zero-RB) compute AFTER base
+ *     lanes and consume their states.
  */
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
@@ -19,7 +30,13 @@ import type {
   LaneScoreEntry,
   PlayerForLane,
 } from "./types";
-import { LANE_SPECS, type LaneSpec } from "./lanes";
+import {
+  LANE_SPECS,
+  TOP_K_MIN_BY_LANE,
+  formatScaleFactor,
+  type LaneSpec,
+} from "./lanes";
+import { DERIVED_LANE_SPECS } from "./derived";
 
 export function scorePlayerPerLane(
   player: PlayerForLane,
@@ -28,6 +45,12 @@ export function scorePlayerPerLane(
   const out = {} as Record<LaneId, number>;
   for (const spec of LANE_SPECS) {
     out[spec.id] = spec.appliesTo(snap) ? spec.scorePlayer(player, snap) : 0;
+  }
+  // Derived lanes don't have per-player scoring; zero them in the
+  // vector so callers that read the full record don't trip on
+  // missing keys.
+  for (const spec of DERIVED_LANE_SPECS) {
+    out[spec.id] = 0;
   }
   return out;
 }
@@ -73,19 +96,28 @@ export function aggregateRosterIdentity(args: {
     });
   }
 
-  const out: LaneMembership[] = [];
+  const scale = formatScaleFactor(snap);
+
+  const baseMemberships: LaneMembership[] = [];
   for (const spec of LANE_SPECS) {
     if (!spec.appliesTo(snap)) continue;
-    const membership = computeMembership(spec, players, snap);
-    out.push(membership);
+    baseMemberships.push(computeMembership(spec, players, snap, scale));
   }
-  return out;
+
+  const derivedMemberships: LaneMembership[] = [];
+  for (const spec of DERIVED_LANE_SPECS) {
+    if (!spec.appliesTo(snap)) continue;
+    derivedMemberships.push(spec.derive({ base: baseMemberships, snap }));
+  }
+
+  return [...baseMemberships, ...derivedMemberships];
 }
 
 function computeMembership(
   spec: LaneSpec,
   players: PlayerForLane[],
   snap: LeagueSnapshot,
+  scale: number,
 ): LaneMembership {
   const scored: LaneScoreEntry[] = [];
   for (const p of players) {
@@ -103,9 +135,33 @@ function computeMembership(
   const topK = scored.slice(0, spec.topK);
   const aggregate = topK.reduce((s, e) => s + e.contribution, 0);
 
+  // Format-scaling: roster-shape lanes scale thresholds with league
+  // size and starter count; archetype lanes do not (audit 2026-05-12).
+  const effectiveIn = spec.formatScales
+    ? Math.round(spec.inThreshold * scale)
+    : spec.inThreshold;
+  const effectiveClose = spec.formatScales
+    ? Math.round(spec.closeThreshold * scale)
+    : spec.closeThreshold;
+
+  // Min-of-top-K guard: some lanes (WR Stable) require uniform
+  // contribution across the top-K, not just sum above threshold. A
+  // value-100 anchor plus two fillers shouldn't classify as "Stable."
+  // The min check applies only when the top-K is fully populated;
+  // partial top-K (e.g., 2 of 3 WRs) cannot be IN regardless.
+  const minRequired = TOP_K_MIN_BY_LANE[spec.id];
+  let uniformityOk = true;
+  if (minRequired != null) {
+    if (topK.length < spec.topK) uniformityOk = false;
+    else {
+      const minContribution = Math.min(...topK.map((e) => e.contribution));
+      if (minContribution < minRequired) uniformityOk = false;
+    }
+  }
+
   let state: LaneMembership["state"];
-  if (aggregate >= spec.inThreshold) state = "in";
-  else if (aggregate >= spec.closeThreshold) state = "close";
+  if (aggregate >= effectiveIn && uniformityOk) state = "in";
+  else if (aggregate >= effectiveClose) state = "close";
   else state = "not_in";
 
   const gap =
@@ -113,8 +169,8 @@ function computeMembership(
       ? spec.describeGap({
           contributors: topK,
           aggregate,
-          inThreshold: spec.inThreshold,
-          closeThreshold: spec.closeThreshold,
+          inThreshold: effectiveIn,
+          closeThreshold: effectiveClose,
           snap,
         })
       : null;
@@ -126,9 +182,10 @@ function computeMembership(
     axis: spec.axis,
     state,
     aggregate_score: aggregate,
-    in_threshold: spec.inThreshold,
-    close_threshold: spec.closeThreshold,
+    in_threshold: effectiveIn,
+    close_threshold: effectiveClose,
     contributors: scored,
     gap,
+    is_derived: false,
   };
 }

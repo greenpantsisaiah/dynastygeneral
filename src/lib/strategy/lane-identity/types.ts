@@ -24,11 +24,13 @@ export type LaneId =
   | "rb_bellcow"
   | "wr_anchor"
   | "wr_stable"
-  | "qb_cartel"
+  | "qb_stable"
   | "te_premium_lock"
-  | "trade_capital";
+  | "trade_capital"
+  | "sustained_contender"
+  | "zero_rb";
 
-export type LaneAxis = "horizon" | "archetype";
+export type LaneAxis = "horizon" | "archetype" | "composite";
 
 /** Player shape consumed by lane scoring. Stable across surfaces. */
 export type PlayerForLane = {
@@ -77,4 +79,12 @@ export type LaneMembership = {
   contributors: LaneScoreEntry[];
   /** Set only when state === "close": names the gap and move type. */
   gap: { description: string; move_type: GapMoveType } | null;
+  /**
+   * True for COMPOSITE lanes (Sustained Contender, Zero-RB) that are
+   * derived from base lane memberships rather than per-player scoring.
+   * The UI should render these distinctly: aggregate_score is a
+   * condition-count, not a value sum, and contributors are pulled
+   * from constituent base lanes.
+   */
+  is_derived: boolean;
 };

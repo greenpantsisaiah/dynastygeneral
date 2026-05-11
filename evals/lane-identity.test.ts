@@ -9,13 +9,13 @@
  *   1. Each lane fires HIGH for archetype-fitting players.
  *   2. Each lane fires 0 for clearly-not-fitting players.
  *   3. Format gating: TE-Premium Lock only in TE-premium leagues.
- *   4. Format gating: QB Cartel only in SF leagues.
+ *   4. Format gating: QB Stable only in SF leagues.
  *   5. Roster aggregator classifies IN / CLOSE / NOT_IN correctly.
  *   6. Gap description fires only when state === "close".
  *   7. Multi-membership: a single player contributes to multiple
  *      lanes simultaneously (the Venn picture).
  *   8. Founder's 2026-05-11 Finders Keepers draft retroactively
- *      reads as the expected shape: IN for QB Cartel + TE-Premium
+ *      reads as the expected shape: IN for QB Stable + TE-Premium
  *      Lock + Future Stock + Trade Capital, CLOSE-or-better on
  *      Win-Now Floor + WR Stable, NOT_IN on RB Bellcow + Balanced.
  */
@@ -152,9 +152,15 @@ console.log("\nLane Identity regression\n");
     bijanScores.win_now_floor >= 60,
     `got ${bijanScores.win_now_floor}`,
   );
+  // Bijan at age 23 is an ANCHOR, not consolidation fodder. The
+  // audit-driven eligibility restriction on trade_capital (age >= 25
+  // OR scarce-pos rookie at value >= 50) correctly excludes anchor-
+  // tier young assets. Bijan counts on rb_bellcow + win_now_floor;
+  // he doesn't count on trade_capital because you wouldn't trade
+  // your bellcow as "depth."
   check(
-    "Bijan scores 30+ on trade_capital",
-    bijanScores.trade_capital >= 30,
+    "Bijan (age 23 RB anchor) scores 0 on trade_capital (not consolidation fodder)",
+    bijanScores.trade_capital === 0,
     `got ${bijanScores.trade_capital}`,
   );
 
@@ -220,7 +226,9 @@ console.log("\nLane Identity regression\n");
     `got ${scores.win_now_floor}`,
   );
 
-  // Aged-out vet falls outside the age band entirely.
+  // Aged-out vet under position-aware QB curve: age 37-38 still
+  // contributes (0.6x band), per sliding-scale principle. A deep-
+  // bench QB is not zero, just small.
   const oldQbBackup = mkPlayer({
     id: "oldqb",
     position: "QB",
@@ -230,9 +238,21 @@ console.log("\nLane Identity regression\n");
   });
   const oldScores = scorePlayerPerLane(oldQbBackup, ctx);
   check(
-    "Age 38 QB scores 0 on win_now_floor (outside age band)",
-    oldScores.win_now_floor === 0,
+    "Age 38 QB (low value) contributes small win_now_floor (sliding scale + position-aware)",
+    oldScores.win_now_floor >= 1 && oldScores.win_now_floor < 20,
     `got ${oldScores.win_now_floor}`,
+  );
+  // Truly outside the QB age band (age 39+) returns 0.
+  const ancientQb = mkPlayer({
+    id: "ancientqb",
+    position: "QB",
+    age: 41,
+    years_exp: 19,
+    value: 40,
+  });
+  check(
+    "Age 41 QB (past curve) scores 0 on win_now_floor",
+    scorePlayerPerLane(ancientQb, ctx).win_now_floor === 0,
   );
 
   // Sliding-scale specifics: each tier produces a meaningful gradient.
@@ -292,7 +312,7 @@ console.log("\nLane Identity regression\n");
   const sf = snap({ format: "superflex", scoring: ["PPR"] });
   const tePremiumNonSf = snap({ format: "1qb", scoring: ["PPR", "TE-premium"] });
 
-  // QB Cartel should only contribute in SF
+  // QB Stable should only contribute in SF
   const qb = mkPlayer({
     id: "qb",
     position: "QB",
@@ -301,12 +321,12 @@ console.log("\nLane Identity regression\n");
     value: 80,
   });
   check(
-    "qb_cartel scores 0 in 1QB format",
-    scorePlayerPerLane(qb, nonSf).qb_cartel === 0,
+    "qb_stable scores 0 in 1QB format",
+    scorePlayerPerLane(qb, nonSf).qb_stable === 0,
   );
   check(
-    "qb_cartel scores high in SF format",
-    scorePlayerPerLane(qb, sf).qb_cartel >= 70,
+    "qb_stable scores high in SF format",
+    scorePlayerPerLane(qb, sf).qb_stable >= 70,
   );
 
   // TE-Premium Lock should only contribute in TE-premium
@@ -701,9 +721,9 @@ console.log("\nLane Identity regression\n");
     memberships.find((m) => m.lane_id === id)!;
 
   check(
-    "QB Cartel: IN (2 elite QBs + 3 stash in SF)",
-    get("qb_cartel").state === "in",
-    `state=${get("qb_cartel").state} agg=${get("qb_cartel").aggregate_score}`,
+    "QB Stable: IN (2 elite QBs + 3 stash in SF)",
+    get("qb_stable").state === "in",
+    `state=${get("qb_stable").state} agg=${get("qb_stable").aggregate_score}`,
   );
   check(
     "TE-Premium Lock: IN (Warren + Andrews + Sadiq + Stowers in TE-premium)",
@@ -715,14 +735,23 @@ console.log("\nLane Identity regression\n");
     get("future_stock").state === "in",
     `state=${get("future_stock").state} agg=${get("future_stock").aggregate_score}`,
   );
+  // Trade Capital threshold restored to 440 and eligibility restricted
+  // to age >= 25 (or scarce-position rookie at value >= 50). Founder's
+  // roster now reads CLOSE on Trade Capital, which is the audit-honest
+  // read (sample-of-1 threshold-fitting at 420 was indefensible).
   check(
-    "Trade Capital: IN (multi-asset KTC depth)",
-    get("trade_capital").state === "in",
+    "Trade Capital: CLOSE (eligibility restriction excludes young assets)",
+    get("trade_capital").state === "close",
     `state=${get("trade_capital").state} agg=${get("trade_capital").aggregate_score}`,
   );
+  // Win-Now Floor shifted to IN with position-aware age curves: QBs
+  // 29-30 (Lamar, Mahomes) now score at full peak-band weight instead
+  // of 0.85x, which lifts the sum by ~25 points. The honest read is
+  // the math says IN. The prior CLOSE was an artifact of the flat
+  // age curve underpricing veteran QBs.
   check(
-    "Win-Now Floor: CLOSE or worse (barbell roster: 3 elite vets, depth-thin)",
-    get("win_now_floor").state !== "in",
+    "Win-Now Floor: IN (position-aware QB curve corrects prior under-pricing)",
+    get("win_now_floor").state === "in",
     `state=${get("win_now_floor").state} agg=${get("win_now_floor").aggregate_score}`,
   );
   check(
@@ -735,10 +764,291 @@ console.log("\nLane Identity regression\n");
     get("wr_anchor").state === "in",
     `state=${get("wr_anchor").state} agg=${get("wr_anchor").aggregate_score}`,
   );
+  // Position-aware balanced bands (audit B.3) include more of the
+  // roster than the prior flat 23-27 cap. The founder actually HAS
+  // 5 prime-age value-40+ producers: Chase (WR 26), Lamar (QB 29),
+  // Mahomes (QB 30), McConkey (WR 23), Andrews (TE 30). The earlier
+  // "barbell" mental model under-counted the elite-vet prime band.
   check(
-    "Balanced: NOT_IN (barbell, no prime-age depth)",
-    get("balanced").state === "not_in",
+    "Balanced: IN (position-aware bands credit elite prime-age vets)",
+    get("balanced").state === "in",
     `state=${get("balanced").state} agg=${get("balanced").aggregate_score}`,
+  );
+
+  // Derived lanes
+  check(
+    "Sustained Contender: IN (win-now + future + archetype anchor all met)",
+    get("sustained_contender").state === "in",
+    `state=${get("sustained_contender").state} agg=${get("sustained_contender").aggregate_score}`,
+  );
+  check(
+    "Sustained Contender is flagged as derived",
+    get("sustained_contender").is_derived === true,
+  );
+  // Zero-RB derived: rb_bellcow=not_in + wr_stable state determines.
+  // Founder's WR room (Chase + McConkey + thin) doesn't clear WR
+  // Stable IN; should land NOT_IN or CLOSE on Zero-RB.
+  check(
+    "Zero-RB: NOT_IN (WR Stable not strong enough to call it a deliberate strategy)",
+    get("zero_rb").state !== "in",
+    `state=${get("zero_rb").state}`,
+  );
+}
+
+// 9. Position-aware age curves correct prior position-blind pricing
+{
+  console.log("── 9. position-aware age curves ──");
+  const ctx = snap();
+  const qb29 = mkPlayer({
+    id: "qb29",
+    position: "QB",
+    age: 29,
+    years_exp: 8,
+    value: 75,
+  });
+  const rb29 = mkPlayer({
+    id: "rb29",
+    position: "RB",
+    age: 29,
+    years_exp: 8,
+    value: 75,
+  });
+  const wr30 = mkPlayer({
+    id: "wr30",
+    position: "WR",
+    age: 30,
+    years_exp: 8,
+    value: 75,
+  });
+  const qbScore = scorePlayerPerLane(qb29, ctx).win_now_floor;
+  const rbScore = scorePlayerPerLane(rb29, ctx).win_now_floor;
+  const wrScore = scorePlayerPerLane(wr30, ctx).win_now_floor;
+  // Same value, different positions. QB at 29 is in peak band (26-33);
+  // RB at 29 is in cliff (0.5x); WR at 30 is at edge (0.85x).
+  check(
+    "QB age 29 contributes 50%+ MORE than RB age 29 at same value",
+    qbScore >= rbScore * 1.5,
+    `QB=${qbScore} RB=${rbScore}`,
+  );
+  check(
+    "WR age 30 contributes more than RB age 29 at same value",
+    wrScore > rbScore,
+    `WR=${wrScore} RB=${rbScore}`,
+  );
+  // Age 23 WR not rookie, value 60. WR band 23 = 0.85x.
+  // Age 28 WR not rookie, value 60. WR band 24-29 = 1.0x.
+  const wr23 = mkPlayer({
+    id: "wr23",
+    position: "WR",
+    age: 23,
+    years_exp: 1,
+    value: 60,
+  });
+  const wr28 = mkPlayer({
+    id: "wr28",
+    position: "WR",
+    age: 28,
+    years_exp: 6,
+    value: 60,
+  });
+  const s23 = scorePlayerPerLane(wr23, ctx).win_now_floor;
+  const s28 = scorePlayerPerLane(wr28, ctx).win_now_floor;
+  check(
+    "WR age 28 (peak band) scores higher than WR age 23 (year-1) at same value",
+    s28 > s23,
+    `28=${s28} 23=${s23}`,
+  );
+  // Age 28 WR also contributes to balanced (the prior bug excluded
+  // age 28 across positions, creating a 50-point cliff inside WR
+  // prime).
+  const balanced28 = scorePlayerPerLane(wr28, ctx).balanced;
+  check(
+    "WR age 28 contributes to balanced (audit B.3 fix)",
+    balanced28 > 0,
+    `balanced=${balanced28}`,
+  );
+}
+
+// 10. Format-size scaling
+{
+  console.log("── 10. format-size scaling ──");
+  // 12-team SF baseline: factor 1.0
+  const sf12 = snap({
+    format: "superflex",
+    total_teams: 12,
+  });
+  // 10-team 1QB with 8 starters: factor (10/12) * (8/9) ≈ 0.74
+  const team10 = snap({
+    format: "1qb",
+    scoring: ["PPR"],
+    total_teams: 10,
+    starter_slots: {
+      hard: { QB: 1, RB: 2, WR: 2, TE: 1, K: 0, DST: 0 },
+      flex: 2,
+      superflex: 0,
+      rec_flex: 0,
+      bench: 8,
+    },
+  });
+
+  // Build a synthetic roster that lands at aggregate 380 on win-now-floor.
+  // Under 12-team SF (threshold 480) -> CLOSE.
+  // Under 10-team 1QB (threshold ~355) -> IN.
+  const playerIds = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+  const lookup = (id: string): PlayerMeta => ({
+    name: id,
+    position: "WR",
+    team: "X",
+    age: 26,
+    years_exp: 5,
+    is_rookie: false,
+    search_rank: 30,
+  });
+  // 9 WRs each at value 47 (post-curve: (47-10)*1.176 = 43.5; round 44).
+  // Sum top-9 ≈ 396.
+  const valueMap = new Map<string, PlayerValueRecord>();
+  for (const id of playerIds) {
+    valueMap.set(id, { value: 47, overall_rank: 30 });
+  }
+
+  const m12 = aggregateRosterIdentity({
+    playerIds,
+    playerLookup: lookup,
+    playerValueMap: valueMap,
+    snap: sf12,
+  });
+  const m10 = aggregateRosterIdentity({
+    playerIds,
+    playerLookup: lookup,
+    playerValueMap: valueMap,
+    snap: team10,
+  });
+
+  const wnf12 = m12.find((m) => m.lane_id === "win_now_floor")!;
+  const wnf10 = m10.find((m) => m.lane_id === "win_now_floor")!;
+
+  check(
+    "win-now-floor IN threshold scales with format (12-team SF higher than 10-team 1QB)",
+    wnf12.in_threshold > wnf10.in_threshold,
+    `12-team=${wnf12.in_threshold} 10-team=${wnf10.in_threshold}`,
+  );
+  check(
+    "Same roster shape can be IN in 10-team, CLOSE in 12-team SF",
+    wnf12.state !== "in" && wnf10.state === "in",
+    `12-team=${wnf12.state} 10-team=${wnf10.state}`,
+  );
+}
+
+// 11. WR Stable uniformity guard (audit B.8)
+{
+  console.log("── 11. WR Stable uniformity guard ──");
+  const ctx = snap({ format: "1qb", scoring: ["PPR"] });
+  // Anchor-plus-fillers: one WR1 at 100, two fillers at 40 each.
+  // Sum = 100 + 40 + 40 = 180 (passes sum threshold) but min is 40
+  // (fails min-45 uniformity). Should NOT classify as IN.
+  const valueMap = new Map<string, PlayerValueRecord>([
+    ["anchor", { value: 95, overall_rank: 1 }],
+    ["filler1", { value: 40, overall_rank: 60 }],
+    ["filler2", { value: 40, overall_rank: 61 }],
+  ]);
+  const lookup = (id: string): PlayerMeta => ({
+    name: id,
+    position: "WR",
+    team: "X",
+    age: 26,
+    years_exp: 5,
+    is_rookie: false,
+    search_rank: id === "anchor" ? 1 : 60,
+  });
+  const memberships = aggregateRosterIdentity({
+    playerIds: ["anchor", "filler1", "filler2"],
+    playerLookup: lookup,
+    playerValueMap: valueMap,
+    snap: ctx,
+  });
+  const wrStable = memberships.find((m) => m.lane_id === "wr_stable")!;
+  check(
+    "Anchor + 2 fillers does NOT classify as WR Stable IN (uniformity guard)",
+    wrStable.state !== "in",
+    `state=${wrStable.state} agg=${wrStable.aggregate_score}`,
+  );
+}
+
+// 12. Trade Capital eligibility restriction
+{
+  console.log("── 12. Trade Capital eligibility ──");
+  const ctx = snap();
+  // Young non-rookie (age 23, year-2): should NOT count toward trade
+  // capital (excluded so it doesn't double-count Future Stock).
+  const youngVet = mkPlayer({
+    id: "young",
+    position: "WR",
+    age: 23,
+    years_exp: 1,
+    is_rookie: false,
+    value: 60,
+  });
+  check(
+    "Young non-rookie (age 23) excluded from trade_capital (overlap fix)",
+    scorePlayerPerLane(youngVet, ctx).trade_capital === 0,
+  );
+  // Mature vet (age 26): full trade_capital contribution.
+  const matureVet = mkPlayer({
+    id: "mature",
+    position: "WR",
+    age: 26,
+    years_exp: 4,
+    is_rookie: false,
+    value: 60,
+  });
+  check(
+    "Mature vet (age 26) contributes to trade_capital",
+    scorePlayerPerLane(matureVet, ctx).trade_capital > 0,
+  );
+  // Scarce-pos rookie (TE in TE-premium) at value 50+: exception
+  // applies; tradeable.
+  const scarceRookie = mkPlayer({
+    id: "scarce_rookie",
+    position: "TE",
+    age: 21,
+    years_exp: 0,
+    is_rookie: true,
+    value: 55,
+  });
+  check(
+    "Scarce-pos rookie TE in TE-premium (value 50+) DOES count in trade_capital",
+    scorePlayerPerLane(scarceRookie, ctx).trade_capital > 0,
+  );
+}
+
+// 13. Derived lane: Sustained Contender + Zero-RB shape checks
+{
+  console.log("── 13. derived lane composition ──");
+  const ctx = snap({ format: "1qb", scoring: ["PPR"] });
+  // Empty roster: every base lane NOT_IN. Sustained Contender NOT_IN.
+  const empty = aggregateRosterIdentity({
+    playerIds: [],
+    playerLookup: () => null,
+    playerValueMap: new Map(),
+    snap: ctx,
+  });
+  const sc = empty.find((m) => m.lane_id === "sustained_contender")!;
+  const zr = empty.find((m) => m.lane_id === "zero_rb")!;
+  check(
+    "Sustained Contender NOT_IN on empty roster",
+    sc.state === "not_in",
+  );
+  check(
+    "Zero-RB NOT_IN on empty roster (no rb_bellcow=not_in WITHOUT a wr stable)",
+    zr.state === "not_in",
+  );
+  check(
+    "Sustained Contender is_derived flag set",
+    sc.is_derived === true,
+  );
+  check(
+    "Zero-RB axis = composite",
+    zr.axis === "composite",
   );
 }
 
@@ -754,8 +1064,8 @@ console.log("\nLane Identity regression\n");
   });
   const ids = new Set(memberships.map((m) => m.lane_id));
   check(
-    "qb_cartel excluded in 1QB format",
-    !ids.has("qb_cartel"),
+    "qb_stable excluded in 1QB format",
+    !ids.has("qb_stable"),
   );
   check(
     "te_premium_lock excluded in non-TE-premium",

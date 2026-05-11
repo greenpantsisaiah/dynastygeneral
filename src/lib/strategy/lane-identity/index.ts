@@ -6,7 +6,14 @@ export type {
   PlayerForLane,
   GapMoveType,
 } from "./types";
-export { LANE_SPECS, laneSpec, type LaneSpec } from "./lanes";
+export {
+  LANE_SPECS,
+  laneSpec,
+  formatScaleFactor,
+  TOP_K_MIN_BY_LANE,
+  type LaneSpec,
+} from "./lanes";
+export { DERIVED_LANE_SPECS, type DerivedLaneSpec } from "./derived";
 export {
   scorePlayerPerLane,
   aggregateRosterIdentity,
