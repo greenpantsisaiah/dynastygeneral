@@ -19,6 +19,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { RosterLaneIdentity } from "@/components/league/roster-lane-identity";
+import type {
+  IdentityMove,
+  LaneMembership,
+} from "@/lib/strategy/lane-identity";
 
 export type LeagueMoment = {
   pick_no: number;
@@ -66,6 +71,14 @@ export type AarServerData = {
   is_superflex: boolean;
   league_steals: LeagueMoment[];
   league_swings: LeagueMoment[];
+  /**
+   * Roster-shape lane identity (audit pass 4 rewrite). The verdict
+   * block reads these instead of synthesizing a grade letter +
+   * doctrine-drift framing. Lane memberships are descriptive, not
+   * evaluative; identity moves give the post-draft monitor surface.
+   */
+  lane_memberships: LaneMembership[];
+  lane_moves: IdentityMove[];
 };
 
 type HistoryEntry = {
@@ -99,132 +112,36 @@ function readHistory(leagueId: string): StoredHistory {
   }
 }
 
-type GradeBreakdown = {
-  letter: string;
-  score: number;
-  tagline: string;
-  components: {
-    talent: number;
-    win_now_pct: number;
-    future_pct: number;
-    coherence: number;
-    drift: number;
-    pickValue: number;
-    totalAdpDelta: number;
-    completeness: number;
-    missingPositions: number;
-  };
-};
-
-function computeGrade(data: AarServerData): GradeBreakdown {
-  // Talent percentile combines win-now AND future ranks. A team
-  // that's elite across both windows (top of league in both)
-  // outperforms a team that's elite in one and weak in the other.
-  // Win-now weighted slightly more (60/40) since the immediate
-  // season is what the user feels most.
-  const winNowPct =
-    data.totalTeams > 1
-      ? 1 - (data.win_now_rank - 1) / (data.totalTeams - 1)
-      : 0.5;
-  const futurePct =
-    data.totalTeams > 1
-      ? 1 - (data.future_rank - 1) / (data.totalTeams - 1)
-      : 0.5;
-  const talent = 0.6 * winNowPct + 0.4 * futurePct;
-
-  // Doctrine coherence. Reduced weight per founder feedback
-  // 2026-04-30: a 3rd-of-12 win-now / 2nd-of-12 future team should
-  // not get dropped a full grade tier just because their late-round
-  // bench skewed the trajectory chip toward "Future Build" while
-  // the dial said "Win-Now." The trajectory algorithm counts every
-  // pick equally, which over-rotates in 25-round drafts where
-  // late picks are heavily rookie/young by design.
-  const buildHorizon =
-    data.build_label === "Future Build"
-      ? 60
-      : data.build_label === "Future Lean"
-        ? 30
-        : data.build_label === "Win-Now Build"
-          ? -60
-          : data.build_label === "Win-Now Lean"
-            ? -30
-            : 0;
-  const drift = Math.abs(data.declared_horizon - buildHorizon);
-  const coherence = Math.max(0, 1 - drift / 150);
-
-  const totalDelta = data.picks.reduce(
-    (s, p) => s + (p.adp_delta ?? 0),
-    0,
+/**
+ * Compose a one-line shape headline from lane memberships. Names the
+ * dominant identity (e.g., "Sustained Contender" if that composite is
+ * IN; "Future-Loaded Builder" if Future Stock + Trade Capital IN; etc.)
+ * Replaces the prior grade-letter + tagline framing that scored the
+ * roster against a declared window the user never explicitly declared
+ * (audit pass 4 / founder direction 2026-05-11).
+ */
+function composeShapeHeadline(memberships: LaneMembership[]): string {
+  const inIds = new Set<string>(
+    memberships.filter((m) => m.state === "in").map((m) => m.lane_id),
   );
-  const pickValue = 1 / (1 + Math.exp(-totalDelta / 50));
-
-  const hasQB = data.picks.some((p) => p.position === "QB");
-  const hasRB = data.picks.some((p) => p.position === "RB");
-  const hasWR = data.picks.some((p) => p.position === "WR");
-  const hasTE = data.picks.some((p) => p.position === "TE");
-  const missingCount =
-    (hasQB ? 0 : 1) + (hasRB ? 0 : 1) + (hasWR ? 0 : 1) + (hasTE ? 0 : 1);
-  const completeness = Math.max(0, 1 - missingCount * 0.25);
-
-  // Weight rebalance 2026-04-30: result (talent) is the dominant
-  // signal. Pick value comes second. Coherence and completeness
-  // are situational modifiers. Total = 1.0.
-  const composite =
-    0.55 * talent +
-    0.25 * pickValue +
-    0.1 * coherence +
-    0.1 * completeness;
-  const letter =
-    composite >= 0.9
-      ? "A"
-      : composite >= 0.85
-        ? "A-"
-        : composite >= 0.8
-          ? "B+"
-          : composite >= 0.75
-            ? "B"
-            : composite >= 0.7
-              ? "B-"
-              : composite >= 0.65
-                ? "C+"
-                : composite >= 0.6
-                  ? "C"
-                  : composite >= 0.55
-                    ? "C-"
-                    : "D";
-  const tagline = (() => {
-    const tier = data.win_now_rank;
-    const half = Math.ceil(data.totalTeams / 2);
-    if (data.build_label.includes("Win-Now") && tier <= 4)
-      return "Loaded Contender";
-    if (data.build_label.includes("Win-Now") && tier > half)
-      return "Win-Now Effort, Roster Behind";
-    if (data.build_label.includes("Future") && tier > half)
-      return "Patient Rebuilder";
-    if (data.build_label.includes("Future") && tier <= 4)
-      return "Future-Tilted Contender";
-    if (data.build_label.includes("Future") && tier <= half)
-      return "Patient Contender";
-    if (tier <= 4) return "Balanced Contender";
-    if (tier > half) return "Mid-Pack, Real Path Forward";
-    return "Balanced Build";
-  })();
-  return {
-    letter,
-    score: composite,
-    tagline,
-    components: {
-      talent,
-      win_now_pct: winNowPct,
-      future_pct: futurePct,
-      coherence,
-      drift,
-      pickValue,
-      totalAdpDelta: totalDelta,
-      completeness,
-      missingPositions: missingCount,
-    },
-  };
+  const has = (id: string) => inIds.has(id);
+  if (has("sustained_contender")) return "Sustained Contender";
+  if (has("win_now_floor") && has("wr_anchor") && has("rb_bellcow")) {
+    return "Loaded Contender";
+  }
+  if (has("zero_rb")) return "Zero-RB Build";
+  if (has("future_stock") && has("trade_capital") && !has("win_now_floor")) {
+    return "Patient Builder";
+  }
+  if (has("win_now_floor") && !has("future_stock")) {
+    return "Win-Now Tilt";
+  }
+  if (has("future_stock") && !has("win_now_floor")) {
+    return "Future Tilt";
+  }
+  if (has("balanced")) return "Balanced Build";
+  if (inIds.size === 0) return "Roster Forming";
+  return "Mixed Build";
 }
 
 function pickEngineCallFor(
@@ -297,62 +214,6 @@ function ordinal(n: number): string {
   return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
 }
 
-function heroVerdictCopy(
-  data: AarServerData,
-  grade: { letter: string; score: number; tagline: string },
-): string {
-  const half = Math.ceil(data.totalTeams / 2);
-  const isContenderTier = data.win_now_rank <= 4;
-  const isMidPack = data.win_now_rank > 4 && data.win_now_rank <= half;
-  const isBackHalf = data.win_now_rank > half;
-  const isFutureLoaded = data.future_rank <= 4;
-  const isWinNowDoctrine = data.declared_horizon < -20;
-  const isFutureDoctrine = data.declared_horizon > 20;
-
-  const positionLine = isContenderTier
-    ? "You're in the contender tier."
-    : isMidPack
-      ? "You're in the middle of the league with a real path forward."
-      : isBackHalf
-        ? "You're in the back half on win-now, but the future is the play."
-        : "You drafted into a contender window.";
-
-  const futureLine = isFutureLoaded
-    ? " Future is stocked; you can buy now or hold for 2027."
-    : data.future_rank > half
-      ? " Future is thin; trades to refresh youth matter mid-season."
-      : "";
-
-  const buildHorizon =
-    data.build_label === "Future Build"
-      ? 60
-      : data.build_label === "Future Lean"
-        ? 30
-        : data.build_label === "Win-Now Build"
-          ? -60
-          : data.build_label === "Win-Now Lean"
-            ? -30
-            : 0;
-  const drift = Math.abs(data.declared_horizon - buildHorizon);
-  const doctrineLine =
-    drift >= 60
-      ? ` Doctrine drift: you said ${
-          isWinNowDoctrine ? "Win-Now" : isFutureDoctrine ? "Future" : "Balanced"
-        }, you drafted ${data.build_label}. Tighten one or the other.`
-      : data.declared_horizon === 0 && data.build_label !== "Balanced Build"
-        ? ""
-        : " Doctrine and behavior are aligned; play it forward.";
-
-  const valueLine =
-    grade.letter[0] === "A"
-      ? "extracted the available value"
-      : grade.letter[0] === "B"
-        ? "got most of the available value"
-        : "left value on the table";
-
-  return `${positionLine}${futureLine}${doctrineLine} You ${valueLine} given the league you drew. The next 4 months are about converting variance into floor.`;
-}
-
 export function AarReport({
   data,
   diagnose = false,
@@ -371,94 +232,63 @@ export function AarReport({
     setHistory(readHistory(data.leagueId));
   }, [data.leagueId]);
 
-  const grade = computeGrade(data);
   const topPicks = mounted ? topPicksOf(data.picks, history) : [];
   const whiffs = mounted ? whiffPicksOf(data.picks) : [];
 
-  const buildHorizon =
-    data.build_label === "Future Build"
-      ? 60
-      : data.build_label === "Future Lean"
-        ? 30
-        : data.build_label === "Win-Now Build"
-          ? -60
-          : data.build_label === "Win-Now Lean"
-            ? -30
-            : 0;
-  const horizonDrift = Math.abs(data.declared_horizon - buildHorizon);
-  const driftIsSignificant = horizonDrift >= 60;
+  const inCount = data.lane_memberships.filter((m) => m.state === "in").length;
+  const closeCount = data.lane_memberships.filter(
+    (m) => m.state === "close",
+  ).length;
+  const shapeHeadline = composeShapeHeadline(data.lane_memberships);
 
   return (
     <div className="mt-6 space-y-12">
       <section className="rounded-xl border-2 border-accent/60 bg-surface px-6 py-8">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          The verdict
+          Roster shape
         </div>
-        <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-2">
-          <div className="text-7xl font-bold tracking-tight text-accent">
-            {grade.letter}
+        <div className="mt-2 flex flex-col gap-3">
+          <div className="text-2xl font-semibold tracking-tight text-foreground">
+            {shapeHeadline}
           </div>
-          <div className="flex flex-col">
-            <div className="text-xl font-semibold text-foreground">
-              {grade.tagline}
-            </div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-              Relative to your league. Win-now rank{" "}
-              <span className="text-foreground">{ordinal(data.win_now_rank)}</span>{" "}
-              of {data.totalTeams}, future rank{" "}
-              <span className="text-foreground">{ordinal(data.future_rank)}</span>
-              .
-            </div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
+            {inCount} lanes in · {closeCount} close ·{" "}
+            <span className="text-foreground">{ordinal(data.win_now_rank)}</span>{" "}
+            of {data.totalTeams} on win-now ·{" "}
+            <span className="text-foreground">{ordinal(data.future_rank)}</span>{" "}
+            on future
           </div>
         </div>
-        <p className="mt-5 max-w-prose text-sm text-foreground leading-relaxed">
-          {heroVerdictCopy(data, grade)}
-        </p>
+        <div className="mt-6">
+          <RosterLaneIdentity
+            memberships={data.lane_memberships}
+            moves={data.lane_moves}
+          />
+        </div>
       </section>
 
       {diagnose && (
         <section className="rounded-md border border-warning/40 bg-warning/5 px-5 py-4">
           <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
-            Diagnose · grade math
+            Diagnose · league math
           </div>
           <div className="mt-3 grid gap-1 font-mono text-[11px] text-foreground sm:grid-cols-2">
             <div>
-              composite score:{" "}
-              <span className="text-accent">
-                {grade.score.toFixed(3)}
-              </span>{" "}
-              → {grade.letter}
+              win-now rank: {data.win_now_rank} of {data.totalTeams} (score{" "}
+              {data.win_now_score.toFixed(1)} vs league mean{" "}
+              {data.league_mean_win_now.toFixed(1)})
             </div>
             <div>
-              talent: {grade.components.talent.toFixed(3)} (win-now{" "}
-              {grade.components.win_now_pct.toFixed(2)} | future{" "}
-              {grade.components.future_pct.toFixed(2)})
+              future rank: {data.future_rank} of {data.totalTeams} (score{" "}
+              {data.future_score.toFixed(1)} vs league mean{" "}
+              {data.league_mean_future.toFixed(1)})
             </div>
+            <div>build trajectory: {data.build_label}</div>
             <div>
-              pickValue: {grade.components.pickValue.toFixed(3)} (total
-              ADP delta {grade.components.totalAdpDelta.toFixed(0)})
+              composition · win-now {data.build_composition.winNow} ·
+              balanced {data.build_composition.balanced} · future{" "}
+              {data.build_composition.future}
             </div>
-            <div>
-              coherence: {grade.components.coherence.toFixed(3)} (drift{" "}
-              {grade.components.drift.toFixed(0)} pts)
-            </div>
-            <div>
-              completeness: {grade.components.completeness.toFixed(3)}{" "}
-              (missing {grade.components.missingPositions} pos)
-            </div>
-            <div>
-              declared horizon: {data.declared_horizon} · build:{" "}
-              {data.build_label}
-            </div>
-          </div>
-          <div className="mt-3 font-mono text-[10px] text-muted-2">
-            weighted contributions · talent 0.55 ·{" "}
-            {(0.55 * grade.components.talent).toFixed(3)} | pickValue 0.25 ·{" "}
-            {(0.25 * grade.components.pickValue).toFixed(3)} |
-            coherence 0.10 ·{" "}
-            {(0.1 * grade.components.coherence).toFixed(3)} |
-            completeness 0.10 ·{" "}
-            {(0.1 * grade.components.completeness).toFixed(3)}
           </div>
         </section>
       )}
@@ -675,30 +505,6 @@ export function AarReport({
             </div>
           </div>
         </div>
-        {driftIsSignificant && (
-          <div className="mt-4 rounded-md border border-warning/40 bg-warning/5 px-4 py-3 text-sm text-foreground">
-            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
-              Doctrine drift ·{" "}
-            </span>
-            You set Horizon{" "}
-            <span className="font-semibold">
-              {data.declared_horizon > 0 ? "+" : ""}
-              {data.declared_horizon}
-            </span>{" "}
-            (
-            {data.declared_horizon > 0
-              ? "Future"
-              : data.declared_horizon < 0
-                ? "Win-Now"
-                : "Balanced"}
-            ) on the Soundboard. Your build closed at{" "}
-            <span className="font-semibold">{data.build_label}</span>. That's{" "}
-            {horizonDrift} points of drift. Either the dial was a vibe rather
-            than an instruction, or the late-round picks over-corrected. Worth
-            tightening before training camp so your trade behavior matches
-            your doctrine.
-          </div>
-        )}
       </section>
 
       <section>

@@ -21,7 +21,15 @@ import {
   getProjections,
   pickAdpFromVariants,
 } from "@/lib/players/projections";
-import { resolvePlayers } from "@/lib/players/cache";
+import { resolvePlayers, __dumpAllPlayers, humanize } from "@/lib/players/cache";
+import { resolvePlayerValues } from "@/lib/players/values";
+import {
+  aggregateRosterIdentity,
+  identityMoves,
+  type IdentityMove,
+  type LaneMembership,
+  type PlayerMeta as LanePlayerMeta,
+} from "@/lib/strategy/lane-identity";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { AarReport } from "@/components/league/aar-report";
@@ -475,6 +483,60 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     .sort((a, b) => a.adp_delta - b.adp_delta)
     .slice(0, 3);
 
+  // Lane identity + moves for the AAR. Mirrors the hub's compute so
+  // the post-draft view reads the roster shape in the same vocabulary.
+  let aarLaneMemberships: LaneMembership[] = [];
+  let aarLaneMoves: IdentityMove[] = [];
+  try {
+    const valueIds: string[] = [];
+    for (const r of snapshot.rosters) {
+      for (const id of r.player_ids) valueIds.push(id);
+    }
+    const valueMap = await resolvePlayerValues({
+      ids: valueIds,
+      isSuperflex,
+      isPpr,
+      isHalfPpr,
+      isTePremium,
+    });
+    const allPlayers = await __dumpAllPlayers();
+    const playerMetaById = new Map<string, LanePlayerMeta>();
+    for (const p of allPlayers) {
+      const h = humanize(p);
+      playerMetaById.set(p.player_id, {
+        name: h.name,
+        position: h.position,
+        team: h.team,
+        age: h.age,
+        years_exp: h.yearsExp,
+        is_rookie: p.years_exp === 0,
+        search_rank: p.search_rank ?? 9999,
+      });
+    }
+    const lookup = (id: string) => playerMetaById.get(id) ?? null;
+    aarLaneMemberships = aggregateRosterIdentity({
+      playerIds: me.player_ids,
+      playerLookup: lookup,
+      playerValueMap: valueMap,
+      snap: snapshot,
+    });
+    aarLaneMoves = identityMoves({
+      memberships: aarLaneMemberships,
+      myRosterId: me.roster_id,
+      rosters: snapshot.rosters.map((r) => ({
+        roster_id: r.roster_id,
+        owner_name: r.owner_name,
+        player_ids: r.player_ids,
+        is_me: r.is_me,
+      })),
+      playerLookup: lookup,
+      playerValueMap: valueMap,
+      snap: snapshot,
+    });
+  } catch (err) {
+    console.error("[aar:lane-identity]", err);
+  }
+
   const serverData: AarServerData = {
     leagueId,
     leagueName: league.name,
@@ -503,6 +565,8 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     is_superflex: isSuperflex,
     league_steals: steals,
     league_swings: swings,
+    lane_memberships: aarLaneMemberships,
+    lane_moves: aarLaneMoves,
   };
 
   return (

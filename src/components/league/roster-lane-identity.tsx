@@ -18,7 +18,10 @@
  */
 
 import { useState } from "react";
-import type { LaneMembership } from "@/lib/strategy/lane-identity";
+import type {
+  IdentityMove,
+  LaneMembership,
+} from "@/lib/strategy/lane-identity";
 
 const STATE_STYLES = {
   in: {
@@ -52,9 +55,19 @@ const AXIS_LABEL = {
 
 export type RosterLaneIdentityProps = {
   memberships: LaneMembership[];
+  /**
+   * Optional identity-moves data. When present, CLOSE-lane cards
+   * render a "Targets" + "Funding" block beneath the gap line so the
+   * user can see specific opponent-rostered players to trade for and
+   * their own surplus pieces to package.
+   */
+  moves?: IdentityMove[];
 };
 
-export function RosterLaneIdentity({ memberships }: RosterLaneIdentityProps) {
+export function RosterLaneIdentity({
+  memberships,
+  moves = [],
+}: RosterLaneIdentityProps) {
   const [showNotIn, setShowNotIn] = useState(false);
 
   if (memberships.length === 0) return null;
@@ -62,6 +75,8 @@ export function RosterLaneIdentity({ memberships }: RosterLaneIdentityProps) {
   const inLanes = memberships.filter((m) => m.state === "in");
   const closeLanes = memberships.filter((m) => m.state === "close");
   const notInLanes = memberships.filter((m) => m.state === "not_in");
+
+  const movesByLane = new Map(moves.map((m) => [m.lane_id, m]));
 
   return (
     <section
@@ -99,7 +114,11 @@ export function RosterLaneIdentity({ memberships }: RosterLaneIdentityProps) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {closeLanes.map((m) => (
-              <LaneCard key={m.lane_id} membership={m} />
+              <LaneCard
+                key={m.lane_id}
+                membership={m}
+                move={movesByLane.get(m.lane_id)}
+              />
             ))}
           </div>
         </div>
@@ -131,9 +150,11 @@ export function RosterLaneIdentity({ memberships }: RosterLaneIdentityProps) {
 function LaneCard({
   membership: m,
   compact = false,
+  move,
 }: {
   membership: LaneMembership;
   compact?: boolean;
+  move?: IdentityMove;
 }) {
   const style = STATE_STYLES[m.state];
   const contributors = m.contributors.slice(0, compact ? 0 : 5);
@@ -198,6 +219,68 @@ function LaneCard({
           <p className="mt-1 text-[11px] leading-snug text-foreground">
             {m.gap.description}
           </p>
+        </div>
+      )}
+
+      {!compact && move && move.targets.length > 0 && (
+        <div className="mt-2 border-t border-border-soft pt-2">
+          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
+            Targets
+          </div>
+          <div className="mt-1 space-y-1">
+            {move.targets.map((t) => (
+              <div
+                key={t.player_id}
+                className="flex items-baseline justify-between gap-2 text-[11px] leading-tight"
+              >
+                <span className="truncate text-foreground">
+                  {t.name}
+                  {t.position && (
+                    <span className="ml-1 font-mono text-[9px] text-muted-2">
+                      · {t.position}
+                      {t.age != null && ` · age ${t.age}`}
+                    </span>
+                  )}
+                  {t.owner_name && (
+                    <span className="ml-1 font-mono text-[9px] text-muted-2">
+                      on {t.owner_name}
+                    </span>
+                  )}
+                </span>
+                <span className="font-mono text-[10px] text-muted-2">
+                  val {Math.round(t.value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!compact && move && move.funding.length > 0 && (
+        <div className="mt-2 border-t border-border-soft pt-2">
+          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
+            What you can package
+          </div>
+          <div className="mt-1 space-y-1">
+            {move.funding.map((f) => (
+              <div
+                key={f.player_id}
+                className="flex items-baseline justify-between gap-2 text-[11px] leading-tight"
+              >
+                <span className="truncate text-foreground">
+                  {f.name}
+                  {f.position && (
+                    <span className="ml-1 font-mono text-[9px] text-muted-2">
+                      · {f.position}
+                    </span>
+                  )}
+                </span>
+                <span className="font-mono text-[10px] text-muted-2">
+                  val {Math.round(f.value)}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

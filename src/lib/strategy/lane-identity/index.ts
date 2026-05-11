@@ -20,3 +20,9 @@ export {
   type PlayerValueRecord,
   type PlayerMeta,
 } from "./score";
+export {
+  identityMoves,
+  type IdentityMove,
+  type MoveTarget,
+  type FundingPiece,
+} from "./moves";

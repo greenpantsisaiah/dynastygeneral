@@ -93,6 +93,8 @@ import {
 import { RosterLaneIdentity } from "@/components/league/roster-lane-identity";
 import {
   aggregateRosterIdentity,
+  identityMoves,
+  type IdentityMove,
   type LaneMembership,
   type PlayerMeta as LanePlayerMeta,
 } from "@/lib/strategy/lane-identity";
@@ -790,6 +792,7 @@ export default async function LeagueHubPage({
   let draftProgress: DraftProgress | null = null;
   let teamIdentity: TeamIdentity | null = null;
   let rosterLaneMemberships: LaneMembership[] = [];
+  let rosterLaneMoves: IdentityMove[] = [];
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
@@ -965,6 +968,22 @@ export default async function LeagueHubPage({
           };
           rosterLaneMemberships = aggregateRosterIdentity({
             playerIds: me.player_ids,
+            playerLookup: lanePlayerLookup,
+            playerValueMap: lrValueMap,
+            snap: leagueSnapshot,
+          });
+          // Identity moves: for each CLOSE lane, name the specific
+          // opponent-rostered targets + the user's surplus that could
+          // fund the trade. Persistent monitor surface.
+          rosterLaneMoves = identityMoves({
+            memberships: rosterLaneMemberships,
+            myRosterId: me.roster_id,
+            rosters: leagueSnapshot.rosters.map((r) => ({
+              roster_id: r.roster_id,
+              owner_name: r.owner_name,
+              player_ids: r.player_ids,
+              is_me: r.is_me,
+            })),
             playerLookup: lanePlayerLookup,
             playerValueMap: lrValueMap,
             snap: leagueSnapshot,
@@ -1584,7 +1603,10 @@ export default async function LeagueHubPage({
               >
                 {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
                 {rosterLaneMemberships.length > 0 && (
-                  <RosterLaneIdentity memberships={rosterLaneMemberships} />
+                  <RosterLaneIdentity
+                    memberships={rosterLaneMemberships}
+                    moves={rosterLaneMoves}
+                  />
                 )}
                 {inflectionItems.length > 0 && (
                   <InflectionPanel items={inflectionItems} />
