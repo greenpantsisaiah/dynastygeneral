@@ -48,3 +48,4 @@ next-env.d.ts
 # Private founder artifacts (legal correspondence templates, etc.)
 /.private/
 
+cohort.json

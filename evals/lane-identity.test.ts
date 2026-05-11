@@ -427,14 +427,17 @@ console.log("\nLane Identity regression\n");
 {
   console.log("── 5. gap description gated on close state ──");
   const ctx = snap({ format: "1qb", scoring: ["PPR"] });
-  // Two WR2 producers; not enough for WR Stable IN but should be CLOSE.
-  // Per spec: closeThreshold=130, inThreshold=180.
-  // Each WR at value 55 scores: 50 + (55-50)*0.5 = 52.5 → 53.
-  // Three at value 55 would sum to 159 (CLOSE).
+  // Mixed-tier WRs: one WR1.5 + one WR2 + one WR3. Sum lands in the
+  // CLOSE band (100-140). Uniformity check fails (min 27 < 45) but
+  // uniformity only blocks IN, not CLOSE.
+  //   value 70: 50 + (70-50)*0.5 = 60
+  //   value 50: 50
+  //   value 45: 0.6 * 45 = 27
+  //   sum = 137 (CLOSE; in band 100-140)
   const valueMap = new Map<string, PlayerValueRecord>([
-    ["w1", { value: 55, overall_rank: 30 }],
-    ["w2", { value: 55, overall_rank: 31 }],
-    ["w3", { value: 55, overall_rank: 32 }],
+    ["w1", { value: 70, overall_rank: 12 }],
+    ["w2", { value: 50, overall_rank: 30 }],
+    ["w3", { value: 45, overall_rank: 50 }],
   ]);
   const lookup = (id: string): PlayerMeta | null => ({
     name: id,
@@ -454,7 +457,7 @@ console.log("\nLane Identity regression\n");
   });
   const wrStable = memberships.find((m) => m.lane_id === "wr_stable")!;
   check(
-    "WR Stable: 3 WR2s near threshold → state=close",
+    "WR Stable: 3 WRs in mixed tiers, sum 100-140 -> state=close",
     wrStable.state === "close",
     `state=${wrStable.state} agg=${wrStable.aggregate_score}`,
   );
@@ -735,13 +738,13 @@ console.log("\nLane Identity regression\n");
     get("future_stock").state === "in",
     `state=${get("future_stock").state} agg=${get("future_stock").aggregate_score}`,
   );
-  // Trade Capital threshold restored to 440 and eligibility restricted
-  // to age >= 25 (or scarce-position rookie at value >= 50). Founder's
-  // roster now reads CLOSE on Trade Capital, which is the audit-honest
-  // read (sample-of-1 threshold-fitting at 420 was indefensible).
+  // Trade Capital re-calibrated 2026-05-12 against 58-roster cohort
+  // (IN at 190, was 440). Founder's roster sums to 344, comfortably
+  // top quartile across the cohort. State now IN, but on a calibrated
+  // threshold rather than a sample-of-1 fit.
   check(
-    "Trade Capital: CLOSE (eligibility restriction excludes young assets)",
-    get("trade_capital").state === "close",
+    "Trade Capital: IN (top-quartile across cohort under calibrated threshold)",
+    get("trade_capital").state === "in",
     `state=${get("trade_capital").state} agg=${get("trade_capital").aggregate_score}`,
   );
   // Win-Now Floor shifted to IN with position-aware age curves: QBs
@@ -927,14 +930,20 @@ console.log("\nLane Identity regression\n");
   const wnf12 = m12.find((m) => m.lane_id === "win_now_floor")!;
   const wnf10 = m10.find((m) => m.lane_id === "win_now_floor")!;
 
+  // Format-size scaling is DISABLED as of 2026-05-12 calibration:
+  // with only 1 of 5 cohort leagues at 10 teams, we lack statistical
+  // power to validate the scale factor. Thresholds are identical
+  // across formats until the cohort gains more 10-team data. These
+  // assertions document the current state; flip them when scaling
+  // is re-enabled.
   check(
-    "win-now-floor IN threshold scales with format (12-team SF higher than 10-team 1QB)",
-    wnf12.in_threshold > wnf10.in_threshold,
+    "format scaling disabled: same threshold across league sizes",
+    wnf12.in_threshold === wnf10.in_threshold,
     `12-team=${wnf12.in_threshold} 10-team=${wnf10.in_threshold}`,
   );
   check(
-    "Same roster shape can be IN in 10-team, CLOSE in 12-team SF",
-    wnf12.state !== "in" && wnf10.state === "in",
+    "same roster shape classifies identically regardless of league size (scaling off)",
+    wnf12.state === wnf10.state,
     `12-team=${wnf12.state} 10-team=${wnf10.state}`,
   );
 }

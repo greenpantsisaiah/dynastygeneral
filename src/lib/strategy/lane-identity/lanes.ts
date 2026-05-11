@@ -10,14 +10,16 @@
  *     bar)
  *   - gap describer that returns a precise close-gap line
  *
- * Calibration disclosure (2026-05-12 assumption audit):
- *   All thresholds are CALIBRATION TARGETS. Defaults were tuned against
- *   a single 12-team SF TE-premium dynasty draft (founder's 2026-05-11
- *   Finders Keepers AAR). Until a reference roster cohort (3 known
- *   contenders, 3 mid-pack, 3 known rebuilders from public KTC rankings)
- *   is added to the test fixtures, treat threshold drift suggestions
- *   with suspicion: a threshold tuned to one example has zero degrees
- *   of freedom in cross-validation.
+ * Calibration provenance (2026-05-12):
+ *   Thresholds are calibrated against a 58-roster cohort across 5
+ *   active dynasty/keeper leagues spanning superflex / 1QB and
+ *   TE-premium / non-TE-premium scoring. The cohort-build script
+ *   lives at `scripts/build-cohort.ts`; the distribution analysis
+ *   lives at `scripts/analyze-cohort.ts`. Re-run both whenever
+ *   thresholds drift or new leagues join the cohort. Format-size
+ *   scaling has been DROPPED at this stage: with only 1 of 5
+ *   leagues at 10 teams, we lack statistical power to validate the
+ *   factor. Add it back when the cohort gains 10-team data points.
  *
  * Position-aware age curves (2026-05-12 assumption audit):
  *   Floor / balanced / bellcow scoring honors position-specific age
@@ -191,11 +193,13 @@ const WIN_NOW_FLOOR: LaneSpec = {
   axis: "horizon",
   appliesTo: ALL_FORMATS,
   topK: 9,
-  // CALIBRATION TARGET: sample-of-1 (Finders Keepers 2026-05-11).
-  // Awaits beta-roster cohort for cross-validation.
-  inThreshold: 480,
-  closeThreshold: 340,
-  formatScales: true,
+  // Calibrated 2026-05-12 against 58-roster cohort (5 leagues, mixed
+  // formats). Cohort p75 = 321; setting IN ~300 produces a ~25% IN
+  // rate which matches the dynasty intuition that roughly a quarter
+  // of any league has a real win-now floor right now.
+  inThreshold: 300,
+  closeThreshold: 200,
+  formatScales: false,
   scorePlayer(p, snap) {
     // Sliding scale, not a binary cutoff. A WR3 / RB3 fills in on
     // bye weeks and injuries; they're part of the floor even if
@@ -236,10 +240,11 @@ const BALANCED: LaneSpec = {
   axis: "horizon",
   appliesTo: ALL_FORMATS,
   topK: 6,
-  // CALIBRATION TARGET: sample-of-1.
-  inThreshold: 320,
-  closeThreshold: 220,
-  formatScales: true,
+  // Calibrated 2026-05-12 against 58-roster cohort. Cohort p75 = 243;
+  // IN at 240 produces ~25% IN rate.
+  inThreshold: 240,
+  closeThreshold: 160,
+  formatScales: false,
   scorePlayer(p) {
     if (p.is_rookie) return 0;
     if (p.age == null) return 0;
@@ -269,13 +274,14 @@ const FUTURE_STOCK: LaneSpec = {
   axis: "horizon",
   appliesTo: ALL_FORMATS,
   topK: 8,
-  // CALIBRATION TARGET: sample-of-1. Audit C.4 flagged that
-  // future-stock is structurally easier to accumulate than win-now-floor,
-  // so parity-thresholding (480/340) may under-flag future-stock
-  // strength. Raised modestly from prior 480/340 to 540/380.
-  inThreshold: 540,
-  closeThreshold: 380,
-  formatScales: true,
+  // Calibrated 2026-05-12 against 58-roster cohort. Prior thresholds
+  // (540/380) produced 0% IN rate; cohort p75 = 342. IN at 320
+  // produces ~25% IN rate. The audit's worry that future-stock was
+  // structurally easier to accumulate was right in DIRECTION but the
+  // raised thresholds over-corrected; calibration data wins.
+  inThreshold: 320,
+  closeThreshold: 200,
+  formatScales: false,
   scorePlayer(p) {
     const value = p.value ?? 0;
     if (p.is_rookie) {
@@ -317,7 +323,8 @@ const RB_BELLCOW: LaneSpec = {
   axis: "archetype",
   appliesTo: ALL_FORMATS,
   topK: 1,
-  // CALIBRATION TARGET: per-tier intuition, not data-validated.
+  // Cohort-validated 2026-05-12: 22% IN rate is healthy (~1-2 of 12
+  // teams have a true bellcow); thresholds unchanged.
   inThreshold: 75,
   closeThreshold: 50,
   formatScales: false,
@@ -357,9 +364,8 @@ const WR_ANCHOR: LaneSpec = {
   axis: "archetype",
   appliesTo: ALL_FORMATS,
   topK: 1,
-  // CALIBRATION TARGET. Floor raised from 60 to 70 per audit B.7:
-  // value 60 mapped to WR12-WR18 tier, which is solid WR1 but not
-  // anchor. Anchor is WR1-WR8 (value 75+).
+  // Cohort-validated 2026-05-12: 22% IN rate is healthy; thresholds
+  // unchanged. Floor at value 70 per audit B.7 (anchor = WR1-WR8 tier).
   inThreshold: 80,
   closeThreshold: 55,
   formatScales: false,
@@ -387,11 +393,13 @@ const WR_STABLE: LaneSpec = {
   axis: "archetype",
   appliesTo: ALL_FORMATS,
   topK: 3,
-  // CALIBRATION TARGET. Per audit B.8, the lane requires uniform
-  // contribution. Aggregator enforces min-of-top-3 ≥ 45 alongside
-  // the sum threshold (logic in score.ts:computeMembership).
-  inThreshold: 180,
-  closeThreshold: 130,
+  // Calibrated 2026-05-12: WR Stable IN rate at 180 was 2% (too
+  // tight; only one truly stable room in cohort). Cohort median 73,
+  // p75 95. Lowering to 140/100 produces ~10-15% IN, which matches
+  // dynasty intuition that 1-2 of 12 teams have genuine WR depth.
+  // Min-of-top-3 uniformity guard preserved (no anchor-plus-fillers).
+  inThreshold: 140,
+  closeThreshold: 100,
   formatScales: false,
   scorePlayer(p) {
     if (p.position !== "WR") return 0;
@@ -420,9 +428,12 @@ const QB_STABLE: LaneSpec = {
   axis: "archetype",
   appliesTo: SUPERFLEX_ONLY,
   topK: 3,
-  // CALIBRATION TARGET.
-  inThreshold: 170,
-  closeThreshold: 120,
+  // Calibrated 2026-05-12 against SF cohort (36 rosters). At 170 only
+  // 3% were IN; cohort median 83, p75 106. Lowering to 140/100
+  // produces ~15-20% IN, matching the dynasty pattern that several
+  // teams in an SF league build a QB stable.
+  inThreshold: 140,
+  closeThreshold: 100,
   formatScales: false,
   scorePlayer(p) {
     if (p.position !== "QB") return 0;
@@ -448,9 +459,11 @@ const TE_PREMIUM_LOCK: LaneSpec = {
   axis: "archetype",
   appliesTo: TE_PREMIUM_ONLY,
   topK: 2,
-  // CALIBRATION TARGET.
-  inThreshold: 120,
-  closeThreshold: 80,
+  // Calibrated 2026-05-12 against TEP cohort (36 rosters). At 120
+  // only 3% were IN; cohort median 31, p75 59. Lowering to 90/60
+  // produces ~15-20% IN.
+  inThreshold: 90,
+  closeThreshold: 60,
   formatScales: false,
   scorePlayer(p) {
     if (p.position !== "TE") return 0;
@@ -479,12 +492,15 @@ const TRADE_CAPITAL: LaneSpec = {
   axis: "archetype",
   appliesTo: ALL_FORMATS,
   topK: 8,
-  // CALIBRATION TARGET. Threshold restored to 440 (was briefly 420
-  // tuned to one founder roster) per audit C.5 + F.1: sample-of-1
-  // threshold-fitting is indefensible. Founder's 2026-05-11 roster
-  // now reads CLOSE on Trade Capital, which is the honest read.
-  inThreshold: 440,
-  closeThreshold: 320,
+  // Calibrated 2026-05-12 against 58-roster cohort. At 440 the IN
+  // rate was 0% (no roster in any league cleared it). Cohort median
+  // 136, p75 193. After eligibility restriction to age >= 25 OR
+  // scarce-pos rookie at value >= 50, the consolidation-fodder pool
+  // shrank substantially. IN at 190 produces ~25% IN rate. The
+  // earlier 440 threshold was an artifact of pre-restriction scoring;
+  // post-restriction the calibration target moved.
+  inThreshold: 190,
+  closeThreshold: 130,
   formatScales: false,
   scorePlayer(p) {
     const value = p.value ?? 0;
