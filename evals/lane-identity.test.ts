@@ -187,9 +187,9 @@ console.log("\nLane Identity regression\n");
   );
 }
 
-// 2. Per-lane scoring fires 0 for not-fitting players
+// 2. Per-lane scoring: zero for not-fitting + sliding scale for win-now
 {
-  console.log("── 2. per-lane scoring fires 0 for not-fitting players ──");
+  console.log("── 2. zero for not-fitting + sliding-scale floor ──");
   const ctx = snap();
   const lowValueRb = mkPlayer({
     id: "mason",
@@ -200,22 +200,27 @@ console.log("\nLane Identity regression\n");
     value: 13,
   });
   const scores = scorePlayerPerLane(lowValueRb, ctx);
+  // Bellcow / Anchor are tier-archetypes. Below tier = not a bellcow.
   check(
-    "Low-value RB scores 0 on rb_bellcow",
+    "Low-value RB scores 0 on rb_bellcow (archetype tier-gated)",
     scores.rb_bellcow === 0,
     `got ${scores.rb_bellcow}`,
-  );
-  check(
-    "Low-value RB scores 0 on win_now_floor (value < 30)",
-    scores.win_now_floor === 0,
-    `got ${scores.win_now_floor}`,
   );
   check(
     "Low-value player scores 0 on trade_capital",
     scores.trade_capital === 0,
     `got ${scores.trade_capital}`,
   );
+  // Win-Now Floor is a SLIDING SCALE per founder direction 2026-05-12.
+  // A value-13 vet RB contributes a small but non-zero amount: bye-
+  // week / injury depth that's still real. Should be in [1, 10].
+  check(
+    "Low-value RB has small but non-zero win_now_floor (sliding scale)",
+    scores.win_now_floor >= 1 && scores.win_now_floor <= 10,
+    `got ${scores.win_now_floor}`,
+  );
 
+  // Aged-out vet falls outside the age band entirely.
   const oldQbBackup = mkPlayer({
     id: "oldqb",
     position: "QB",
@@ -225,9 +230,58 @@ console.log("\nLane Identity regression\n");
   });
   const oldScores = scorePlayerPerLane(oldQbBackup, ctx);
   check(
-    "Aged-out QB with low value scores 0 on win_now_floor",
+    "Age 38 QB scores 0 on win_now_floor (outside age band)",
     oldScores.win_now_floor === 0,
     `got ${oldScores.win_now_floor}`,
+  );
+
+  // Sliding-scale specifics: each tier produces a meaningful gradient.
+  // WR3 (value 30, age 25): expect mid-20s contribution.
+  // WR2 (value 55, age 25): expect mid-50s contribution.
+  // WR1 (value 90, age 25): expect 90+.
+  const wr3 = mkPlayer({
+    id: "wr3",
+    position: "WR",
+    age: 25,
+    years_exp: 3,
+    value: 30,
+  });
+  const wr2 = mkPlayer({
+    id: "wr2",
+    position: "WR",
+    age: 25,
+    years_exp: 3,
+    value: 55,
+  });
+  const wr1 = mkPlayer({
+    id: "wr1",
+    position: "WR",
+    age: 25,
+    years_exp: 3,
+    value: 90,
+  });
+  const s3 = scorePlayerPerLane(wr3, ctx).win_now_floor;
+  const s2 = scorePlayerPerLane(wr2, ctx).win_now_floor;
+  const s1 = scorePlayerPerLane(wr1, ctx).win_now_floor;
+  check(
+    "WR3 (value 30) contributes 18-30 to win_now_floor",
+    s3 >= 18 && s3 <= 30,
+    `got ${s3}`,
+  );
+  check(
+    "WR2 (value 55) contributes 45-60 to win_now_floor",
+    s2 >= 45 && s2 <= 60,
+    `got ${s2}`,
+  );
+  check(
+    "WR1 (value 90) contributes 90+ to win_now_floor",
+    s1 >= 90,
+    `got ${s1}`,
+  );
+  check(
+    "Win-now contribution strictly increases with value (sliding scale)",
+    s1 > s2 && s2 > s3,
+    `WR1=${s1} WR2=${s2} WR3=${s3}`,
   );
 }
 

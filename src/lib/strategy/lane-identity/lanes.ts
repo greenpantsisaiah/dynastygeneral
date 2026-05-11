@@ -80,36 +80,36 @@ const WIN_NOW_FLOOR: LaneSpec = {
   inThreshold: 480,
   closeThreshold: 340,
   scorePlayer(p, snap) {
+    // Sliding scale, not a binary cutoff. Per founder direction
+    // 2026-05-12: "If there's a WR3 or an RB2 who certainly will
+    // get some play time, we should have them contributing at least
+    // something to win-now. This should be a sliding scale not a
+    // binary cutoff." A WR3 / RB3 fills in on bye weeks and
+    // injuries; they're part of the floor even if they don't start
+    // every Sunday. Floor contribution scales proportionally with
+    // FantasyCalc value, with a small dead-zone below value 10
+    // (true waiver-wire body, no meaningful snaps).
     const value = p.value ?? 0;
-    // Rookies: only count when they're at a scarce-format position
-    // (TE in TE-premium, QB in SF). Otherwise their year-1 contribution
-    // to floor is unreliable.
     if (p.is_rookie) {
+      // Rookies at scarce-format positions (TE in TE-premium, QB in
+      // SF) contribute to floor via year-1 starter snaps; non-scarce
+      // rookies don't (unreliable role).
       if (!isScarcePosFormat(p, snap)) return 0;
-      if (value >= 60) return 60;
-      if (value >= 40) return 40;
-      if (value >= 25) return 25;
-      return 0;
+      return Math.round(clamp((value - 5) * 0.95, 0, 65));
     }
     if (p.age == null) return 0;
-    // Vets need value >= 40 to be meaningful starters. Below that,
-    // they're bench / depth pieces. The prior cutoff of 30 inflated
-    // win-now reads on rosters with lots of cheap depth and produced
-    // false IN states (2026-05-11 Finders Keepers calibration).
-    if (value < 40) return 0;
-    let base: number;
-    if (p.age >= 24 && p.age <= 28) base = 70;
-    else if (p.age >= 23 && p.age <= 30) base = 55;
-    else if (p.age >= 31 && p.age <= 32) base = 35;
+    let ageMult: number;
+    if (p.age >= 24 && p.age <= 28) ageMult = 1.0;
+    else if (p.age === 23 || (p.age >= 29 && p.age <= 30)) ageMult = 0.85;
+    else if (p.age >= 31 && p.age <= 32) ageMult = 0.6;
     else return 0;
-    // Value-tier multiplier on base: 40-44 = 0.5x, 45-49 = 0.75x,
-    // 50+ = full. Players below WR2 / RB2 tier shouldn't carry full
-    // starter weight even when their age is right.
-    let mult = 1.0;
-    if (value < 45) mult = 0.5;
-    else if (value < 50) mult = 0.75;
-    const valueBonus = clamp((value - 50) * 0.5, 0, 30);
-    return Math.round(clamp(base * mult + valueBonus, 0, 100));
+    if (value < 10) return 0;
+    // Linear ramp from value 10 (waiver-tier, ~0 contribution) to
+    // value 95 (elite anchor, ~100 contribution). At value 30 (WR3 /
+    // RB3): raw 24, scaled by age. At value 55 (full WR2 / RB2):
+    // raw 53. At value 90 (WR1 / bellcow): raw 94.
+    const raw = (value - 10) * (100 / 85);
+    return Math.round(clamp(raw * ageMult, 0, 100));
   },
   describeGap() {
     return {
