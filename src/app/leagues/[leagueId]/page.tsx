@@ -90,6 +90,12 @@ import {
   analyzeTeamIdentity,
   type TeamIdentity,
 } from "@/lib/strategy/team-identity";
+import { RosterLaneIdentity } from "@/components/league/roster-lane-identity";
+import {
+  aggregateRosterIdentity,
+  type LaneMembership,
+  type PlayerMeta as LanePlayerMeta,
+} from "@/lib/strategy/lane-identity";
 import {
   buildLeagueReadFromSnapshot,
   type LeagueRead,
@@ -783,6 +789,7 @@ export default async function LeagueHubPage({
   let inflectionItems: InflectionContext[] = [];
   let draftProgress: DraftProgress | null = null;
   let teamIdentity: TeamIdentity | null = null;
+  let rosterLaneMemberships: LaneMembership[] = [];
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
@@ -929,6 +936,43 @@ export default async function LeagueHubPage({
         playerNameLookup,
         playerAges,
       });
+
+      // Roster lane identity. Multi-attribute lane membership across
+      // horizon + archetype + composite axes. Replaces the legacy
+      // declared-window framing per 2026-05-11 founder direction.
+      // Calibrated against a 58-roster cohort (scripts/build-cohort.ts).
+      try {
+        const me = leagueSnapshot.rosters.find((r) => r.is_me);
+        if (me) {
+          const lanePlayerLookup = (id: string): LanePlayerMeta | null => {
+            const sp = playersMap.get(id);
+            if (!sp) return null;
+            const combined = [sp.first_name, sp.last_name]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            const name = sp.full_name ?? combined ?? id;
+            return {
+              name,
+              position: sp.position ?? null,
+              team: sp.team ?? null,
+              age: typeof sp.age === "number" ? sp.age : null,
+              years_exp:
+                typeof sp.years_exp === "number" ? sp.years_exp : null,
+              is_rookie: sp.years_exp === 0,
+              search_rank: sp.search_rank ?? 9999,
+            };
+          };
+          rosterLaneMemberships = aggregateRosterIdentity({
+            playerIds: me.player_ids,
+            playerLookup: lanePlayerLookup,
+            playerValueMap: lrValueMap,
+            snap: leagueSnapshot,
+          });
+        }
+      } catch (err) {
+        console.error("[hub:roster-lane-identity]", err);
+      }
     } catch (err) {
       console.error("[hub:league-read+inflections]", err);
     }
@@ -1539,6 +1583,9 @@ export default async function LeagueHubPage({
                 defaultOpen={!draftActive}
               >
                 {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                {rosterLaneMemberships.length > 0 && (
+                  <RosterLaneIdentity memberships={rosterLaneMemberships} />
+                )}
                 {inflectionItems.length > 0 && (
                   <InflectionPanel items={inflectionItems} />
                 )}
