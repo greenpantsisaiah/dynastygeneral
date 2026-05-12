@@ -7,16 +7,33 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+const CONTEXT_MAX_KEYS = 32;
+const CONTEXT_MAX_SERIALIZED_BYTES = 8192;
+
 const bodySchema = z.object({
   proposal: z.string().min(8).max(2000),
-  context: z.record(z.string(), z.unknown()).default({}),
+  context: z
+    .record(z.string(), z.unknown())
+    .default({})
+    .refine((c) => Object.keys(c).length <= CONTEXT_MAX_KEYS, {
+      message: "context_too_many_keys",
+    })
+    .refine(
+      (c) => JSON.stringify(c).length <= CONTEXT_MAX_SERIALIZED_BYTES,
+      { message: "context_too_large" },
+    ),
 });
 
 export async function POST(req: Request) {
+  const rate = await checkRateLimit("soundboard-submit", clientIpFrom(req));
+  if (!rate.allowed) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
   let payload: unknown;
   try {
     payload = await req.json();

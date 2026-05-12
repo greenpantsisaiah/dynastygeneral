@@ -9,9 +9,11 @@
  * (user_id, league_id, kind). The send is wrapped so a Resend failure
  * is recorded with status='failed' and retried on the next cron run.
  *
- * Auth: Vercel cron requests carry an x-vercel-cron header AND
- * (optionally) a CRON_SECRET we verify. If CRON_SECRET is set in env,
- * we require it. Otherwise the route allows any caller (dev mode).
+ * Auth: in production (VERCEL_ENV === "production" or NODE_ENV ===
+ * "production") a Bearer CRON_SECRET is REQUIRED. If CRON_SECRET is
+ * unset in production we return 503 rather than open the route. In
+ * dev / preview, the secret is optional so local cron testing works
+ * without the env var.
  *
  * Cost: per-run worst case is N users * M leagues each * 2 Sleeper
  * API calls. At 100 users with 5 leagues each that's 1000 calls per
@@ -47,8 +49,37 @@ type RunResult = {
   sent: number;
   failed: number;
   skipped_already_sent: number;
-  errors: Array<{ stage: string; user_id?: string; message: string }>;
+  /**
+   * Only `stage` is returned in the response body so untrusted callers
+   * cannot enumerate user_ids or read raw upstream error strings. Full
+   * detail (user_id, message) is logged server-side via console.error
+   * for Vercel function logs.
+   */
+  errors: Array<{ stage: string }>;
 };
+
+function isProductionEnv(): boolean {
+  return (
+    process.env.VERCEL_ENV === "production" ||
+    process.env.NODE_ENV === "production"
+  );
+}
+
+function logErrorAndCollect(
+  result: RunResult,
+  stage: string,
+  detail: { user_id?: string; league_id?: string; message: string },
+): void {
+  console.error(
+    `[cron:aar-notifications:${stage}]`,
+    JSON.stringify({
+      user_id: detail.user_id ?? null,
+      league_id: detail.league_id ?? null,
+      message: detail.message,
+    }),
+  );
+  result.errors.push({ stage });
+}
 
 export async function GET(request: Request): Promise<Response> {
   const result: RunResult = {
@@ -61,9 +92,21 @@ export async function GET(request: Request): Promise<Response> {
     errors: [],
   };
 
-  // Auth check. If CRON_SECRET is set, require Authorization: Bearer
-  // <secret>. Vercel-managed crons inject this when configured.
+  // Auth check. In production CRON_SECRET is REQUIRED; we refuse the
+  // route entirely if it is unset so an unauthenticated caller cannot
+  // iterate every user's leagues and trigger Sleeper fetches + Resend
+  // emails. In dev/preview the secret is optional for local testing.
   const cronSecret = process.env.CRON_SECRET;
+  const isProd = isProductionEnv();
+  if (isProd && !cronSecret) {
+    console.error(
+      "[cron:aar-notifications] CRON_SECRET missing in production; refusing to run.",
+    );
+    return NextResponse.json(
+      { ok: false, error: "cron_secret_unconfigured" },
+      { status: 503 },
+    );
+  }
   if (cronSecret) {
     const authHeader = request.headers.get("authorization");
     if (authHeader !== `Bearer ${cronSecret}`) {
@@ -81,12 +124,12 @@ export async function GET(request: Request): Promise<Response> {
   try {
     admin = getAdminClient();
   } catch (err) {
+    console.error(
+      "[cron:aar-notifications:admin_client_unavailable]",
+      err instanceof Error ? err.message : String(err),
+    );
     return NextResponse.json(
-      {
-        ok: false,
-        error: "admin_client_unavailable",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { ok: false, error: "admin_client_unavailable" },
       { status: 500 },
     );
   }
@@ -101,12 +144,12 @@ export async function GET(request: Request): Promise<Response> {
     .not("sleeper_username", "is", null);
 
   if (profilesError) {
+    console.error(
+      "[cron:aar-notifications:profiles_query_failed]",
+      profilesError.message,
+    );
     return NextResponse.json(
-      {
-        ok: false,
-        error: "profiles_query_failed",
-        detail: profilesError.message,
-      },
+      { ok: false, error: "profiles_query_failed" },
       { status: 500 },
     );
   }
@@ -125,8 +168,7 @@ export async function GET(request: Request): Promise<Response> {
       if (authErr || !authUser?.user?.email) continue;
       emailByUserId.set(uid, authUser.user.email);
     } catch (err) {
-      result.errors.push({
-        stage: "auth_lookup",
+      logErrorAndCollect(result, "auth_lookup", {
         user_id: uid,
         message: err instanceof Error ? err.message : String(err),
       });
@@ -155,8 +197,7 @@ export async function GET(request: Request): Promise<Response> {
       const user = await getUserByUsername(sleeperUsername);
       sleeperUserId = user?.user_id ?? null;
     } catch (err) {
-      result.errors.push({
-        stage: "sleeper_user",
+      logErrorAndCollect(result, "sleeper_user", {
         user_id: userId,
         message: err instanceof Error ? err.message : String(err),
       });
@@ -169,8 +210,7 @@ export async function GET(request: Request): Promise<Response> {
     try {
       leagues = await getLeaguesForUser(sleeperUserId, season);
     } catch (err) {
-      result.errors.push({
-        stage: "sleeper_leagues",
+      logErrorAndCollect(result, "sleeper_leagues", {
         user_id: userId,
         message: err instanceof Error ? err.message : String(err),
       });
@@ -188,10 +228,10 @@ export async function GET(request: Request): Promise<Response> {
           sleeperUserId,
         );
       } catch (err) {
-        result.errors.push({
-          stage: "sleeper_draft_state",
+        logErrorAndCollect(result, "sleeper_draft_state", {
           user_id: userId,
-          message: `${league.league_id}: ${err instanceof Error ? err.message : String(err)}`,
+          league_id: league.league_id,
+          message: err instanceof Error ? err.message : String(err),
         });
         continue;
       }
@@ -256,10 +296,10 @@ export async function GET(request: Request): Promise<Response> {
             { onConflict: "user_id,league_id,kind" },
           );
         result.failed += 1;
-        result.errors.push({
-          stage: "email_send",
+        logErrorAndCollect(result, "email_send", {
           user_id: userId,
-          message: `${league.league_id}: ${sendResult.reason}`,
+          league_id: league.league_id,
+          message: sendResult.reason ?? "unknown",
         });
       }
     }

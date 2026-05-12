@@ -13,6 +13,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getOptionalUser } from "@/lib/auth/session";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import {
   readProfileServer,
   writeProfileServer,
@@ -44,12 +46,28 @@ const bodySchema = z.object({
   notes: notesSchema.optional(),
 });
 
-export async function GET() {
+export async function GET(req: Request) {
+  const user = await getOptionalUser();
+  if (!user) {
+    return NextResponse.json({ error: "auth_required" }, { status: 401 });
+  }
+  const rate = await checkRateLimit("soundboard", clientIpFrom(req));
+  if (!rate.allowed) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
   const profile = await readProfileServer();
   return NextResponse.json({ profile });
 }
 
 export async function POST(req: Request) {
+  const user = await getOptionalUser();
+  if (!user) {
+    return NextResponse.json({ error: "auth_required" }, { status: 401 });
+  }
+  const rate = await checkRateLimit("soundboard", clientIpFrom(req));
+  if (!rate.allowed) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
   let payload: unknown;
   try {
     payload = await req.json();

@@ -104,9 +104,14 @@ async function fetchValues(
   ppr: number,
 ): Promise<CacheEntry> {
   const url = `${FANTASYCALC_BASE}/values/current?isDynasty=true&numQbs=${numQbs}&numTeams=12&ppr=${ppr}`;
+  // 15s timeout per SECURITY.md. A hanging FantasyCalc otherwise ties
+  // up the Vercel function for the full maxDuration of any caller
+  // (Coach / briefings / hub), so a slow upstream becomes an
+  // availability incident.
   const res = await fetch(url, {
     cache: "no-store",
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
     throw new Error(

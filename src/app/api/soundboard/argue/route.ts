@@ -12,6 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { createClient } from "@/lib/supabase/server";
 import {
   DIAL_SPECS,
@@ -24,16 +25,32 @@ export const runtime = "nodejs";
 
 const knownDialIds = new Set<DialId>(DIAL_SPECS.map((s) => s.id));
 
+const CONTEXT_MAX_KEYS = 32;
+const CONTEXT_MAX_SERIALIZED_BYTES = 8192;
+
 const bodySchema = z.object({
   dial_id: z.string().refine((v): v is DialId => knownDialIds.has(v as DialId), {
     message: "unknown_dial_id",
   }),
   shape: z.enum(FEEDBACK_SHAPES),
   comment: z.string().max(2000).optional(),
-  context: z.record(z.string(), z.unknown()).default({}),
+  context: z
+    .record(z.string(), z.unknown())
+    .default({})
+    .refine((c) => Object.keys(c).length <= CONTEXT_MAX_KEYS, {
+      message: "context_too_many_keys",
+    })
+    .refine(
+      (c) => JSON.stringify(c).length <= CONTEXT_MAX_SERIALIZED_BYTES,
+      { message: "context_too_large" },
+    ),
 });
 
 export async function POST(req: Request) {
+  const rate = await checkRateLimit("soundboard-submit", clientIpFrom(req));
+  if (!rate.allowed) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
   let payload: unknown;
   try {
     payload = await req.json();

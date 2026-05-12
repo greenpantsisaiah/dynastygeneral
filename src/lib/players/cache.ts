@@ -55,11 +55,17 @@ let inflight: Promise<CacheEntry> | null = null;
 const MAX_PARSE_WARNINGS = 5;
 
 async function fetchPlayers(): Promise<CacheEntry> {
+  // 20s timeout: slightly longer than the standard 15s because the
+  // /players/nfl payload is ~5MB and slow cold starts on Sleeper have
+  // been observed at 10-12s. This route bypasses `sleeperGet` (which
+  // applies its own timeout) so we set one explicitly here per
+  // SECURITY.md.
   const res = await fetch(`${BASE}/players/nfl`, {
     // Prevent Next.js from baking this into a static cache; our in-memory
     // TTL is the source of truth.
     cache: "no-store",
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) {
     throw new Error(`Sleeper /players/nfl failed: ${res.status}`);

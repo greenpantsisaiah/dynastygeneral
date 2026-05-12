@@ -31,7 +31,9 @@ type BucketName =
   | "verdict-share-create"
   | "verdict-share-view"
   | "opponent-notes"
-  | "last-visit";
+  | "last-visit"
+  | "soundboard"
+  | "soundboard-submit";
 
 type LimitSpec = {
   // Requests allowed
@@ -98,6 +100,16 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // plausible). 60/min covers worst-case real usage and stops a
   // misconfigured client from looping infinitely.
   "last-visit": { requests: 60, window: "1 m" },
+  // Soundboard profile reads / writes. Auth-required after the
+  // security hardening pass. A real user moves a few dials per session;
+  // 30/min is generous but stops a compromised account or open tab
+  // from looping.
+  soundboard: { requests: 30, window: "1 m" },
+  // Soundboard argue + suggest. Anonymous-allowed by design (founder
+  // wants frictionless dissent capture), so the IP rate limit is the
+  // only thing standing between a bot and the founder's calibration
+  // tables. Tight.
+  "soundboard-submit": { requests: 5, window: "10 m" },
 };
 
 let redis: Redis | null = null;
@@ -197,12 +209,25 @@ export function clientIpFrom(req: Request): string | null {
 /**
  * Server-component variant. Use with `headers()` from `next/headers`.
  * Server components don't receive a Request directly.
+ *
+ * IP source priority:
+ *   1. x-vercel-forwarded-for (Vercel-injected, single trusted client IP)
+ *   2. last entry of x-forwarded-for (Vercel appends the real client IP
+ *      to whatever the caller sent; using the FIRST entry is
+ *      spoofable when an attacker controls intermediate hops)
+ *   3. x-real-ip
  */
 export function clientIpFromHeaders(hdrs: Headers): string | null {
+  const vercelXff = hdrs.get("x-vercel-forwarded-for");
+  if (vercelXff) {
+    const trimmed = vercelXff.split(",")[0]?.trim();
+    if (trimmed) return trimmed;
+  }
   const xff = hdrs.get("x-forwarded-for");
   if (xff) {
-    const first = xff.split(",")[0]?.trim();
-    if (first) return first;
+    const parts = xff.split(",");
+    const last = parts[parts.length - 1]?.trim();
+    if (last) return last;
   }
   const real = hdrs.get("x-real-ip");
   if (real) return real.trim();

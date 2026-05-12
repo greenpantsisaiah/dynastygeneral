@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOptionalUser } from "@/lib/auth/session";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
+import { isValidLeagueId } from "@/lib/sleeper/validate";
 import {
   OPPONENT_NOTE_BODY_MAX,
   OPPONENT_NOTE_KINDS,
@@ -26,8 +27,14 @@ import {
 
 export const runtime = "nodejs";
 
+// Match the canonical Sleeper league_id shape (alphanumeric + `_` + `-`,
+// 1-32 chars). Mirrors `isValidLeagueId`. Without this guard, malformed
+// strings reach the Coach context payload via opponents[].notes which
+// is a prompt-injection surface.
+const LEAGUE_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
+
 const createBodySchema = z.object({
-  league_id: z.string().min(1).max(64),
+  league_id: z.string().regex(LEAGUE_ID_RE),
   opponent_roster_id: z.number().int().positive(),
   body: z.string().min(1).max(OPPONENT_NOTE_BODY_MAX),
   kind: z.enum(OPPONENT_NOTE_KINDS).default("stated_plan"),
@@ -40,8 +47,11 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
   const url = new URL(req.url);
   const leagueId = url.searchParams.get("leagueId");
-  if (!leagueId) {
-    return NextResponse.json({ error: "leagueId required" }, { status: 400 });
+  if (!leagueId || !isValidLeagueId(leagueId)) {
+    return NextResponse.json(
+      { error: "leagueId required" },
+      { status: 400 },
+    );
   }
   const notes = await readOpponentNotesForLeague({
     userId: user.id,
