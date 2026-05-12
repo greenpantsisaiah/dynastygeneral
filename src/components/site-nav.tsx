@@ -24,28 +24,16 @@ export async function SiteNav() {
         </Link>
         <nav className="flex items-center gap-6 text-sm">
           <Link
-            href="/how-it-works"
+            href="/library"
             className="hidden text-muted transition hover:text-foreground sm:inline"
           >
-            How it works
-          </Link>
-          <Link
-            href="/pricing"
-            className="hidden text-muted transition hover:text-foreground sm:inline"
-          >
-            Pricing
+            Library
           </Link>
           <Link
             href="/scout"
             className="hidden text-muted transition hover:text-foreground sm:inline"
           >
             Scout
-          </Link>
-          <Link
-            href="/scoreboard"
-            className="hidden text-muted transition hover:text-foreground sm:inline"
-          >
-            Scoreboard
           </Link>
           {user ? (
             <UserMenu

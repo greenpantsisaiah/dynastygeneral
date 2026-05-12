@@ -1,25 +1,26 @@
 import type { Metadata } from "next";
 import { SiteNav } from "@/components/site-nav";
-
-export const metadata: Metadata = {
-  title: "Dynasty General: Decision Engine for Sleeper Dynasty Leagues",
-  description:
-    "Decision engine for serious dynasty fantasy football managers on Sleeper. Picks with named-player reasoning, trade evaluation against KTC market values, opponent characterization, and live strategy coaching. Free tier, Pro removes caps.",
-  alternates: { canonical: "/" },
-};
-// Homepage is the alpha-share landing target. Heavy marketing funnel
-// moved to /how-it-works 2026-04-25 after Reddit alpha data showed
-// hot users convert via "type Sleeper username, see real league" not
-// via 8 sections of scroll. Keep the Soundboard preview as the trust
-// builder; keep FAQ because launch-stage questions are real.
-// Waitlist removed 2026-04-25: account creation is the real signal
-// now (saves leagues, chats, saved roster identity), not a beta-list
-// signup, so the duplicate "apply for beta" form was a dead end.
-import { FAQ } from "@/components/landing/faq";
 import { Footer } from "@/components/landing/footer";
 import { Hero } from "@/components/landing/hero";
-import { SoundboardPreview } from "@/components/landing/soundboard-preview";
+import {
+  ContrarianSection,
+  ProofSection,
+} from "@/components/landing/proof-section";
 
+export const metadata: Metadata = {
+  title: "Dynasty General: Intelligence layer for dynasty fantasy football",
+  description:
+    "Lane identity across an 82-roster cohort. Per-opponent trade fingerprints. Coach context with named players. The intelligence layer your dynasty league does not have.",
+  alternates: { canonical: "/" },
+};
+
+// Homepage rebuilt 2026-05-12. Old hero (UI screenshot, 4 numbered
+// callouts) replaced by a chart-led hero that visualizes the cohort
+// math BEFORE introducing the product surface. Per founder direction:
+// "visual > words in the copy" and "rethink from the ground up."
+// SoundboardPreview + FAQ removed to keep the homepage to one scroll.
+// They live as components in case a future surface wants them; the
+// homepage does not.
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
@@ -27,13 +28,13 @@ const jsonLd = {
   applicationCategory: "SportsApplication",
   operatingSystem: "Web",
   description:
-    "Decision engine for serious dynasty fantasy football managers on Sleeper. Live picks, trade evaluation, strategy coaching, and opponent intelligence with evidence cited per recommendation.",
+    "Intelligence layer for dynasty fantasy football managers. Lane identity across an 82-roster calibration cohort, per-opponent trade fingerprints, Coach context with named players.",
   url: "https://dynastygeneral.app",
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-    description: "Free tier with Pro upgrade available",
+    description: "Alpha is free for every signed-in tester.",
   },
 };
 
@@ -47,8 +48,8 @@ export default function HomePage() {
       <SiteNav />
       <main className="flex-1">
         <Hero />
-        <SoundboardPreview />
-        <FAQ />
+        <ProofSection />
+        <ContrarianSection />
       </main>
       <Footer />
     </>

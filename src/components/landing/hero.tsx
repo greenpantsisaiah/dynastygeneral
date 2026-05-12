@@ -1,187 +1,103 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Ticker } from "@/components/ui/ticker";
-import { isBetaOpenMode } from "@/lib/billing/beta-mode";
+import { HeroCohortChart } from "@/components/landing/home-charts";
 
 /**
- * Input-led hero. Shipped 2026-04-25 after Reddit alpha-share data
- * showed the conversion path is "type Sleeper username, see your
- * real league analyzed" rather than "scroll through marketing
- * funnel." Long-form story moved to /how-it-works; the homepage now
- * gets the user from cold-paste to in-app in 2 clicks.
+ * Chart-led hero, rebuilt 2026-05-12 after the "rethink from the ground
+ * up, visual over words" direction.
  *
- * Form is a plain HTML GET to /connect (no client JS needed). The
- * existing /connect handler accepts ?username= and shows the league
- * picker. Don't auto-pick a league; let the user confirm.
+ * Old hero: 6-pt copy headline + Sleeper username form + giant
+ * screenshot of the Decision card with 4 numbered callouts. The
+ * screenshot showed UI, not insight; the visit-first user couldn't
+ * tell at a glance what made the product different from KTC or DLF.
+ *
+ * New hero: a 538-style cohort distribution as the first visual. The
+ * reader sees a histogram of Win-Now Floor scores across 82 rosters,
+ * spots the "your roster" marker, and intuits the value proposition
+ * (lane membership, percentile placement, statistical cohort) before
+ * any copy is read. The Sleeper username form sits next to the chart
+ * as the single CTA.
+ *
+ * Form is still a plain HTML GET to /connect; no client JS required.
  */
 export function Hero() {
-  const beta = isBetaOpenMode();
   return (
     <section className="relative overflow-hidden border-b border-border-soft">
-      <div className="absolute inset-0 bg-grid opacity-60" />
+      <div className="absolute inset-0 bg-grid opacity-50" />
       <div className="absolute inset-0 bg-glow" />
-      <div className="relative mx-auto max-w-6xl px-6 pt-16 pb-20 sm:pt-24 sm:pb-28">
-        <Ticker
-          label={
-            beta
-              ? "Beta · everything's open · Sleeper today, MFL next · Dynasty only"
-              : "Live · Sleeper today, MyFantasyLeague next · Dynasty only"
-          }
-        />
-        <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-6xl">
-          Win the decision in front of you.
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted sm:text-xl">
-          Most dynasty tools tell you who is good. This one tells you
-          what to do, right now, in your league, with your team.
-        </p>
+      <div className="relative mx-auto max-w-6xl px-6 pt-14 pb-20 sm:pt-20 sm:pb-24">
+        <Ticker label="Dynasty intelligence · Sleeper today · MFL next" />
 
-        {/* Input-led conversion. Plain HTML GET form so this section
-            stays a server component and works without hydration. */}
-        <form
-          action="/connect"
-          method="GET"
-          className="mt-10 flex max-w-xl flex-col gap-3 sm:flex-row sm:items-center"
-        >
-          <input
-            type="hidden"
-            name="platform"
-            value="sleeper"
-          />
-          <label className="flex-1">
-            <span className="sr-only">Sleeper username</span>
-            <input
-              name="username"
-              required
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="Sleeper username"
-              className="h-12 w-full rounded-md border border-border-strong bg-surface px-4 text-base text-foreground outline-none transition focus:border-accent sm:h-12"
-            />
-          </label>
-          <button
-            type="submit"
-            className="inline-flex h-12 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
-          >
-            See your decision →
-          </button>
-        </form>
-        <p className="mt-3 max-w-xl text-xs text-muted-2">
-          We'll find your dynasty leagues. No password, no install.
-          Read-only access via Sleeper's public API.
-        </p>
+        <div className="mt-8 grid items-start gap-12 lg:grid-cols-[1.05fr_1fr]">
+          <div>
+            <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-5xl">
+              Read the room before you make the trade.
+            </h1>
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+              Lane identity scored across 82 dynasty rosters in 5
+              calibration leagues. Per-opponent trade fingerprints.
+              Coach context with named players, not IDs.
+            </p>
 
-        {beta && (
-          <p className="mt-4 max-w-xl rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm leading-relaxed text-foreground">
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-              Beta is open ·
-            </span>{" "}
-            Coach, briefings, the 5-deep Decision card, and Contender
-            Outlook are free for every signed-in tester.{" "}
-            <Link href="/pricing" className="text-accent hover:underline">
-              Support on Pro
-            </Link>{" "}
-            if it sharpens your decisions.
-          </p>
-        )}
+            <form
+              action="/connect"
+              method="GET"
+              className="mt-8 flex max-w-xl flex-col gap-3 sm:flex-row sm:items-center"
+            >
+              <input type="hidden" name="platform" value="sleeper" />
+              <label className="flex-1">
+                <span className="sr-only">Sleeper username</span>
+                <input
+                  name="username"
+                  required
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Sleeper username"
+                  className="h-12 w-full rounded-md border border-border-strong bg-surface px-4 text-base text-foreground outline-none transition focus:border-accent"
+                />
+              </label>
+              <button
+                type="submit"
+                className="inline-flex h-12 items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110"
+              >
+                See your roster →
+              </button>
+            </form>
+            <p className="mt-3 max-w-xl font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              Sleeper read-only via public API. No password, no install.
+            </p>
 
-        <HeroPreview />
+            <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-2">
+              <Link href="/library" className="hover:text-foreground">
+                Methodology library →
+              </Link>
+              <Link href="/built-by" className="hover:text-foreground">
+                Built by →
+              </Link>
+            </div>
+          </div>
 
-        <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-2">
-          <Link
-            href="/how-it-works"
-            className="hover:text-foreground"
-          >
-            How it works →
-          </Link>
-          <Link
-            href="/pricing"
-            className="hover:text-foreground"
-          >
-            Pricing →
-          </Link>
-          <Link
-            href="/built-by"
-            className="hover:text-foreground"
-          >
-            Built by →
-          </Link>
+          <div className="lg:pl-2">
+            <div className="rounded-lg border border-border-soft bg-surface px-5 py-5">
+              <div className="flex items-baseline justify-between gap-3">
+                <div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                    Win-Now Floor lane
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    Cohort distribution with the engine's CLOSE and IN
+                    thresholds. The marker shows where one example
+                    roster sits.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <HeroCohortChart />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
-  );
-}
-
-/**
- * Annotated preview of the actual Decision card. Acts as both
- * marketing proof ("this is what you'll see") and lightweight
- * onboarding ("here's the vocabulary you'll meet inside"). The
- * numbered callouts below the screenshot teach the user what to
- * look at before they even land in their league.
- *
- * Static image for v1; a real GIF or video can replace it later
- * without changing the surrounding layout.
- */
-function HeroPreview() {
-  return (
-    <div className="mt-14 max-w-3xl">
-      <div className="overflow-hidden rounded-lg border border-border-strong bg-surface shadow-[0_0_0_1px_rgba(245,158,11,0.05),0_20px_60px_-20px_rgba(0,0,0,0.8)]">
-        <div className="border-b border-border-soft bg-surface-2 px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-          What you'll see, on your league
-        </div>
-        <Image
-          src="/marketing/decision-card.png"
-          alt="Decision card showing the Lean, Counter-view, Next Picks Plan, and Coach entry"
-          width={1400}
-          height={1050}
-          className="w-full"
-          priority
-        />
-      </div>
-      <ol className="mt-5 grid gap-x-6 gap-y-3 text-sm text-muted sm:grid-cols-2">
-        <CalloutItem
-          n={1}
-          title="The Lean"
-          body="One named player at this slot, with KTC value, ADP, and the rule that surfaced it (starter fill, push path, earned value)."
-        />
-        <CalloutItem
-          n={2}
-          title="Counter-view"
-          body="The strongest argument against the Lean, surfaced inline so you don't have to ask Coach to find it."
-        />
-        <CalloutItem
-          n={3}
-          title="Next Picks Plan"
-          body="Five picks deep with confidence buckets and within-position alts. The chain you take if your lane gets sniped."
-        />
-        <CalloutItem
-          n={4}
-          title="Ask Coach"
-          body="Conversational follow-up with full league context. Web search, KTC-anchored trade math, hold-the-line on vibes pushback."
-        />
-      </ol>
-    </div>
-  );
-}
-
-function CalloutItem({
-  n,
-  title,
-  body,
-}: {
-  n: number;
-  title: string;
-  body: string;
-}) {
-  return (
-    <li className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent/60 bg-accent/10 font-mono text-[11px] font-semibold text-accent">
-        {n}
-      </span>
-      <span>
-        <span className="font-medium text-foreground">{title}.</span>{" "}
-        {body}
-      </span>
-    </li>
   );
 }
