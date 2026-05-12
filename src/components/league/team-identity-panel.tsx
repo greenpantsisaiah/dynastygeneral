@@ -136,6 +136,35 @@ export function TeamIdentityPanel({ data }: { data: TeamIdentity | null }) {
         )}
       </div>
 
+      {/* Comparator team narrative. Renders the closest NFL-team
+          shape match from the comparator library when one clears
+          the similarity floor. Null comparator hides the block;
+          weak matches stay quiet rather than forcing a frame. */}
+      {data.comparator && (
+        <div className="border-t border-border-soft px-5 py-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
+              Shape comparator
+            </span>
+            <span
+              className={`font-mono text-[9px] uppercase tracking-[0.16em] ${
+                data.comparator.confidence_label === "strong"
+                  ? "text-accent"
+                  : "text-muted-2"
+              }`}
+            >
+              {data.comparator.confidence_label} match · {Math.round(data.comparator.similarity * 100)}%
+            </span>
+          </div>
+          <div className="mt-2 text-sm font-semibold text-foreground">
+            {data.comparator.team} {data.comparator.season}
+          </div>
+          <p className="mt-1 text-xs leading-snug text-muted">
+            {data.comparator.narrative}
+          </p>
+        </div>
+      )}
+
       {/* Forward projection */}
       <div className="border-t border-border-soft px-5 py-4">
         <div className="flex items-baseline justify-between gap-2">
