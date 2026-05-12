@@ -95,6 +95,7 @@ import {
   type TeamIdentity,
 } from "@/lib/strategy/team-identity";
 import { RosterLaneIdentity } from "@/components/league/roster-lane-identity";
+import { LaneCohortDistribution } from "@/components/league/lane-cohort-distribution";
 import {
   aggregateRosterIdentity,
   identityMoves,
@@ -1778,6 +1779,11 @@ export default async function LeagueHubPage({
                     memberships={rosterLaneMemberships}
                     moves={rosterLaneMoves}
                     priorStates={priorLaneStates}
+                  />
+                )}
+                {rosterLaneMemberships.length > 0 && (
+                  <LaneCohortDistribution
+                    memberships={rosterLaneMemberships}
                   />
                 )}
                 {inflectionItems.length > 0 && (

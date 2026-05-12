@@ -20,10 +20,30 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { RosterLaneIdentity } from "@/components/league/roster-lane-identity";
+import { LaneCohortDistribution } from "@/components/league/lane-cohort-distribution";
 import type {
   IdentityMove,
   LaneMembership,
 } from "@/lib/strategy/lane-identity";
+import type { TradeSignatureLabel } from "@/lib/strategy/opponents/trade-history";
+
+export type LeagueDossierEntry = {
+  roster_id: number;
+  owner_name: string | null;
+  is_me: boolean;
+  picks_count: number;
+  win_now_score: number;
+  future_score: number;
+  trade_signature: TradeSignatureLabel;
+  trade_summary: string;
+  picks_sent: number;
+  picks_received: number;
+  recent_picks: Array<{
+    pick_label: string;
+    player_name: string;
+    position: string | null;
+  }>;
+};
 
 export type LeagueMoment = {
   pick_no: number;
@@ -76,6 +96,13 @@ export type AarServerData = {
    */
   lane_memberships: LaneMembership[];
   lane_moves: IdentityMove[];
+  /**
+   * Per-opponent dossier compiled from the same primitives the hub uses
+   * (outlook scores + trade signature + 3 most-recent picks). Surfaces a
+   * "league at a glance" intel block in the AAR so the user can plan
+   * 90-day trade angles without re-deriving who's win-now / future-tilt.
+   */
+  league_dossier: LeagueDossierEntry[];
 };
 
 type HistoryEntry = {
@@ -262,6 +289,7 @@ export function AarReport({
             moves={data.lane_moves}
           />
         </div>
+        <LaneCohortDistribution memberships={data.lane_memberships} />
       </section>
 
       {diagnose && (
@@ -387,6 +415,27 @@ export function AarReport({
           })}
         </div>
       </section>
+
+      {data.league_dossier.length > 0 && (
+        <section>
+          <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
+            League dossier
+          </div>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+            Who's around you, and how they're playing
+          </h2>
+          <p className="mt-2 max-w-prose text-sm text-muted">
+            Each opposing team's win-now / future scores, pick-trade
+            fingerprint, and three most-recent picks. The shape of the
+            room you're now trading into for the next 90 days.
+          </p>
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {data.league_dossier.map((entry) => (
+              <DossierCard key={entry.roster_id} entry={entry} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {(data.league_steals.length > 0 || data.league_swings.length > 0) && (
         <section>
@@ -699,6 +748,102 @@ function MomentRow({
         </span>
       </div>
     </div>
+  );
+}
+
+const DOSSIER_SIGNATURE_LABEL: Record<TradeSignatureLabel, string> = {
+  pick_flipper: "Pick flipper",
+  pick_hoarder: "Pick hoarder",
+  pick_seller: "Pick seller",
+  pick_quiet: "Pick quiet",
+};
+
+function DossierCard({ entry }: { entry: LeagueDossierEntry }) {
+  const youBorder = entry.is_me
+    ? "border-2 border-[color:#a78bfa]/70 bg-[color:#a78bfa]/5"
+    : "border border-border-soft bg-surface";
+  return (
+    <article className={`rounded-lg ${youBorder} px-4 py-3`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-baseline gap-2">
+          <div className="font-semibold text-foreground">
+            {entry.owner_name ?? "Unnamed manager"}
+          </div>
+          {entry.is_me && (
+            <span
+              className="rounded-sm border px-1.5 py-0 font-mono text-[9px] uppercase tracking-[0.16em]"
+              style={{ borderColor: "#a78bfa", color: "#a78bfa" }}
+            >
+              You
+            </span>
+          )}
+        </div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+          {entry.picks_count} picks
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-md border border-success/30 bg-success/5 px-2 py-1.5">
+          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-success">
+            Win-now
+          </div>
+          <div className="mt-0.5 font-semibold text-foreground">
+            {entry.win_now_score.toFixed(1)}
+          </div>
+        </div>
+        <div className="rounded-md border border-accent/30 bg-accent/5 px-2 py-1.5">
+          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
+            Future
+          </div>
+          <div className="mt-0.5 font-semibold text-foreground">
+            {entry.future_score.toFixed(1)}
+          </div>
+        </div>
+      </div>
+
+      {entry.trade_signature !== "pick_quiet" && (
+        <div className="mt-2">
+          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+            Pick-trade fingerprint
+          </div>
+          <div className="mt-1 text-xs text-foreground">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mr-2">
+              {DOSSIER_SIGNATURE_LABEL[entry.trade_signature]}
+            </span>
+            {entry.picks_sent} sent · {entry.picks_received} received
+          </div>
+          {entry.trade_summary && (
+            <p className="mt-1 text-xs text-muted leading-snug">
+              {entry.trade_summary}
+            </p>
+          )}
+        </div>
+      )}
+
+      {entry.recent_picks.length > 0 && (
+        <div className="mt-2">
+          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+            Recent picks
+          </div>
+          <ul className="mt-1 space-y-0.5 text-[11px] leading-snug">
+            {entry.recent_picks.map((p) => (
+              <li key={p.pick_label} className="text-foreground">
+                <span className="font-mono text-[9px] text-muted-2 mr-1.5">
+                  {p.pick_label}
+                </span>
+                {p.player_name}
+                {p.position && (
+                  <span className="ml-1 font-mono text-[9px] text-muted-2">
+                    · {p.position}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </article>
   );
 }
 

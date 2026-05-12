@@ -30,12 +30,14 @@ import {
   type LaneMembership,
   type PlayerMeta as LanePlayerMeta,
 } from "@/lib/strategy/lane-identity";
+import { buildOpponentTradeHistory } from "@/lib/strategy/opponents/trade-history";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { AarReport } from "@/components/league/aar-report";
 import type {
   AarPick,
   AarServerData,
+  LeagueDossierEntry,
   LeagueMoment,
 } from "@/components/league/aar-report";
 
@@ -534,6 +536,73 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     console.error("[aar:lane-identity]", err);
   }
 
+  // Per-opponent dossier for the AAR's league-intel block. Same primitives
+  // the hub's OpponentCharacterizations uses (outlook scores + trade
+  // signature + last 3 picks), recomposed into one card per team so the
+  // user has a 90-day trade-planning surface after the draft.
+  const teamScoreByRoster = new Map<
+    number,
+    { win_now: number; future: number }
+  >();
+  for (const t of outlook.teams) {
+    teamScoreByRoster.set(t.roster_id, {
+      win_now: t.win_now,
+      future: t.future,
+    });
+  }
+  const leagueDossier: LeagueDossierEntry[] = snapshot.rosters
+    .map<LeagueDossierEntry>((r) => {
+      const scores = teamScoreByRoster.get(r.roster_id);
+      const picks = snapshot.draft.picks_made.filter(
+        (p) => p.roster_id === r.roster_id,
+      );
+      const picksCount = picks.length;
+      const recent = [...picks]
+        .sort((a, b) => b.pick_no - a.pick_no)
+        .slice(0, 3)
+        .map((p) => {
+          const player = playerMap.get(p.player_id);
+          const combined = [player?.first_name, player?.last_name]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+          const playerName =
+            player?.full_name ?? (combined || p.player_id);
+          const round = Math.ceil(p.pick_no / totalTeams);
+          const within = ((p.pick_no - 1) % totalTeams) + 1;
+          return {
+            pick_label: `${round}.${within}`,
+            player_name: playerName,
+            position: player?.position ?? null,
+          };
+        });
+      const tradeHist = buildOpponentTradeHistory({
+        rosterId: r.roster_id,
+        tradedPicks: snapshot.draft.traded_picks,
+        currentSeason: snapshot.season,
+      });
+      return {
+        roster_id: r.roster_id,
+        owner_name: r.owner_name ?? null,
+        is_me: r.is_me ?? false,
+        picks_count: picksCount,
+        win_now_score: scores?.win_now ?? 0,
+        future_score: scores?.future ?? 0,
+        trade_signature: tradeHist.signature,
+        trade_summary: tradeHist.summary,
+        picks_sent: tradeHist.picks_sent,
+        picks_received: tradeHist.picks_received,
+        recent_picks: recent,
+      };
+    })
+    .sort((a, b) => {
+      // User's own card first; then by win-now descending so the room
+      // reads "I'm here, here's who's ahead of me on win-now."
+      if (a.is_me && !b.is_me) return -1;
+      if (!a.is_me && b.is_me) return 1;
+      return b.win_now_score - a.win_now_score;
+    });
+
   const serverData: AarServerData = {
     leagueId,
     leagueName: league.name,
@@ -561,6 +630,7 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     league_swings: swings,
     lane_memberships: aarLaneMemberships,
     lane_moves: aarLaneMoves,
+    league_dossier: leagueDossier,
   };
 
   return (
