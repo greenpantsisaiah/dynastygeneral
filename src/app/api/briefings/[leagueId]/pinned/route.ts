@@ -27,6 +27,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_PINNED = 50; // soft cap; matches feed retention so we never balloon
+// Per-row payload ceilings. Per security-auditor 2026-05-12: prior
+// z.unknown() with no size cap let a Pro user POST multi-megabyte
+// `data` payloads, stored verbatim and re-rendered on GET. Stored XSS
+// is not exploitable today (no dangerouslySetInnerHTML in any
+// renderer + React's default JSX escaping) but the resource-abuse
+// vector is real.
+const DATA_MAX_BYTES = 20_480; // 20KB serialized
 
 const pinSchema = z.object({
   briefing_id: z.string().min(1).max(128),
@@ -34,10 +41,17 @@ const pinSchema = z.object({
   severity: z.string().min(1).max(32),
   headline: z.string().min(1).max(280),
   body: z.string().max(8000).optional().nullable(),
-  // Per-kind payload (TierData | QuadrantData | etc). We accept any
-  // JSON-serializable structure; the renderer is responsible for
-  // tolerating shape drift from older pinned rows.
-  data: z.unknown().optional().nullable(),
+  // Per-kind payload (TierData | QuadrantData | etc). JSON-serializable
+  // structure; the renderer is responsible for tolerating shape drift
+  // from older pinned rows. NEVER store raw HTML strings here.
+  data: z
+    .unknown()
+    .optional()
+    .nullable()
+    .refine(
+      (v) => v == null || JSON.stringify(v).length <= DATA_MAX_BYTES,
+      { message: "data_too_large" },
+    ),
 });
 
 type PinnedRow = {

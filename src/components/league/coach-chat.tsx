@@ -633,6 +633,23 @@ export function CoachChat({
             </button>
           </div>
         )}
+        <p
+          className={
+            isPanel
+              ? "mt-2 px-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2"
+              : "mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2"
+          }
+        >
+          Conversations save to your account so you can pick up across
+          devices. Delete anytime from{" "}
+          <a
+            href="/account"
+            className="text-muted-2 underline decoration-muted-2/40 hover:text-accent"
+          >
+            Account settings
+          </a>
+          .
+        </p>
       </form>
     </section>
   );

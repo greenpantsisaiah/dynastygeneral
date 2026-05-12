@@ -21,6 +21,14 @@ import {
 } from "@/lib/share/trade-verdict-share";
 
 const LEAGUE_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
+// Per-row payload ceilings. Per security-auditor 2026-05-12: prior
+// z.record(...).unknown() left output + input fully unbounded. Stored
+// XSS is not exploitable today (no dangerouslySetInnerHTML in any
+// verdict renderer) but a Pro user could otherwise POST multi-megabyte
+// payloads stored verbatim and re-rendered on /t/[code]. Real
+// verdicts run well under 50KB.
+const OUTPUT_MAX_BYTES = 65_536; // 64KB
+const INPUT_MAX_BYTES = 32_768; // 32KB
 
 // Minimal schema. We accept the engine's output payload as opaque
 // JSON to stay forward-compatible: if the engine output schema
@@ -29,8 +37,18 @@ const LEAGUE_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 const bodySchema = z.object({
   mode: z.enum(["incoming", "outbound"]),
   league_id: z.string().regex(LEAGUE_ID_RE).nullish(),
-  output: z.record(z.string(), z.unknown()),
-  input: z.record(z.string(), z.unknown()).nullish(),
+  output: z
+    .record(z.string(), z.unknown())
+    .refine((v) => JSON.stringify(v).length <= OUTPUT_MAX_BYTES, {
+      message: "output_too_large",
+    }),
+  input: z
+    .record(z.string(), z.unknown())
+    .nullish()
+    .refine(
+      (v) => v == null || JSON.stringify(v).length <= INPUT_MAX_BYTES,
+      { message: "input_too_large" },
+    ),
   team_display: z.string().max(120).nullish(),
   confidence_pct: z
     .number()

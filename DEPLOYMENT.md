@@ -17,8 +17,8 @@ Set in Vercel project settings AND in `.env.local` for local dev:
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | YES | LLM calls (verdict, coach, briefings) | `/api/*` and `/lib/*` server modules |
 | `NEXT_PUBLIC_SITE_URL` | for production | absolute URLs in OG tags + emails | client + server |
-| `KV_*` (Vercel KV) | recommended | persistent rate-limit + budget state | `lib/ratelimit.ts`, `lib/budget.ts` |
-| `BETA_OPEN_MODE` | optional, default `true` | when `true`, every signed-in user gets Coach + Briefings + Multi-pick + Contender Outlook regardless of tier; flip to `false` to enforce Pro gating | `lib/billing/beta-mode.ts` |
+| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | required for production | persistent rate-limit + budget state | `lib/ratelimit.ts`, `lib/budget.ts` |
+| `BETA_OPEN_MODE` | currently IGNORED | `lib/billing/beta-mode.ts` returns `true` unconditionally during alpha; the env var has no effect. When ready to enforce Pro gating, restore the env-driven toggle in that file. | `lib/billing/beta-mode.ts` |
 | `ADMIN_EMAILS` | optional | comma-separated allow-list for admin endpoints (e.g. `/api/admin/refresh-players`); empty = no one is admin | `lib/auth/admin.ts` |
 | `NFL_DRAFT_WINDOW_START` | optional | ISO date `YYYY-MM-DD` (UTC). Both START + END must be set for draft-live mode to activate | `lib/draft-window/active.ts` |
 | `NFL_DRAFT_WINDOW_END` | optional | ISO date `YYYY-MM-DD` (UTC). Inclusive end; window is closed by default | `lib/draft-window/active.ts` |
@@ -33,7 +33,7 @@ Set in Vercel project settings AND in `.env.local` for local dev:
 | `NEXT_PUBLIC_COOKIE_BANNER_ENABLED` | optional, default off | Set to `"true"` to render the EU-style cookie consent banner at the bottom of every page. Off by default because we don't load ad trackers or third-party analytics today. Flip when EU/UK traffic appears or you wire Vercel Analytics. | `components/cookie-banner.tsx`, mounted in `app/layout.tsx` |
 | `SENTRY_DSN` | optional | Error tracking. Without it, errors only land in Vercel logs. | `lib/sentry/*` (when wired) |
 
-If `KV_*` is unset, rate limits and budget caps run in-memory (process-local). That works for a single Vercel function instance but breaks under concurrent traffic. Production: provision Vercel KV before launch.
+If `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are unset, rate limits and budget caps DISABLE entirely (the code logs a loud error once and returns allow-all). Vercel KV exposes Upstash-compatible REST credentials under "REST API" in the KV dashboard; copy those into the Upstash-named env vars. The auto-injected `KV_*` names are NOT what `lib/ratelimit.ts` reads.
 
 If `ANTHROPIC_API_KEY` is unset, the verdict + coach return graceful stubs (`Set ANTHROPIC_API_KEY to enable verdicts`). The app still runs; LLM features just degrade.
 
@@ -96,7 +96,8 @@ Run all of these before promoting to production. The `dynasty-security-auditor` 
 
 ### Operational
 
-- [ ] Vercel KV provisioned and `KV_*` env vars set.
+- [ ] Upstash Redis provisioned and `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` env vars set in Vercel. NOT the auto-injected `KV_*` names: `src/lib/ratelimit.ts` reads the Upstash-native names, so a Vercel KV instance must expose its REST API credentials under the Upstash names (the KV dashboard surfaces them under "REST API"). Without these, rate limiting AND the LLM budget cap silently disable in production and the cost-watcher's worst-case-per-IP estimates apply unchecked.
+- [ ] **Known state: `isBetaOpenMode()` is hardcoded `true`.** `src/lib/billing/beta-mode.ts` returns `true` unconditionally; the `BETA_OPEN_MODE` env var is ignored. Pro tier gating on Coach / Briefings / Decisions is therefore NOT enforced. When ready to monetize, restore the env-driven toggle in that file (the comment names the steps).
 - [ ] Sentry (or equivalent) DSN configured if using error tracking.
 - [ ] Vercel Analytics enabled if you want traffic visibility.
 - [ ] Supabase migrations applied. Run `supabase db push` (or paste each `.sql` into the SQL editor in order). The Soundboard scaffold (0006_soundboard.sql) introduces three tables: `judgment_profiles`, `mixer_feedback`, `mixer_suggestions`. Without it, /soundboard renders fine but argue/suggest 500.

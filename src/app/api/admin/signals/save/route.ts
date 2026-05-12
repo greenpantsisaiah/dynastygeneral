@@ -24,19 +24,88 @@ import { getAdminUser } from "@/lib/auth/admin";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const saveSchema = z.object({
-  table: z.enum(["team_signals", "player_signals"]),
-  row_id: z.string().min(1).max(64),
-  field: z.string().min(1).max(64),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.record(z.string(), z.unknown()),
-  ]),
-  rationale: z.string().max(500).optional(),
-});
+// Explicit allow-list of writable column names per signal table.
+// Mirrors the schema in supabase/migrations/0009_signals.sql. Prior
+// implementation accepted any user-supplied `field` string and used it
+// directly as a Supabase upsert key, letting a stolen admin session
+// write arbitrary columns to the signals tables. Adding a column to
+// either table requires adding it here AND in the migration.
+// Excluded by design: primary keys (player_id, team) are the row_id
+// discriminator already; meta columns (last_updated, updated_by) are
+// auto-managed by the upsert payload below.
+const WRITABLE_FIELDS: Record<"team_signals" | "player_signals", string[]> = {
+  player_signals: [
+    "position",
+    "team",
+    "age",
+    "snap_share_prior_year",
+    "route_participation_prior_year",
+    "target_share_prior_year",
+    "rush_share_prior_year",
+    "weighted_opportunity_prior_year",
+    "high_value_touches_prior_year",
+    "yprr_prior_year",
+    "adot_prior_year",
+    "epa_per_play_prior_year",
+    "cpoe_prior_year",
+    "draft_round",
+    "draft_pick_no",
+    "ras",
+    "college_dominator",
+    "breakout_age",
+    "weight_lb",
+    "height_in",
+    "contract_years_remaining",
+    "recent_extension_flag",
+    "contract_year_flag",
+    "rb_role_tier",
+    "rb_traded_offseason_flag",
+    "rb_role_at_new_team_projected",
+    "rb_passdown_share_prior_year",
+    "compounding_news_count",
+    "source_attribution",
+    "confidence_per_field",
+  ],
+  team_signals: [
+    "ol_continuity_score",
+    "ol_grade_run",
+    "ol_grade_pass",
+    "rookie_ol_starters_count",
+    "rookie_ol_position_breakdown",
+    "hc_id",
+    "hc_first_time_flag",
+    "hc_tenure_yrs",
+    "hc_background_tag",
+    "oc_id",
+    "oc_tenure_yrs",
+    "oc_first_year_with_team_flag",
+    "scheme_tag",
+    "staff_novelty_composite",
+    "scheme_pace",
+    "pass_rate_neutral",
+    "personnel_12_rate",
+    "source_attribution",
+  ],
+};
+
+const saveSchema = z
+  .object({
+    table: z.enum(["team_signals", "player_signals"]),
+    row_id: z.string().min(1).max(64),
+    field: z.string().min(1).max(64),
+    value: z.union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.record(z.string(), z.unknown()),
+    ]),
+    rationale: z.string().max(500).optional(),
+  })
+  .refine(
+    (v) => WRITABLE_FIELDS[v.table].includes(v.field),
+    { message: "field_not_writable", path: ["field"] },
+  );
 
 export async function POST(request: Request): Promise<Response> {
   const user = await getAdminUser();
@@ -49,13 +118,11 @@ export async function POST(request: Request): Promise<Response> {
     const body = await request.json();
     parsed = saveSchema.parse(body);
   } catch (err) {
-    return NextResponse.json(
-      {
-        error: "invalid_body",
-        detail: err instanceof Error ? err.message : String(err),
-      },
-      { status: 400 },
+    console.error(
+      "[admin:signals:save:invalid_body]",
+      err instanceof Error ? err.message : String(err),
     );
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
   const admin = getAdminClient();
@@ -85,10 +152,8 @@ export async function POST(request: Request): Promise<Response> {
     .from(parsed.table)
     .upsert(upsertPayload, { onConflict: idColumn });
   if (upsertError) {
-    return NextResponse.json(
-      { error: "save_failed", detail: upsertError.message },
-      { status: 500 },
-    );
+    console.error("[admin:signals:save:upsert]", upsertError.message);
+    return NextResponse.json({ error: "save_failed" }, { status: 500 });
   }
 
   // Audit log. Best effort.
