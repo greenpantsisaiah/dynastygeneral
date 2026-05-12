@@ -413,6 +413,56 @@ export default async function LeagueHubPage({
         snapshot,
       );
 
+      // Enrich each card with the opponent's last 3 picks. Surfaces
+      // "what are they doing right now?" without making the user open
+      // Sleeper. Resolves player names via the cached `resolvePlayers`
+      // helper using only the pick IDs we need (3 per opponent), so
+      // the additional cost is one cache lookup.
+      try {
+        const totalTeams = snapshot.total_teams || 12;
+        const recentPickIds = new Set<string>();
+        const perOpponent = new Map<
+          number,
+          Array<{ pick_no: number; player_id: string; position: string | null }>
+        >();
+        for (const c of opponentCharacterizations) {
+          const top3 = [...snapshot.draft.picks_made]
+            .filter((p) => p.roster_id === c.roster_id)
+            .sort((a, b) => b.pick_no - a.pick_no)
+            .slice(0, 3);
+          perOpponent.set(
+            c.roster_id,
+            top3.map((p) => ({
+              pick_no: p.pick_no,
+              player_id: p.player_id,
+              position: p.position,
+            })),
+          );
+          for (const p of top3) recentPickIds.add(p.player_id);
+        }
+        const namesById = await resolvePlayers([...recentPickIds]);
+        for (const c of opponentCharacterizations) {
+          const picks = perOpponent.get(c.roster_id) ?? [];
+          c.recent_picks = picks.map((p) => {
+            const sp = namesById.get(p.player_id);
+            const combined = [sp?.first_name, sp?.last_name]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            const name = sp?.full_name ?? combined ?? p.player_id;
+            const round = Math.ceil(p.pick_no / totalTeams);
+            const within = ((p.pick_no - 1) % totalTeams) + 1;
+            return {
+              pick_label: `${round}.${within}`,
+              player_name: name,
+              position: p.position ?? sp?.position ?? null,
+            };
+          });
+        }
+      } catch (err) {
+        console.error("[hub:opponent-recent-picks]", err);
+      }
+
       // Pre-compute per-opponent trade-history signatures so the
       // OpponentCharacterizations card can surface the fingerprint chip
       // (pick_flipper / hoarder / seller / quiet). Same module Coach

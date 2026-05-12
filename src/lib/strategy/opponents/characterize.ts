@@ -39,6 +39,12 @@ export type TeamLean =
   | "lean_win_future"
   | "win_future";
 
+export type OpponentRecentPick = {
+  pick_label: string;
+  player_name: string;
+  position: string | null;
+};
+
 export type OpponentCharacterization = {
   roster_id: number;
   owner_name: string;
@@ -57,6 +63,10 @@ export type OpponentCharacterization = {
   // Raw EV total for tooltips. Same scale across the league so
   // teams are comparable.
   ev_raw?: number | null;
+  // Last 3 picks the opponent made, most-recent first. Lets the card
+  // surface "what are they doing right now?" without making the user
+  // open Sleeper. Empty array when fewer than 3 picks have been made.
+  recent_picks?: OpponentRecentPick[];
   // True for the user's own team. Renderers highlight this row + dot
   // distinctly (accent color, "you" badge) so the user sees where
   // they stand alongside the room.

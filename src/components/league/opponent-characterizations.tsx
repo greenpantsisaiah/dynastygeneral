@@ -264,6 +264,29 @@ function CharacterizationCard({
         </ul>
       )}
 
+      {!youCard && item.recent_picks && item.recent_picks.length > 0 && (
+        <div className="mt-2">
+          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+            Recent picks
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] leading-snug">
+            {item.recent_picks.map((p) => (
+              <span key={p.pick_label} className="text-foreground">
+                <span className="font-mono text-[9px] text-muted-2 mr-1">
+                  {p.pick_label}
+                </span>
+                {p.player_name}
+                {p.position && (
+                  <span className="ml-1 font-mono text-[9px] text-muted-2">
+                    · {p.position}
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!youCard && tradeHistory && tradeHistory.signature !== "pick_quiet" && (
         <div
           className={`mt-2 inline-flex items-baseline gap-2 rounded-md border ${TRADE_SIGNATURE_CHIP[tradeHistory.signature].tone} px-2 py-1`}
