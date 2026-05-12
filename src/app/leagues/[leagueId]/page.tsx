@@ -140,6 +140,10 @@ import {
   groupNotesByOpponent,
   type OpponentNote,
 } from "@/lib/opponent-notes/storage";
+import {
+  buildOpponentTradeHistory,
+  type OpponentTradeHistory,
+} from "@/lib/strategy/opponents/trade-history";
 import type { OpponentCharacterization } from "@/lib/strategy/opponents/characterize";
 import { BriefingFeed } from "@/components/league/briefing-feed";
 import { CoachChat } from "@/components/league/coach-chat";
@@ -311,6 +315,8 @@ export default async function LeagueHubPage({
   let opponentReadout: OpponentReadout | null = null;
   let opponentCharacterizations: OpponentCharacterization[] = [];
   let opponentNotesByRoster: Map<number, OpponentNote[]> = new Map();
+  let opponentTradeHistoryByRoster: Map<number, OpponentTradeHistory> =
+    new Map();
   let availablePlayers: Awaited<
     ReturnType<typeof getAvailableForRequest>
   > = [];
@@ -406,6 +412,25 @@ export default async function LeagueHubPage({
       opponentCharacterizations = await buildOpponentCharacterizations(
         snapshot,
       );
+
+      // Pre-compute per-opponent trade-history signatures so the
+      // OpponentCharacterizations card can surface the fingerprint chip
+      // (pick_flipper / hoarder / seller / quiet). Same module Coach
+      // calls; no extra Sleeper fetch (operates on
+      // snapshot.draft.traded_picks already in memory).
+      try {
+        for (const r of snapshot.rosters) {
+          if (r.is_me) continue;
+          const th = buildOpponentTradeHistory({
+            rosterId: r.roster_id,
+            tradedPicks: snapshot.draft.traded_picks,
+            currentSeason: snapshot.season,
+          });
+          opponentTradeHistoryByRoster.set(r.roster_id, th);
+        }
+      } catch (err) {
+        console.error("[hub:opponent-trade-history]", err);
+      }
 
       // Pull manual opponent notes for the signed-in user so the
       // OpponentCharacterizations panel can render them inline + offer
@@ -1745,6 +1770,7 @@ export default async function LeagueHubPage({
                       items={opponentCharacterizations}
                       leagueId={leagueId}
                       notesByRoster={opponentNotesByRoster}
+                      tradeHistoryByRoster={opponentTradeHistoryByRoster}
                       canWriteNotes={authUser != null}
                     />
                   )}

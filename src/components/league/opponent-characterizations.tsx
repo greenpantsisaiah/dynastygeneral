@@ -15,12 +15,42 @@ import type {
   OpponentCharacterization,
   TeamLean,
 } from "@/lib/strategy/opponents/characterize";
+import type {
+  OpponentTradeHistory,
+  TradeSignatureLabel,
+} from "@/lib/strategy/opponents/trade-history";
 import { AskCoachButton } from "./ask-coach-button";
 import { LeagueSpectrum } from "./league-spectrum";
 import {
   OpponentNotesPanel,
   type OpponentNoteItem,
 } from "./opponent-notes-panel";
+
+const TRADE_SIGNATURE_CHIP: Record<
+  TradeSignatureLabel,
+  { label: string; tone: string; hint: string }
+> = {
+  pick_flipper: {
+    label: "Pick flipper",
+    tone: "border-accent/60 bg-accent/10 text-accent",
+    hint: "High two-way pick volume. Treats picks as currency; entertain pick swaps.",
+  },
+  pick_hoarder: {
+    label: "Pick hoarder",
+    tone: "border-success/60 bg-success/10 text-success",
+    hint: "Net pick receiver. Wants one more anchor; offer a pick for production.",
+  },
+  pick_seller: {
+    label: "Pick seller",
+    tone: "border-warning/60 bg-warning/10 text-warning",
+    hint: "Net pick outflow. Prefers player-for-pick swaps from your side.",
+  },
+  pick_quiet: {
+    label: "Pick quiet",
+    tone: "border-border-soft bg-surface text-muted-2",
+    hint: "Low pick-trade volume. No strong fingerprint yet.",
+  },
+};
 
 const LEAN_LABEL: Record<TeamLean, string> = {
   punted_season: "Punted this season",
@@ -77,6 +107,7 @@ export function OpponentCharacterizations({
   items,
   leagueId,
   notesByRoster,
+  tradeHistoryByRoster,
   canWriteNotes,
 }: {
   items: OpponentCharacterization[];
@@ -91,6 +122,13 @@ export function OpponentCharacterizations({
    * server-side.
    */
   notesByRoster?: Map<number, OpponentNoteItem[]>;
+  /**
+   * Per-opponent trade-signature fingerprint (pick_flipper / hoarder
+   * / seller / quiet). Renders as a small chip on each card so the
+   * user can read counterparty behavior at a glance. Same data Coach
+   * gets in its context.
+   */
+  tradeHistoryByRoster?: Map<number, OpponentTradeHistory>;
   /**
    * False when the viewer is unauthenticated; notes panel renders a
    * "sign in to save" prompt instead of the form.
@@ -147,6 +185,7 @@ export function OpponentCharacterizations({
             item={it}
             leagueId={leagueId}
             notes={notesByRoster?.get(it.roster_id) ?? []}
+            tradeHistory={tradeHistoryByRoster?.get(it.roster_id) ?? null}
             canWriteNotes={canWriteNotes ?? false}
           />
         ))}
@@ -160,11 +199,13 @@ function CharacterizationCard({
   item,
   leagueId,
   notes,
+  tradeHistory,
   canWriteNotes,
 }: {
   item: OpponentCharacterization;
   leagueId?: string;
   notes: OpponentNoteItem[];
+  tradeHistory: OpponentTradeHistory | null;
   canWriteNotes: boolean;
 }) {
   const tone = LEAN_TONE[item.lean];
@@ -221,6 +262,21 @@ function CharacterizationCard({
             <li key={i}>· {r}</li>
           ))}
         </ul>
+      )}
+
+      {!youCard && tradeHistory && tradeHistory.signature !== "pick_quiet" && (
+        <div
+          className={`mt-2 inline-flex items-baseline gap-2 rounded-md border ${TRADE_SIGNATURE_CHIP[tradeHistory.signature].tone} px-2 py-1`}
+          title={TRADE_SIGNATURE_CHIP[tradeHistory.signature].hint}
+        >
+          <span className="font-mono text-[9px] uppercase tracking-[0.16em]">
+            {TRADE_SIGNATURE_CHIP[tradeHistory.signature].label}
+          </span>
+          <span className="font-mono text-[9px] text-muted-2">
+            {tradeHistory.picks_sent} sent · {tradeHistory.picks_received}{" "}
+            received
+          </span>
+        </div>
       )}
 
       {item.trade_implication && !youCard && (
