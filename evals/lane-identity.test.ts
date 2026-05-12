@@ -1086,5 +1086,205 @@ console.log("\nLane Identity regression\n");
   );
 }
 
+// 14. Distribution regression: archetype rosters that were NOT used to
+// calibrate thresholds. Locks the shape so threshold drift breaks the
+// test before it ships. Per assumption audit F.1: a threshold tuned
+// to one example has zero degrees of cross-validation freedom; these
+// rosters are the out-of-sample sanity check.
+{
+  console.log("── 14. archetype-cohort regression fixtures ──");
+
+  // Shared helper: build the lookup + value map from a roster spec
+  // and run aggregateRosterIdentity.
+  type RosterSpec = {
+    label: string;
+    snapOverrides?: Partial<LeagueSnapshot>;
+    players: Array<{
+      id: string;
+      name: string;
+      position: "QB" | "RB" | "WR" | "TE";
+      team: string;
+      age: number;
+      years_exp: number;
+      is_rookie?: boolean;
+      search_rank: number;
+      value: number;
+    }>;
+  };
+
+  function scoreRoster(spec: RosterSpec) {
+    const ctx = snap(spec.snapOverrides ?? {});
+    const meta: Record<string, PlayerMeta> = {};
+    const values = new Map<string, PlayerValueRecord>();
+    for (const p of spec.players) {
+      meta[p.id] = {
+        name: p.name,
+        position: p.position,
+        team: p.team,
+        age: p.age,
+        years_exp: p.years_exp,
+        is_rookie: p.is_rookie ?? false,
+        search_rank: p.search_rank,
+      };
+      values.set(p.id, { value: p.value, overall_rank: null });
+    }
+    return aggregateRosterIdentity({
+      playerIds: spec.players.map((p) => p.id),
+      playerLookup: (id) => meta[id] ?? null,
+      playerValueMap: values,
+      snap: ctx,
+    });
+  }
+
+  // ── Archetype A: Loaded Contender. Three elite vets at peak ages
+  //    across QB/RB/WR/TE; a bellcow RB anchors; a WR1 anchors. SF +
+  //    TE-premium. Should read IN on Win-Now Floor + Balanced + RB
+  //    Bellcow + WR Anchor + QB Stable + TE-Premium Lock + Trade
+  //    Capital + Sustained Contender.
+  const loadedContender: RosterSpec = {
+    label: "loaded contender",
+    players: [
+      // Two elite QBs at peak (SF)
+      { id: "lc_qb1", name: "Burrow", position: "QB", team: "CIN", age: 29, years_exp: 8, search_rank: 5, value: 90 },
+      { id: "lc_qb2", name: "Allen", position: "QB", team: "BUF", age: 30, years_exp: 9, search_rank: 7, value: 85 },
+      // Bellcow RB peak-age
+      { id: "lc_rb1", name: "Bijan", position: "RB", team: "ATL", age: 24, years_exp: 4, search_rank: 3, value: 92 },
+      { id: "lc_rb2", name: "Achane", position: "RB", team: "MIA", age: 25, years_exp: 4, search_rank: 18, value: 70 },
+      // WR1 anchor + WR2 + WR3
+      { id: "lc_wr1", name: "Chase", position: "WR", team: "CIN", age: 26, years_exp: 5, search_rank: 1, value: 95 },
+      { id: "lc_wr2", name: "Lamb", position: "WR", team: "DAL", age: 27, years_exp: 6, search_rank: 4, value: 88 },
+      { id: "lc_wr3", name: "DK", position: "WR", team: "SEA", age: 28, years_exp: 7, search_rank: 14, value: 70 },
+      // Elite TE + TE2 (TE-premium)
+      { id: "lc_te1", name: "Bowers", position: "TE", team: "LV", age: 23, years_exp: 2, search_rank: 12, value: 82 },
+      { id: "lc_te2", name: "LaPorta", position: "TE", team: "DET", age: 25, years_exp: 3, search_rank: 25, value: 65 },
+      // Future Stock depth: a couple of year-1/year-2 WRs at value
+      // that pass the future_stock threshold. Without these, the
+      // composite Sustained Contender lane stays CLOSE because
+      // future_stock has nothing. A real "sustained" contender
+      // carries both elite vets AND ascending youth.
+      { id: "lc_rb3", name: "Rookie RB stash", position: "RB", team: "RB3", age: 22, years_exp: 0, is_rookie: true, search_rank: 95, value: 45 },
+      { id: "lc_wr4", name: "Year-2 WR", position: "WR", team: "W4", age: 23, years_exp: 1, search_rank: 45, value: 55 },
+      { id: "lc_wr5", name: "Rookie WR stash", position: "WR", team: "W5", age: 22, years_exp: 0, is_rookie: true, search_rank: 85, value: 40 },
+    ],
+  };
+  const lcMem = scoreRoster(loadedContender);
+  const lcGet = (id: LaneId) =>
+    lcMem.find((m) => m.lane_id === id) as LaneMembership;
+  check(
+    "Loaded Contender: WR Anchor IN",
+    lcGet("wr_anchor").state === "in",
+    `state=${lcGet("wr_anchor").state} agg=${lcGet("wr_anchor").aggregate_score}`,
+  );
+  check(
+    "Loaded Contender: RB Bellcow IN",
+    lcGet("rb_bellcow").state === "in",
+    `state=${lcGet("rb_bellcow").state} agg=${lcGet("rb_bellcow").aggregate_score}`,
+  );
+  check(
+    "Loaded Contender: Win-Now Floor IN",
+    lcGet("win_now_floor").state === "in",
+    `state=${lcGet("win_now_floor").state} agg=${lcGet("win_now_floor").aggregate_score}`,
+  );
+  check(
+    "Loaded Contender: Sustained Contender IN",
+    lcGet("sustained_contender").state === "in",
+    `state=${lcGet("sustained_contender").state}`,
+  );
+  check(
+    "Loaded Contender: Zero-RB NOT_IN (has a bellcow, so not zero-RB)",
+    lcGet("zero_rb").state === "not_in",
+    `state=${lcGet("zero_rb").state}`,
+  );
+
+  // ── Archetype B: Pure Rebuild. Rookies and year-2 assets only,
+  //    no proven vets. Should read IN on Future Stock, NOT_IN on
+  //    Win-Now Floor / WR Anchor / RB Bellcow / Sustained Contender.
+  const pureRebuild: RosterSpec = {
+    label: "pure rebuild",
+    snapOverrides: { format: "superflex", scoring: ["PPR", "TE-premium"] },
+    players: [
+      // Rookie QBs
+      { id: "pr_qb1", name: "Rookie QB1", position: "QB", team: "X", age: 22, years_exp: 0, is_rookie: true, search_rank: 60, value: 35 },
+      { id: "pr_qb2", name: "Rookie QB2", position: "QB", team: "Y", age: 23, years_exp: 0, is_rookie: true, search_rank: 80, value: 28 },
+      // Rookie / year-2 RBs
+      { id: "pr_rb1", name: "Rookie RB1", position: "RB", team: "A", age: 22, years_exp: 0, is_rookie: true, search_rank: 50, value: 40 },
+      { id: "pr_rb2", name: "Rookie RB2", position: "RB", team: "B", age: 22, years_exp: 0, is_rookie: true, search_rank: 100, value: 25 },
+      // Rookie / year-2 WRs
+      { id: "pr_wr1", name: "Rookie WR1", position: "WR", team: "C", age: 22, years_exp: 0, is_rookie: true, search_rank: 30, value: 45 },
+      { id: "pr_wr2", name: "Rookie WR2", position: "WR", team: "D", age: 22, years_exp: 0, is_rookie: true, search_rank: 70, value: 35 },
+      { id: "pr_wr3", name: "Year2 WR", position: "WR", team: "E", age: 23, years_exp: 1, is_rookie: false, search_rank: 90, value: 30 },
+      // Rookie TE
+      { id: "pr_te1", name: "Rookie TE1", position: "TE", team: "F", age: 22, years_exp: 0, is_rookie: true, search_rank: 110, value: 35 },
+    ],
+  };
+  const prMem = scoreRoster(pureRebuild);
+  const prGet = (id: LaneId) =>
+    prMem.find((m) => m.lane_id === id) as LaneMembership;
+  check(
+    "Pure Rebuild: Future Stock IN",
+    prGet("future_stock").state === "in",
+    `state=${prGet("future_stock").state} agg=${prGet("future_stock").aggregate_score}`,
+  );
+  check(
+    "Pure Rebuild: Win-Now Floor NOT_IN (no proven vets)",
+    prGet("win_now_floor").state !== "in",
+    `state=${prGet("win_now_floor").state} agg=${prGet("win_now_floor").aggregate_score}`,
+  );
+  check(
+    "Pure Rebuild: RB Bellcow NOT_IN",
+    prGet("rb_bellcow").state === "not_in",
+    `state=${prGet("rb_bellcow").state}`,
+  );
+  check(
+    "Pure Rebuild: WR Anchor NOT_IN (no value-70+ WR)",
+    prGet("wr_anchor").state === "not_in",
+    `state=${prGet("wr_anchor").state}`,
+  );
+  check(
+    "Pure Rebuild: Sustained Contender NOT_IN",
+    prGet("sustained_contender").state === "not_in",
+    `state=${prGet("sustained_contender").state}`,
+  );
+
+  // ── Archetype C: Zero-RB Build. Heavy WR + TE depth, NO real RB.
+  //    Should read IN on WR Stable + WR Anchor and the composite
+  //    Zero-RB lane. RB Bellcow NOT_IN by design.
+  const zeroRb: RosterSpec = {
+    label: "zero-rb",
+    snapOverrides: { format: "1qb", scoring: ["PPR"] },
+    players: [
+      { id: "zr_qb1", name: "Vet QB", position: "QB", team: "Q", age: 28, years_exp: 7, search_rank: 12, value: 70 },
+      // Token RBs only (no bellcow)
+      { id: "zr_rb1", name: "Depth RB1", position: "RB", team: "R1", age: 25, years_exp: 4, search_rank: 70, value: 35 },
+      { id: "zr_rb2", name: "Rookie RB", position: "RB", team: "R2", age: 22, years_exp: 0, is_rookie: true, search_rank: 110, value: 25 },
+      // Heavy WR depth (the build)
+      { id: "zr_wr1", name: "WR1 elite", position: "WR", team: "W1", age: 26, years_exp: 5, search_rank: 2, value: 90 },
+      { id: "zr_wr2", name: "WR2 solid", position: "WR", team: "W2", age: 27, years_exp: 6, search_rank: 8, value: 75 },
+      { id: "zr_wr3", name: "WR3 solid", position: "WR", team: "W3", age: 25, years_exp: 4, search_rank: 18, value: 65 },
+      { id: "zr_wr4", name: "WR4 depth", position: "WR", team: "W4", age: 26, years_exp: 5, search_rank: 40, value: 50 },
+      // Solid TE
+      { id: "zr_te1", name: "TE1 solid", position: "TE", team: "T", age: 27, years_exp: 6, search_rank: 20, value: 60 },
+    ],
+  };
+  const zrMem = scoreRoster(zeroRb);
+  const zrGet = (id: LaneId) =>
+    zrMem.find((m) => m.lane_id === id) as LaneMembership;
+  check(
+    "Zero-RB Build: RB Bellcow NOT_IN (no workhorse by design)",
+    zrGet("rb_bellcow").state === "not_in",
+    `state=${zrGet("rb_bellcow").state}`,
+  );
+  check(
+    "Zero-RB Build: WR Stable IN",
+    zrGet("wr_stable").state === "in",
+    `state=${zrGet("wr_stable").state} agg=${zrGet("wr_stable").aggregate_score}`,
+  );
+  check(
+    "Zero-RB Build: Zero-RB composite IN",
+    zrGet("zero_rb").state === "in",
+    `state=${zrGet("zero_rb").state} agg=${zrGet("zero_rb").aggregate_score}`,
+  );
+}
+
 console.log(`\n${passed} passed · ${failed} failed`);
 if (failed > 0) process.exit(1);
