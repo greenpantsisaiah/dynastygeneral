@@ -31,9 +31,16 @@ export type EvTrajectoryChartProps = {
   // chart renders a faint horizontal line at the league average and
   // adds a one-line comparison summary above the plot.
   leagueBank?: LeagueEvBankReadout | null;
+  // Optional delta vs the user's last visit. When >= 0.5 in magnitude,
+  // a small arrow + signed value renders next to the total.
+  delta?: number | null;
 };
 
-export function EvTrajectoryChart({ bank, leagueBank }: EvTrajectoryChartProps) {
+export function EvTrajectoryChart({
+  bank,
+  leagueBank,
+  delta,
+}: EvTrajectoryChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const trajectory = useMemo(() => buildTrajectory(bank), [bank]);
@@ -94,6 +101,15 @@ export function EvTrajectoryChart({ bank, leagueBank }: EvTrajectoryChartProps) 
             {ciText && (
               <span className="font-mono text-[11px] text-muted-2">
                 CI {ciText}
+              </span>
+            )}
+            {delta != null && Math.abs(delta) >= 0.5 && (
+              <span
+                className={`font-mono text-[11px] ${delta >= 0 ? "text-success" : "text-danger"}`}
+                title="Change since your last visit"
+              >
+                {delta >= 0 ? "↑" : "↓"}
+                {Math.abs(delta).toFixed(1)} since last visit
               </span>
             )}
           </div>

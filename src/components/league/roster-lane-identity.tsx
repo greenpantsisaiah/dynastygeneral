@@ -62,11 +62,19 @@ export type RosterLaneIdentityProps = {
    * their own surplus pieces to package.
    */
   moves?: IdentityMove[];
+  /**
+   * Optional per-lane state from the user's last visit. When a lane
+   * has a prior state and the current state differs, the card shows
+   * a small transition indicator ("was CLOSE"). Empty object on
+   * first visit = no transitions shown.
+   */
+  priorStates?: Record<string, "in" | "close" | "not_in">;
 };
 
 export function RosterLaneIdentity({
   memberships,
   moves = [],
+  priorStates = {},
 }: RosterLaneIdentityProps) {
   const [showNotIn, setShowNotIn] = useState(false);
 
@@ -101,7 +109,11 @@ export function RosterLaneIdentity({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {inLanes.map((m) => (
-              <LaneCard key={m.lane_id} membership={m} />
+              <LaneCard
+                key={m.lane_id}
+                membership={m}
+                priorState={priorStates[m.lane_id] ?? null}
+              />
             ))}
           </div>
         </div>
@@ -118,6 +130,7 @@ export function RosterLaneIdentity({
                 key={m.lane_id}
                 membership={m}
                 move={movesByLane.get(m.lane_id)}
+                priorState={priorStates[m.lane_id] ?? null}
               />
             ))}
           </div>
@@ -151,11 +164,14 @@ function LaneCard({
   membership: m,
   compact = false,
   move,
+  priorState = null,
 }: {
   membership: LaneMembership;
   compact?: boolean;
   move?: IdentityMove;
+  priorState?: "in" | "close" | "not_in" | null;
 }) {
+  const stateChanged = priorState != null && priorState !== m.state;
   const style = STATE_STYLES[m.state];
   const contributors = m.contributors.slice(0, compact ? 0 : 5);
   return (
@@ -172,11 +188,21 @@ function LaneCard({
             {m.is_derived && " · composite"}
           </div>
         </div>
-        <span
-          className={`shrink-0 font-mono text-[8px] uppercase tracking-[0.18em] ${style.pillText} border ${style.pillBorder} rounded-full px-1.5 py-0.5`}
-        >
-          {style.label}
-        </span>
+        <div className="shrink-0 flex items-center gap-1.5">
+          {stateChanged && priorState && (
+            <span
+              className="font-mono text-[8px] uppercase tracking-[0.18em] text-accent"
+              title={`Was ${STATE_STYLES[priorState].label.toLowerCase()} on your last visit`}
+            >
+              was {STATE_STYLES[priorState].label}
+            </span>
+          )}
+          <span
+            className={`font-mono text-[8px] uppercase tracking-[0.18em] ${style.pillText} border ${style.pillBorder} rounded-full px-1.5 py-0.5`}
+          >
+            {style.label}
+          </span>
+        </div>
       </div>
 
       {!compact && (

@@ -795,6 +795,7 @@ export default async function LeagueHubPage({
   let lastVisitStandingCallChanged = false;
   let lastVisitEvBankDelta: number | null = null;
   let lastVisitHasSnipes = false;
+  let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
@@ -1017,6 +1018,7 @@ export default async function LeagueHubPage({
         lastVisitPicksMadeByUser = delta.picks_made_by_user;
         lastVisitStandingCallChanged = delta.standing_call_changed;
         lastVisitEvBankDelta = delta.ev_bank_delta;
+        priorLaneStates = prior?.lane_states ?? {};
         const disruption = detectPlanDisruption({
           prior,
           snap: leagueSnapshot,
@@ -1498,6 +1500,12 @@ export default async function LeagueHubPage({
                       // most-relevant snipe surface today.
                       next_picks_plan_target_ids: [],
                     }),
+                    // Per-lane state map. Powers the lane-state
+                    // transition indicators on the next render
+                    // ("Win-Now Floor: CLOSE -> IN").
+                    lane_states: Object.fromEntries(
+                      rosterLaneMemberships.map((m) => [m.lane_id, m.state]),
+                    ),
                   }}
                 />
               )}
@@ -1644,6 +1652,7 @@ export default async function LeagueHubPage({
                     <DraftProgressPanel
                       data={draftProgress}
                       leagueBank={leagueEvBank}
+                      evBankDelta={lastVisitEvBankDelta}
                     />
                   )}
                 </DashboardSection>
@@ -1668,6 +1677,7 @@ export default async function LeagueHubPage({
                   <RosterLaneIdentity
                     memberships={rosterLaneMemberships}
                     moves={rosterLaneMoves}
+                    priorStates={priorLaneStates}
                   />
                 )}
                 {inflectionItems.length > 0 && (

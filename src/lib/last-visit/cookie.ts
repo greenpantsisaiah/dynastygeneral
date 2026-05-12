@@ -49,6 +49,12 @@ export type LastVisitFingerprint = {
   // surfaces the "they grabbed X" acknowledgment. Optional; older
   // cookies without this field are treated as no-prior-plan.
   plan_player_ids?: string[];
+  // Per-lane state at last render. Used to surface lane-state
+  // transitions ("Win-Now Floor: CLOSE -> IN since last visit").
+  // Map of lane_id -> state. Optional; older cookies without this
+  // field are treated as no-prior-state and render no transition
+  // markers.
+  lane_states?: Record<string, "in" | "close" | "not_in">;
 };
 
 function cookieNameFor(leagueId: string): string {

@@ -44,7 +44,6 @@ import {
 } from "@/lib/opponent-notes/storage";
 import { buildLeagueReadFromSnapshot } from "@/lib/strategy/league-read";
 import { buildInflectionsFromSnapshot } from "@/lib/engine/inflection";
-import { readSloanMode } from "@/lib/sloan-mode/cookie";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
@@ -1027,11 +1026,6 @@ export async function POST(
     // rule (mandatory bimodal framing for aging-cliff / rookie-debut
     // / post-injury players).
     inflections: inflectionItems,
-    // Sloan-mode toggle from the user's browser cookie. When "on",
-    // Coach adopts the drier register (Voice B) per BRAND_VOICE.md:
-    // confidence intervals, signal scorecards, and model provenance
-    // surface inline. Same content, different reader posture.
-    sloan_mode: await readSloanMode(),
     nfl_draft_live: isNflDraftWindowActive(),
   };
 

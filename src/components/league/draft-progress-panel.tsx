@@ -81,6 +81,7 @@ const METRIC_VALUE_COLOR: Record<ProgressTier, string> = {
 export function DraftProgressPanel({
   data,
   leagueBank,
+  evBankDelta,
 }: {
   data: DraftProgress | null;
   // Optional league EV bank readout. When provided and at least 2
@@ -90,6 +91,11 @@ export function DraftProgressPanel({
   // me mine and then expanding to theirs would be the obvious
   // thing to do."
   leagueBank?: LeagueEvBankReadout | null;
+  // Optional EV bank delta vs the user's last visit. When present
+  // and >= 0.5 in magnitude, the chart header renders a small
+  // delta arrow next to the total ("+87.1 ↑0.4 since last visit").
+  // Per REDESIGN_INTENTIONS principle 11.
+  evBankDelta?: number | null;
 }) {
   if (!data) return null;
   if (data.picks_made_by_user === 0) return null;
@@ -205,7 +211,11 @@ export function DraftProgressPanel({
       )}
 
       {data.ev_bank && data.ev_bank.entries.length > 0 && (
-        <EvBankSection bank={data.ev_bank} leagueBank={leagueBank ?? null} />
+        <EvBankSection
+          bank={data.ev_bank}
+          leagueBank={leagueBank ?? null}
+          delta={evBankDelta ?? null}
+        />
       )}
     </section>
   );
@@ -214,9 +224,11 @@ export function DraftProgressPanel({
 function EvBankSection({
   bank,
   leagueBank,
+  delta,
 }: {
   bank: EvBank;
   leagueBank: LeagueEvBankReadout | null;
+  delta: number | null;
 }) {
   // Bar scale for the per-pick detail view (kept as tap-to-expand).
   const maxAbsDelta = Math.max(
@@ -233,7 +245,7 @@ function EvBankSection({
           chart header; per-pick detail surfaces on hover. League
           context (avg reference line + rank/percentile line below the
           headline) renders when leagueBank is provided. */}
-      <EvTrajectoryChart bank={bank} leagueBank={leagueBank} />
+      <EvTrajectoryChart bank={bank} leagueBank={leagueBank} delta={delta} />
 
       {/* Tap-to-expand per-pick bar detail. The trajectory chart
           shows cumulative; this view shows each pick's contribution
