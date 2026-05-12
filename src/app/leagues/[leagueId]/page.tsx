@@ -72,6 +72,7 @@ import { InflectionPanel } from "@/components/league/inflection-panel";
 import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
 import { LastVisitWriter } from "@/components/system/last-visit-writer";
 import { LastVisitDigest } from "@/components/league/last-visit-digest";
+import { EvBankPercentileChip } from "@/components/league/ev-bank-percentile-chip";
 import {
   buildPlanPlayerIds,
   detectPlanDisruption,
@@ -789,6 +790,11 @@ export default async function LeagueHubPage({
   let rosterLaneMoves: IdentityMove[] = [];
   let lastVisitDigestLine: string | null = null;
   let lastVisitDisruptionAck: string | null = null;
+  let lastVisitPicksMadeTotal = 0;
+  let lastVisitPicksMadeByUser = 0;
+  let lastVisitStandingCallChanged = false;
+  let lastVisitEvBankDelta: number | null = null;
+  let lastVisitHasSnipes = false;
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
@@ -1007,12 +1013,17 @@ export default async function LeagueHubPage({
           },
         });
         lastVisitDigestLine = composeDigestLine(delta);
+        lastVisitPicksMadeTotal = delta.picks_made_total;
+        lastVisitPicksMadeByUser = delta.picks_made_by_user;
+        lastVisitStandingCallChanged = delta.standing_call_changed;
+        lastVisitEvBankDelta = delta.ev_bank_delta;
         const disruption = detectPlanDisruption({
           prior,
           snap: leagueSnapshot,
           playerNameLookup,
         });
         lastVisitDisruptionAck = disruption.acknowledgment;
+        lastVisitHasSnipes = disruption.snipes.length > 0;
       } catch (err) {
         console.error("[hub:last-visit-digest]", err);
       }
@@ -1131,6 +1142,11 @@ export default async function LeagueHubPage({
           <LastVisitDigest
             digestLine={lastVisitDigestLine}
             disruptionAcknowledgment={lastVisitDisruptionAck}
+          />
+
+          <EvBankPercentileChip
+            leagueBank={leagueEvBank}
+            total_ev={draftProgress?.ev_bank?.total_ev ?? null}
           />
 
           {isViewingOther && savedSleeperUsername && (
@@ -1600,6 +1616,29 @@ export default async function LeagueHubPage({
                   title="Your bank, your fits, your sharp positioning"
                   tagline="Per-pick EV breakdown + position fits + sharp positioning. Tap inside the EV bank to compare to your league."
                   defaultOpen={true}
+                  hasChanges={
+                    lastVisitPicksMadeTotal > 0 ||
+                    (lastVisitEvBankDelta != null &&
+                      Math.abs(lastVisitEvBankDelta) >= 0.5)
+                  }
+                  changeHint={(() => {
+                    const parts: string[] = [];
+                    if (lastVisitPicksMadeTotal > 0) {
+                      parts.push(
+                        `${lastVisitPicksMadeTotal} new pick${lastVisitPicksMadeTotal === 1 ? "" : "s"}`,
+                      );
+                    }
+                    if (
+                      lastVisitEvBankDelta != null &&
+                      Math.abs(lastVisitEvBankDelta) >= 0.5
+                    ) {
+                      const sign = lastVisitEvBankDelta >= 0 ? "+" : "";
+                      parts.push(
+                        `EV ${sign}${lastVisitEvBankDelta.toFixed(1)}`,
+                      );
+                    }
+                    return parts.join(" · ") || undefined;
+                  })()}
                 >
                   {draftProgress && (
                     <DraftProgressPanel
@@ -1617,6 +1656,12 @@ export default async function LeagueHubPage({
                 title="Who you're building"
                 tagline="Identity, comparator, risk fingerprint, contender outlook."
                 defaultOpen={!draftActive}
+                hasChanges={lastVisitPicksMadeByUser > 0}
+                changeHint={
+                  lastVisitPicksMadeByUser > 0
+                    ? `${lastVisitPicksMadeByUser} pick${lastVisitPicksMadeByUser === 1 ? "" : "s"} added since you were last here`
+                    : undefined
+                }
               >
                 {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
                 {rosterLaneMemberships.length > 0 && (
@@ -1648,6 +1693,16 @@ export default async function LeagueHubPage({
                   tagline="Where the soft spots are, who needs what, what to send."
                   defaultOpen={!draftActive}
                   emphasize={!draftActive && draftState?.status === "complete"}
+                  hasChanges={
+                    lastVisitPicksMadeTotal > 0 || lastVisitHasSnipes
+                  }
+                  changeHint={
+                    lastVisitHasSnipes
+                      ? "Plan target sniped since last visit"
+                      : lastVisitPicksMadeTotal > 0
+                        ? `${lastVisitPicksMadeTotal} league picks since last visit`
+                        : undefined
+                  }
                 >
                   {leagueRead && <TradeStrategyPanel data={leagueRead} />}
                   {opponentCharacterizations.length > 0 && (

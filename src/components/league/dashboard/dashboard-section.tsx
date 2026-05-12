@@ -32,6 +32,15 @@ export type DashboardSectionProps = {
   // signal "this is the most actionable section right now" (e.g.,
   // The Call during an active draft).
   emphasize?: boolean;
+  // When true, a small accent dot appears next to the label to
+  // indicate the section's underlying data has moved since the
+  // user's last visit. Per REDESIGN_INTENTIONS principle 11
+  // (stable shape, variable content, visible delta). Renders only
+  // when there is actual movement to flag.
+  hasChanges?: boolean;
+  // Short hover/tap tooltip describing what changed
+  // (e.g., "3 new picks, standing call shifted"). Optional.
+  changeHint?: string;
   children: ReactNode;
 };
 
@@ -42,6 +51,8 @@ export function DashboardSection({
   defaultOpen = true,
   collapsible = true,
   emphasize = false,
+  hasChanges = false,
+  changeHint,
   children,
 }: DashboardSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
@@ -53,11 +64,18 @@ export function DashboardSection({
       <header className="flex items-baseline justify-between gap-3 mb-3">
         <div className="min-w-0">
           <div
-            className={`font-mono text-[10px] uppercase tracking-[0.2em] ${
+            className={`flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] ${
               emphasize ? "text-accent" : "text-muted-2"
             }`}
           >
-            {label}
+            <span>{label}</span>
+            {hasChanges && (
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full bg-accent"
+                title={changeHint ?? "Updated since your last visit"}
+                aria-label={changeHint ?? "Updated since your last visit"}
+              />
+            )}
           </div>
           <h2 className="mt-1 text-xl font-semibold leading-tight text-foreground">
             {title}
