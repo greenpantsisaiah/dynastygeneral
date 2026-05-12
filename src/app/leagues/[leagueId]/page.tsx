@@ -71,7 +71,16 @@ import { TradeStrategyPanel } from "@/components/league/trade-strategy-panel";
 import { InflectionPanel } from "@/components/league/inflection-panel";
 import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
 import { LastVisitWriter } from "@/components/system/last-visit-writer";
-import { buildPlanPlayerIds } from "@/lib/last-visit/plan-disruption";
+import { LastVisitDigest } from "@/components/league/last-visit-digest";
+import {
+  buildPlanPlayerIds,
+  detectPlanDisruption,
+} from "@/lib/last-visit/plan-disruption";
+import { readLastVisit } from "@/lib/last-visit/cookie";
+import {
+  computeLastVisitDelta,
+  composeDigestLine,
+} from "@/lib/last-visit/diff";
 import { TheCall } from "@/components/league/the-call/the-call";
 import { LibraryTeaser } from "@/components/league/triage/library-teaser";
 import { DashboardSection } from "@/components/league/dashboard/dashboard-section";
@@ -778,6 +787,8 @@ export default async function LeagueHubPage({
   let teamIdentity: TeamIdentity | null = null;
   let rosterLaneMemberships: LaneMembership[] = [];
   let rosterLaneMoves: IdentityMove[] = [];
+  let lastVisitDigestLine: string | null = null;
+  let lastVisitDisruptionAck: string | null = null;
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
@@ -977,6 +988,34 @@ export default async function LeagueHubPage({
       } catch (err) {
         console.error("[hub:roster-lane-identity]", err);
       }
+
+      // Last-visit digest + plan-disruption detection. Reads the
+      // prior fingerprint cookie, computes the delta and the snipe
+      // list, produces user-facing copy. Renders at the top of the
+      // dashboard below the Ticker. Best-effort.
+      try {
+        const prior = await readLastVisit(leagueId);
+        const myRoster = leagueSnapshot.rosters.find((r) => r.is_me);
+        const delta = computeLastVisitDelta({
+          prior,
+          now: {
+            timestamp_ms: Date.now(),
+            total_picks_made: leagueSnapshot.draft.picks_made.length,
+            standing_call_id: decision?.recommendation.player_id ?? null,
+            ev_bank_total: draftProgress?.ev_bank?.total_ev ?? null,
+            my_roster_size: myRoster?.player_ids.length ?? 0,
+          },
+        });
+        lastVisitDigestLine = composeDigestLine(delta);
+        const disruption = detectPlanDisruption({
+          prior,
+          snap: leagueSnapshot,
+          playerNameLookup,
+        });
+        lastVisitDisruptionAck = disruption.acknowledgment;
+      } catch (err) {
+        console.error("[hub:last-visit-digest]", err);
+      }
     } catch (err) {
       console.error("[hub:league-read+inflections]", err);
     }
@@ -1087,6 +1126,11 @@ export default async function LeagueHubPage({
         <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 sm:py-12">
           <Ticker
             label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${draftLive ? " · 🔴 NFL Draft live · refresh between picks" : ""}${betaOpen ? " · Beta · everything open" : ""}`}
+          />
+
+          <LastVisitDigest
+            digestLine={lastVisitDigestLine}
+            disruptionAcknowledgment={lastVisitDisruptionAck}
           />
 
           {isViewingOther && savedSleeperUsername && (
