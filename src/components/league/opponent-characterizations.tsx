@@ -17,6 +17,10 @@ import type {
 } from "@/lib/strategy/opponents/characterize";
 import { AskCoachButton } from "./ask-coach-button";
 import { LeagueSpectrum } from "./league-spectrum";
+import {
+  OpponentNotesPanel,
+  type OpponentNoteItem,
+} from "./opponent-notes-panel";
 
 const LEAN_LABEL: Record<TeamLean, string> = {
   punted_season: "Punted this season",
@@ -71,8 +75,27 @@ function confidenceLabel(c: number): string {
 
 export function OpponentCharacterizations({
   items,
+  leagueId,
+  notesByRoster,
+  canWriteNotes,
 }: {
   items: OpponentCharacterization[];
+  /**
+   * League id for note POST/DELETE routes. When omitted the notes
+   * panel hides entirely.
+   */
+  leagueId?: string;
+  /**
+   * Existing manual notes grouped by opponent_roster_id. Each card
+   * gets its own slice. Omit on surfaces that don't yet pull notes
+   * server-side.
+   */
+  notesByRoster?: Map<number, OpponentNoteItem[]>;
+  /**
+   * False when the viewer is unauthenticated; notes panel renders a
+   * "sign in to save" prompt instead of the form.
+   */
+  canWriteNotes?: boolean;
 }) {
   if (items.length === 0) return null;
 
@@ -119,7 +142,13 @@ export function OpponentCharacterizations({
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {items.map((it) => (
-          <CharacterizationCard key={it.roster_id} item={it} />
+          <CharacterizationCard
+            key={it.roster_id}
+            item={it}
+            leagueId={leagueId}
+            notes={notesByRoster?.get(it.roster_id) ?? []}
+            canWriteNotes={canWriteNotes ?? false}
+          />
         ))}
       </div>
     </section>
@@ -129,8 +158,14 @@ export function OpponentCharacterizations({
 
 function CharacterizationCard({
   item,
+  leagueId,
+  notes,
+  canWriteNotes,
 }: {
   item: OpponentCharacterization;
+  leagueId?: string;
+  notes: OpponentNoteItem[];
+  canWriteNotes: boolean;
 }) {
   const tone = LEAN_TONE[item.lean];
   const conf = confidenceLabel(item.confidence);
@@ -205,6 +240,16 @@ function CharacterizationCard({
       {youCard && (
         <AskCoachButton
           prompt={`Given my team is reading as ${LEAN_LABEL[item.lean].toLowerCase()}, what's the most strategic next move I should think about?`}
+        />
+      )}
+
+      {!youCard && leagueId && (
+        <OpponentNotesPanel
+          leagueId={leagueId}
+          opponentRosterId={item.roster_id}
+          ownerName={item.owner_name}
+          initialNotes={notes}
+          canWrite={canWriteNotes}
         />
       )}
     </article>

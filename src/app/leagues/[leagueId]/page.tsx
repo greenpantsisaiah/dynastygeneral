@@ -135,6 +135,11 @@ import { getProjections } from "@/lib/players/projections";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
+import {
+  readOpponentNotesForLeague,
+  groupNotesByOpponent,
+  type OpponentNote,
+} from "@/lib/opponent-notes/storage";
 import type { OpponentCharacterization } from "@/lib/strategy/opponents/characterize";
 import { BriefingFeed } from "@/components/league/briefing-feed";
 import { CoachChat } from "@/components/league/coach-chat";
@@ -217,8 +222,10 @@ export default async function LeagueHubPage({
   // recommendation that turn reflected the wrong team.
   let savedSleeperUsername: string | null = null;
   let savedSleeperUserId: string | null = null;
+  // Hoisted so downstream blocks (e.g., opponent-notes pull) can reuse
+  // the resolved auth user without re-fetching the session.
+  const authUser = await getOptionalUser().catch(() => null);
   try {
-    const authUser = await getOptionalUser();
     if (authUser) {
       const supabase = await createClient();
       const { data } = await supabase
@@ -303,6 +310,7 @@ export default async function LeagueHubPage({
   let decision: Decision | null = null;
   let opponentReadout: OpponentReadout | null = null;
   let opponentCharacterizations: OpponentCharacterization[] = [];
+  let opponentNotesByRoster: Map<number, OpponentNote[]> = new Map();
   let availablePlayers: Awaited<
     ReturnType<typeof getAvailableForRequest>
   > = [];
@@ -398,6 +406,23 @@ export default async function LeagueHubPage({
       opponentCharacterizations = await buildOpponentCharacterizations(
         snapshot,
       );
+
+      // Pull manual opponent notes for the signed-in user so the
+      // OpponentCharacterizations panel can render them inline + offer
+      // an inline-add form. Coach already reads the same table via
+      // its own route. Best-effort; empty map when user isn't signed
+      // in or DB read fails.
+      try {
+        if (authUser) {
+          const rawNotes = await readOpponentNotesForLeague({
+            userId: authUser.id,
+            leagueId,
+          });
+          opponentNotesByRoster = groupNotesByOpponent(rawNotes);
+        }
+      } catch (err) {
+        console.error("[hub:opponent-notes]", err);
+      }
 
       // Pull available players FIRST so the picker predictor can use
       // pool-depth + tier-crunch signals. Prediction quality depends on
@@ -1718,6 +1743,9 @@ export default async function LeagueHubPage({
                   {opponentCharacterizations.length > 0 && (
                     <OpponentCharacterizations
                       items={opponentCharacterizations}
+                      leagueId={leagueId}
+                      notesByRoster={opponentNotesByRoster}
+                      canWriteNotes={authUser != null}
                     />
                   )}
                   {pathCompetition && (
