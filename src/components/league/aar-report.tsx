@@ -58,17 +58,14 @@ export type AarServerData = {
   totalTeams: number;
   picks: AarPick[];
   starter_avg_age: number | null;
-  starter_talent_score: number | null;
   win_now_rank: number;
   future_rank: number;
   win_now_score: number;
   future_score: number;
   league_mean_win_now: number;
   league_mean_future: number;
-  declared_horizon: number;
   build_label: string;
   build_composition: { winNow: number; balanced: number; future: number };
-  is_superflex: boolean;
   league_steals: LeagueMoment[];
   league_swings: LeagueMoment[];
   /**

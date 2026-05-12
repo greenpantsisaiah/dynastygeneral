@@ -424,9 +424,6 @@ export default async function AarPage({ params, searchParams }: PageProps) {
   const myFutureRank =
     teamsByFuture.findIndex((t) => t.roster_id === me.roster_id) + 1;
 
-  const horizonRaw = judgmentProfile?.dials.horizon;
-  const declaredHorizon = typeof horizonRaw === "number" ? horizonRaw : 0;
-
   // League-wide notable moments: biggest steals (player fell furthest
   // past ADP) and biggest swings (taken furthest before ADP) across
   // all 12 managers. Adds emotional payoff: user spots their own
@@ -544,7 +541,6 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     totalTeams,
     picks: aarPicks,
     starter_avg_age: me.starter_avg_age,
-    starter_talent_score: me.starter_talent_score,
     win_now_rank: myWinNowRank,
     future_rank: myFutureRank,
     win_now_score: windows.win_now.score,
@@ -555,14 +551,12 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     league_mean_future:
       outlook.teams.reduce((s, t) => s + t.future, 0) /
       Math.max(1, outlook.teams.length),
-    declared_horizon: declaredHorizon,
     build_label: briefing?.trajectory.build_label ?? "Pre-Draft",
     build_composition: briefing?.trajectory.composition ?? {
       winNow: 0,
       balanced: 0,
       future: 0,
     },
-    is_superflex: isSuperflex,
     league_steals: steals,
     league_swings: swings,
     lane_memberships: aarLaneMemberships,
