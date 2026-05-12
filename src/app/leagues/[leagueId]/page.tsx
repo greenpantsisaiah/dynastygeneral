@@ -7,11 +7,6 @@ export const metadata: Metadata = {
   title: "League Hub",
   robots: { index: false, follow: false },
 };
-import { cookies } from "next/headers";
-import {
-  declaredWindowCookieName,
-  parseDeclaredWindowId,
-} from "@/lib/strategy/declared-window";
 
 // Live-draft app. Never cache the route segment: a cached SSR response
 // can persist a half-round-stale snapshot for minutes, which makes the
@@ -60,7 +55,6 @@ import {
   getAvailableForRequest,
 } from "@/lib/strategy/player-suggestions/enrich";
 import { enrichArchetypeWithTargets } from "@/lib/strategy/player-suggestions/play-targets";
-import { WindowsBar } from "@/components/league/windows-bar";
 import { ContenderOutlookCard } from "@/components/league/contender-outlook-card";
 import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forecast";
 import { synthesizeContenderOutlook } from "@/lib/strategy/contender-outlook/synthesize";
@@ -193,13 +187,6 @@ export default async function LeagueHubPage({
   const issues: DiagnosticIssue[] | null = diagnose ? [] : null;
 
   // Declared window (mirror of the client localStorage key) lives in a
-  // cookie so the server can apply window constraints to the Decision
-  // card at render time. Null when user hasn't declared one yet.
-  const cookieStore = await cookies();
-  const declaredWindow = parseDeclaredWindowId(
-    cookieStore.get(declaredWindowCookieName(leagueId))?.value ?? null,
-  );
-
   const [league, rosters, users, nflState] = await Promise.all([
     getLeague(leagueId),
     getRosters(leagueId),
@@ -715,10 +702,8 @@ export default async function LeagueHubPage({
             available: availablePlayers,
             windows,
             picks_until_me: pickApproach?.picks_until_me ?? 0,
-            declared_window: declaredWindow,
             player_values: playerValuesByIdJson,
             ktc_overall_ranks: ktcOverallRanksByIdJson,
-            horizon_dial: leagueBriefing?.dials.horizon ?? 0,
           });
         } catch (err) {
           console.error("[hub:decision-synthesis]", err);
@@ -1419,15 +1404,6 @@ export default async function LeagueHubPage({
                 </div>
               )}
 
-              {/* WindowWeightingPrompt removed 2026-04-27. Lanes-as-
-                  emergent-direction (Decision card lane grid + Soundboard
-                  Horizon dial) replaced the win-now/future declaration
-                  prompt. The user's actual picks reveal direction now;
-                  declaring it upfront created the "MY LEAN" coercion
-                  problem the synthesis fix already solved. WindowsBar
-                  meters retained as math (CAN-WIN-NOW vs FUTURE scores
-                  are league-state observations, not user declarations). */}
-
               {/* Last-visit fingerprint writer. Invisible client
                   component that POSTs the current snapshot's
                   fingerprint to /api/last-visit after mount, so the
@@ -1586,9 +1562,6 @@ export default async function LeagueHubPage({
                       data={draftProgress}
                       leagueBank={leagueEvBank}
                     />
-                  )}
-                  {windows && sleeperUser && (
-                    <WindowsBar leagueId={leagueId} windows={windows} />
                   )}
                 </DashboardSection>
               )}

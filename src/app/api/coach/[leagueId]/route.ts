@@ -49,10 +49,6 @@ import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
 import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
-import {
-  declaredWindowCookieName,
-  parseDeclaredWindowId,
-} from "@/lib/strategy/declared-window";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 
@@ -120,12 +116,6 @@ restating your standing call. Never deny having recommended your own
 \`system_decision.recommendation.name\`. The user sees the Decision
 card and the chat side by side; if the two say different things
 without addressing each other, trust collapses.
-
-Also acknowledge the \`window_frame\`. If windows say "lean heavily
-win-now, age 24-28, no rookies" and your call is a rookie anyway,
-that is a real tension worth explaining: is the scarcity argument
-strong enough to override the window, or is the window right and the
-call should be revised?
 
 ## Pick density (use this to frame every per-pick recommendation)
 
@@ -474,13 +464,6 @@ export async function POST(
     console.error("[coach:rerank-available]", err);
   }
 
-  // Read declared window from the mirror cookie so coach sees the same
-  // window constraint the Decision card applied. Null if not declared.
-  const cookieStore = await cookies();
-  const declaredWindow = parseDeclaredWindowId(
-    cookieStore.get(declaredWindowCookieName(leagueId))?.value ?? null,
-  );
-
   // Compose the system's official per-pick recommendation so coach can
   // confirm or contradict with full awareness. Don't fail the whole
   // request if synthesis errors; coach can still reason from context.
@@ -493,7 +476,6 @@ export async function POST(
         available,
         windows,
         picks_until_me: pickApproach?.picks_until_me ?? 0,
-        declared_window: declaredWindow,
         player_values: coachPlayerValues,
         ktc_overall_ranks: coachKtcOverallRanks,
       });
@@ -753,7 +735,6 @@ export async function POST(
       win_now: windows.win_now.score,
       future_value: windows.future_value.score,
       current_ratio: windows.current_ratio,
-      declared: declaredWindow,
     },
     // The system's official recommendation for the user's current/next
     // pick. Coach MUST either confirm this call with stated reasoning
@@ -772,7 +753,6 @@ export async function POST(
             is_rookie: decision.recommendation.is_rookie,
           },
           primary_reason: decision.recommendation.primary_reason,
-          window_frame: decision.window_frame,
           why: decision.why,
           tradeoff_gains: decision.tradeoff.gains,
           tradeoff_losses: decision.tradeoff.losses,

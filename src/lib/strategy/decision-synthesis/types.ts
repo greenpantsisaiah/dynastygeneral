@@ -157,15 +157,6 @@ export type EmergencyTradeUp = {
   target_picks: string[];
 };
 
-// Window constraint summary surfaced in the Decision card header.
-// Mirrors the WindowConstraint shape but only the user-visible bits.
-export type DecisionWindowFrame = {
-  direction: "win_now" | "future" | "balanced";
-  strength: "heavy" | "moderate" | "none";
-  label: string;
-  sentence: string;
-};
-
 // Three-state availability classifier. Replaces the old binary
 // `survives_to_next_pick` per user feedback 2026-04-25: ADP at slot
 // is a coin flip, not "gone." Three buckets unify the engine's
@@ -234,9 +225,6 @@ export type Decision = {
   pick_no: number;
   picks_until_me: number;
   density: PickDensityKind;
-  // Windows frame for this pick. The header shows the label + sentence
-  // so the user sees the constraint that shaped the recommendation.
-  window_frame: DecisionWindowFrame;
   // Always present, even in "watch" mode (>5 picks away). UI decides
   // whether to surface urgency framing based on picks_until_me.
   recommendation: DecisionCandidate & {

@@ -209,7 +209,6 @@ function run() {
       ranked: emptyArchetypes(),
       windows: emptyWindows(),
       picks_until_me: 0,
-      declared_window: null,
     });
     check(
       "winning rule is fill_starter_urgent",
@@ -250,7 +249,6 @@ function run() {
       ranked: emptyArchetypes(),
       windows: emptyWindows(),
       picks_until_me: 0,
-      declared_window: null,
     });
     check(
       "equal-gap tie defaults to RB by position iteration order",
@@ -290,7 +288,6 @@ function run() {
       ranked: emptyArchetypes(),
       windows: emptyWindows(),
       picks_until_me: 0,
-      declared_window: null,
     });
     check(
       "fill_starter (non-urgent) also breaks ties on ADP-extremity",
@@ -328,7 +325,6 @@ function run() {
       ranked: emptyArchetypes(),
       windows: emptyWindows(),
       picks_until_me: 0,
-      declared_window: null,
     });
     const reason = decision?.recommendation.primary_reason ?? "";
     const mentions11 = reason.includes("11 pick");

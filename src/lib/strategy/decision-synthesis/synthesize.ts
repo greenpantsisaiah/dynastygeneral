@@ -26,7 +26,6 @@ import type {
 } from "../archetypes/schema";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { WindowsResult } from "../windows/compute";
-import type { WindowWeightingId } from "../windows/types";
 import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
 import {
   buildPositionRoomHealth,
@@ -36,11 +35,6 @@ import {
   buildTrajectory,
   classifyLane,
 } from "@/lib/engine/build-trajectory";
-import {
-  buildWindowConstraint,
-  penalizeForConstraint,
-  type WindowConstraint,
-} from "./window-constraint";
 import type {
   Decision,
   DecisionCandidate,
@@ -655,7 +649,6 @@ function buildCandidates(
   available: AvailablePlayer[],
   nextUserPickNo: number,
   currentPickNo: number,
-  windowConstraint: WindowConstraint,
   gapAnalysis: OpponentGapAnalysis,
 ): ScoredCandidate[] {
   const me = snap.rosters.find((r) => r.is_me);
@@ -663,24 +656,21 @@ function buildCandidates(
   const candidates: ScoredCandidate[] = [];
   const seenIds = new Set<string>();
 
-  // Apply window constraint penalty + attach the note to each candidate.
-  // Called right before each push so the stored score reflects both
-  // rule-scoring and constraint correction in one number.
+  // Declared-window constraint retired 2026-05-12 (lanes-as-declaration
+  // architecture). buildCandidates now produces rule-scored candidates
+  // without a window-aware penalty layer; lane-identity surfaces the
+  // "fit" signal to the user separately.
   const push = (raw: Omit<ScoredCandidate, "raw_score" | "score" | "constraint_note"> & { score: number }) => {
     if (seenIds.has(raw.player.id)) return;
     seenIds.add(raw.player.id);
-    const { penalty, note } = penalizeForConstraint(
-      raw.player,
-      windowConstraint,
-    );
     candidates.push({
       player: raw.player,
       position: raw.position,
       rule: raw.rule,
       primary_reason: raw.primary_reason,
       raw_score: raw.score,
-      score: raw.score - penalty,
-      constraint_note: note,
+      score: raw.score,
+      constraint_note: null,
     });
   };
 
@@ -707,15 +697,15 @@ function buildCandidates(
     if (me.position_counts[pos] >= reqs[pos]) continue;
     const fillCandidates = topAtPos(available, pos, 5);
     if (fillCandidates.length === 0) continue;
+    // Pick the top-by-position candidate weighted by survival. Window-
+    // aware penalty layer retired 2026-05-12; rule scoring is now pure.
     let top: AvailablePlayer | null = null;
     let bestNetScore = -Infinity;
     for (const c of fillCandidates) {
       const cAvail = availabilityAt(c, nextUserPickNo);
       const baseScore = cAvail !== "likely_here" ? 100 : 60;
-      const { penalty } = penalizeForConstraint(c, windowConstraint);
-      const net = baseScore - penalty;
-      if (net > bestNetScore) {
-        bestNetScore = net;
+      if (baseScore > bestNetScore) {
+        bestNetScore = baseScore;
         top = c;
       }
     }
@@ -1393,7 +1383,6 @@ export function synthesizeDecision(args: {
   available: AvailablePlayer[];
   windows: WindowsResult;
   picks_until_me: number;
-  declared_window: WindowWeightingId | null;
   // FantasyCalc-sourced KTC-equivalent values, normalized 0-100 by
   // top-3 average. Optional; empty record is fine and just leaves
   // candidate.value = null on every card. Already loaded by the
@@ -1403,13 +1392,6 @@ export function synthesizeDecision(args: {
   // on Top 3 cards alongside ADP so the user sees both signals when
   // they diverge. Drives the trust-hierarchy callout in WHY THIS LEAN.
   ktc_overall_ranks?: Record<string, number>;
-  /**
-   * Soundboard Horizon dial value (-100..+100). When |x| >= 40 and
-   * the dial points opposite the declared window direction, the
-   * constraint downgrades (Soundboard wiring 2026-04-27). Default
-   * 0 = no override.
-   */
-  horizon_dial?: number;
 }): Decision | null {
   const {
     snap,
@@ -1417,10 +1399,8 @@ export function synthesizeDecision(args: {
     available,
     windows,
     picks_until_me,
-    declared_window,
     player_values: playerValues = {},
     ktc_overall_ranks: ktcOverallRanks = {},
-    horizon_dial: horizonDial = 0,
   } = args;
   const schedule = snap.draft.my_pick_schedule;
   if (schedule.length === 0) return null;
@@ -1440,17 +1420,10 @@ export function synthesizeDecision(args: {
     nextUserPickNo,
   });
 
-  // Trajectory-aware constraint: if the user's actual picks
-  // contradict the declared window, the constraint softens. Phase E.
-  // Horizon dial override layered on top: explicit Soundboard
-  // declaration acts in parallel to behavioral trajectory.
+  // Build trajectory for behavioral read on the user's actual picks
+  // so far (lane-direction emerges from picks, not from a declared
+  // window). Declared-window-driven constraint retired 2026-05-12.
   const trajectoryReadout = buildTrajectory(snap);
-  const windowConstraint = buildWindowConstraint(
-    declared_window,
-    windows,
-    trajectoryReadout.build_label,
-    horizonDial,
-  );
 
   const candidates = buildCandidates(
     snap,
@@ -1458,7 +1431,6 @@ export function synthesizeDecision(args: {
     available,
     nextUserPickNo,
     current.pick_no,
-    windowConstraint,
     gapAnalysis,
   );
   if (candidates.length === 0) return null;
@@ -1468,13 +1440,6 @@ export function synthesizeDecision(args: {
 
   const why: string[] = [];
   why.push(winner.primary_reason);
-  // If the window constraint is active and the winner violates it,
-  // acknowledge that here instead of silently ignoring the signal.
-  if (winner.constraint_note && windowConstraint.strength !== "none") {
-    why.push(
-      `Window says "${windowConstraint.label.toLowerCase()}" but this pick violates it (${winner.constraint_note.toLowerCase().replace(/\.$/, "")}). Rule score still wins on scarcity/path.`,
-    );
-  }
   // Trust-hierarchy callout. When the lean has materially worse ADP
   // than a runner-up Top 3 candidate (i.e., Sleeper's ADP would
   // suggest the runner-up over the lean), surface the divergence so
@@ -1668,13 +1633,17 @@ export function synthesizeDecision(args: {
     );
     if (!top) continue;
     qSeen.add(top.id);
-    const { penalty, note } = penalizeForConstraint(top, windowConstraint);
+    // Score = base 35 minus a search-rank decay so multiple positions
+    // firing this rule produce differentiated scores (no flat-literal
+    // anti-pattern). Floor at 20 so even rank-150 best-at-position
+    // stays above future-stash fallback territory.
+    const rankDecay = Math.min(top.search_rank, 150) / 10;
     qPool.push({
       player: top,
       rule: "earned_value",
       primary_reason: `Best available ${POSITION_LABEL[pos]} (${top.name}, rank #${top.search_rank}).`,
-      score: Math.max(20, 35 - penalty),
-      constraint_note: note,
+      score: Math.max(20, Math.round(35 - rankDecay)),
+      constraint_note: null,
     });
   }
   // Horizon extremes: youngest + oldest in the top-30 available, so
@@ -1687,15 +1656,18 @@ export function synthesizeDecision(args: {
   for (const extreme of [youngestFirst[0], oldestFirst[0]]) {
     if (!extreme || qSeen.has(extreme.id)) continue;
     qSeen.add(extreme.id);
-    const { penalty, note } = penalizeForConstraint(extreme, windowConstraint);
     const ageLabel =
       extreme.id === youngestFirst[0]?.id ? "youngest" : "oldest";
+    // Differentiate youngest vs oldest with a small candidate-specific
+    // delta keyed on search_rank. Anti-pattern lint requires per-rule
+    // candidates to have differentiated scores.
+    const rankDelta = Math.min(extreme.search_rank, 100) / 25;
     qPool.push({
       player: extreme,
       rule: "earned_value",
       primary_reason: `Horizon anchor: ${ageLabel} reasonable available (${extreme.name}, age ${extreme.age}).`,
-      score: Math.max(15, 28 - penalty),
-      constraint_note: note,
+      score: Math.max(15, Math.round(28 - rankDelta)),
+      constraint_note: null,
     });
   }
   // Pool stats for relative horizon. Median + half-range as spread,
@@ -1790,12 +1762,6 @@ export function synthesizeDecision(args: {
     pick_no: current.pick_no,
     picks_until_me,
     density: current.density_kind,
-    window_frame: {
-      direction: windowConstraint.direction,
-      strength: windowConstraint.strength,
-      label: windowConstraint.label,
-      sentence: windowConstraint.sentence,
-    },
     recommendation: {
       ...toDecisionCandidate(winner.player, playerValues, ktcOverallRanks),
       primary_reason: winner.primary_reason,

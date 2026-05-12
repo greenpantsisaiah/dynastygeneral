@@ -260,62 +260,9 @@ export function DecisionCard({
           The constraint penalty still fires on age math regardless;
           this is honest UI of an internal state the user can't change
           today (Phase E will rewire constraint to consume trajectory). */}
-      {decision.window_frame.strength !== "none" &&
-        (() => {
-          const showAsPrimary =
-            !trajectory || trajectory.pick_count === 0;
-          const trajIsFuture =
-            trajectory?.build_label.includes("Future") ?? false;
-          const trajIsWinNow =
-            trajectory?.build_label.includes("Win-Now") ?? false;
-          const winLabel = decision.window_frame.label.toLowerCase();
-          const winIsFuture = winLabel.includes("future");
-          const winIsWinNow = winLabel.includes("win-now");
-          const disagrees =
-            (trajIsFuture && winIsWinNow) ||
-            (trajIsWinNow && winIsFuture);
-          if (!showAsPrimary && !disagrees) return null;
-          if (disagrees) {
-            return (
-              <div className="mt-2 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-xs">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
-                  Override ·{" "}
-                </span>
-                <span className="text-foreground">
-                  Engine auto-suggests{" "}
-                  <span className="font-semibold">
-                    {decision.window_frame.label}
-                  </span>
-                  ; your picks say{" "}
-                  <span className="font-semibold">
-                    {trajectory!.build_label}
-                  </span>
-                  . Constraint softened to honor your direction.
-                </span>
-              </div>
-            );
-          }
-          return (
-            <div className="mt-2 rounded-md border border-border-soft bg-surface px-3 py-2 text-xs">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                Window frame ·{" "}
-              </span>
-              <span
-                className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
-                  decision.window_frame.strength === "heavy"
-                    ? "text-accent"
-                    : "text-muted-2"
-                }`}
-              >
-                {decision.window_frame.label}
-              </span>
-              <span className="text-muted">
-                {" "}
-                · {decision.window_frame.sentence}
-              </span>
-            </div>
-          );
-        })()}
+      {/* Window frame banner retired 2026-05-12 (lanes-as-declaration).
+          The component itself is parked; this is preserved for the
+          un-parking path without the declared-window framing. */}
       {decision.opponent_between_picks &&
         decision.opponent_between_picks.primary_opponent && (
           <OpponentBetweenPicksBar
