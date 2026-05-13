@@ -20,6 +20,9 @@ export function Footer() {
         </div>
         <div className="flex flex-col gap-3 border-t border-border-soft pt-5 sm:flex-row sm:items-center sm:justify-between">
           <nav className="flex flex-wrap gap-x-4 gap-y-2">
+            <Link href="/rankings" className="hover:text-foreground">
+              Rankings
+            </Link>
             <Link href="/library" className="hover:text-foreground">
               Library
             </Link>

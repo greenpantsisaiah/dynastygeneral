@@ -24,6 +24,12 @@ export async function SiteNav() {
         </Link>
         <nav className="flex items-center gap-6 text-sm">
           <Link
+            href="/rankings"
+            className="hidden text-muted transition hover:text-foreground sm:inline"
+          >
+            Rankings
+          </Link>
+          <Link
             href="/library"
             className="hidden text-muted transition hover:text-foreground sm:inline"
           >
