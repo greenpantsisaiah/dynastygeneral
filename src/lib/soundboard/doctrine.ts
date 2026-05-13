@@ -2,12 +2,12 @@
  * Doctrine readout: synthesizes the dial state into a one-line
  * identity. The master strip shows this. It's the screenshot moment.
  *
- * Composed of three labels:
- *   - Build: timeline + aggression composite (Aggressive Rebuilder /
- *     Patient Contender / etc.)
- *   - Stance: how you relate to the market (Contrarian / Market Lean /
- *     Balanced)
- *   - Voice: how Coach speaks for you (Confident / Measured / Cautious)
+ * Refactored 2026-05-13 alongside the 16-to-8 dial cut. Build composite
+ * now reads horizon + rookie_tilt + youth_weight; stance is consensus
+ * alone; voice synthesizes risk + trade aggression. The Coach-voice
+ * register dial was retired (Sloan-mode retirement); the dial set is
+ * now lean enough that the doctrine line is a function of position
+ * rather than personality.
  *
  * Pure derivation. No engine call; reads dials only. When dials wire
  * into the engine, this stays the same; only the meaning of each dial
@@ -27,10 +27,6 @@ function num(v: DialValue | undefined, fallback = 0): number {
   return typeof v === "number" ? v : fallback;
 }
 
-function str(v: DialValue | undefined, fallback: string): string {
-  return typeof v === "string" ? v : fallback;
-}
-
 function isMoved(v: DialValue | undefined, def: DialValue): boolean {
   if (Array.isArray(v) && Array.isArray(def)) {
     if (v.length !== def.length) return true;
@@ -43,34 +39,25 @@ function isMoved(v: DialValue | undefined, def: DialValue): boolean {
 const DEFAULTS: Record<string, DialValue> = {
   horizon: 0,
   rookie_tilt: 0,
+  youth_weight: 0,
+  bellcow_pref: 0,
+  continuity_weight: 0,
   risk_tolerance: 0,
   trade_aggression: 0,
-  position_bias: "balanced",
-  age_preference: [22, 28],
   consensus_lean: 0,
-  anchor_weight: "ktc",
-  variance_tolerance: 0,
-  coach_voice: "measured",
-  underdog_premium: 0,
-  stack_preference: [],
-  schedule_weight: 0,
-  league_pulse: 0,
-  trade_depth: 0,
-  doctrine_certainty: 0,
 };
 
 export function deriveDoctrine(dials: Record<DialId, DialValue>): Doctrine {
   const horizon = num(dials.horizon);
   const rookie = num(dials.rookie_tilt);
+  const youth = num(dials.youth_weight);
   const risk = num(dials.risk_tolerance);
   const trade = num(dials.trade_aggression);
   const consensus = num(dials.consensus_lean);
-  const variance = num(dials.variance_tolerance);
-  const certainty = num(dials.doctrine_certainty);
-  const voice = str(dials.coach_voice, "measured");
 
-  // Build: timeline composite weighted toward horizon
-  const buildScore = horizon * 0.6 + rookie * 0.25 - risk * 0.05;
+  // Build: timeline composite weighted toward horizon, with rookie +
+  // youth dials reinforcing the rebuild signal.
+  const buildScore = horizon * 0.55 + rookie * 0.25 + youth * 0.2;
   let buildBase: string;
   if (buildScore > 40) buildBase = "Rebuilder";
   else if (buildScore > 15) buildBase = "Pivot";
@@ -78,15 +65,16 @@ export function deriveDoctrine(dials: Record<DialId, DialValue>): Doctrine {
   else if (buildScore > -40) buildBase = "Contender";
   else buildBase = "Win-Now";
 
-  // Build modifier from aggression
-  const aggression = trade * 0.5 + risk * 0.3 + rookie * 0.2;
+  // Build modifier: trade + risk aggression in the same direction tags
+  // the build as Aggressive / Active / Steady / Patient.
+  const aggression = trade * 0.5 + risk * 0.5;
   let buildMod = "";
   if (aggression > 35) buildMod = "Aggressive ";
   else if (aggression > 10) buildMod = "Active ";
   else if (aggression < -35) buildMod = "Patient ";
   else if (aggression < -10) buildMod = "Steady ";
 
-  // Stance: market alignment
+  // Stance: market alignment from consensus_lean alone.
   let stance: string;
   if (consensus > 30) stance = "Market Lean";
   else if (consensus > 10) stance = "Soft Market";
@@ -94,14 +82,17 @@ export function deriveDoctrine(dials: Record<DialId, DialValue>): Doctrine {
   else if (consensus < -10) stance = "Skeptic";
   else stance = "Balanced";
 
-  // Voice: coach + certainty
+  // Voice: composite of risk + trade. No more coach_voice register
+  // dial; the user's risk and aggression posture is enough to color
+  // the line. The retired Sloan-mode toggle handled the formality
+  // register separately.
   let voiceLabel: string;
-  if (voice === "confident" && certainty > 20) voiceLabel = "Locked-in";
-  else if (voice === "confident") voiceLabel = "Confident";
-  else if (voice === "cautious") voiceLabel = "Cautious";
-  else if (certainty > 40) voiceLabel = "Decisive";
-  else if (variance > 40) voiceLabel = "Adaptive";
-  else voiceLabel = "Measured";
+  const energy = (risk + trade) / 2;
+  if (energy > 40) voiceLabel = "Decisive";
+  else if (energy > 15) voiceLabel = "Confident";
+  else if (energy < -40) voiceLabel = "Cautious";
+  else if (energy < -15) voiceLabel = "Measured";
+  else voiceLabel = "Balanced";
 
   // Count moved dials
   let calibratedCount = 0;

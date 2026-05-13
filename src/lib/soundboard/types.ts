@@ -2,15 +2,18 @@
  * Soundboard dial spec + JudgmentProfile type. Single source of truth
  * for "what dials exist" and "what each dial means."
  *
- * SCAFFOLD STILL: storage and feedback endpoints are wired; the
- * engine does NOT yet read these values. Wiring penalizeForConstraint,
- * fill_starter, scarcity math, etc. through JudgmentProfile is a
- * planned follow-up.
+ * Refactored 2026-05-13 (Phase 1.3 of the Lab feature) from 16 dials
+ * down to 8. The original spread was wishful (most dials weren't wired
+ * and never got wired) and the framing was wrong (it asked the user
+ * to "tune their doctrine," which the lane-identity model already
+ * reads from their picks). The new framing is: perturb the model,
+ * see what changes. The 8 dials that survived are either wired to a
+ * real engine surface or earmarked for the next wiring pass.
  *
- * The "horizon" dial in particular is a read-only mirror of the
- * existing declared draft window. Editing it here today does NOT
- * change engine behavior; the WindowsBar remains the source of truth
- * until the guided migration session.
+ * Three of the 8 dials (Youth, Bellcow, Continuity) mirror the dials
+ * on the public /rankings page. Same name, same engine constants.
+ * The Soundboard adds five more dials that influence Decision-card
+ * synthesis, trade behavior, and market posture.
  *
  * Adding a dial:
  *   1. Add to DIAL_SPECS below.
@@ -22,20 +25,12 @@
 export type DialId =
   | "horizon"
   | "rookie_tilt"
+  | "youth_weight"
+  | "bellcow_pref"
+  | "continuity_weight"
   | "risk_tolerance"
   | "trade_aggression"
-  | "position_bias"
-  | "age_preference"
-  | "consensus_lean"
-  | "anchor_weight"
-  | "variance_tolerance"
-  | "coach_voice"
-  | "underdog_premium"
-  | "stack_preference"
-  | "schedule_weight"
-  | "league_pulse"
-  | "trade_depth"
-  | "doctrine_certainty";
+  | "consensus_lean";
 
 export type DialAxis =
   | { kind: "linear"; left: string; right: string }
@@ -55,20 +50,12 @@ export type DialValue = number | string | [number, number] | string[];
 export type DialIcon =
   | "horizon"
   | "rookie"
+  | "age"
+  | "bellcow"
+  | "continuity"
   | "risk"
   | "trade"
-  | "position"
-  | "age"
-  | "consensus"
-  | "anchor"
-  | "variance"
-  | "voice"
-  | "underdog"
-  | "stack"
-  | "schedule"
-  | "pulse"
-  | "depth"
-  | "doctrine";
+  | "consensus";
 
 export type DialSpec = {
   id: DialId;
@@ -90,23 +77,64 @@ export const DIAL_SPECS: DialSpec[] = [
     default: 0,
     icon: "horizon",
     surface: [
-      "Wired into Decision card constraint penalty",
-      "Move to ±40+ to override the engine's auto-window read",
-      "Layered with emergent trajectory: either signal can soften the constraint",
+      "Weights win-now vs future scoring across Decision lanes",
+      "Used by the engine's lane-identity threshold scaling",
     ],
     wired: true,
   },
   {
     id: "rookie_tilt",
     name: "Rookie tilt",
-    short_blurb: "How aggressive on rookies vs proven vets.",
+    short_blurb: "Cautious vs aggressive on rookies.",
     axis: { kind: "linear", left: "Cautious", right: "Aggressive" },
     default: 0,
     icon: "rookie",
     surface: [
       "Cross-checks rookie ADP variant + NFL draft window state",
       "Reads FantasyCalc dynasty rank for rookie comparison",
-      "Stored. Engine wiring pending.",
+      "Stored. Engine wiring in progress.",
+    ],
+    wired: false,
+  },
+  {
+    id: "youth_weight",
+    name: "Youth weight",
+    short_blurb: "How much age-curve placement moves rankings.",
+    axis: { kind: "linear", left: "Ignore age", right: "Heavy age" },
+    default: 0,
+    icon: "age",
+    surface: [
+      "Mirrors the /rankings Youth dial",
+      "Maps to age-curve gaussian center per position",
+      "Wired on the public rankings surface; soundboard mirror in progress",
+    ],
+    wired: false,
+  },
+  {
+    id: "bellcow_pref",
+    name: "Bellcow preference",
+    short_blurb: "RB workhorse vs committee tolerance.",
+    axis: { kind: "linear", left: "Committee OK", right: "Bellcow only" },
+    default: 0,
+    icon: "bellcow",
+    surface: [
+      "Mirrors the /rankings Bellcow dial",
+      "Pulls top-12 RBs up; demotes committee and passdown shapes",
+      "Wired on the public rankings surface; soundboard mirror in progress",
+    ],
+    wired: false,
+  },
+  {
+    id: "continuity_weight",
+    name: "Coaching continuity",
+    short_blurb: "OC tenure weight on rankings.",
+    axis: { kind: "linear", left: "Ignore OC", right: "Stable OC bonus" },
+    default: 0,
+    icon: "continuity",
+    surface: [
+      "Mirrors the /rankings Continuity dial",
+      "Maps to OC tenure weight in team-signal extraction",
+      "Wired on rankings; 32-team signal table is mid-calibration",
     ],
     wired: false,
   },
@@ -139,42 +167,6 @@ export const DIAL_SPECS: DialSpec[] = [
     wired: false,
   },
   {
-    id: "position_bias",
-    name: "Position bias",
-    short_blurb: "Tie-break preference on close calls.",
-    axis: {
-      kind: "seg5",
-      options: [
-        { value: "balanced", label: "Balanced" },
-        { value: "qb", label: "QB" },
-        { value: "rb", label: "RB" },
-        { value: "wr", label: "WR" },
-        { value: "te", label: "TE" },
-      ],
-    },
-    default: "balanced",
-    icon: "position",
-    surface: [
-      "Tie-breaker on equally ranked candidates of different positions",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "age_preference",
-    name: "Age preference",
-    short_blurb: "Your ideal target age band.",
-    axis: { kind: "range", min: 20, max: 34, left: "Younger", right: "Older" },
-    default: [22, 28],
-    icon: "age",
-    surface: [
-      "Sets the ideal age band in penalizeForConstraint",
-      "Heavy youth: 22-26 ideal; balanced: 23-28; veteran: 25-30",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
     id: "consensus_lean",
     name: "Consensus lean",
     short_blurb: "Lean with the market vs against the field.",
@@ -182,157 +174,8 @@ export const DIAL_SPECS: DialSpec[] = [
     default: 0,
     icon: "consensus",
     surface: [
-      "Weights KTC/ADP majority signal in ranking cascade",
+      "Weights KTC majority signal in ranking cascade",
       "Counter-view detector tightens or loosens accordingly",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "anchor_weight",
-    name: "Anchor weight",
-    short_blurb: "Which signal wins ranking-cascade ties.",
-    axis: {
-      kind: "seg3",
-      options: [
-        { value: "ktc", label: "KTC first" },
-        { value: "adp", label: "ADP first" },
-        { value: "heuristic", label: "Heuristic" },
-      ],
-    },
-    default: "ktc",
-    icon: "anchor",
-    surface: [
-      "Sets the ranking-cascade priority order",
-      "KTC first (default): market value wins; ADP first: crowd wins",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "variance_tolerance",
-    name: "Variance tolerance",
-    short_blurb: "Sticky plan vs adaptive branches.",
-    axis: { kind: "linear", left: "Sticky", right: "Adaptive" },
-    default: 0,
-    icon: "variance",
-    surface: [
-      "Counter-view aggressiveness on Decision card",
-      "Branch alternatives surface threshold in 5-pick plan",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "coach_voice",
-    name: "Coach voice",
-    short_blurb: "Cautious analyst vs confident general.",
-    axis: {
-      kind: "seg3",
-      options: [
-        { value: "cautious", label: "Cautious" },
-        { value: "measured", label: "Measured" },
-        { value: "confident", label: "Confident" },
-      ],
-    },
-    default: "measured",
-    icon: "voice",
-    surface: [
-      "Coach pushback strength when user disagrees",
-      "Verdict hedging level (cautious adds caveats; confident states the call)",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "underdog_premium",
-    name: "Underdog premium",
-    short_blurb: "Bonus weight on undervalued assets.",
-    axis: { kind: "linear", left: "Ignore", right: "Heavy" },
-    default: 0,
-    icon: "underdog",
-    surface: [
-      "Bonus modifier when KTC < ADP (asset trades cheap to consensus)",
-      "Stronger ADP-gap reward in Strategic Forks",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "stack_preference",
-    name: "Stack preference",
-    short_blurb: "Which stacking patterns you actively want.",
-    axis: {
-      kind: "multi",
-      options: [
-        { value: "qb_wr_same_team", label: "QB-WR same team" },
-        { value: "rb_handcuff", label: "RB + handcuff" },
-        { value: "wr_stacks", label: "Multiple WRs same team" },
-        { value: "avoid_all", label: "Avoid all stacks" },
-      ],
-    },
-    default: [],
-    icon: "stack",
-    surface: [
-      "Decision card stack-bonus when candidate creates desired stack",
-      "Coach trade-suggest framing favors enabled patterns",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "schedule_weight",
-    name: "Schedule weight",
-    short_blurb: "How heavily strength of schedule factors in.",
-    axis: { kind: "linear", left: "Ignore SOS", right: "Heavy SOS" },
-    default: 0,
-    icon: "schedule",
-    surface: [
-      "SOS modifier in ranking cascade when active",
-      "Playoff-window weighting in path commitments",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "league_pulse",
-    name: "League pulse",
-    short_blurb: "Sensitivity to opponent league moves.",
-    axis: { kind: "linear", left: "Ignore", right: "Respond fast" },
-    default: 0,
-    icon: "pulse",
-    surface: [
-      "League Pulse banner aggressiveness",
-      "Briefings trigger threshold on opponent state changes",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "trade_depth",
-    name: "Trade depth",
-    short_blurb: "Single-asset vs multi-piece consolidation.",
-    axis: { kind: "linear", left: "1-for-1", right: "Multi-piece" },
-    default: 0,
-    icon: "depth",
-    surface: [
-      "Coach trade-suggest structure preference",
-      "Pricing-block construction biases simple vs consolidated",
-      "Stored. Engine wiring pending.",
-    ],
-    wired: false,
-  },
-  {
-    id: "doctrine_certainty",
-    name: "Doctrine certainty",
-    short_blurb: "Open to disagreement vs stick to plan.",
-    axis: { kind: "linear", left: "Open", right: "Locked" },
-    default: 0,
-    icon: "doctrine",
-    surface: [
-      "Coach pushback rule capitulation threshold",
-      "Counter-view weighting on Decision card",
-      "Meta-dial: governs how the system relates to your judgment",
       "Stored. Engine wiring pending.",
     ],
     wired: false,
