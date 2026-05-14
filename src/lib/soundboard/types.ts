@@ -69,33 +69,10 @@ export type DialSpec = {
 };
 
 export const DIAL_SPECS: DialSpec[] = [
-  {
-    id: "horizon",
-    name: "Horizon",
-    short_blurb: "Win-now urgency vs future build.",
-    axis: { kind: "linear", left: "Win now", right: "Future" },
-    default: 0,
-    icon: "horizon",
-    surface: [
-      "Weights win-now vs future scoring across Decision lanes",
-      "Used by the engine's lane-identity threshold scaling",
-    ],
-    wired: true,
-  },
-  {
-    id: "rookie_tilt",
-    name: "Rookie tilt",
-    short_blurb: "Cautious vs aggressive on rookies.",
-    axis: { kind: "linear", left: "Cautious", right: "Aggressive" },
-    default: 0,
-    icon: "rookie",
-    surface: [
-      "Cross-checks rookie ADP variant + NFL draft window state",
-      "Reads FantasyCalc dynasty rank for rookie comparison",
-      "Stored. Engine wiring in progress.",
-    ],
-    wired: false,
-  },
+  // Order matters: the first three dials mirror the public /rankings
+  // page so the soundboard layout actually delivers on the page's
+  // claim. The remaining five layer in Decision-card synthesis and
+  // trade behavior in the second row.
   {
     id: "youth_weight",
     name: "Youth weight",
@@ -135,6 +112,33 @@ export const DIAL_SPECS: DialSpec[] = [
       "Mirrors the /rankings Continuity dial",
       "Maps to OC tenure weight in team-signal extraction",
       "Wired on rankings; 32-team signal table is mid-calibration",
+    ],
+    wired: false,
+  },
+  {
+    id: "horizon",
+    name: "Horizon",
+    short_blurb: "Win-now urgency vs future build.",
+    axis: { kind: "linear", left: "Win now", right: "Future" },
+    default: 0,
+    icon: "horizon",
+    surface: [
+      "Weights win-now vs future scoring across Decision lanes",
+      "Used by the engine's lane-identity threshold scaling",
+    ],
+    wired: true,
+  },
+  {
+    id: "rookie_tilt",
+    name: "Rookie tilt",
+    short_blurb: "Cautious vs aggressive on rookies.",
+    axis: { kind: "linear", left: "Cautious", right: "Aggressive" },
+    default: 0,
+    icon: "rookie",
+    surface: [
+      "Cross-checks rookie ADP variant + NFL draft window state",
+      "Reads FantasyCalc dynasty rank for rookie comparison",
+      "Stored. Engine wiring in progress.",
     ],
     wired: false,
   },
