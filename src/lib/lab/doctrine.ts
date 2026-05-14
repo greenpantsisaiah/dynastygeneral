@@ -14,7 +14,7 @@
  * deepens.
  */
 
-import type { DialId, DialValue } from "./types";
+import type { DialId, DialValue } from "./dial-types";
 
 export type Doctrine = {
   build: string;

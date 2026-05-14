@@ -24,13 +24,13 @@ import {
   type DialId,
   type DialValue,
   type JudgmentProfile,
-} from "@/lib/soundboard/types";
+} from "@/lib/lab/dial-types";
 import {
   PRESET_BY_ID,
   detectActivePreset,
   type PresetId,
-} from "@/lib/soundboard/presets";
-import { deriveDoctrine } from "@/lib/soundboard/doctrine";
+} from "@/lib/lab/presets";
+import { deriveDoctrine } from "@/lib/lab/doctrine";
 import { track } from "@/lib/analytics";
 
 export function SoundboardPanel({

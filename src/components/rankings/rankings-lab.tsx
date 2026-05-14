@@ -36,13 +36,13 @@ import {
   type DialId,
   type DialValue,
   type JudgmentProfile,
-} from "@/lib/soundboard/types";
+} from "@/lib/lab/dial-types";
 import {
   PRESET_BY_ID,
   PRESETS,
   detectActivePreset,
-} from "@/lib/soundboard/presets";
-import { deriveDoctrine, formatDoctrineLine } from "@/lib/soundboard/doctrine";
+} from "@/lib/lab/presets";
+import { deriveDoctrine, formatDoctrineLine } from "@/lib/lab/doctrine";
 
 const RANKING_DIAL_IDS: DialId[] = [
   "youth_weight",

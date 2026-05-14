@@ -9,7 +9,7 @@
  * bundle lean.
  */
 
-import type { DialIcon } from "@/lib/soundboard/types";
+import type { DialIcon } from "@/lib/lab/dial-types";
 
 export function DialGlyph({
   kind,

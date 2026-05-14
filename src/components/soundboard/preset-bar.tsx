@@ -16,7 +16,7 @@
  * Horizon dial points to. Dials drive lanes; lanes drive picks.
  */
 
-import { PRESETS, type PresetId } from "@/lib/soundboard/presets";
+import { PRESETS, type PresetId } from "@/lib/lab/presets";
 
 export function PresetBar({
   active,

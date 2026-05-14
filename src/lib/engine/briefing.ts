@@ -24,7 +24,7 @@
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { Position } from "@/lib/strategy/archetypes/schema";
-import type { JudgmentProfile } from "@/lib/soundboard/types";
+import type { JudgmentProfile } from "@/lib/lab/dial-types";
 import { buildPositionRoomHealth, type RoomHealth } from "./roster-fit";
 import { buildTrajectory, type BuildTrajectory } from "./build-trajectory";
 

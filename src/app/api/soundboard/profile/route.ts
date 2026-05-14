@@ -18,13 +18,13 @@ import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import {
   readProfileServer,
   writeProfileServer,
-} from "@/lib/soundboard/storage";
+} from "@/lib/lab/profile-storage";
 import {
   DIAL_NOTE_MAX_LENGTH,
   DIAL_SPECS,
   type DialId,
   type DialValue,
-} from "@/lib/soundboard/types";
+} from "@/lib/lab/dial-types";
 
 export const runtime = "nodejs";
 

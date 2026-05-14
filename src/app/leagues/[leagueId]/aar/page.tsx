@@ -15,7 +15,7 @@ import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { computeLeagueOutlook } from "@/lib/strategy/league-outlook/compute";
 import { buildLeagueBriefing } from "@/lib/engine/briefing";
-import { readProfileServer } from "@/lib/soundboard/storage";
+import { readProfileServer } from "@/lib/lab/profile-storage";
 import { getSeasonStats } from "@/lib/players/season-stats";
 import {
   getProjections,

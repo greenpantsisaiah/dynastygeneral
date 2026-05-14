@@ -5,7 +5,7 @@
  * stance, voice. The "screenshot" line of the soundboard.
  */
 
-import { type Doctrine } from "@/lib/soundboard/doctrine";
+import { type Doctrine } from "@/lib/lab/doctrine";
 
 export function DoctrineStrip({
   doctrine,

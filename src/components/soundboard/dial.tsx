@@ -23,7 +23,7 @@ import {
   isAtDefault,
   type DialSpec,
   type DialValue,
-} from "@/lib/soundboard/types";
+} from "@/lib/lab/dial-types";
 
 export function SoundboardDial({
   spec,

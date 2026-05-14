@@ -30,7 +30,7 @@ import {
   buildLeagueBriefing,
   type LeagueBriefing,
 } from "@/lib/engine/briefing";
-import { readProfileServer } from "@/lib/soundboard/storage";
+import { readProfileServer } from "@/lib/lab/profile-storage";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { LiveStrategyBoard } from "@/components/league/live-strategy-board";
 import { computeWindows, type WindowsResult } from "@/lib/strategy/windows/compute";

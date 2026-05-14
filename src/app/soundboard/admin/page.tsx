@@ -9,7 +9,7 @@ import {
   DIAL_SPECS,
   FEEDBACK_SHAPE_LABELS,
   type FeedbackShape,
-} from "@/lib/soundboard/types";
+} from "@/lib/lab/dial-types";
 
 export const metadata = {
   title: "Soundboard · Admin",

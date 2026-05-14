@@ -19,7 +19,7 @@
  *   WIN-NOW MAXER          all-in, locked, hates rookies
  */
 
-import type { DialId, DialValue } from "./types";
+import type { DialId, DialValue } from "./dial-types";
 
 export type Preset = {
   id: PresetId;

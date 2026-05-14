@@ -12,7 +12,7 @@ import {
   FEEDBACK_SHAPE_LABELS,
   FEEDBACK_SHAPES,
   type FeedbackShape,
-} from "@/lib/soundboard/types";
+} from "@/lib/lab/dial-types";
 
 export function ArgueModal({
   dialId,

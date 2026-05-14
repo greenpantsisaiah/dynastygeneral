@@ -6,8 +6,8 @@ import { Ticker } from "@/components/ui/ticker";
 import { getOptionalUser } from "@/lib/auth/session";
 import { RankingsLab } from "@/components/rankings/rankings-lab";
 import { buildRankedPool } from "@/lib/rankings/build";
-import { readProfileServer } from "@/lib/soundboard/storage";
-import { defaultProfile } from "@/lib/soundboard/types";
+import { readProfileServer } from "@/lib/lab/profile-storage";
+import { defaultProfile } from "@/lib/lab/dial-types";
 import { loadRankingsLeagueContext } from "@/lib/rankings/league-context";
 
 export const metadata: Metadata = {

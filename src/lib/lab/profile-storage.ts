@@ -17,7 +17,7 @@ import {
   type DialId,
   type DialValue,
   type JudgmentProfile,
-} from "./types";
+} from "./dial-types";
 
 const COOKIE_NAME = "dg_judgment";
 const COOKIE_MAX_AGE_S = 60 * 60 * 24 * 180; // 180 days

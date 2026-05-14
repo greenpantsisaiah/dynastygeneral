@@ -50,12 +50,12 @@ import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich
 import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
-import { readProfileServer } from "@/lib/soundboard/storage";
+import { readProfileServer } from "@/lib/lab/profile-storage";
 import {
   deriveDoctrine,
   formatDoctrineLine,
-} from "@/lib/soundboard/doctrine";
-import { DIAL_SPECS, isAtDefault } from "@/lib/soundboard/types";
+} from "@/lib/lab/doctrine";
+import { DIAL_SPECS, isAtDefault } from "@/lib/lab/dial-types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;

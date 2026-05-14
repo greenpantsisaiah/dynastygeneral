@@ -19,7 +19,7 @@ import {
   FEEDBACK_SHAPES,
   type DialId,
   type FeedbackShape,
-} from "@/lib/soundboard/types";
+} from "@/lib/lab/dial-types";
 
 export const runtime = "nodejs";
 
