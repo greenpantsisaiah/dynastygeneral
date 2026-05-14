@@ -403,28 +403,39 @@ export function RankingsLab({
         </div>
       </div>
 
-      {/* Ranking dials (always usable) */}
+      {/* All 8 dials in one section. Each dial carries a per-card "Affects"
+          badge so the user understands which 3 move the table on this page
+          (Youth, Bellcow, Continuity) and which 5 shape Coach + Decision-card
+          behavior across the product. Layout: 4 columns x 2 rows on wide
+          screens. Anonymous visitors see all 8 cards; the 5 engine dials are
+          rendered with locked sliders + "sign in" affordance. */}
       <div className="rounded-lg border border-border-soft bg-surface px-5 py-5">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-              Ranking dials · 3 of 3
+              Eight dials
             </div>
             <p className="mt-1 text-sm text-muted">
-              These change the table on this page in real time. Default
-              (0) reproduces the consensus market. Tap{" "}
+              Three move the table on this page in real time. Five
+              shape Coach and Decision-card behavior elsewhere in the
+              product. Every dial carries a per-card{" "}
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-foreground">
+                affects
+              </span>{" "}
+              tag so you know what each one does. Tap{" "}
               <kbd className="rounded border border-border-soft bg-surface-2 px-1 font-mono text-[10px]">
                 ?
               </kbd>{" "}
-              for methodology.
+              for the methodology behind any dial.
             </p>
           </div>
         </div>
-        <div className="mt-5 grid gap-5 sm:grid-cols-3">
+        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {RANKING_DIAL_IDS.map((id) => (
             <DialControl
               key={id}
               id={id}
+              affects="table"
               value={asNumberDial(dials[id])}
               onChange={(v) => moveDial(id, v, false)}
               onInfoClick={() => toggleDrawer(id)}
@@ -433,42 +444,11 @@ export function RankingsLab({
               disabledForCalibration={id === "continuity_weight"}
             />
           ))}
-        </div>
-        {openDrawer && RANKING_DIAL_IDS.includes(openDrawer as DialId) && (
-          <div className="mt-5 border-t border-border-soft pt-5">
-            <MethodologyDrawer
-              id={openDrawer}
-              onClose={() => setOpenDrawer(null)}
-            />
-          </div>
-        )}
-      </div>
-
-      <AlgorithmEquation dials={rankingDials} continuityDisabled />
-
-      {/* Engine dials (sign-in gated) */}
-      <div className="rounded-lg border border-border-soft bg-surface px-5 py-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-              Engine dials · 5 of 5
-              {!canEditEngineDials && (
-                <span className="ml-2 text-warning">· sign-in required</span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-muted">
-              These shape Coach and Decision-card behavior across the
-              product. They do not move the table on this page, but
-              they do change what Coach says about your team and which
-              candidates surface on the Decision card.
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 grid gap-5 sm:grid-cols-3 lg:grid-cols-5">
           {ENGINE_DIAL_IDS.map((id) => (
             <DialControl
               key={id}
               id={id}
+              affects="coach"
               value={asNumberDial(dials[id])}
               onChange={(v) => moveDial(id, v, !canEditEngineDials)}
               onInfoClick={() => toggleDrawer(id)}
@@ -479,14 +459,15 @@ export function RankingsLab({
         </div>
         {!canEditEngineDials && (
           <div className="mt-4 rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm text-foreground">
-            Sign in to use the engine dials.{" "}
+            The five Coach + Decision-card dials are locked for
+            anonymous visitors.{" "}
             <a href="/login" className="text-accent hover:underline">
               Sign in
             </a>{" "}
-            (free; no payment until calibration ships).
+            to unlock them (free; no payment until calibration ships).
           </div>
         )}
-        {openDrawer && ENGINE_DIAL_IDS.includes(openDrawer as DialId) && (
+        {openDrawer && (
           <div className="mt-5 border-t border-border-soft pt-5">
             <MethodologyDrawer
               id={openDrawer}
@@ -495,6 +476,8 @@ export function RankingsLab({
           </div>
         )}
       </div>
+
+      <AlgorithmEquation dials={rankingDials} continuityDisabled />
 
       {leagueContext && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border-soft bg-surface px-4 py-3">
@@ -616,6 +599,7 @@ export function RankingsLab({
 function DialControl({
   id,
   value,
+  affects,
   onChange,
   onInfoClick,
   isOpen,
@@ -624,6 +608,13 @@ function DialControl({
 }: {
   id: DialId;
   value: number;
+  /**
+   * Per-dial badge: "table" = moves the ranking table on this page,
+   * appears in the algorithm equation below the dials. "coach" =
+   * shapes Coach + Decision-card behavior elsewhere in the product;
+   * does NOT appear in the algorithm equation.
+   */
+  affects: "table" | "coach";
   onChange: (next: number) => void;
   onInfoClick: () => void;
   isOpen: boolean;
@@ -669,20 +660,36 @@ function DialControl({
           >
             ?
           </button>
-          {locked && (
-            <span
-              className="font-mono text-[8px] uppercase tracking-[0.14em] text-warning"
-              title="Sign in to use this dial"
-            >
-              locked
-            </span>
-          )}
         </div>
         <span
           className={`font-mono text-[10px] ${isDisabled ? "text-muted-2" : "text-foreground"}`}
         >
           {displayValue}
         </span>
+      </div>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        <span
+          className={`rounded-sm border px-1.5 py-0 font-mono text-[8px] uppercase tracking-[0.14em] ${
+            affects === "table"
+              ? "border-accent/60 bg-accent/10 text-accent"
+              : "border-[color:#a78bfa]/60 bg-[color:#a78bfa]/10 text-[color:#a78bfa]"
+          }`}
+          title={
+            affects === "table"
+              ? "Moves the ranking table on this page in real time."
+              : "Shapes Coach + Decision-card behavior elsewhere in the product. Does not move the table on this page."
+          }
+        >
+          affects · {affects === "table" ? "this table" : "Coach + Decision"}
+        </span>
+        {locked && (
+          <span
+            className="font-mono text-[8px] uppercase tracking-[0.14em] text-warning"
+            title="Sign in to use this dial"
+          >
+            locked
+          </span>
+        )}
       </div>
       <input
         type="range"

@@ -141,6 +141,15 @@ export function AlgorithmEquation({
           continuityDisabled={continuityDisabled ?? false}
         />
       )}
+      <div className="mt-2 border-t border-border-soft pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+        Three dials in this equation move the table above. The other
+        five dials (
+        <span className="text-[color:#a78bfa]">
+          affects · Coach + Decision
+        </span>
+        ) shape behavior elsewhere in the product and do not appear
+        here.
+      </div>
     </section>
   );
 }
