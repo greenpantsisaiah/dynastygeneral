@@ -61,6 +61,26 @@ const DIAL_EMPHASIS_RANGE = 60;
 const ANONYMOUS_STORAGE_KEY = "dg_rankings_dials_v1";
 const SAVE_DEBOUNCE_MS = 600;
 
+// URL param shortcodes for the ranking dials. We only encode the 3
+// dials that move the visible table; the engine dials are per-account
+// state and don't belong in a public share-link.
+const URL_PARAM_BY_DIAL: Partial<Record<DialId, string>> = {
+  youth_weight: "y",
+  bellcow_pref: "b",
+  continuity_weight: "c",
+};
+
+function readDialFromParams(
+  params: URLSearchParams,
+  key: string,
+): number | null {
+  const raw = params.get(key);
+  if (raw == null) return null;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(-100, Math.min(100, n));
+}
+
 /** Tone color for a position cell in the table. */
 function posTone(position: RankedPlayer["position"]): string {
   switch (position) {
@@ -136,9 +156,31 @@ export function RankingsLab({
   >("idle");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Anonymous users: hydrate from localStorage on mount.
+  // On mount, hydrate dial state from (a) URL params if a shared link
+  // brought the visitor here, falling back to (b) localStorage for
+  // anonymous users. Signed-in users already had their profile loaded
+  // on the server, so only URL params override that for them.
+  //
+  // URL hydration calls setDials directly (not moveDial), so it does
+  // NOT trigger an auto-save. A passive viewer of a shared link who
+  // never touches a dial won't have their saved profile overwritten.
   useEffect(() => {
-    if (isSignedIn || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl: Partial<Record<DialId, number>> = {};
+      for (const [dialId, paramKey] of Object.entries(URL_PARAM_BY_DIAL)) {
+        const v = readDialFromParams(params, paramKey as string);
+        if (v != null) fromUrl[dialId as DialId] = v;
+      }
+      if (Object.keys(fromUrl).length > 0) {
+        setDials((prev) => ({ ...prev, ...fromUrl }));
+        return;
+      }
+    } catch {
+      // continue to localStorage path
+    }
+    if (isSignedIn) return;
     try {
       const raw = window.localStorage.getItem(ANONYMOUS_STORAGE_KEY);
       if (!raw) return;
@@ -155,6 +197,40 @@ export function RankingsLab({
       // ignore corrupt localStorage
     }
   }, [isSignedIn]);
+
+  // Keep the URL in sync with the live ranking dial state so any moment
+  // is shareable via the address bar. replaceState avoids polluting
+  // browser history with every slider drag.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    let mutated = false;
+    for (const [dialId, paramKey] of Object.entries(URL_PARAM_BY_DIAL)) {
+      const v = asNumberDial(dials[dialId as DialId]);
+      const existing = params.get(paramKey as string);
+      if (v === 0) {
+        if (existing != null) {
+          params.delete(paramKey as string);
+          mutated = true;
+        }
+      } else {
+        const target = String(v);
+        if (existing !== target) {
+          params.set(paramKey as string, target);
+          mutated = true;
+        }
+      }
+    }
+    if (mutated) {
+      const search = params.toString();
+      const next = `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", next);
+    }
+  }, [
+    dials.youth_weight,
+    dials.bellcow_pref,
+    dials.continuity_weight,
+  ]);
 
   // Debounced persistence. Signed-in users save to Supabase; anonymous
   // to localStorage.
