@@ -7,6 +7,9 @@ import { ComparisonTable } from "@/components/methodology/comparison-table";
 import { SpearmanChart } from "@/components/methodology/spearman-chart";
 import { AgeCurveChart } from "@/components/methodology/age-curve-chart";
 import { InflectionSample } from "@/components/methodology/inflection-sample";
+import { OpponentFingerprintSample } from "@/components/methodology/opponent-fingerprint-sample";
+import { DoctrineReadoutSample } from "@/components/methodology/doctrine-readout-sample";
+import { LaneVennSample } from "@/components/methodology/lane-venn-sample";
 import { LaneCohortDistribution } from "@/components/league/lane-cohort-distribution";
 import {
   COHORT_GENERATED_AT,
@@ -184,12 +187,81 @@ export default function MethodologyPage() {
           </div>
         </section>
 
+        {/* Opponent fingerprint · unique to us */}
+        <section className="border-b border-border-soft">
+          <div className="mx-auto max-w-5xl px-6 py-10">
+            <div className="mb-4 max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                Receipt 4 · opponent fingerprints (only we publish this)
+              </div>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                Reading counterparty behavior from pick-trade history.
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                Most dynasty tools look at a manager's roster shape.
+                We look at how they actually behave. The engine
+                classifies each opponent's pick-trade history into one
+                of four signature buckets (flipper, hoarder, seller,
+                quiet) and feeds the framing to Coach so trade
+                proposals match what the opponent actually does.
+              </p>
+            </div>
+            <OpponentFingerprintSample />
+          </div>
+        </section>
+
+        {/* Doctrine readout · unique to us */}
+        <section className="border-b border-border-soft">
+          <div className="mx-auto max-w-5xl px-6 py-10">
+            <div className="mb-4 max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                Receipt 5 · doctrine readout
+              </div>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                From dial fingerprint to algorithm to Coach output.
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                Move dials in the Rankings Lab; a doctrine line falls
+                out the back. The line ("Aggressive Rebuilder · Soft
+                Market · Confident") plus the dial-derived coefficient
+                vector is what Coach references when it shapes a
+                recommendation. Three preset doctrines side by side to
+                show how the math actually changes.
+              </p>
+            </div>
+            <DoctrineReadoutSample />
+          </div>
+        </section>
+
+        {/* Lane membership Venn */}
+        <section className="border-b border-border-soft">
+          <div className="mx-auto max-w-5xl px-6 py-10">
+            <div className="mb-4 max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                Receipt 6 · lane membership
+              </div>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                Eleven lanes, multi-attribute roster classification.
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                A roster is not one archetype. It is a vector across
+                eleven lanes, each with its own threshold calibrated
+                against the cohort. Lanes overlap by design; the
+                composite lanes (Sustained Contender, Zero-RB) are
+                derived from constituent base-lane memberships. Venn
+                shows three lanes for legibility.
+              </p>
+            </div>
+            <LaneVennSample />
+          </div>
+        </section>
+
         {/* Age curves */}
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 4 · age curves
+                Receipt 7 · age curves
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 Peak bands refit when the data says so.
@@ -211,7 +283,7 @@ export default function MethodologyPage() {
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 5 · LLM context
+                Receipt 8 · LLM context
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 Coach reads the full named roster.
@@ -276,7 +348,7 @@ question: should I trade for Bijan Robinson?`}
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 6 · engineering
+                Receipt 9 · engineering
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 71 evals + 12 anti-pattern lint rules.
