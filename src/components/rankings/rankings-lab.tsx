@@ -133,17 +133,46 @@ function rescore(
   }));
 }
 
+export type RankingsLeagueContextProp = {
+  options: Array<{
+    league_id: string;
+    name: string;
+    season: string;
+    total_rosters: number;
+    is_superflex: boolean;
+  }>;
+  selectedLeagueId: string;
+  selectedLeagueName: string;
+  selectedTotalRosters: number;
+  /** Serialized player ids; rehydrated into Set on the client. */
+  myPlayerIds: string[];
+  draftedPlayerIds: string[];
+};
+
+type RowFilter = "all" | "mine" | "available";
+
 export function RankingsLab({
   pool,
   tier,
   initialProfile,
+  leagueContext,
 }: {
   pool: RankedPool;
   tier: "public" | "signed_in" | "premium";
   initialProfile: JudgmentProfile;
+  leagueContext?: RankingsLeagueContextProp | null;
 }) {
   const canEditEngineDials = tier !== "public";
   const isSignedIn = tier !== "public";
+  const myPlayerIds = useMemo(
+    () => new Set(leagueContext?.myPlayerIds ?? []),
+    [leagueContext?.myPlayerIds],
+  );
+  const draftedPlayerIds = useMemo(
+    () => new Set(leagueContext?.draftedPlayerIds ?? []),
+    [leagueContext?.draftedPlayerIds],
+  );
+  const [rowFilter, setRowFilter] = useState<RowFilter>("all");
 
   // Hold all 8 dial values plus rendering helpers. Public users mutate
   // the 3 ranking dials only; engine dials are visible but locked.
@@ -310,7 +339,13 @@ export function RankingsLab({
     [pool.players, rankingDials.youth, rankingDials.bellcow, rankingDials.continuity],
   );
   const visibleLimit = tier === "public" ? 25 : 100;
-  const visible = scored.slice(0, visibleLimit);
+  const tierCapped = scored.slice(0, visibleLimit);
+  const visible = tierCapped.filter((row) => {
+    if (!leagueContext || rowFilter === "all") return true;
+    if (rowFilter === "mine") return myPlayerIds.has(row.player_id);
+    if (rowFilter === "available") return !draftedPlayerIds.has(row.player_id);
+    return true;
+  });
   const lockedRows = scored.length > visibleLimit ? scored.length - visibleLimit : 0;
 
   const activePreset = detectActivePreset(dials);
@@ -461,6 +496,61 @@ export function RankingsLab({
         )}
       </div>
 
+      {leagueContext && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border-soft bg-surface px-4 py-3">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              Viewing through
+            </span>
+            {leagueContext.options.length > 1 ? (
+              <form method="GET" action="/rankings" className="contents">
+                <select
+                  name="league"
+                  defaultValue={leagueContext.selectedLeagueId}
+                  onChange={(e) =>
+                    (e.currentTarget.form as HTMLFormElement).submit()
+                  }
+                  className="rounded-md border border-border-soft bg-surface-2 px-2 py-1 font-mono text-[11px] text-foreground"
+                >
+                  {leagueContext.options.map((o) => (
+                    <option key={o.league_id} value={o.league_id}>
+                      {o.name} · {o.is_superflex ? "SF" : "1QB"} · {o.total_rosters}-team
+                    </option>
+                  ))}
+                </select>
+              </form>
+            ) : (
+              <span className="font-mono text-[11px] text-foreground">
+                {leagueContext.selectedLeagueName}
+              </span>
+            )}
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              {myPlayerIds.size} of your players in this pool
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            {(["all", "mine", "available"] as RowFilter[]).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setRowFilter(f)}
+                className={`rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition ${
+                  rowFilter === f
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-border-soft bg-surface-2 text-muted-2 hover:border-accent/60 hover:text-accent"
+                }`}
+              >
+                {f === "all"
+                  ? "All"
+                  : f === "mine"
+                    ? "My players"
+                    : "Available"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-lg border border-border-soft bg-surface">
         <table className="w-full min-w-[680px] text-sm">
           <thead className="bg-surface-2">
@@ -481,10 +571,19 @@ export function RankingsLab({
           </thead>
           <tbody>
             {visible.map((p) => (
-              <RankRow key={p.player_id} row={p} />
+              <RankRow
+                key={p.player_id}
+                row={p}
+                isMine={myPlayerIds.has(p.player_id)}
+              />
             ))}
           </tbody>
         </table>
+        {visible.length === 0 && (
+          <div className="px-4 py-6 text-center text-sm text-muted-2">
+            No players match this filter. Try a different view.
+          </div>
+        )}
       </div>
 
       {tier === "public" && lockedRows > 0 && (
@@ -672,7 +771,13 @@ function DrawerBlock({
   );
 }
 
-function RankRow({ row }: { row: ScoredRow }) {
+function RankRow({
+  row,
+  isMine = false,
+}: {
+  row: ScoredRow;
+  isMine?: boolean;
+}) {
   const delta = row.rank_delta;
   const deltaTone =
     delta >= 10
@@ -688,6 +793,13 @@ function RankRow({ row }: { row: ScoredRow }) {
         : `${delta}`;
 
   const signals: Array<{ label: string; tone: string; hint: string }> = [];
+  if (isMine) {
+    signals.push({
+      label: "MINE",
+      tone: "border-[color:#a78bfa]/70 text-[color:#a78bfa]",
+      hint: "Player is on your roster in the selected league.",
+    });
+  }
   if (row.is_rookie) {
     signals.push({
       label: "R",

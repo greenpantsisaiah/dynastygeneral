@@ -50,6 +50,12 @@ import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich
 import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
+import { readProfileServer } from "@/lib/soundboard/storage";
+import {
+  deriveDoctrine,
+  formatDoctrineLine,
+} from "@/lib/soundboard/doctrine";
+import { DIAL_SPECS, isAtDefault } from "@/lib/soundboard/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -156,6 +162,36 @@ slots. Two symmetric rules govern Coach output:
    K and DST are in this league." Coach denied the format even
    when the snapshot clearly rostered both. This rule binds
    directly to format_rules.has_k and format_rules.has_dst.
+
+## Reference the user's doctrine when they have tuned one
+
+When \`<current_state>.doctrine.user_has_tuned\` is true, the user has
+deliberately moved one or more dials in the Rankings Lab off default
+to express their strategic posture. Name the doctrine explicitly in
+your analysis when it shapes a recommendation.
+
+How to reference:
+
+- On a Decision-card affirmation, frame the call against the doctrine:
+  "Given your \`<doctrine.build>\` doctrine, the Bellcow +60 lean
+  surfaces Jeanty over Robinson here. You moved the dial; this is the
+  result."
+- On a trade-shape suggestion, cite the relevant dial: "Your Trade
+  aggression at +50 plus Future +30 means you should be the one
+  proposing pick-for-player swaps to the contender row, not the
+  reverse."
+- On a Decision-card contradiction, name the friction: "The engine
+  recommends a Bellcow RB. Your Risk tolerance is +60 which would
+  normally pull toward the upside swing. I am siding with the
+  Bellcow read because [reason]."
+- Avoid generic "your tuning" filler. Name the SPECIFIC dial or the
+  doctrine line ("Aggressive Rebuilder", "Patient Contender") so the
+  user feels the reference is grounded in their actual settings.
+
+When \`doctrine.user_has_tuned\` is FALSE, do NOT invent a doctrine
+reference. The user is on baseline; saying "given your Balanced
+doctrine" when they have not moved a dial reads as sycophantic and
+sourceless.
 
 ## Vocabulary by league_type
 
@@ -780,6 +816,27 @@ export async function POST(
   const formatRules = opContext.format_rules;
   const starterDemandRemaining = opContext.starter_demand_remaining;
   const pricedSchedule = opContext.pricing.pick_values;
+
+  // Read the user's tuned doctrine so Coach can explicitly reference
+  // it in analysis ("Given your Aggressive Rebuilder doctrine..."). Per
+  // founder direction 2026-05-14: Coach references doctrine
+  // EXPLICITLY when there's a doctrine fit or drift moment. Layered
+  // onto the context payload as `doctrine` so the system prompt rule
+  // below can bind to it.
+  const judgmentProfile = await readProfileServer().catch(() => null);
+  const doctrineSummary = judgmentProfile
+    ? deriveDoctrine(judgmentProfile.dials)
+    : null;
+  const tunedDials = judgmentProfile
+    ? DIAL_SPECS.filter(
+        (spec) => !isAtDefault(spec, judgmentProfile.dials[spec.id]),
+      ).map((spec) => ({
+        id: spec.id,
+        name: spec.name,
+        value: judgmentProfile.dials[spec.id],
+      }))
+    : [];
+  const userHasTunedDoctrine = tunedDials.length > 0;
   const playerValueMap = new Map(
     Object.entries(opContext.pricing.player_values).map(([id, v]) => [id, v]),
   );
@@ -856,6 +913,22 @@ export async function POST(
       future_value: windows.future_value.score,
       current_ratio: windows.current_ratio,
     },
+    // User's tuned doctrine from the Soundboard / Rankings Lab. When
+    // user_has_tuned is true, the system prompt's "Reference the
+    // doctrine" rule fires. When false, Coach defaults to the engine
+    // baseline without naming a doctrine (avoids "Given your Balanced
+    // doctrine..." when the user has not actually tuned anything).
+    doctrine: doctrineSummary
+      ? {
+          user_has_tuned: userHasTunedDoctrine,
+          line: formatDoctrineLine(doctrineSummary),
+          build: doctrineSummary.build,
+          stance: doctrineSummary.stance,
+          voice: doctrineSummary.voice,
+          calibrated_count: doctrineSummary.calibrated_count,
+          tuned_dials: tunedDials,
+        }
+      : null,
     // The system's official recommendation for the user's current/next
     // pick. Coach MUST either confirm this call with stated reasoning
     // or contradict it explicitly with stated reasoning. Silent

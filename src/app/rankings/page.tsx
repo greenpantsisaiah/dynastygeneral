@@ -8,17 +8,23 @@ import { RankingsLab } from "@/components/rankings/rankings-lab";
 import { buildRankedPool } from "@/lib/rankings/build";
 import { readProfileServer } from "@/lib/soundboard/storage";
 import { defaultProfile } from "@/lib/soundboard/types";
+import { loadRankingsLeagueContext } from "@/lib/rankings/league-context";
 
 export const metadata: Metadata = {
   title: "Rankings · Dynasty General",
   description:
-    "Eight dials over our dynasty model. Three change the visible rankings in real time. Five more shape Coach and Decision-card behavior for signed-in users. Every dial opens to its statistical methodology on tap.",
+    "Eight dials over our dynasty model. Three change the visible rankings in real time. Five more shape Coach and Decision-card behavior for signed-in users. Plot your roster onto the cohort.",
   alternates: { canonical: "/rankings" },
 };
 
 export const dynamic = "force-dynamic";
 
-export default async function RankingsPage() {
+type PageProps = {
+  searchParams: Promise<{ league?: string }>;
+};
+
+export default async function RankingsPage({ searchParams }: PageProps) {
+  const { league: requestedLeagueId = null } = await searchParams;
   const user = await getOptionalUser();
   const tier: "public" | "signed_in" | "premium" = user
     ? user.tier === "pro"
@@ -26,14 +32,15 @@ export default async function RankingsPage() {
       : "signed_in"
     : "public";
 
-  // Load the user's saved dial profile in parallel with the rankings
-  // pool. Signed-in users get Supabase-backed state; anonymous users
-  // fall back to the cookie (and ultimately to defaults). The
-  // RankingsLab will hydrate from localStorage on mount when
-  // anonymous, so the cookie path here is a non-fatal best-effort.
-  const [pool, profile] = await Promise.all([
+  const [pool, profile, leagueCtx] = await Promise.all([
     buildRankedPool({ limit: 100 }),
     readProfileServer().catch(() => defaultProfile()),
+    user
+      ? loadRankingsLeagueContext({
+          userId: user.id,
+          requestedLeagueId,
+        })
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -50,7 +57,9 @@ export default async function RankingsPage() {
               Eight dials over our dynasty model. The first three move
               the table on this page in real time. The other five
               shape Coach and Decision-card behavior across the
-              product. Centered dials reproduce the consensus market.
+              product. {leagueCtx
+                ? "Your roster is plotted onto the cohort below."
+                : "Centered dials reproduce the consensus market."}
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-2">
               <Link href="/methodology" className="hover:text-foreground">
@@ -74,6 +83,18 @@ export default async function RankingsPage() {
               pool={pool}
               tier={tier}
               initialProfile={profile}
+              leagueContext={
+                leagueCtx
+                  ? {
+                      options: leagueCtx.options,
+                      selectedLeagueId: leagueCtx.selected.league_id,
+                      selectedLeagueName: leagueCtx.selected.name,
+                      selectedTotalRosters: leagueCtx.selected.total_rosters,
+                      myPlayerIds: Array.from(leagueCtx.myPlayerIds),
+                      draftedPlayerIds: Array.from(leagueCtx.drafted),
+                    }
+                  : null
+              }
             />
           </div>
         </section>
