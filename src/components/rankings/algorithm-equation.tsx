@@ -1,52 +1,47 @@
 "use client";
 
 /**
- * Algorithm / equation display. The screenshot moment for a tuned
- * model. Renders the user's current dial state as a mathematical
- * equation in monospace typography, with the dial weights highlighted
- * inline, plus a compact "model ID" suitable for pasting into the
- * group chat.
+ * Algorithm display. The "crazy genius math at a whiteboard" surface.
+ * Renders the model as a mathematical equation with the user's live
+ * dial coefficients substituted in, plus a `where:` block defining
+ * each function in the larger engine.
  *
- * Voice A: this looks like math, names what the math does, and ships
- * with a "Share" affordance so the model becomes a shareable artifact.
+ * Greek letters, Σ notation, piecewise cases, and a downstream-
+ * consumers block let the visitor see the depth of the model in one
+ * scroll. The compact model ID + Share button sit on the right so the
+ * whole block screenshots well.
  *
- * Per founder direction 2026-05-14: "I want that part of it to feel
- * like I created an actual algorithm/equation that's uniquely mine."
+ * Per founder direction 2026-05-14: "I was expecting the algorithm to
+ * show a lot more of our model, not just the dials. It's okay if it
+ * looks complicated and like crazy genius math at a whiteboard."
+ *
+ * Dial values are signed [-100..+100] with 0 default. The displayed
+ * coefficient w_i = dial / 100 lives in [-1..+1].
  */
 
 import { useMemo, useState } from "react";
 
 export type AlgorithmDials = {
-  youth: number; // 0..1
-  bellcow: number; // 0..1
-  continuity: number; // 0..1
+  /** Signed -100..+100 with 0 default. */
+  youth: number;
+  bellcow: number;
+  continuity: number;
 };
 
-const DIAL_EMPHASIS_RANGE = 60;
-
-function pct(v: number): string {
-  return `${Math.round(v * 100)}`;
-}
-
 function modelId(d: AlgorithmDials): string {
-  const y = Math.round(d.youth * 100);
-  const b = Math.round(d.bellcow * 100);
-  const c = Math.round(d.continuity * 100);
-  return `Y${y}·B${b}·C${c}`;
+  const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
+  return `Y${fmt(d.youth)} · B${fmt(d.bellcow)} · C${fmt(d.continuity)}`;
 }
 
-function termStrength(weight: number): "off" | "light" | "active" | "heavy" {
-  const distance = Math.abs(weight - 0.5);
-  if (distance < 0.04) return "off";
-  if (distance < 0.15) return "light";
-  if (distance < 0.35) return "active";
+function strength(weight: number): "off" | "light" | "active" | "heavy" {
+  const m = Math.abs(weight);
+  if (m < 5) return "off";
+  if (m < 25) return "light";
+  if (m < 60) return "active";
   return "heavy";
 }
 
-const STRENGTH_TONE: Record<
-  ReturnType<typeof termStrength>,
-  string
-> = {
+const TONE: Record<ReturnType<typeof strength>, string> = {
   off: "text-muted-2",
   light: "text-foreground",
   active: "text-accent",
@@ -71,11 +66,7 @@ export function AlgorithmEquation({
   async function share() {
     const url =
       typeof window !== "undefined"
-        ? `${window.location.origin}/rankings?y=${Math.round(
-            dials.youth * 100,
-          )}&b=${Math.round(dials.bellcow * 100)}&c=${Math.round(
-            dials.continuity * 100,
-          )}`
+        ? `${window.location.origin}/rankings?y=${dials.youth}&b=${dials.bellcow}&c=${dials.continuity}`
         : "";
     try {
       if (navigator.clipboard && url) {
@@ -88,22 +79,25 @@ export function AlgorithmEquation({
     }
   }
 
-  const youthStrength = termStrength(dials.youth);
-  const bellcowStrength = termStrength(dials.bellcow);
-  const continuityStrength = continuityDisabled
-    ? "off"
-    : termStrength(dials.continuity);
+  const wY = dials.youth / 100;
+  const wB = dials.bellcow / 100;
+  const wC = continuityDisabled ? 0 : dials.continuity / 100;
+
+  const tY = TONE[strength(dials.youth)];
+  const tB = TONE[strength(dials.bellcow)];
+  const tC = continuityDisabled ? TONE.off : TONE[strength(dials.continuity)];
 
   return (
     <section className="rounded-lg border border-border-soft bg-surface px-5 py-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            Your model
+            Your algorithm
           </div>
           <p className="mt-1 text-xs text-muted">
-            The exact algorithm your current dial state implements. As
-            you slide a dial, the coefficient updates here.
+            The math your dials implement. Live coefficients substituted
+            in. Below the equation, the function definitions and the
+            downstream engine consumers that use the output.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -120,98 +114,173 @@ export function AlgorithmEquation({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
-        <div className="font-mono text-sm leading-relaxed text-foreground sm:text-base">
-          <div>
-            <span className="text-muted-2">DG(player)</span>{" "}
-            <span className="text-muted-2">=</span>{" "}
-            <span className="text-foreground">market</span>{" "}
-            <span className="text-muted-2">+</span>{" "}
-            <span className="text-muted-2">{DIAL_EMPHASIS_RANGE}</span>{" "}
-            <span className="text-muted-2">·</span>{" "}
-            <span className="text-muted-2">(</span>
-          </div>
-          <div className="pl-6">
-            <Coefficient
-              value={dials.youth}
-              tone={STRENGTH_TONE[youthStrength]}
-            />{" "}
-            <span className="text-muted-2">·</span>{" "}
-            <span className={STRENGTH_TONE[youthStrength]}>
-              youth(player)
+      <div className="mt-5 overflow-x-auto">
+        <div className="font-mono text-[13px] leading-[1.9] text-foreground sm:text-[14px]">
+          {/* Top-level model equation */}
+          <div className="text-base">
+            <span className="italic text-foreground">DG</span>
+            <span className="text-muted-2">(p)</span>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className="italic">market</span>
+            <span className="text-muted-2">(p)</span>
+            <span className="mx-2 text-muted-2">+</span>
+            <span className="text-muted-2">60</span>
+            <span className="mx-1 text-muted-2">·</span>
+            <span className="text-lg text-muted-2">Σ</span>
+            <span className="ml-1 text-muted-2">[</span>
+            <span className="italic text-muted-2"> w</span>
+            <sub className="text-[10px] text-muted-2">i</sub>
+            <span className="mx-1 text-muted-2">·</span>
+            <span className="italic text-muted-2">f</span>
+            <sub className="text-[10px] text-muted-2">i</sub>
+            <span className="text-muted-2">(p) ]</span>
+            <span className="ml-3 text-[10px] text-muted-2">
+              i ∈ {"{"} Y, B, C {"}"}
             </span>
           </div>
-          <div className="pl-6">
-            <span className="text-muted-2">+</span>{" "}
-            <Coefficient
-              value={dials.bellcow}
-              tone={STRENGTH_TONE[bellcowStrength]}
-            />{" "}
-            <span className="text-muted-2">·</span>{" "}
-            <span className={STRENGTH_TONE[bellcowStrength]}>
-              bellcow(player)
+
+          {/* Live-substituted weights */}
+          <div className="mt-4 text-[12px] text-muted-2">where:</div>
+
+          <div className="mt-2 pl-4">
+            <span className="italic">market</span>
+            <span className="text-muted-2">(p)</span>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className="italic">FC</span>
+            <span className="text-muted-2">(p) · 100 / </span>
+            <span className="text-muted-2">max</span>
+            <sub className="text-[9px] text-muted-2">q∈Ω</sub>
+            <span className="italic text-muted-2"> FC</span>
+            <span className="text-muted-2">(q)</span>
+            <span className="ml-4 text-[10px] text-muted-2">
+              ← FantasyCalc consensus (Ω = top 100 dynasty pool)
             </span>
           </div>
-          <div className="pl-6">
-            <span className="text-muted-2">+</span>{" "}
-            <Coefficient
-              value={continuityDisabled ? 0 : dials.continuity}
-              tone={STRENGTH_TONE[continuityStrength]}
-            />{" "}
-            <span className="text-muted-2">·</span>{" "}
-            <span className={STRENGTH_TONE[continuityStrength]}>
-              continuity(player)
+
+          <div className="mt-3 pl-4">
+            <span className="italic">w</span>
+            <sub className="text-[10px]">Y</sub>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className={`font-semibold ${tY}`}>{wY.toFixed(2)}</span>
+            <span className="mx-3 text-muted-2">|</span>
+            <span className="italic">w</span>
+            <sub className="text-[10px]">B</sub>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className={`font-semibold ${tB}`}>{wB.toFixed(2)}</span>
+            <span className="mx-3 text-muted-2">|</span>
+            <span className="italic">w</span>
+            <sub className="text-[10px]">C</sub>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className={`font-semibold ${tC}`}>{wC.toFixed(2)}</span>
+            {continuityDisabled && (
+              <span className="ml-2 font-mono text-[9px] uppercase tracking-[0.14em] text-warning">
+                pending
+              </span>
+            )}
+            <span className="ml-4 text-[10px] text-muted-2">
+              ← your dials, normalized to [-1, +1]
+            </span>
+          </div>
+
+          {/* Youth function */}
+          <div className="mt-4 pl-4">
+            <span className="italic">f</span>
+            <sub className="text-[10px]">Y</sub>
+            <span className="text-muted-2">(p)</span>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className="text-muted-2">sign</span>
+            <span className="text-muted-2">(μ</span>
+            <sub className="text-[10px] text-muted-2">pos</sub>
+            <span className="text-muted-2"> − age(p))</span>
+            <span className="mx-1 text-muted-2">·</span>
+            <span className="italic text-muted-2">ω</span>
+            <sub className="text-[10px] text-muted-2">pos</sub>
+            <span className="text-muted-2">(age(p))</span>
+          </div>
+          <div className="pl-10 text-[11px] text-muted-2">
+            with peak centers μ
+            <sub>RB</sub>=24.5, μ<sub>WR</sub>=26.5, μ<sub>TE</sub>=28, μ
+            <sub>QB</sub>=28
+          </div>
+          <div className="pl-10 text-[11px] text-muted-2">
+            and ω<sub>pos</sub> = piecewise band weight from age-curve
+            calibration (2022 to 2025 starter cohort)
+          </div>
+
+          {/* Bellcow function (piecewise) */}
+          <div className="mt-4 pl-4">
+            <span className="italic">f</span>
+            <sub className="text-[10px]">B</sub>
+            <span className="text-muted-2">(p)</span>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className="text-muted-2">
+              {"{ "}+1.0 if pos=RB ∧ rank≤6
+            </span>
+          </div>
+          <div className="pl-10 text-[11px] text-muted-2">
+            +0.5 if pos=RB ∧ rank≤12 · +0.1 if rank≤18 · −0.3 if rank≤24
+            · −1.0 if rank&gt;24 · 0 otherwise
+          </div>
+          <div className="pl-10 text-[11px] text-muted-2">
+            v1 uses positional rank as workhorse proxy. v2 plugs in{" "}
+            <span className="font-mono text-foreground">rb_role_tier</span>{" "}
+            +{" "}
+            <span className="font-mono text-foreground">
+              rb_passdown_share
+            </span>
+          </div>
+
+          {/* Continuity function */}
+          <div className="mt-4 pl-4">
+            <span className="italic">f</span>
+            <sub className="text-[10px]">C</sub>
+            <span className="text-muted-2">(p)</span>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className="text-muted-2">
+              (oc_tenure(team(p)) − 1.5) / 1.5
             </span>
             {continuityDisabled && (
               <span className="ml-2 font-mono text-[9px] uppercase tracking-[0.14em] text-warning">
-                pending wiring
+                pending team_signals calibration
               </span>
             )}
           </div>
-          <div>
-            <span className="text-muted-2">)</span>
+
+          {/* Downstream engine consumers */}
+          <div className="mt-5 border-t border-border-soft pt-4 text-[12px] text-muted-2">
+            downstream (engine consumers):
+          </div>
+          <div className="mt-2 pl-4 text-[12px]">
+            <span className="italic">lane</span>
+            <span className="text-muted-2">(roster)</span>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className="text-muted-2">argmax</span>
+            <sub className="text-[9px] text-muted-2">ℓ</sub>
+            <span className="ml-1 text-lg text-muted-2">Σ</span>
+            <sub className="text-[9px] text-muted-2">q∈R</sub>
+            <span className="ml-1 text-muted-2">contribution</span>
+            <span className="text-muted-2">(q, ℓ)</span>
+            <span className="ml-3 text-[10px] text-muted-2">
+              ← 82-roster cohort thresholds
+            </span>
+          </div>
+          <div className="mt-1 pl-4 text-[12px]">
+            <span className="italic">cascade</span>
+            <span className="mx-2 text-muted-2">:</span>
+            <span className="text-muted-2">
+              KTC ≻ ADP<sub>format</sub> ≻ heuristic_dynasty
+            </span>
+          </div>
+          <div className="mt-1 pl-4 text-[12px]">
+            <span className="italic">scarcity</span>
+            <span className="text-muted-2">(pos, league)</span>
+            <span className="mx-2 text-muted-2">=</span>
+            <span className="text-muted-2">
+              starter_slots(pos) · format_multiplier(league)
+            </span>
           </div>
         </div>
       </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-2">
-        <span>
-          <span className="font-mono text-foreground">market</span> = FantasyCalc
-          consensus value (0 to 100)
-        </span>
-        <span>
-          <span className="font-mono text-foreground">youth</span>,{" "}
-          <span className="font-mono text-foreground">bellcow</span>,{" "}
-          <span className="font-mono text-foreground">continuity</span> = signed
-          component scores (-1 to +1)
-        </span>
-      </div>
-
-      <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-        Y{pct(dials.youth)} · B{pct(dials.bellcow)} · C
-        {continuityDisabled ? "00" : pct(dials.continuity)}
-      </div>
     </section>
-  );
-}
-
-function Coefficient({
-  value,
-  tone,
-}: {
-  value: number;
-  tone: string;
-}) {
-  // -1 to +1 signed coefficient. We display the (value - 0.5) * 2 form
-  // so 0.5 reads as 0 (neutral), 1.0 reads as +1.0 (max), 0 reads as
-  // -1.0 (max inverse).
-  const signed = (value - 0.5) * 2;
-  const rounded = signed === 0 ? "0.00" : signed.toFixed(2);
-  const sign = signed > 0 ? "+" : signed < 0 ? "" : " ";
-  return (
-    <span className={`font-mono ${tone}`}>
-      {sign}
-      {rounded}
-    </span>
   );
 }
