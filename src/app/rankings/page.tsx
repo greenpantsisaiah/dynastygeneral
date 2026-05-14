@@ -53,8 +53,11 @@ export default async function RankingsPage() {
               product. Centered dials reproduce the consensus market.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-2">
+              <Link href="/methodology" className="hover:text-foreground">
+                How this measures up →
+              </Link>
               <Link href="/library" className="hover:text-foreground">
-                Methodology library →
+                Library →
               </Link>
               {tier === "public" && (
                 <Link href="/login" className="hover:text-foreground">

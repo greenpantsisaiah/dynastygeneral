@@ -30,6 +30,12 @@ export async function SiteNav() {
             Rankings
           </Link>
           <Link
+            href="/methodology"
+            className="hidden text-muted transition hover:text-foreground sm:inline"
+          >
+            Methodology
+          </Link>
+          <Link
             href="/library"
             className="hidden text-muted transition hover:text-foreground sm:inline"
           >
