@@ -1,58 +1,100 @@
 "use client";
 
 /**
- * Rankings Lab. Tier-gated rendering of the dial bar, algorithm
- * display, and reranking table on /rankings.
+ * Unified Rankings Lab. Renders all 8 engine dials with tier-gated
+ * manipulation, the algorithm/equation centerpiece, and the
+ * reranking table on one page.
  *
- * Dial range is signed [-100..+100] with 0 default to match the
- * soundboard convention. A dial at 0 means "use the consensus market
- * weight"; positive means "weight this signal more"; negative means
- * "weight this signal less than the market does."
+ * Dial groups:
+ *   - Ranking dials (3, always usable): Youth, Bellcow, Continuity.
+ *     These directly move the ranking table on this page.
+ *   - Engine dials (5, sign-in required): Horizon, Rookie tilt, Risk
+ *     tolerance, Trade aggression, Consensus lean. These shape Coach
+ *     and Decision-card behavior across the product but do not yet
+ *     change the visible ranking on this page.
  *
- * The DG Index column always normalizes to top = 100. The user sees a
- * single interpretable scale ("this player is at 85% of the top of
- * your tuned model") regardless of where the dials sit.
+ * State persistence:
+ *   - Signed-in: dial state mirrors the user's JudgmentProfile in
+ *     Supabase via debounced POST to /api/soundboard/profile.
+ *   - Anonymous: dial state persisted to localStorage in the same
+ *     shape so a returning visitor sees their last tune.
  *
- * Per founder feedback 2026-05-14:
- *   - Dials should default to 0, not 50 (signed convention)
- *   - Algorithm display goes BELOW the dials so cause precedes effect
- *   - Score column should be normalized so 100 always means "top of
- *     your model"
+ * The algorithm equation reads only the 3 ranking dials (since the
+ * other 5 do not affect the table). A small line below the equation
+ * tells the signed-in user that the engine dials shape other product
+ * surfaces. Locked dials render with a "sign in to unlock" badge for
+ * the public tier.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { RankedPlayer, RankedPool } from "@/lib/rankings/build";
 import { DIAL_METHODOLOGY } from "@/lib/rankings/methodology";
 import { AlgorithmEquation } from "@/components/rankings/algorithm-equation";
+import {
+  DIAL_SPECS,
+  defaultProfile,
+  type DialId,
+  type DialValue,
+  type JudgmentProfile,
+} from "@/lib/soundboard/types";
+import {
+  PRESET_BY_ID,
+  PRESETS,
+  detectActivePreset,
+} from "@/lib/soundboard/presets";
+import { deriveDoctrine, formatDoctrineLine } from "@/lib/soundboard/doctrine";
 
-type DialState = {
-  /** Signed -100..+100 dial values; default 0 = neutral. */
-  youth: number;
-  bellcow: number;
-  continuity: number;
-};
-
-const DEFAULT_DIALS: DialState = {
-  youth: 0,
-  bellcow: 0,
-  continuity: 0,
-};
+const RANKING_DIAL_IDS: DialId[] = [
+  "youth_weight",
+  "bellcow_pref",
+  "continuity_weight",
+];
+const ENGINE_DIAL_IDS: DialId[] = [
+  "horizon",
+  "rookie_tilt",
+  "risk_tolerance",
+  "trade_aggression",
+  "consensus_lean",
+];
 
 const DIAL_EMPHASIS_RANGE = 60;
+const ANONYMOUS_STORAGE_KEY = "dg_rankings_dials_v1";
+const SAVE_DEBOUNCE_MS = 600;
+
+/** Tone color for a position cell in the table. */
+function posTone(position: RankedPlayer["position"]): string {
+  switch (position) {
+    case "QB":
+      return "text-success";
+    case "RB":
+      return "text-accent";
+    case "WR":
+      return "text-foreground";
+    case "TE":
+      return "text-warning";
+    default:
+      return "text-muted-2";
+  }
+}
+
+function asNumberDial(value: DialValue | undefined): number {
+  return typeof value === "number" ? value : 0;
+}
 
 type ScoredRow = RankedPlayer & {
-  /** Raw computed score (baseline + weighted components). */
   raw_score: number;
-  /** DG Index: raw_score normalized so the top player = 100.0. */
   dg_index: number;
   dg_rank: number;
   rank_delta: number;
 };
 
-function rescore(players: RankedPlayer[], dials: DialState): ScoredRow[] {
-  const youthW = dials.youth / 100;
-  const bellcowW = dials.bellcow / 100;
-  const continuityW = dials.continuity / 100;
+function rescore(
+  players: RankedPlayer[],
+  ranking: { youth: number; bellcow: number; continuity: number },
+): ScoredRow[] {
+  const youthW = ranking.youth / 100;
+  const bellcowW = ranking.bellcow / 100;
+  const continuityW = ranking.continuity / 100;
   const withScore = players.map((p) => {
     const adj =
       youthW * p.components.youth +
@@ -71,40 +113,132 @@ function rescore(players: RankedPlayer[], dials: DialState): ScoredRow[] {
   }));
 }
 
-function posTone(position: RankedPlayer["position"]): string {
-  switch (position) {
-    case "QB":
-      return "text-success";
-    case "RB":
-      return "text-accent";
-    case "WR":
-      return "text-foreground";
-    case "TE":
-      return "text-warning";
-    default:
-      return "text-muted-2";
-  }
-}
-
 export function RankingsLab({
   pool,
   tier,
+  initialProfile,
 }: {
   pool: RankedPool;
-  /**
-   * "public" caps the visible list at 25 and tags the surface as
-   * "unauth." "signed_in" shows the full pool. "premium" is reserved
-   * for the future CSV/JSON export tier; treated as "signed_in" for
-   * v1 since we don't ship export yet.
-   */
   tier: "public" | "signed_in" | "premium";
+  initialProfile: JudgmentProfile;
 }) {
-  const [dials, setDials] = useState<DialState>(DEFAULT_DIALS);
+  const canEditEngineDials = tier !== "public";
+  const isSignedIn = tier !== "public";
+
+  // Hold all 8 dial values plus rendering helpers. Public users mutate
+  // the 3 ranking dials only; engine dials are visible but locked.
+  const [dials, setDials] = useState<Record<DialId, DialValue>>(
+    () => initialProfile.dials,
+  );
   const [openDrawer, setOpenDrawer] = useState<string | null>(null);
-  const scored = useMemo(() => rescore(pool.players, dials), [pool.players, dials]);
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Anonymous users: hydrate from localStorage on mount.
+  useEffect(() => {
+    if (isSignedIn || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(ANONYMOUS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const next: Record<DialId, DialValue> = { ...defaultProfile().dials };
+      for (const spec of DIAL_SPECS) {
+        const v = parsed[spec.id];
+        if (typeof v === "number" && Number.isFinite(v)) {
+          next[spec.id] = Math.max(-100, Math.min(100, v));
+        }
+      }
+      setDials(next);
+    } catch {
+      // ignore corrupt localStorage
+    }
+  }, [isSignedIn]);
+
+  // Debounced persistence. Signed-in users save to Supabase; anonymous
+  // to localStorage.
+  function scheduleSave(next: Record<DialId, DialValue>) {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (isSignedIn) {
+        setSaveState("saving");
+        try {
+          const res = await fetch("/api/soundboard/profile", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ dials: next }),
+          });
+          setSaveState(res.ok ? "saved" : "error");
+          if (res.ok) {
+            window.setTimeout(() => setSaveState("idle"), 1500);
+          }
+        } catch {
+          setSaveState("error");
+        }
+      } else if (typeof window !== "undefined") {
+        try {
+          const onlyNumbers: Record<string, number> = {};
+          for (const spec of DIAL_SPECS) {
+            const v = next[spec.id];
+            if (typeof v === "number") onlyNumbers[spec.id] = v;
+          }
+          window.localStorage.setItem(
+            ANONYMOUS_STORAGE_KEY,
+            JSON.stringify(onlyNumbers),
+          );
+          setSaveState("saved");
+          window.setTimeout(() => setSaveState("idle"), 1200);
+        } catch {
+          setSaveState("error");
+        }
+      }
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  function moveDial(id: DialId, value: number, locked: boolean) {
+    if (locked) return;
+    setDials((prev) => {
+      const next = { ...prev, [id]: value };
+      scheduleSave(next);
+      return next;
+    });
+  }
+
+  function reset() {
+    const next = defaultProfile().dials;
+    setDials(next);
+    scheduleSave(next);
+  }
+
+  function applyPreset(presetId: string) {
+    const preset = PRESET_BY_ID.get(presetId as Parameters<typeof PRESET_BY_ID.get>[0]);
+    if (!preset) return;
+    setDials((prev) => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(preset.values)) {
+        next[k as DialId] = v as DialValue;
+      }
+      scheduleSave(next);
+      return next;
+    });
+  }
+
+  const rankingDials = {
+    youth: asNumberDial(dials.youth_weight),
+    bellcow: asNumberDial(dials.bellcow_pref),
+    continuity: asNumberDial(dials.continuity_weight),
+  };
+  const scored = useMemo(
+    () => rescore(pool.players, rankingDials),
+    [pool.players, rankingDials.youth, rankingDials.bellcow, rankingDials.continuity],
+  );
   const visibleLimit = tier === "public" ? 25 : 100;
   const visible = scored.slice(0, visibleLimit);
   const lockedRows = scored.length > visibleLimit ? scored.length - visibleLimit : 0;
+
+  const activePreset = detectActivePreset(dials);
+  const doctrine = deriveDoctrine(dials);
 
   function toggleDrawer(id: string) {
     setOpenDrawer((curr) => (curr === id ? null : id));
@@ -112,61 +246,84 @@ export function RankingsLab({
 
   return (
     <div className="space-y-6">
+      {/* Doctrine readout + preset bar */}
+      <div className="rounded-lg border border-border-soft bg-surface px-5 py-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              Current doctrine
+            </div>
+            <div className="mt-1 text-base font-semibold text-foreground">
+              {formatDoctrineLine(doctrine)}
+            </div>
+            <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              {doctrine.calibrated_count} of {DIAL_SPECS.length} calibrated
+              {saveState === "saving" && " · saving"}
+              {saveState === "saved" && " · saved"}
+              {saveState === "error" && " · save failed"}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={reset}
+              className="rounded-md border border-border-soft bg-surface-2 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 transition hover:text-accent"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => applyPreset(p.id)}
+              className={`rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition ${
+                activePreset === p.id
+                  ? "border-accent bg-accent/15 text-accent"
+                  : "border-border-soft bg-surface-2 text-muted-2 hover:border-accent/60 hover:text-accent"
+              }`}
+              title={p.blurb}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Ranking dials (always usable) */}
       <div className="rounded-lg border border-border-soft bg-surface px-5 py-5">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-              Three dials
+              Ranking dials · 3 of 3
             </div>
             <p className="mt-1 text-sm text-muted">
-              Each dial moves one specific engine constant. Default
-              position (0) reproduces the consensus market ranking. Tap
-              the{" "}
+              These change the table on this page in real time. Default
+              (0) reproduces the consensus market. Tap{" "}
               <kbd className="rounded border border-border-soft bg-surface-2 px-1 font-mono text-[10px]">
                 ?
               </kbd>{" "}
-              on a dial to see what it actually does.
+              for methodology.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setDials(DEFAULT_DIALS)}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
-          >
-            Reset
-          </button>
         </div>
         <div className="mt-5 grid gap-5 sm:grid-cols-3">
-          <DialControl
-            id="youth_weight"
-            label="Youth"
-            hint="Age-curve weight. Positive lifts younger players; negative ages them down."
-            value={dials.youth}
-            onChange={(v) => setDials((d) => ({ ...d, youth: v }))}
-            onInfoClick={() => toggleDrawer("youth_weight")}
-            isOpen={openDrawer === "youth_weight"}
-          />
-          <DialControl
-            id="bellcow_pref"
-            label="Bellcow"
-            hint="RB workhorse preference. Positive lifts top-12 RBs; negative recedes them."
-            value={dials.bellcow}
-            onChange={(v) => setDials((d) => ({ ...d, bellcow: v }))}
-            onInfoClick={() => toggleDrawer("bellcow_pref")}
-            isOpen={openDrawer === "bellcow_pref"}
-          />
-          <DialControl
-            id="continuity_weight"
-            label="Continuity"
-            hint="OC tenure weight. Calibration in progress; dial is wired but currently neutral."
-            value={dials.continuity}
-            onChange={(v) => setDials((d) => ({ ...d, continuity: v }))}
-            onInfoClick={() => toggleDrawer("continuity_weight")}
-            isOpen={openDrawer === "continuity_weight"}
-            disabled
-          />
+          {RANKING_DIAL_IDS.map((id) => (
+            <DialControl
+              key={id}
+              id={id}
+              value={asNumberDial(dials[id])}
+              onChange={(v) => moveDial(id, v, false)}
+              onInfoClick={() => toggleDrawer(id)}
+              isOpen={openDrawer === id}
+              locked={false}
+              disabledForCalibration={id === "continuity_weight"}
+            />
+          ))}
         </div>
-        {openDrawer && (
+        {openDrawer && RANKING_DIAL_IDS.includes(openDrawer as DialId) && (
           <div className="mt-5 border-t border-border-soft pt-5">
             <MethodologyDrawer
               id={openDrawer}
@@ -176,7 +333,57 @@ export function RankingsLab({
         )}
       </div>
 
-      <AlgorithmEquation dials={dials} continuityDisabled />
+      <AlgorithmEquation dials={rankingDials} continuityDisabled />
+
+      {/* Engine dials (sign-in gated) */}
+      <div className="rounded-lg border border-border-soft bg-surface px-5 py-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              Engine dials · 5 of 5
+              {!canEditEngineDials && (
+                <span className="ml-2 text-warning">· sign-in required</span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-muted">
+              These shape Coach and Decision-card behavior across the
+              product. They do not move the table on this page, but
+              they do change what Coach says about your team and which
+              candidates surface on the Decision card.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-5 sm:grid-cols-3 lg:grid-cols-5">
+          {ENGINE_DIAL_IDS.map((id) => (
+            <DialControl
+              key={id}
+              id={id}
+              value={asNumberDial(dials[id])}
+              onChange={(v) => moveDial(id, v, !canEditEngineDials)}
+              onInfoClick={() => toggleDrawer(id)}
+              isOpen={openDrawer === id}
+              locked={!canEditEngineDials}
+            />
+          ))}
+        </div>
+        {!canEditEngineDials && (
+          <div className="mt-4 rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm text-foreground">
+            Sign in to use the engine dials.{" "}
+            <a href="/login" className="text-accent hover:underline">
+              Sign in
+            </a>{" "}
+            (free; no payment until calibration ships).
+          </div>
+        )}
+        {openDrawer && ENGINE_DIAL_IDS.includes(openDrawer as DialId) && (
+          <div className="mt-5 border-t border-border-soft pt-5">
+            <MethodologyDrawer
+              id={openDrawer}
+              onClose={() => setOpenDrawer(null)}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="overflow-x-auto rounded-lg border border-border-soft bg-surface">
         <table className="w-full min-w-[680px] text-sm">
@@ -189,7 +396,7 @@ export function RankingsLab({
               <th className="px-3 py-2.5">Age</th>
               <th
                 className="px-3 py-2.5 text-right"
-                title="DG Index: player's raw score normalized so the top of your tuned model = 100.0. Compares same-shape across any dial state."
+                title="DG Index: player's raw score normalized so the top of your tuned model = 100.0."
               >
                 DG Index
               </th>
@@ -233,37 +440,45 @@ export function RankingsLab({
 
 function DialControl({
   id,
-  label,
-  hint,
   value,
   onChange,
   onInfoClick,
   isOpen,
-  disabled = false,
+  locked,
+  disabledForCalibration = false,
 }: {
-  id: string;
-  label: string;
-  /** Signed -100..+100 dial value. */
-  hint: string;
+  id: DialId;
   value: number;
   onChange: (next: number) => void;
   onInfoClick: () => void;
   isOpen: boolean;
-  disabled?: boolean;
+  locked: boolean;
+  /**
+   * Special-case for the Continuity dial today: signal table isn't
+   * calibrated, so the slider has no effect on the live ranking. We
+   * render it disabled with a "neutral" label so the dial is honest
+   * about doing nothing yet.
+   */
+  disabledForCalibration?: boolean;
 }) {
-  const displayValue = disabled
-    ? "neutral"
-    : value === 0
-      ? "0"
-      : value > 0
-        ? `+${value}`
-        : `${value}`;
+  const spec = DIAL_SPECS.find((s) => s.id === id);
+  if (!spec) return null;
+  const isDisabled = locked || disabledForCalibration;
+  const displayValue = locked
+    ? "sign in"
+    : disabledForCalibration
+      ? "neutral"
+      : value === 0
+        ? "0"
+        : value > 0
+          ? `+${value}`
+          : `${value}`;
   return (
-    <div>
+    <div className={locked ? "opacity-60" : ""}>
       <div className="flex items-baseline justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
-            {label}
+            {spec.name}
           </label>
           <button
             type="button"
@@ -275,13 +490,21 @@ function DialControl({
                 ? "border-accent bg-accent text-black"
                 : "border-border-soft bg-surface-2 text-muted-2 hover:border-accent hover:text-accent"
             }`}
-            title={`Methodology behind ${label}`}
+            title={`Methodology behind ${spec.name}`}
           >
             ?
           </button>
+          {locked && (
+            <span
+              className="font-mono text-[8px] uppercase tracking-[0.14em] text-warning"
+              title="Sign in to use this dial"
+            >
+              locked
+            </span>
+          )}
         </div>
         <span
-          className={`font-mono text-[10px] ${disabled ? "text-muted-2" : "text-foreground"}`}
+          className={`font-mono text-[10px] ${isDisabled ? "text-muted-2" : "text-foreground"}`}
         >
           {displayValue}
         </span>
@@ -293,10 +516,10 @@ function DialControl({
         step={1}
         value={value}
         onChange={(e) => onChange(Number.parseInt(e.target.value, 10))}
-        disabled={disabled}
+        disabled={isDisabled}
         className="mt-2 w-full accent-accent"
       />
-      <p className="mt-1 text-xs leading-snug text-muted-2">{hint}</p>
+      <p className="mt-1 text-xs leading-snug text-muted-2">{spec.short_blurb}</p>
     </div>
   );
 }
@@ -356,8 +579,7 @@ function DrawerBlock({
   items: string[];
   tone?: "default" | "warning";
 }) {
-  const headingTone =
-    tone === "warning" ? "text-warning" : "text-accent";
+  const headingTone = tone === "warning" ? "text-warning" : "text-accent";
   return (
     <div>
       <div
