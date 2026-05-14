@@ -6,6 +6,7 @@ import { Ticker } from "@/components/ui/ticker";
 import { ComparisonTable } from "@/components/methodology/comparison-table";
 import { SpearmanChart } from "@/components/methodology/spearman-chart";
 import { AgeCurveChart } from "@/components/methodology/age-curve-chart";
+import { InflectionSample } from "@/components/methodology/inflection-sample";
 import { LaneCohortDistribution } from "@/components/league/lane-cohort-distribution";
 import {
   COHORT_GENERATED_AT,
@@ -157,12 +158,38 @@ export default function MethodologyPage() {
           </div>
         </section>
 
+        {/* Inflection scorecards · unique to us */}
+        <section className="border-b border-border-soft">
+          <div className="mx-auto max-w-5xl px-6 py-10">
+            <div className="mb-4 max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                Receipt 3 · inflection scorecards (only we publish this)
+              </div>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                Bimodal forecasts, not single points.
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                When a player is in a high-variance moment (aging
+                cliff, rookie debut, post-major-injury return), the
+                conditional distribution of outcomes is bimodal. The
+                mean lands in the valley between the two modes, where
+                no actual player ends up. KTC and FantasyCalc collapse
+                this into one number anyway. We refuse to. Each
+                inflection window publishes both stories with
+                calibrated probabilities, a signal scorecard with
+                confidence labels, and named historical comparators.
+              </p>
+            </div>
+            <InflectionSample />
+          </div>
+        </section>
+
         {/* Age curves */}
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 3 · age curves
+                Receipt 4 · age curves
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 Peak bands refit when the data says so.
@@ -184,7 +211,7 @@ export default function MethodologyPage() {
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 4 · LLM context
+                Receipt 5 · LLM context
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 Coach reads the full named roster.
@@ -249,7 +276,7 @@ question: should I trade for Bijan Robinson?`}
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 5 · engineering
+                Receipt 6 · engineering
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 71 evals + 12 anti-pattern lint rules.

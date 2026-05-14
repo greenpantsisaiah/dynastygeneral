@@ -1,12 +1,10 @@
 /**
- * "Us vs them" methodology comparison table. The most impressive thing
- * to put in front of a sports-data-savvy friend: a side-by-side that
- * names what Dynasty General publishes that the rest of the dynasty
- * market does not.
- *
- * Each row is a methodology dimension the founder should be able to
- * defend in conversation. Each cell is intentionally specific (cite
- * the number or the absence) rather than yes/no.
+ * "Us vs them" methodology comparison. Designed for visual scan rather
+ * than careful reading. Each dimension is a row; each source is a
+ * column. Cells lead with a big icon (yes / partial / no) and carry a
+ * short tag. The Dynasty General column is tinted so the eye lands
+ * there first. Founder feedback 2026-05-14: the previous text-heavy
+ * version "is too text-heavy."
  */
 
 type Source =
@@ -15,9 +13,15 @@ type Source =
   | "fantasycalc"
   | "fantasypros";
 
-const COLUMNS: Array<{ key: Source; label: string }> = [
-  { key: "dynasty_general", label: "Dynasty General" },
-  { key: "keeptradecut", label: "KeepTradeCut" },
+type Tone = "yes" | "partial" | "no";
+
+const COLUMNS: Array<{ key: Source; label: string; subtitle?: string }> = [
+  {
+    key: "dynasty_general",
+    label: "Dynasty General",
+    subtitle: "this product",
+  },
+  { key: "keeptradecut", label: "KTC" },
   { key: "fantasycalc", label: "FantasyCalc" },
   { key: "fantasypros", label: "FantasyPros" },
 ];
@@ -25,139 +29,156 @@ const COLUMNS: Array<{ key: Source; label: string }> = [
 type Row = {
   dimension: string;
   detail: string;
-  values: Record<Source, { text: string; tone: "yes" | "partial" | "no" }>;
+  values: Record<Source, { tag: string; tone: Tone }>;
 };
 
 const ROWS: Row[] = [
   {
     dimension: "Public backtest",
-    detail: "Spearman vs actual cumulative production, multiple horizons",
+    detail: "Spearman vs actual production, multiple horizons",
     values: {
-      dynasty_general: {
-        text: "Yes, /scoreboard",
-        tone: "yes",
-      },
-      keeptradecut: { text: "Not published", tone: "no" },
-      fantasycalc: { text: "Not published", tone: "no" },
-      fantasypros: { text: "Internal only", tone: "no" },
+      dynasty_general: { tag: "Published", tone: "yes" },
+      keeptradecut: { tag: "Not published", tone: "no" },
+      fantasycalc: { tag: "Not published", tone: "no" },
+      fantasypros: { tag: "Internal only", tone: "no" },
     },
   },
   {
     dimension: "Cohort calibration",
-    detail: "Thresholds tuned against real-roster distributions",
+    detail: "Real-roster percentile thresholds",
     values: {
-      dynasty_general: {
-        text: "n=82, 5 leagues",
-        tone: "yes",
-      },
-      keeptradecut: { text: "One number per player", tone: "no" },
-      fantasycalc: { text: "One number per player", tone: "no" },
-      fantasypros: { text: "Tier breaks, no cohort math", tone: "partial" },
+      dynasty_general: { tag: "n=82, 5 leagues", tone: "yes" },
+      keeptradecut: { tag: "Single value", tone: "no" },
+      fantasycalc: { tag: "Single value", tone: "no" },
+      fantasypros: { tag: "Tier breaks", tone: "partial" },
     },
   },
   {
     dimension: "Per-position age curves",
-    detail: "Peak bands empirically refit per position",
+    detail: "Empirically refit peak bands",
     values: {
-      dynasty_general: {
-        text: "4 positions, refit 2026-05-12",
-        tone: "yes",
-      },
-      keeptradecut: { text: "Generic age decay", tone: "partial" },
-      fantasycalc: { text: "Implicit in value", tone: "no" },
-      fantasypros: { text: "Tiered, not curved", tone: "partial" },
+      dynasty_general: { tag: "4 positions, refit 05/12", tone: "yes" },
+      keeptradecut: { tag: "Generic decay", tone: "partial" },
+      fantasycalc: { tag: "Implicit", tone: "no" },
+      fantasypros: { tag: "Tiered", tone: "partial" },
     },
   },
   {
     dimension: "Lane identity model",
-    detail: "Multi-attribute roster classification across 11 lanes",
+    detail: "Multi-attribute roster classification",
     values: {
-      dynasty_general: {
-        text: "11 lanes, 3 axes",
-        tone: "yes",
-      },
-      keeptradecut: { text: "No identity layer", tone: "no" },
-      fantasycalc: { text: "No identity layer", tone: "no" },
-      fantasypros: { text: "No identity layer", tone: "no" },
+      dynasty_general: { tag: "11 lanes, 3 axes", tone: "yes" },
+      keeptradecut: { tag: "None", tone: "no" },
+      fantasycalc: { tag: "None", tone: "no" },
+      fantasypros: { tag: "None", tone: "no" },
+    },
+  },
+  {
+    dimension: "Inflection scorecards",
+    detail: "Bimodal forecasts with signal scorecard + comparators",
+    values: {
+      dynasty_general: { tag: "Bimodal + signals", tone: "yes" },
+      keeptradecut: { tag: "None", tone: "no" },
+      fantasycalc: { tag: "None", tone: "no" },
+      fantasypros: { tag: "None", tone: "no" },
     },
   },
   {
     dimension: "Tunable model",
-    detail: "User can perturb the engine weights and see the output change",
+    detail: "User-controlled engine weights",
     values: {
-      dynasty_general: {
-        text: "8 dials, 3 public, 5 signed-in",
-        tone: "yes",
-      },
-      keeptradecut: { text: "One static ranking", tone: "no" },
-      fantasycalc: { text: "Format toggles only", tone: "partial" },
-      fantasypros: { text: "Expert blend, no controls", tone: "no" },
+      dynasty_general: { tag: "8 dials", tone: "yes" },
+      keeptradecut: { tag: "None", tone: "no" },
+      fantasycalc: { tag: "Format toggles", tone: "partial" },
+      fantasypros: { tag: "Expert blend", tone: "no" },
     },
   },
   {
     dimension: "Opponent dossiers",
-    detail: "Per-league trade-fingerprint + recent-pick patterns",
+    detail: "Per-league trade fingerprints + pick patterns",
     values: {
-      dynasty_general: {
-        text: "Yes, per opponent",
-        tone: "yes",
-      },
-      keeptradecut: { text: "None", tone: "no" },
-      fantasycalc: { text: "None", tone: "no" },
-      fantasypros: { text: "None", tone: "no" },
-    },
-  },
-  {
-    dimension: "Coach context",
-    detail: "LLM analysis with full named roster + format rules",
-    values: {
-      dynasty_general: {
-        text: "Named players, KTC pricing, format rules",
-        tone: "yes",
-      },
-      keeptradecut: { text: "No LLM surface", tone: "no" },
-      fantasycalc: { text: "No LLM surface", tone: "no" },
-      fantasypros: { text: "Generic content, no named context", tone: "partial" },
+      dynasty_general: { tag: "Per opponent", tone: "yes" },
+      keeptradecut: { tag: "None", tone: "no" },
+      fantasycalc: { tag: "None", tone: "no" },
+      fantasypros: { tag: "None", tone: "no" },
     },
   },
   {
     dimension: "Reproducibility",
-    detail: "Source CSV + scripts published so anyone can re-run",
+    detail: "Source CSV + scripts published",
     values: {
-      dynasty_general: {
-        text: "Scoreboard CSV + methodology page",
-        tone: "yes",
-      },
-      keeptradecut: { text: "No", tone: "no" },
-      fantasycalc: { text: "Public API", tone: "partial" },
-      fantasypros: { text: "Paid-only access", tone: "no" },
+      dynasty_general: { tag: "CSV + methodology", tone: "yes" },
+      keeptradecut: { tag: "Closed", tone: "no" },
+      fantasycalc: { tag: "Public API", tone: "partial" },
+      fantasypros: { tag: "Paid only", tone: "no" },
     },
   },
 ];
 
-const TONE_CLASS: Record<Row["values"][Source]["tone"], string> = {
-  yes: "text-accent",
-  partial: "text-warning",
-  no: "text-muted-2",
-};
+function ToneGlyph({ tone }: { tone: Tone }) {
+  const common = "flex h-5 w-5 items-center justify-center rounded-full font-mono text-[10px]";
+  if (tone === "yes") {
+    return (
+      <span
+        className={`${common} bg-accent text-black`}
+        aria-label="yes"
+      >
+        ✓
+      </span>
+    );
+  }
+  if (tone === "partial") {
+    return (
+      <span
+        className={`${common} border border-warning bg-warning/20 text-warning`}
+        aria-label="partial"
+      >
+        ◐
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`${common} border border-border-soft bg-surface-2 text-muted-2`}
+      aria-label="no"
+    >
+      ✕
+    </span>
+  );
+}
 
 export function ComparisonTable() {
   return (
     <div className="overflow-x-auto rounded-lg border border-border-soft bg-surface">
-      <table className="w-full min-w-[840px] text-xs">
-        <thead className="bg-surface-2">
+      <table className="w-full min-w-[760px] text-xs">
+        <thead>
           <tr>
-            <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-              Methodology dimension
+            <th className="bg-surface-2 px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              {/* dimension */}
             </th>
             {COLUMNS.map((c) => (
               <th
                 key={c.key}
-                className={`px-3 py-3 text-left font-mono text-[10px] uppercase tracking-[0.14em] ${
-                  c.key === "dynasty_general" ? "text-accent" : "text-muted-2"
+                className={`px-3 py-3 text-left ${
+                  c.key === "dynasty_general"
+                    ? "bg-accent/10"
+                    : "bg-surface-2"
                 }`}
               >
-                {c.label}
+                <div
+                  className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
+                    c.key === "dynasty_general"
+                      ? "text-accent"
+                      : "text-muted-2"
+                  }`}
+                >
+                  {c.label}
+                </div>
+                {c.subtitle && (
+                  <div className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+                    {c.subtitle}
+                  </div>
+                )}
               </th>
             ))}
           </tr>
@@ -166,24 +187,40 @@ export function ComparisonTable() {
           {ROWS.map((row) => (
             <tr
               key={row.dimension}
-              className="border-t border-border-soft align-top"
+              className="border-t border-border-soft align-middle"
             >
               <td className="px-4 py-3">
                 <div className="font-semibold text-foreground">
                   {row.dimension}
                 </div>
-                <div className="mt-1 leading-snug text-muted-2">
+                <div className="mt-0.5 text-[11px] leading-snug text-muted-2">
                   {row.detail}
                 </div>
               </td>
               {COLUMNS.map((c) => {
                 const cell = row.values[c.key];
+                const isDg = c.key === "dynasty_general";
                 return (
                   <td
                     key={c.key}
-                    className={`px-3 py-3 leading-snug ${TONE_CLASS[cell.tone]}`}
+                    className={`px-3 py-3 ${isDg ? "bg-accent/5" : ""}`}
                   >
-                    {cell.text}
+                    <div className="flex items-center gap-2">
+                      <ToneGlyph tone={cell.tone} />
+                      <span
+                        className={`leading-snug ${
+                          isDg
+                            ? "text-foreground"
+                            : cell.tone === "yes"
+                              ? "text-foreground"
+                              : cell.tone === "partial"
+                                ? "text-warning"
+                                : "text-muted-2"
+                        }`}
+                      >
+                        {cell.tag}
+                      </span>
+                    </div>
                   </td>
                 );
               })}
