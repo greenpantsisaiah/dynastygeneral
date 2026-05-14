@@ -41,11 +41,14 @@ import type {
   DecisionRule,
   DecisionTopCandidate,
   DecisionQuadrantCandidate,
+  DialInfluence,
   NextPickPlanItem,
   OpponentInGap,
   OpponentGapAnalysis,
   CandidateOpponentSignal,
+  SynthesisDials,
 } from "./types";
+import { NEUTRAL_SYNTHESIS_DIALS } from "./types";
 
 const POSITION_LABEL: Record<Position, string> = {
   QB: "QB",
@@ -170,6 +173,10 @@ type ScoredCandidate = {
   // Human-readable note when window constraint penalized this pick.
   // Null when no penalty applies.
   constraint_note: string | null;
+  // Which user dials nudged this candidate's score and by how much.
+  // Populated only when synthesizeDecision was called with non-neutral
+  // dials. Empty array when neutral (no effect).
+  dial_influences: DialInfluence[];
 };
 
 // Map (age, is_rookie, pool stats) to a horizon score. -100 = full
@@ -643,6 +650,161 @@ function availabilityFromPct(pct: number | null): Availability | null {
   return "probably_gone";
 }
 
+/**
+ * Per-candidate age-curve component in signed [-1, +1] space. Positive
+ * for young end of position's peak; negative for past-peak. Matches
+ * the curve used on the public /rankings page so the same dial moves
+ * the same direction across surfaces.
+ */
+function ageCurveSignedFor(
+  position: Position,
+  age: number | null,
+): number {
+  if (age == null) return 0;
+  switch (position) {
+    case "RB":
+      if (age <= 22) return 1;
+      if (age <= 24) return 0.7;
+      if (age <= 26) return 0.3;
+      if (age <= 28) return -0.2;
+      if (age <= 30) return -0.7;
+      return -1;
+    case "WR":
+      if (age <= 23) return 1;
+      if (age <= 25) return 0.7;
+      if (age <= 28) return 0.2;
+      if (age <= 30) return -0.2;
+      if (age <= 32) return -0.7;
+      return -1;
+    case "TE":
+      if (age <= 24) return 1;
+      if (age <= 26) return 0.5;
+      if (age <= 29) return 0.1;
+      if (age <= 31) return -0.4;
+      return -1;
+    case "QB":
+      if (age <= 24) return 1;
+      if (age <= 27) return 0.6;
+      if (age <= 31) return 0.2;
+      if (age <= 34) return -0.3;
+      return -1;
+    default:
+      return 0;
+  }
+}
+
+const DIAL_NOISE_FLOOR = 1.5; // contributions below this aren't surfaced
+
+/**
+ * Compute the additive score delta + per-dial influence list for a
+ * candidate under the user's tuned dials. Pure function. Returns
+ * { delta: 0, influences: [] } when dials are neutral so existing
+ * eval fixtures (which don't pass dials) continue to produce
+ * identical scores.
+ *
+ * Dial-to-rule wiring rationale:
+ *   - youth_weight: scales the age-curve component for every candidate.
+ *     Mirrors the /rankings page (same engine constant moved).
+ *   - bellcow_pref: scales the workhorse-vs-committee read for RB
+ *     candidates. Mirrors /rankings.
+ *   - rookie_tilt: flat boost for is_rookie players, demote otherwise.
+ *   - horizon: boosts push_path / future_stash when positive; boosts
+ *     fill_starter rules when negative. The retired window-constraint
+ *     penalty is replaced by an additive horizon term on the rules
+ *     most-aligned with the direction.
+ *
+ * Continuity weight is intentionally not in this helper. The team-
+ * signals calibration is mid-flight; we don't wire a dial that
+ * doesn't do anything.
+ */
+function computeDialDeltas(args: {
+  player: AvailablePlayer;
+  position: Position;
+  rule: DecisionRule;
+  dials: SynthesisDials;
+  /** Position rank within the available pool. 1-indexed; lower = better. */
+  positionRank: number;
+}): { delta: number; influences: DialInfluence[] } {
+  const { player, position, rule, dials, positionRank } = args;
+  const influences: DialInfluence[] = [];
+  let delta = 0;
+
+  function record(
+    dial: DialInfluence["dial"],
+    contribution: number,
+    label: string,
+  ) {
+    if (Math.abs(contribution) < DIAL_NOISE_FLOOR) return;
+    influences.push({
+      dial,
+      label,
+      delta: Math.round(contribution * 10) / 10,
+    });
+    delta += contribution;
+  }
+
+  if (Math.abs(dials.youth) >= 5) {
+    const y = ageCurveSignedFor(position, player.age ?? null);
+    const c = (dials.youth / 100) * 18 * y;
+    record(
+      "youth_weight",
+      c,
+      `Youth ${dials.youth > 0 ? "+" : ""}${dials.youth}`,
+    );
+  }
+
+  if (position === "RB" && Math.abs(dials.bellcow) >= 5) {
+    // Bellcow proxy from positional rank in the available pool. Top-6
+    // RBs at +1.0; tail at -1.0; mirrors the rankings-page heuristic.
+    let b = 0;
+    if (positionRank <= 6) b = 1;
+    else if (positionRank <= 12) b = 0.5;
+    else if (positionRank <= 18) b = 0.1;
+    else if (positionRank <= 24) b = -0.3;
+    else b = -1;
+    const c = (dials.bellcow / 100) * 18 * b;
+    record(
+      "bellcow_pref",
+      c,
+      `Bellcow ${dials.bellcow > 0 ? "+" : ""}${dials.bellcow}`,
+    );
+  }
+
+  if (Math.abs(dials.rookie) >= 10) {
+    const isRookie = player.is_rookie === true;
+    const sign = isRookie ? 1 : -0.4;
+    const c = (dials.rookie / 100) * 14 * sign;
+    record(
+      "rookie_tilt",
+      c,
+      `Rookie tilt ${dials.rookie > 0 ? "+" : ""}${dials.rookie}`,
+    );
+  }
+
+  if (Math.abs(dials.horizon) >= 10) {
+    // Horizon weights the rule itself. Positive (future) lifts
+    // push_path + future_stash; negative (win-now) lifts the
+    // fill_starter family. earned_value + position_steal stay neutral
+    // (they're not directional with respect to horizon).
+    let direction = 0;
+    if (rule === "push_path" || rule === "future_stash") direction = 1;
+    else if (rule === "fill_starter_urgent" || rule === "fill_starter")
+      direction = -1;
+    if (direction !== 0) {
+      const c = (dials.horizon / 100) * 12 * direction;
+      record(
+        "horizon",
+        c,
+        `Horizon ${dials.horizon > 0 ? "+" : ""}${dials.horizon}`,
+      );
+    }
+  }
+
+  // Sort influences by absolute magnitude so the dominant dial leads.
+  influences.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  return { delta, influences };
+}
+
 function buildCandidates(
   snap: LeagueSnapshot,
   ranked: RankedArchetype[],
@@ -650,6 +812,7 @@ function buildCandidates(
   nextUserPickNo: number,
   currentPickNo: number,
   gapAnalysis: OpponentGapAnalysis,
+  dials: SynthesisDials,
 ): ScoredCandidate[] {
   const me = snap.rosters.find((r) => r.is_me);
   if (!me) return [];
@@ -659,18 +822,48 @@ function buildCandidates(
   // Declared-window constraint retired 2026-05-12 (lanes-as-declaration
   // architecture). buildCandidates now produces rule-scored candidates
   // without a window-aware penalty layer; lane-identity surfaces the
-  // "fit" signal to the user separately.
-  const push = (raw: Omit<ScoredCandidate, "raw_score" | "score" | "constraint_note"> & { score: number }) => {
+  // "fit" signal to the user separately. The user's tuned dials are
+  // applied here additively (computeDialDeltas) so existing eval
+  // fixtures with neutral dials produce identical scores.
+  //
+  // Precompute per-position rank in the available pool (1-indexed,
+  // ordered by `available`'s native KTC-then-ADP cascade). Used by
+  // the Bellcow dial so a top-12 RB consistently scores +1.0
+  // regardless of which rule pushed him.
+  const positionPoolRank = new Map<string, number>();
+  {
+    const counters: Partial<Record<Position, number>> = {};
+    for (const p of available) {
+      const pos = p.position as Position | null;
+      if (!pos) continue;
+      const next = (counters[pos] ?? 0) + 1;
+      counters[pos] = next;
+      positionPoolRank.set(p.id, next);
+    }
+  }
+  const push = (
+    raw: Omit<ScoredCandidate, "raw_score" | "score" | "constraint_note" | "dial_influences"> & {
+      score: number;
+    },
+  ) => {
     if (seenIds.has(raw.player.id)) return;
     seenIds.add(raw.player.id);
+    const dialResult = computeDialDeltas({
+      player: raw.player,
+      position: raw.position,
+      rule: raw.rule,
+      dials,
+      positionRank: positionPoolRank.get(raw.player.id) ?? 999,
+    });
     candidates.push({
       player: raw.player,
       position: raw.position,
       rule: raw.rule,
       primary_reason: raw.primary_reason,
       raw_score: raw.score,
-      score: raw.score,
+      score: raw.score + dialResult.delta,
       constraint_note: null,
+      dial_influences: dialResult.influences,
     });
   };
 
@@ -1392,6 +1585,12 @@ export function synthesizeDecision(args: {
   // on Top 3 cards alongside ADP so the user sees both signals when
   // they diverge. Drives the trust-hierarchy callout in WHY THIS LEAN.
   ktc_overall_ranks?: Record<string, number>;
+  // User's tuned doctrine from the Rankings Lab. Optional; defaults
+  // to neutral (no effect on scoring) so existing eval fixtures pass
+  // unchanged. When dials are non-default, each candidate gets a
+  // `dial_influences` list naming which dial(s) nudged its score and
+  // by how much.
+  dials?: SynthesisDials;
 }): Decision | null {
   const {
     snap,
@@ -1401,6 +1600,7 @@ export function synthesizeDecision(args: {
     picks_until_me,
     player_values: playerValues = {},
     ktc_overall_ranks: ktcOverallRanks = {},
+    dials = NEUTRAL_SYNTHESIS_DIALS,
   } = args;
   const schedule = snap.draft.my_pick_schedule;
   if (schedule.length === 0) return null;
@@ -1432,6 +1632,7 @@ export function synthesizeDecision(args: {
     nextUserPickNo,
     current.pick_no,
     gapAnalysis,
+    dials,
   );
   if (candidates.length === 0) return null;
 
@@ -1577,6 +1778,7 @@ export function synthesizeDecision(args: {
     const availability_next_pick = availabilityFromPct(survival_pct);
     return {
       ...toDecisionCandidate(c.player, playerValues, ktcOverallRanks),
+      dial_influences: c.dial_influences,
       primary_reason: c.primary_reason,
       rule: c.rule,
       timeline_lane: classifyLane({
@@ -1764,6 +1966,7 @@ export function synthesizeDecision(args: {
     density: current.density_kind,
     recommendation: {
       ...toDecisionCandidate(winner.player, playerValues, ktcOverallRanks),
+      dial_influences: winner.dial_influences,
       primary_reason: winner.primary_reason,
       rule: winner.rule,
     },

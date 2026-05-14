@@ -48,7 +48,10 @@ import type { ResolvedPlayFromHere } from "@/lib/strategy/plays-from-here/types"
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import type { PickApproach as PickApproachData } from "@/lib/strategy/pick-approach/types";
 import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
-import type { Decision } from "@/lib/strategy/decision-synthesis/types";
+import {
+  dialsForSynthesisFrom,
+  type Decision,
+} from "@/lib/strategy/decision-synthesis/types";
 import {
   enrichPickApproachWithCandidates,
   enrichRankedWithCandidates,
@@ -807,6 +810,9 @@ export default async function LeagueHubPage({
       // that's only those names because every vet is rostered.
       if (draftActive && windows && availablePlayers.length > 0) {
         try {
+          const profileForDials = await readProfileServer().catch(
+            () => null,
+          );
           decision = synthesizeDecision({
             snap: snapshot,
             ranked: rankedArchetypes,
@@ -815,6 +821,7 @@ export default async function LeagueHubPage({
             picks_until_me: pickApproach?.picks_until_me ?? 0,
             player_values: playerValuesByIdJson,
             ktc_overall_ranks: ktcOverallRanksByIdJson,
+            dials: dialsForSynthesisFrom(profileForDials?.dials ?? null),
           });
         } catch (err) {
           console.error("[hub:decision-synthesis]", err);

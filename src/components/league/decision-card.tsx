@@ -193,6 +193,16 @@ export function DecisionCard({
           >
             {RULE_LABEL[rec.rule]}
           </span>
+          {rec.dial_influences && rec.dial_influences.length > 0 && (
+            <span
+              className="font-mono text-[9px] uppercase tracking-[0.14em] text-[color:#a78bfa]"
+              title={`Your dials nudged this rule: ${rec.dial_influences
+                .map((d) => `${d.label} (${d.delta > 0 ? "+" : ""}${d.delta.toFixed(1)} pts)`)
+                .join(" · ")}`}
+            >
+              your dials · {rec.dial_influences[0].label}
+            </span>
+          )}
           {density !== "normal" && (
             <span
               className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2"

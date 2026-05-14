@@ -74,6 +74,73 @@ export type CandidateOpponentSignal = {
   per_pick_demand: number;
 };
 
+/**
+ * Subset of the JudgmentProfile dials that Decision-card synthesis
+ * actually reads. The 8-dial soundboard / lab also includes risk
+ * tolerance, trade aggression, consensus lean, and continuity weight;
+ * those are stored and flow into Coach but do not yet weight Decision-
+ * card rule scoring. When they get wired, add them to this shape and
+ * to `computeDialDeltas` in `synthesize.ts`.
+ *
+ * Range convention: signed -100..+100 with 0 = neutral (no effect).
+ */
+export type SynthesisDials = {
+  youth: number;
+  bellcow: number;
+  rookie: number;
+  horizon: number;
+};
+
+export const NEUTRAL_SYNTHESIS_DIALS: SynthesisDials = {
+  youth: 0,
+  bellcow: 0,
+  rookie: 0,
+  horizon: 0,
+};
+
+/**
+ * Pull the 4 synthesis-relevant dials out of a full JudgmentProfile
+ * dials map. Defaults to neutral for any dial that is missing or has
+ * a non-numeric value (e.g., select/seg axes).
+ *
+ * Kept on the types module so it has no runtime dependency on the
+ * lab module's storage. Callers import from the lab and pass the
+ * `.dials` map in.
+ */
+export function dialsForSynthesisFrom(
+  dials: Record<string, number | string | string[] | [number, number]> | null | undefined,
+): SynthesisDials {
+  if (!dials) return NEUTRAL_SYNTHESIS_DIALS;
+  const source = dials;
+  function num(key: string): number {
+    const v = source[key];
+    return typeof v === "number" && Number.isFinite(v) ? v : 0;
+  }
+  return {
+    youth: num("youth_weight"),
+    bellcow: num("bellcow_pref"),
+    rookie: num("rookie_tilt"),
+    horizon: num("horizon"),
+  };
+}
+
+/**
+ * Per-candidate record of which user dial(s) pushed this candidate's
+ * score up or down, and by how much. Drives the per-rule "Your
+ * dials" alignment chip on the Decision card (per founder direction
+ * 2026-05-14: "per-rule, not per-pick").
+ *
+ * Only dials with |delta| above a noise floor are recorded so the UI
+ * doesn't surface tiny influences.
+ */
+export type DialInfluence = {
+  dial: "youth_weight" | "bellcow_pref" | "rookie_tilt" | "horizon";
+  /** Human-readable label, e.g. "Bellcow +50". */
+  label: string;
+  /** Signed contribution to the candidate's score, in score units. */
+  delta: number;
+};
+
 export type DecisionCandidate = {
   player_id: string;
   name: string;
@@ -107,6 +174,13 @@ export type DecisionCandidate = {
   // The Coach uses KTC ranks; without exposing them on the card the
   // user can't tell why the engine made a counterintuitive call.
   ktc_overall_rank: number | null;
+  /**
+   * Which user dials nudged this candidate's score and by how much.
+   * Empty when all dials are at neutral. The top entry by |delta|
+   * is the dominant dial; the Decision card renders it as an
+   * alignment chip next to the rule label.
+   */
+  dial_influences?: DialInfluence[];
 };
 
 // A single line item in the next-picks-plan view. Target is the

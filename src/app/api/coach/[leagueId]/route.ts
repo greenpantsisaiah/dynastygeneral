@@ -48,6 +48,7 @@ import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
 import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
+import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import { readProfileServer } from "@/lib/lab/profile-storage";
@@ -622,6 +623,13 @@ export async function POST(
 
   // Compose the system's official per-pick recommendation so coach can
   // confirm or contradict with full awareness. Don't fail the whole
+  // Read user doctrine once and reuse for synthesis dials + the
+  // explicit doctrine reference in the LLM context block below. The
+  // dials shape which candidates the Decision card surfaces; if Coach
+  // is going to cite "your Bellcow +60 doctrine," the Decision card
+  // had better already reflect that tune.
+  const judgmentProfileEarly = await readProfileServer().catch(() => null);
+
   // request if synthesis errors; coach can still reason from context.
   let decision: Awaited<ReturnType<typeof synthesizeDecision>> | null = null;
   try {
@@ -634,6 +642,7 @@ export async function POST(
         picks_until_me: pickApproach?.picks_until_me ?? 0,
         player_values: coachPlayerValues,
         ktc_overall_ranks: coachKtcOverallRanks,
+        dials: dialsForSynthesisFrom(judgmentProfileEarly?.dials ?? null),
       });
     }
   } catch (err) {
@@ -823,7 +832,7 @@ export async function POST(
   // EXPLICITLY when there's a doctrine fit or drift moment. Layered
   // onto the context payload as `doctrine` so the system prompt rule
   // below can bind to it.
-  const judgmentProfile = await readProfileServer().catch(() => null);
+  const judgmentProfile = judgmentProfileEarly;
   const doctrineSummary = judgmentProfile
     ? deriveDoctrine(judgmentProfile.dials)
     : null;
