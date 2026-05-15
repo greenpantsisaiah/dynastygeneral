@@ -44,6 +44,14 @@ export type RankedPlayer = {
     bellcow: number;
     /** -1 to +1. Positive = OC tenure stable; negative = first-year OC. */
     continuity: number;
+    /** -1 to +1. Positive = long career runway (rookie, young). */
+    horizon: number;
+    /** -1 to +1. +1 for rookies; -0.4 for non-rookies. */
+    rookie: number;
+    /** -1 to +1. Positive = high-variance asset (rookies, fringe ranks). */
+    risk: number;
+    /** -1 to +1. Positive = market-consensus player (top tier both KTC + ADP). */
+    consensus: number;
   };
 };
 
@@ -140,6 +148,81 @@ function continuityScore(): number {
   return 0;
 }
 
+/**
+ * Horizon component. Signed [-1, +1]. Positive = long career runway
+ * (rookie or young vet); negative = past peak. Lets the Horizon dial
+ * (win-now vs future) move the rankings page in the same direction
+ * it moves Decision-card synthesis.
+ */
+function horizonScore(
+  position: RankedPlayer["position"],
+  age: number | null,
+  isRookie: boolean,
+): number {
+  if (isRookie) return 1;
+  if (age == null) return 0;
+  // Map age 22 to +0.8, 25 to +0.3, 28 to -0.2, 32 to -0.8 (linear
+  // around an anchor of 28 with a span of ~7 years). Position-agnostic
+  // because Horizon is a runway dial, not a peak-band dial; the
+  // per-position Youth dial handles peak placement.
+  const v = (28 - age) / 7;
+  return Math.max(-1, Math.min(1, v));
+}
+
+/**
+ * Rookie component. Direct flag-based. The Rookie tilt dial rewards
+ * or punishes rookie status across the entire pool.
+ */
+function rookieFlagScore(isRookie: boolean): number {
+  return isRookie ? 1 : -0.4;
+}
+
+/**
+ * Risk / variance proxy. Signed [-1, +1]. Positive = higher variance
+ * (rookies, fringe-rank players, low search-rank); negative = lower
+ * variance (established top-tier with strong NFL track record).
+ */
+function riskScore(
+  isRookie: boolean,
+  position: RankedPlayer["position"],
+  positionRank: number | null,
+  marketRank: number,
+): number {
+  if (isRookie) return 1;
+  // Top-12 at position + top-30 overall = consensus-tier, low variance.
+  if (
+    positionRank != null &&
+    positionRank <= 12 &&
+    marketRank <= 30
+  ) {
+    return -1;
+  }
+  // Mid-tier (rank 13-30 at position) = moderate variance.
+  if (positionRank != null && positionRank <= 30) return 0;
+  // Outside top-30 = higher variance.
+  return 0.6;
+}
+
+/**
+ * Consensus component. Signed [-1, +1]. Positive = player sits high in
+ * BOTH KTC and ADP (consensus); negative = position rank looks fringe.
+ * Lets the Consensus lean dial nudge the ranking toward or away from
+ * the market median.
+ */
+function consensusScore(
+  isRookie: boolean,
+  positionRank: number | null,
+  marketRank: number,
+): number {
+  // Rookies + fringe ranks read as off-consensus.
+  if (isRookie) return -0.5;
+  if (positionRank == null) return 0;
+  if (positionRank <= 6 && marketRank <= 24) return 1;
+  if (positionRank <= 12 && marketRank <= 36) return 0.5;
+  if (positionRank <= 24) return 0;
+  return -0.5;
+}
+
 export async function buildRankedPool(args: {
   format?: { numQbs: 1 | 2; ppr: number };
   limit?: number;
@@ -185,6 +268,10 @@ export async function buildRankedPool(args: {
         youth: youthScore(position, age),
         bellcow: bellcowScore(position, v.position_rank ?? null),
         continuity: continuityScore(),
+        horizon: horizonScore(position, age, isRookie),
+        rookie: rookieFlagScore(isRookie),
+        risk: riskScore(isRookie, position, v.position_rank ?? null, marketRank),
+        consensus: consensusScore(isRookie, v.position_rank ?? null, marketRank),
       },
     });
   }

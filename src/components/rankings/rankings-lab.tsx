@@ -44,18 +44,38 @@ import {
 } from "@/lib/lab/presets";
 import { deriveDoctrine, formatDoctrineLine } from "@/lib/lab/doctrine";
 
+// Dials that affect the visible /rankings table. Seven of the eight
+// dials have a defensible additive contribution to player scoring;
+// only Trade aggression is genuinely "Coach behavior only" and never
+// moves a static ranking. The display order leads with the three
+// foundational dials (Youth, Bellcow, Continuity) before the
+// secondary set (Horizon, Rookie tilt, Risk, Consensus lean).
 const RANKING_DIAL_IDS: DialId[] = [
   "youth_weight",
   "bellcow_pref",
   "continuity_weight",
-];
-const ENGINE_DIAL_IDS: DialId[] = [
   "horizon",
   "rookie_tilt",
   "risk_tolerance",
-  "trade_aggression",
   "consensus_lean",
 ];
+const ENGINE_DIAL_IDS: DialId[] = ["trade_aggression"];
+
+// Maps a dial id to its precomputed component score on RankedPlayer.
+// Used by rescore() to apply each dial's weight to the right player
+// component.
+const RANKING_COMPONENT_BY_DIAL: Record<
+  string,
+  keyof RankedPlayer["components"]
+> = {
+  youth_weight: "youth",
+  bellcow_pref: "bellcow",
+  continuity_weight: "continuity",
+  horizon: "horizon",
+  rookie_tilt: "rookie",
+  risk_tolerance: "risk",
+  consensus_lean: "consensus",
+};
 
 const DIAL_EMPHASIS_RANGE = 60;
 const ANONYMOUS_STORAGE_KEY = "dg_rankings_dials_v1";
@@ -64,10 +84,17 @@ const SAVE_DEBOUNCE_MS = 600;
 // URL param shortcodes for the ranking dials. We only encode the 3
 // dials that move the visible table; the engine dials are per-account
 // state and don't belong in a public share-link.
+// URL param shortcodes for every dial that affects the visible table.
+// Trade aggression is omitted because it does not change the ranking
+// and thus does not belong in a share-link snapshot.
 const URL_PARAM_BY_DIAL: Partial<Record<DialId, string>> = {
   youth_weight: "y",
   bellcow_pref: "b",
   continuity_weight: "c",
+  horizon: "h",
+  rookie_tilt: "rk",
+  risk_tolerance: "rs",
+  consensus_lean: "cl",
 };
 
 function readDialFromParams(
@@ -108,18 +135,36 @@ type ScoredRow = RankedPlayer & {
   rank_delta: number;
 };
 
+type RankingDials = {
+  youth: number;
+  bellcow: number;
+  continuity: number;
+  horizon: number;
+  rookie: number;
+  risk: number;
+  consensus: number;
+};
+
 function rescore(
   players: RankedPlayer[],
-  ranking: { youth: number; bellcow: number; continuity: number },
+  ranking: RankingDials,
 ): ScoredRow[] {
   const youthW = ranking.youth / 100;
   const bellcowW = ranking.bellcow / 100;
   const continuityW = ranking.continuity / 100;
+  const horizonW = ranking.horizon / 100;
+  const rookieW = ranking.rookie / 100;
+  const riskW = ranking.risk / 100;
+  const consensusW = ranking.consensus / 100;
   const withScore = players.map((p) => {
     const adj =
       youthW * p.components.youth +
       bellcowW * p.components.bellcow +
-      continuityW * p.components.continuity;
+      continuityW * p.components.continuity +
+      horizonW * p.components.horizon +
+      rookieW * p.components.rookie +
+      riskW * p.components.risk +
+      consensusW * p.components.consensus;
     const raw_score = p.baseline_value + DIAL_EMPHASIS_RANGE * adj;
     return { ...p, raw_score };
   });
@@ -329,14 +374,27 @@ export function RankingsLab({
     });
   }
 
-  const rankingDials = {
+  const rankingDials: RankingDials = {
     youth: asNumberDial(dials.youth_weight),
     bellcow: asNumberDial(dials.bellcow_pref),
     continuity: asNumberDial(dials.continuity_weight),
+    horizon: asNumberDial(dials.horizon),
+    rookie: asNumberDial(dials.rookie_tilt),
+    risk: asNumberDial(dials.risk_tolerance),
+    consensus: asNumberDial(dials.consensus_lean),
   };
   const scored = useMemo(
     () => rescore(pool.players, rankingDials),
-    [pool.players, rankingDials.youth, rankingDials.bellcow, rankingDials.continuity],
+    [
+      pool.players,
+      rankingDials.youth,
+      rankingDials.bellcow,
+      rankingDials.continuity,
+      rankingDials.horizon,
+      rankingDials.rookie,
+      rankingDials.risk,
+      rankingDials.consensus,
+    ],
   );
   const visibleLimit = tier === "public" ? 25 : 100;
   const tierCapped = scored.slice(0, visibleLimit);
@@ -416,9 +474,10 @@ export function RankingsLab({
               Eight dials
             </div>
             <p className="mt-1 text-sm text-muted">
-              Three move the table on this page in real time. Five
-              shape Coach and Decision-card behavior elsewhere in the
-              product. Every dial carries a per-card{" "}
+              Seven move the table on this page in real time. Trade
+              aggression shapes Coach behavior (when to propose deals)
+              and does not move a static ranking. Every dial carries a
+              per-card{" "}
               <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-foreground">
                 affects
               </span>{" "}
@@ -459,12 +518,14 @@ export function RankingsLab({
         </div>
         {!canEditEngineDials && (
           <div className="mt-4 rounded-md border border-accent/40 bg-accent/5 px-4 py-3 text-sm text-foreground">
-            The five Coach + Decision-card dials are locked for
-            anonymous visitors.{" "}
+            Trade aggression is locked for anonymous visitors. The
+            other seven dials are open; the locked one only affects
+            Coach behavior (when to proactively propose trades), so
+            you're not missing a table change.{" "}
             <a href="/login" className="text-accent hover:underline">
               Sign in
             </a>{" "}
-            to unlock them (free; no payment until calibration ships).
+            to unlock (free; no payment until calibration ships).
           </div>
         )}
         {openDrawer && (

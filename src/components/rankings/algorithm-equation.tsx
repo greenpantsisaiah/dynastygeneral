@@ -3,24 +3,15 @@
 /**
  * Algorithm display. Two states:
  *
- *   COMPRESSED (default): just the equation, centered, big, with live
- *   weight substitution. Model ID + Share + Expand controls on the
- *   right. Designed to sit between the dial bar and the rankings
- *   table as a screenshot-worthy centerpiece.
+ *   COMPRESSED (default): the equation, centered, with all 7 ranking-
+ *   affecting dials substituted live. At neutral all coefficients
+ *   read 0.00; as dials move the active terms light up.
  *
- *   EXPANDED: same equation with Schrödinger-style annotated callouts
- *   above and below pointing at each term, plus the deeper function
- *   definitions (Youth gaussian, Bellcow piecewise, Continuity ratio)
- *   and the downstream engine consumers. Expanded state teaches.
+ *   EXPANDED: function cards explain each component.
  *
- * Per founder direction 2026-05-14:
- *   "Compressed UI on the screen where I can just see the algorithm
- *   itself when I change the dials... then expand to get the
- *   definitions/math/teaching. A little bit of diagramming what the
- *   things on the algorithm mean on expansion."
- *
- * Dial values are signed [-100..+100] with 0 default. The coefficient
- * w_i = dial / 100 lives in [-1..+1] and substitutes live.
+ * Per founder direction 2026-05-14: the equation should reflect every
+ * dial that influences the visible table. Trade aggression is the
+ * only dial that does not appear here (it's Coach behavior).
  */
 
 import { useMemo, useState } from "react";
@@ -30,11 +21,51 @@ export type AlgorithmDials = {
   youth: number;
   bellcow: number;
   continuity: number;
+  horizon: number;
+  rookie: number;
+  risk: number;
+  consensus: number;
 };
+
+type TermSpec = {
+  key: keyof AlgorithmDials;
+  /** Single-letter symbol in the math equation. */
+  symbol: string;
+  /** Lowercase italic name in the math, e.g., `youth`. */
+  mathName: string;
+  /** Short label for the model id, e.g., `Y` or `Rk`. */
+  idTag: string;
+  /** Disabled-by-calibration tag (Continuity dial today). */
+  pendingFlag?: "continuity";
+};
+
+const TERMS: TermSpec[] = [
+  { key: "youth", symbol: "Y", mathName: "youth", idTag: "Y" },
+  { key: "bellcow", symbol: "B", mathName: "bellcow", idTag: "B" },
+  {
+    key: "continuity",
+    symbol: "C",
+    mathName: "continuity",
+    idTag: "C",
+    pendingFlag: "continuity",
+  },
+  { key: "horizon", symbol: "H", mathName: "horizon", idTag: "H" },
+  { key: "rookie", symbol: "R", mathName: "rookie", idTag: "Rk" },
+  { key: "risk", symbol: "S", mathName: "risk", idTag: "Rs" },
+  { key: "consensus", symbol: "M", mathName: "consensus", idTag: "Cl" },
+];
 
 function modelId(d: AlgorithmDials): string {
   const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
-  return `Y${fmt(d.youth)} · B${fmt(d.bellcow)} · C${fmt(d.continuity)}`;
+  // Use 3-tag compact id for the share-bar; longer when the user has
+  // moved past the foundational three.
+  const movedTags = TERMS.filter((t) => Math.abs(d[t.key]) >= 5);
+  if (movedTags.length === 0) {
+    return TERMS.slice(0, 3)
+      .map((t) => `${t.idTag}${fmt(d[t.key])}`)
+      .join(" · ");
+  }
+  return movedTags.map((t) => `${t.idTag}${fmt(d[t.key])}`).join(" · ");
 }
 
 function strength(weight: number): "off" | "light" | "active" | "heavy" {
@@ -71,7 +102,7 @@ export function AlgorithmEquation({
   async function share() {
     const url =
       typeof window !== "undefined"
-        ? `${window.location.origin}/rankings?y=${dials.youth}&b=${dials.bellcow}&c=${dials.continuity}`
+        ? `${window.location.origin}/rankings?y=${dials.youth}&b=${dials.bellcow}&c=${dials.continuity}&h=${dials.horizon}&rk=${dials.rookie}&rs=${dials.risk}&cl=${dials.consensus}`
         : "";
     try {
       if (navigator.clipboard && url) {
@@ -84,13 +115,20 @@ export function AlgorithmEquation({
     }
   }
 
-  const wY = (dials.youth / 100).toFixed(2);
-  const wB = (dials.bellcow / 100).toFixed(2);
-  const wC = continuityDisabled ? "0.00" : (dials.continuity / 100).toFixed(2);
-
-  const tY = TONE[strength(dials.youth)];
-  const tB = TONE[strength(dials.bellcow)];
-  const tC = continuityDisabled ? TONE.off : TONE[strength(dials.continuity)];
+  const termRenderable = TERMS.map((t) => {
+    const raw = dials[t.key];
+    const pending: boolean = Boolean(
+      continuityDisabled && t.pendingFlag === "continuity",
+    );
+    const weight = pending ? 0 : raw / 100;
+    const tone = pending ? TONE.off : TONE[strength(raw)];
+    return {
+      ...t,
+      weight: weight.toFixed(2),
+      tone,
+      pending,
+    };
+  });
 
   return (
     <section className="rounded-lg border border-border-soft bg-surface px-5 py-6">
@@ -99,7 +137,10 @@ export function AlgorithmEquation({
           Your algorithm
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-md border border-border-soft bg-surface-2 px-2 py-1 font-mono text-xs text-foreground">
+          <span
+            className="rounded-md border border-border-soft bg-surface-2 px-2 py-1 font-mono text-xs text-foreground"
+            title="Model id · compact dial fingerprint"
+          >
             {id}
           </span>
           <button
@@ -120,311 +161,131 @@ export function AlgorithmEquation({
         </div>
       </div>
 
-      {expanded ? (
-        <AnnotatedEquation
-          wY={wY}
-          wB={wB}
-          wC={wC}
-          tY={tY}
-          tB={tB}
-          tC={tC}
-          continuityDisabled={continuityDisabled ?? false}
-        />
-      ) : (
-        <CompactEquation
-          wY={wY}
-          wB={wB}
-          wC={wC}
-          tY={tY}
-          tB={tB}
-          tC={tC}
-          continuityDisabled={continuityDisabled ?? false}
-        />
-      )}
-      <div className="mt-2 border-t border-border-soft pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-        Three dials in this equation move the table above. The other
-        five dials (
-        <span className="text-[color:#a78bfa]">
-          affects · Coach + Decision
-        </span>
-        ) shape behavior elsewhere in the product and do not appear
-        here.
+      <CompactEquation terms={termRenderable} />
+
+      {expanded && <ExpandedFunctions />}
+
+      <div className="mt-3 border-t border-border-soft pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+        Seven of eight dials appear in the equation above. The Trade
+        aggression dial does not; it shapes Coach proactivity (when to
+        propose deals) rather than player scoring on this table.
       </div>
     </section>
   );
 }
 
 function CompactEquation({
-  wY,
-  wB,
-  wC,
-  tY,
-  tB,
-  tC,
-  continuityDisabled,
+  terms,
 }: {
-  wY: string;
-  wB: string;
-  wC: string;
-  tY: string;
-  tB: string;
-  tC: string;
-  continuityDisabled: boolean;
+  terms: Array<{
+    key: keyof AlgorithmDials;
+    symbol: string;
+    mathName: string;
+    weight: string;
+    tone: string;
+    pending: boolean;
+  }>;
 }) {
   return (
-    <div className="mt-3 flex flex-col items-center justify-center py-6">
-      <div className="font-mono text-base text-foreground sm:text-xl">
-        <span className="italic">DG</span>
-        <span className="text-muted-2">(p) =</span>
-        <span className="mx-2 italic">market</span>
-        <span className="text-muted-2">(p)</span>
-        <span className="mx-2 text-muted-2">+</span>
-        <span className="text-muted-2">60</span>
-        <span className="mx-1 text-muted-2">·</span>
-        <span className="text-muted-2">(</span>
-        <span className={`font-semibold ${tY}`}>{wY}</span>
-        <span className="mx-1 text-muted-2">·</span>
-        <span className={`italic ${tY}`}>youth</span>
-        <span className="mx-1.5 text-muted-2">+</span>
-        <span className={`font-semibold ${tB}`}>{wB}</span>
-        <span className="mx-1 text-muted-2">·</span>
-        <span className={`italic ${tB}`}>bellcow</span>
-        <span className="mx-1.5 text-muted-2">+</span>
-        <span className={`font-semibold ${tC}`}>{wC}</span>
-        <span className="mx-1 text-muted-2">·</span>
-        <span className={`italic ${tC}`}>continuity</span>
-        <span className="text-muted-2">)</span>
-      </div>
-      {continuityDisabled && (
-        <div className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-warning">
-          Continuity term pending team_signals calibration
+    <div className="mt-3 py-4">
+      <div className="overflow-x-auto">
+        <div className="font-mono text-sm leading-relaxed text-foreground sm:text-base">
+          <div className="text-center">
+            <span className="italic">DG</span>
+            <span className="text-muted-2">(p) =</span>
+            <span className="mx-2 italic">market</span>
+            <span className="text-muted-2">(p)</span>
+            <span className="mx-2 text-muted-2">+</span>
+            <span className="text-muted-2">60</span>
+            <span className="mx-1 text-muted-2">·</span>
+            <span className="text-muted-2">(</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1">
+            {terms.map((t, i) => (
+              <span
+                key={t.key}
+                className="flex items-baseline gap-1"
+                title={
+                  t.pending
+                    ? `${t.mathName} term pending team_signals calibration`
+                    : `${t.mathName} term: dial weight × signed component`
+                }
+              >
+                {i > 0 && <span className="text-muted-2">+</span>}
+                <span className={`font-semibold ${t.tone}`}>{t.weight}</span>
+                <span className="text-muted-2">·</span>
+                <span className={`italic ${t.tone}`}>{t.mathName}</span>
+              </span>
+            ))}
+            <span className="text-muted-2">)</span>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-/**
- * Term in the annotated equation. Renders the math + an optional
- * label above and/or below with a connector line. The label aligns to
- * the term horizontally via the flex layout; the connector is a CSS
- * vertical rule.
- */
-function Term({
-  math,
-  topLabel,
-  bottomLabel,
-  topAccent,
-  bottomAccent,
-  toneClass = "text-foreground",
-}: {
-  math: React.ReactNode;
-  topLabel?: string;
-  bottomLabel?: string;
-  topAccent?: boolean;
-  bottomAccent?: boolean;
-  toneClass?: string;
-}) {
-  const accentTone = "text-accent";
-  return (
-    <span className="inline-flex flex-col items-center align-middle">
-      <span
-        className="flex h-12 w-full flex-col items-center justify-end"
-        aria-hidden={!topLabel}
-      >
-        {topLabel ? (
-          <>
-            <span
-              className={`max-w-[140px] text-center text-[10px] leading-tight ${
-                topAccent ? accentTone : "text-muted-2"
-              }`}
-            >
-              {topLabel}
-            </span>
-            <span
-              className={`mt-1 h-3 w-px ${
-                topAccent ? "bg-accent/60" : "bg-muted-2/40"
-              }`}
-              aria-hidden="true"
-            />
-          </>
-        ) : null}
-      </span>
-      <span className={`whitespace-nowrap font-mono ${toneClass}`}>{math}</span>
-      <span
-        className="flex h-12 w-full flex-col items-center justify-start"
-        aria-hidden={!bottomLabel}
-      >
-        {bottomLabel ? (
-          <>
-            <span
-              className={`h-3 w-px ${
-                bottomAccent ? "bg-accent/60" : "bg-muted-2/40"
-              }`}
-              aria-hidden="true"
-            />
-            <span
-              className={`mt-1 max-w-[140px] text-center text-[10px] leading-tight ${
-                bottomAccent ? accentTone : "text-muted-2"
-              }`}
-            >
-              {bottomLabel}
-            </span>
-          </>
-        ) : null}
-      </span>
-    </span>
-  );
-}
-
-function AnnotatedEquation({
-  wY,
-  wB,
-  wC,
-  tY,
-  tB,
-  tC,
-  continuityDisabled,
-}: {
-  wY: string;
-  wB: string;
-  wC: string;
-  tY: string;
-  tB: string;
-  tC: string;
-  continuityDisabled: boolean;
-}) {
+function ExpandedFunctions() {
   return (
     <div className="mt-2">
-      <div className="overflow-x-auto py-4">
-        <div className="mx-auto flex w-fit items-center justify-center font-mono text-base text-foreground sm:text-lg">
-          <Term
-            math={
-              <>
-                <span className="italic">DG</span>
-                <span className="text-muted-2">(p)</span>
-              </>
-            }
-            topLabel="Your model's score for one player"
-            topAccent
-          />
-          <span className="px-2 text-muted-2">=</span>
-          <Term
-            math={
-              <>
-                <span className="italic">market</span>
-                <span className="text-muted-2">(p)</span>
-              </>
-            }
-            bottomLabel="FantasyCalc dynasty consensus, normalized to 0-100"
-          />
-          <span className="px-2 text-muted-2">+</span>
-          <Term
-            math={<span className="text-muted-2">60</span>}
-            topLabel="Max swing in points one dial can cause"
-          />
-          <span className="px-1 text-muted-2">·</span>
-          <Term
-            math={<span className="text-muted-2">(</span>}
-          />
-          <Term
-            math={<span className={`font-semibold ${tY}`}>{wY}</span>}
-            bottomLabel="Your Youth dial / 100"
-            bottomAccent
-          />
-          <span className="px-1 text-muted-2">·</span>
-          <Term
-            math={<span className={`italic ${tY}`}>youth</span>}
-            topLabel="Age-curve component, signed [-1, +1]"
-          />
-          <span className="px-1.5 text-muted-2">+</span>
-          <Term
-            math={<span className={`font-semibold ${tB}`}>{wB}</span>}
-            bottomLabel="Your Bellcow dial / 100"
-            bottomAccent
-          />
-          <span className="px-1 text-muted-2">·</span>
-          <Term
-            math={<span className={`italic ${tB}`}>bellcow</span>}
-            topLabel="RB workhorse proxy, signed [-1, +1]"
-          />
-          <span className="px-1.5 text-muted-2">+</span>
-          <Term
-            math={<span className={`font-semibold ${tC}`}>{wC}</span>}
-            bottomLabel="Your Continuity dial / 100"
-            bottomAccent
-          />
-          <span className="px-1 text-muted-2">·</span>
-          <Term
-            math={<span className={`italic ${tC}`}>continuity</span>}
-            topLabel="OC tenure score, signed [-1, +1]"
-          />
-          <Term math={<span className="text-muted-2">)</span>} />
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-2">
         <FunctionCard
           title="Youth"
           formula="f_Y(p) = sign(μ_pos − age) · ω_pos(age)"
           body={[
-            "Peak centers μ are position-aware: RB 24.5, WR 26.5, TE 28, QB 28.",
-            "ω_pos is the piecewise band weight from the age-curve calibration cohort (2022 to 2025 starter production).",
-            "At dial 0 the term vanishes. At dial +100 a peak-age player adds 60 points; an aging player loses 60.",
+            "Position-aware age curve with peak centers RB 24.5, WR 26.5, TE 28, QB 28.",
+            "Calibrated from 2022 to 2025 NFL starter cohort. Refit when validation surfaces drift.",
           ]}
         />
         <FunctionCard
           title="Bellcow"
           formula="f_B(p) = piecewise(rank_RB)"
           body={[
-            "+1.0 if rank_RB ≤ 6. +0.5 if ≤ 12. +0.1 if ≤ 18. −0.3 if ≤ 24. −1.0 otherwise. 0 for non-RBs.",
-            "v1 uses positional rank as a workhorse proxy. v2 plugs in rb_role_tier + rb_passdown_share_prior_year to separate pass-catching RBs (Achane, Gibbs shape) from rotational backs.",
+            "RB only. +1.0 at top-6, +0.5 at 7-12, +0.1 at 13-18, −0.3 at 19-24, −1.0 past.",
+            "v1 uses positional rank as a workhorse proxy; v2 plugs in rb_role_tier + pass-down share.",
           ]}
         />
         <FunctionCard
           title="Continuity"
           formula="f_C(p) = (oc_tenure(team) − 1.5) / 1.5"
           body={[
-            "OC tenure 3+ years scores positive. First-year OC scores negative. Second-year OC reads as neutral.",
-            "Currently neutral on the live ranking. The 32-team team_signals table is mid-calibration; dial is wired but produces no effect until the table fills out.",
+            "OC tenure 3+ years scores positive; first-year OC negative; second-year neutral.",
+            "Neutral on the live ranking today. team_signals table is mid-calibration; the dial is rendered disabled.",
           ]}
-          warning={continuityDisabled}
+          warning
         />
-      </div>
-
-      <div className="mt-5 border-t border-border-soft pt-4 text-[12px] text-muted-2">
-        downstream (engine consumers):
-      </div>
-      <div className="mt-2 grid gap-2 text-[12px] leading-relaxed text-muted">
-        <div>
-          <span className="italic">lane</span>
-          <span className="text-muted-2">(roster) =</span>
-          <span className="mx-1 text-muted-2">argmax</span>
-          <sub className="text-[9px] text-muted-2">ℓ</sub>
-          <span className="mx-1 text-lg text-muted-2">Σ</span>
-          <sub className="text-[9px] text-muted-2">q∈R</sub>
-          <span className="mx-1 italic">contribution</span>
-          <span className="text-muted-2">(q, ℓ)</span>
-          <span className="ml-3 text-[10px] text-muted-2">
-            ← 82-roster cohort thresholds drive roster identity
-          </span>
-        </div>
-        <div>
-          <span className="italic">cascade</span>
-          <span className="mx-2 text-muted-2">:</span>
-          <span className="text-muted-2">
-            KTC ≻ ADP<sub>format</sub> ≻ heuristic_dynasty
-          </span>
-        </div>
-        <div>
-          <span className="italic">scarcity</span>
-          <span className="text-muted-2">(pos, league) =</span>
-          <span className="mx-1 italic">starter_slots</span>
-          <span className="text-muted-2">(pos)</span>
-          <span className="mx-1 text-muted-2">·</span>
-          <span className="italic">format_multiplier</span>
-          <span className="text-muted-2">(league)</span>
-        </div>
+        <FunctionCard
+          title="Horizon"
+          formula="f_H(p) = clamp((28 − age) / 7, −1, +1); rookies = +1"
+          body={[
+            "Position-agnostic runway signal. Positive = long career window; negative = past peak.",
+            "Lets the Horizon dial pull the table toward win-now or future without touching the age-curve peak placement.",
+          ]}
+        />
+        <FunctionCard
+          title="Rookie"
+          formula="f_R(p) = is_rookie ? +1 : −0.4"
+          body={[
+            "Simple flag-based component. Rookie tilt dial rewards or punishes rookie status across the entire pool.",
+            "Negative offset on non-rookies keeps the dial bidirectional rather than rookie-only.",
+          ]}
+        />
+        <FunctionCard
+          title="Risk"
+          formula="f_S(p) = variance proxy from rookie status + position rank"
+          body={[
+            "v1: rookies = +1.0 (high variance); consensus top-12 + top-30 overall = −1.0; outside top-30 = +0.6.",
+            "v2 will incorporate KTC-vs-ADP divergence as a sharper variance signal.",
+          ]}
+        />
+        <FunctionCard
+          title="Consensus"
+          formula="f_M(p) = market-alignment proxy from position + market rank"
+          body={[
+            "v1: top-6 at position + top-24 overall = +1.0; rookies + fringe ranks = −0.5.",
+            "Positive Consensus lean dial pulls market-aligned players up; negative dial favors off-consensus picks.",
+          ]}
+        />
       </div>
     </div>
   );
