@@ -72,7 +72,21 @@ These are the principles every future refactor MUST preserve. When you change ho
 
 - **Three-layer fixes for LLM hallucinations.** When Coach claims something structurally wrong (format-blind reasoning, trade math without anchors), DO NOT patch with prompt nudges. Ship: (1) explicit context field (`format_rules.second_qb_starts: true`, `pricing.player_values_present: boolean`), (2) hard system-prompt rule referencing the field by name, (3) pre-LLM precondition that injects `[GUARD]` if context insufficient. All three layers, not one.
 - **Coach context contract.** Coach receives the user's NAMED roster (player name, position, team, age) plus `system_decision`, `windows.declared`, `starter_slots`, `format_rules`, `pricing`, `my_pick_schedule`. IDs alone produce hallucinations.
+- **Opponent rosters are named, not just counted.** Every entry in `<current_state>.opponents[]` ships a `roster` array with every named player on that opponent's team plus KTC value, position rank, and age. Without this, Coach can read "Saquonatraitor has 8 WRs and 2 TEs" but not WHICH WRs and TEs, which makes specific trade-target conversations impossible. Founder report 2026-05-14 surfaced exactly this gap: Coach kept saying "I don't have their specific roster in the snapshot" while the user was trying to plan trades with named opponents. The fix is the per-opponent named-roster field plus the "Opponent rosters are KNOWN. Name specific players" system-prompt rule. Never let Coach claim absence of opponent roster data that exists in its context.
 - **LLM trade-pricing contract.** Every endpoint where the LLM might propose trades ships a `pricing` block with `pick_values` (KTC-anchored, format-multiplied) and `player_values` (FantasyCalc, normalized 0-100). `player_values_present: boolean` is the GUARD signal.
+
+#### In-season Coach acceptance criteria (trade questions)
+
+Founder direction 2026-05-14: in-season trade analysis is a load-bearing use case. Coach MUST answer these specific user questions without falling back to "I don't have the data." Each is a regression vector to test against on any Coach context refactor.
+
+- **"Give me trades for these managers."** Coach names specific players on each opponent's roster, pairs them with players from the user's roster, cites both KTC values, and produces an offer shape inside ±15% fairness.
+- **"Which of their [position] should I target?"** Coach lists 2-3 named players at that position with values, ranks them as dream / realistic / walk-away tiers, and explains why each tier.
+- **"Should I trade for player X?"** Coach reads X's value from the opponent's roster entry, compares to the user's surplus, and produces a concrete return-side offer with named pieces.
+- **"What's [opponent]'s biggest hole?"** Coach reads position_counts + roster to identify the shallowest position room AND names the bench/depth players that look most movable from the user's side.
+- **"Who has [position] depth I could pry loose?"** Coach scans every opponent's roster, identifies surplus rooms at the position, and ranks 2-3 candidate trade partners by combined need-fit + trade signature (flipper > hoarder > seller > quiet for receptivity).
+- **"What's a fair offer between X (mine) and Y (theirs)?"** Coach reads both values, sizes the gap, and constructs a balancing piece from one side's roster to bring the offer inside the fairness band.
+
+Failure mode to ban (anywhere in Coach output): "I don't have [their roster / specific players / values] in the snapshot." Treat any such phrasing as a context-construction bug, not a prompt-tuning gap. Trace to the missing field and ship the three-layer fix.
 
 ### Roster + identity correctness
 

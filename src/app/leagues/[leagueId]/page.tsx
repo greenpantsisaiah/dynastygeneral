@@ -1913,21 +1913,59 @@ export default async function LeagueHubPage({
               </DashboardSection>
             </div>
 
-            {/* Coach column: sticky on desktop, inline on mobile. */}
+            {/* Coach column: sticky on desktop, inline on mobile.
+                Anonymous visitors see a sign-in card instead of the
+                chat. Coach uses paid LLM calls, persists history per
+                user, and references account-bound doctrine; surfacing
+                it for unauth visitors would either fail at the API or
+                leak partial state across sessions. */}
             {sleeperUser && (
               <aside className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
-                <CoachChat
-                  leagueId={leagueId}
-                  username={cleanedUsername}
-                  displayName={String(teamName)}
-                  variant="panel"
-                  context={{
-                    leagueName: league.name,
-                    myPickLabel: pickApproach?.my_pick_label ?? null,
-                    picksUntilMe: pickApproach?.picks_until_me ?? null,
-                    lean: topLean,
-                  }}
-                />
+                {authUser ? (
+                  <CoachChat
+                    leagueId={leagueId}
+                    username={cleanedUsername}
+                    displayName={String(teamName)}
+                    variant="panel"
+                    context={{
+                      leagueName: league.name,
+                      myPickLabel: pickApproach?.my_pick_label ?? null,
+                      picksUntilMe: pickApproach?.picks_until_me ?? null,
+                      lean: topLean,
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-full flex-col justify-between rounded-lg border border-border-strong bg-surface p-5">
+                    <div>
+                      <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
+                        Coach
+                      </div>
+                      <h2 className="mt-2 text-lg font-semibold text-foreground">
+                        Sign in to use Coach.
+                      </h2>
+                      <p className="mt-2 text-sm leading-snug text-muted">
+                        Coach reads your full named roster, references
+                        your tuned doctrine, and remembers conversations
+                        across devices. Sign in once; pick up the
+                        thread anywhere.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <Link
+                        href={`/login?next=/leagues/${leagueId}${cleanedUsername ? `?username=${encodeURIComponent(cleanedUsername)}` : ""}`}
+                        className="rounded-md bg-accent px-4 py-2 font-mono text-xs uppercase tracking-[0.14em] text-black transition hover:brightness-110"
+                      >
+                        Sign in →
+                      </Link>
+                      <Link
+                        href="/rankings"
+                        className="font-mono text-xs uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
+                      >
+                        Explore the model →
+                      </Link>
+                    </div>
+                  </div>
+                )}
               </aside>
             )}
           </div>

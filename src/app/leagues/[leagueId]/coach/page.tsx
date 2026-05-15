@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Coach Chat",
@@ -11,6 +11,7 @@ import { Ticker } from "@/components/ui/ticker";
 import { getLeague, getUserByUsername } from "@/lib/sleeper";
 import { CoachChat } from "@/components/league/coach-chat";
 import { UsageChip } from "@/components/billing/usage-meter";
+import { getOptionalUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,16 @@ export default async function CoachPage({
   const { leagueId } = await params;
   const { username } = await searchParams;
   const cleanedUsername = (username ?? "").trim().replace(/^@/, "");
+
+  // Coach is a signed-in-only surface. Anonymous visitors get
+  // redirected to /login with a return path so they land back here
+  // after auth. Per founder direction 2026-05-14: "when not logged
+  // in, it shouldn't even be available."
+  const authUser = await getOptionalUser().catch(() => null);
+  if (!authUser) {
+    const next = `/leagues/${leagueId}/coach${cleanedUsername ? `?username=${encodeURIComponent(cleanedUsername)}` : ""}`;
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
   const [league, sleeperUser] = await Promise.all([
     getLeague(leagueId),

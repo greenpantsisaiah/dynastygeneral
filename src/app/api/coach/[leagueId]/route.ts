@@ -291,6 +291,40 @@ yet. When the user asks about a rookie:
     presence = on the board; absence + picks_made hit = drafted;
     absence from both = outside the realistic pool.
 
+## Opponent rosters are KNOWN. Name specific players.
+
+Every entry in \`<current_state>.opponents[]\` carries a \`roster\`
+array with every named player on that opponent's team, sorted by KTC
+value descending. Fields per player: name, pos, team, age, value
+(0-100), position_rank (within position), overall_rank.
+
+When the user asks "which of their WRs should I target" or "what
+should I offer for player X" or "give me trade ideas with these
+managers," YOU HAVE THE DATA. Name specific players from the
+opponent's actual roster. Do not respond with "I don't have their
+specific roster in the snapshot" or "build offers around what tier
+of WR." That language reads as Coach hallucinating absence of data
+that is right there in the context.
+
+Pattern for a trade-target conversation:
+
+1. Read the opponent's full roster from \`opponents[i].roster\`.
+2. Identify the position(s) that match the user's surplus.
+3. Within that position, pick 2-3 SPECIFIC NAMED PLAYERS by value
+   tier and explain why each is a different shape of ask:
+   - The dream ask (their highest-value player at that position,
+     usually a no, but anchors the conversation).
+   - The realistic landing (a mid-tier player at that position
+     whose value fits the user's send-side within ±15%).
+   - The walk-away (the lowest player at that position the user
+     should still accept).
+4. Cite the values explicitly so the user sees the math.
+
+Founder report 2026-05-14: "looks like coach doesn't know the
+rosters. This is key to being able to offer trade advice on the
+platform throughout the season." The data is now in your context;
+use it.
+
 ## Trade initiation (proactive + reactive)
 
 When the user asks about INITIATING a trade (not "should I accept this
@@ -753,6 +787,58 @@ export async function POST(
     }
   }
 
+  // Per-opponent named rosters. Without this, Coach can read
+  // "Saquonatraitor has 8 WRs and 2 TEs" but not WHICH WRs and TEs,
+  // which makes specific trade-target conversations impossible.
+  // Founder report 2026-05-14: "looks like coach doesn't know the
+  // rosters. This is key to being able to offer trade advice on the
+  // platform throughout the season." Fixed here by resolving every
+  // opponent roster's player_ids and shipping a compact named list
+  // per opponent inside the opponents[] block below.
+  //
+  // Compact shape (name|pos|team|age|value) to bound token cost
+  // across 11+ opponents × ~25 players each. KTC value comes from
+  // the playerValueMap that already includes every rostered player
+  // (priced via buildOperationalContext, scoped above to all rosters
+  // not just the user's).
+  const opponentRosterIds = new Set<string>();
+  for (const r of snapshot.rosters) {
+    if (r.is_me) continue;
+    for (const pid of r.player_ids) opponentRosterIds.add(pid);
+  }
+  type OpponentRosterPlayer = {
+    player_id: string;
+    name: string;
+    pos: string | null;
+    team: string | null;
+    age: number | null;
+  };
+  const opponentRostersByRosterId = new Map<number, OpponentRosterPlayer[]>();
+  if (opponentRosterIds.size > 0) {
+    try {
+      const opponentResolved = await resolvePlayers([...opponentRosterIds]);
+      for (const r of snapshot.rosters) {
+        if (r.is_me) continue;
+        const list: OpponentRosterPlayer[] = [];
+        for (const pid of r.player_ids) {
+          const p = opponentResolved.get(pid);
+          if (!p) continue;
+          const h = humanize(p);
+          list.push({
+            player_id: pid,
+            name: h.name,
+            pos: h.position,
+            team: h.team,
+            age: h.age,
+          });
+        }
+        opponentRostersByRosterId.set(r.roster_id, list);
+      }
+    } catch (err) {
+      console.error("[coach:resolve-opponent-rosters]", err);
+    }
+  }
+
   // Operational context: derived format rules + pricing + starter
   // demand. Single source of truth in `llm-contract.ts`; refactored
   // out of inline derivation 2026-04-24 so new endpoints inherit the
@@ -1000,6 +1086,27 @@ export async function POST(
           body: n.body,
           logged_at: n.created_at,
         }));
+      // Named roster with KTC values for THIS opponent. Sorted by
+      // value descending so Coach reads their headline assets first
+      // when scanning a long room. Wired 2026-05-14 after founder
+      // report: "looks like coach doesn't know the rosters." Without
+      // this, Coach could read "Saquonatraitor has 8 WRs and 2 TEs"
+      // but not WHICH WRs and TEs, making specific trade-target
+      // conversations impossible.
+      const namedRoster = (opponentRostersByRosterId.get(t.roster_id) ?? [])
+        .map((p) => {
+          const v = playerValueMap.get(p.player_id);
+          return {
+            name: p.name,
+            pos: p.pos,
+            team: p.team,
+            age: p.age,
+            value: v ? v.value : null,
+            position_rank: v ? v.position_rank : null,
+            overall_rank: v ? v.overall_rank : null,
+          };
+        })
+        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
       return {
         owner: t.owner_name,
         roster_id: t.roster_id,
@@ -1021,6 +1128,7 @@ export async function POST(
           current_picks_received: tradeHistory.current_picks_received,
         },
         notes,
+        roster: namedRoster,
       };
     }),
     top_available: (() => {
@@ -1237,13 +1345,15 @@ export async function POST(
 
   // Server-side chat history mirror. Pro-tier benefit: cross-device
   // continuity. Best-effort; localStorage on the client is the
-  // canonical store for non-Pro users and the offline cache for Pro.
-  //
-  // In beta-open mode checkProGate lets non-Pro users through, so we
-  // re-check tier here: persistence is the Pro perk, not the Coach
-  // itself. Free users in beta still use Coach freely; their chats
-  // stay in localStorage only.
-  if (gate.user.id !== "anonymous-dev" && gate.user.tier === "pro") {
+  // Per founder direction 2026-05-14: Coach should remember
+  // conversations across devices for ALL signed-in users (not just
+  // Pro). Persistence is no longer the Pro perk; cross-device
+  // continuity is a baseline expectation for an authenticated
+  // product. The `anonymous-dev` synthetic user (dev-mode-only,
+  // returned when Supabase is unconfigured locally) still skips
+  // persistence so local development doesn't write rows under a
+  // fake user_id.
+  if (gate.user.id !== "anonymous-dev") {
     try {
       const supabase = await createClient();
       await supabase.from("chat_history").insert([
