@@ -16,6 +16,7 @@ import { computeWindows } from "@/lib/strategy/windows/compute";
 import { computeLeagueOutlook } from "@/lib/strategy/league-outlook/compute";
 import { buildLeagueBriefing } from "@/lib/engine/briefing";
 import { readProfileServer } from "@/lib/lab/profile-storage";
+import { deriveDoctrine, formatDoctrineLine } from "@/lib/lab/doctrine";
 import { getSeasonStats } from "@/lib/players/season-stats";
 import {
   getProjections,
@@ -631,6 +632,9 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     lane_memberships: aarLaneMemberships,
     lane_moves: aarLaneMoves,
     league_dossier: leagueDossier,
+    doctrine_line: judgmentProfile
+      ? formatDoctrineLine(deriveDoctrine(judgmentProfile.dials))
+      : null,
   };
 
   return (

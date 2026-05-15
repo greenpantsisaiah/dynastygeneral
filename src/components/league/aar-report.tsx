@@ -103,6 +103,13 @@ export type AarServerData = {
    * 90-day trade angles without re-deriving who's win-now / future-tilt.
    */
   league_dossier: LeagueDossierEntry[];
+  /**
+   * User's doctrine line at the time the AAR was generated. Shown
+   * inline on the hero block so the post-draft retrospective reads
+   * the doctrine that shaped the draft. Null when the user has not
+   * tuned a profile.
+   */
+  doctrine_line?: string | null;
 };
 
 type HistoryEntry = {
@@ -268,8 +275,16 @@ export function AarReport({
   return (
     <div className="mt-6 space-y-12">
       <section className="rounded-xl border-2 border-accent/60 bg-surface px-6 py-8">
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          Roster shape
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+            Roster shape
+          </div>
+          {data.doctrine_line && (
+            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              <span>Drafted under · </span>
+              <span className="text-foreground">{data.doctrine_line}</span>
+            </div>
+          )}
         </div>
         <div className="mt-2 flex flex-col gap-3">
           <div className="text-2xl font-semibold tracking-tight text-foreground">

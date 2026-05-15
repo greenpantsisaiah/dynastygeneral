@@ -31,6 +31,8 @@ import {
   type LeagueBriefing,
 } from "@/lib/engine/briefing";
 import { readProfileServer } from "@/lib/lab/profile-storage";
+import { deriveDoctrine, formatDoctrineLine } from "@/lib/lab/doctrine";
+import { detectDoctrineDrift } from "@/lib/lab/drift";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { LiveStrategyBoard } from "@/components/league/live-strategy-board";
 import { computeWindows, type WindowsResult } from "@/lib/strategy/windows/compute";
@@ -313,6 +315,14 @@ export default async function LeagueHubPage({
   let rankedArchetypes: RankedArchetype[] = [];
   let windows: WindowsResult | null = null;
   let leagueBriefing: LeagueBriefing | null = null;
+  // Doctrine surface: hoisted to render-scope so the page header can
+  // show a "Doctrine: <line> · Tune →" chip and the drift detector
+  // can compare declared vs behavioral horizon. Reads the same
+  // judgmentProfile that already feeds buildLeagueBriefing and
+  // synthesizeDecision.
+  let doctrineLine: string | null = null;
+  let doctrineCalibratedCount: number | null = null;
+  let driftSummary: string | null = null;
   let playsFromHere: ResolvedPlayFromHere[] = [];
   let pickApproach: PickApproachData | null = null;
   let decision: Decision | null = null;
@@ -399,6 +409,54 @@ export default async function LeagueHubPage({
           () => null,
         );
         leagueBriefing = buildLeagueBriefing(snapshot, judgmentProfile);
+
+        // Doctrine readout + drift detection. Both render in the
+        // hub header / banner once available.
+        if (judgmentProfile) {
+          const doctrine = deriveDoctrine(judgmentProfile.dials);
+          doctrineLine = formatDoctrineLine(doctrine);
+          doctrineCalibratedCount = doctrine.calibrated_count;
+
+          // Drift: compare last N user picks' implied horizon
+          // against the declared Horizon dial. Only fires when the
+          // user has 5+ picks made AND the gap exceeds threshold.
+          const declaredHorizon =
+            typeof judgmentProfile.dials.horizon === "number"
+              ? judgmentProfile.dials.horizon
+              : 0;
+          const playerMetaForDrift = new Map<
+            string,
+            { age: number | null; is_rookie: boolean } | null
+          >();
+          const me = snapshot.rosters.find((r) => r.is_me);
+          const recentUserPickIds = me
+            ? snapshot.draft.picks_made
+                .filter((p) => p.roster_id === me.roster_id)
+                .sort((a, b) => b.pick_no - a.pick_no)
+                .slice(0, 8)
+                .map((p) => p.player_id)
+            : [];
+          if (recentUserPickIds.length > 0) {
+            const resolved = await resolvePlayers(recentUserPickIds);
+            for (const pid of recentUserPickIds) {
+              const player = resolved.get(pid);
+              if (!player) continue;
+              playerMetaForDrift.set(pid, {
+                age: typeof player.age === "number" ? player.age : null,
+                is_rookie: player.years_exp === 0,
+              });
+            }
+          }
+          const drift = detectDoctrineDrift({
+            rosters: snapshot.rosters,
+            picks_made: snapshot.draft.picks_made,
+            declared_horizon: declaredHorizon,
+            player_meta_by_id: playerMetaForDrift,
+          });
+          if (drift.detected) {
+            driftSummary = drift.summary;
+          }
+        }
       } catch (err) {
         captureError(issues, "hub:briefing", err);
       }
@@ -1301,6 +1359,27 @@ export default async function LeagueHubPage({
                   {league.name}
                 </h1>
               )}
+              {doctrineLine && (
+                <div className="mt-2 flex flex-wrap items-baseline gap-2 text-xs">
+                  <span className="font-mono uppercase tracking-[0.14em] text-muted-2">
+                    Doctrine ·
+                  </span>
+                  <span className="font-mono uppercase tracking-[0.14em] text-foreground">
+                    {doctrineLine}
+                  </span>
+                  {doctrineCalibratedCount != null && (
+                    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                      {doctrineCalibratedCount} of 8 calibrated
+                    </span>
+                  )}
+                  <Link
+                    href="/rankings"
+                    className="font-mono uppercase tracking-[0.14em] text-accent hover:underline"
+                  >
+                    Tune →
+                  </Link>
+                </div>
+              )}
               <div className="mt-2 text-sm text-muted">
                 {String(teamName)}
                 {standing && (
@@ -1494,6 +1573,25 @@ export default async function LeagueHubPage({
                 so regressions show up in production logs.
               </p>
             </section>
+          )}
+
+          {driftSummary && (
+            <div className="mt-6 rounded-md border border-warning/40 bg-warning/5 px-4 py-3 text-sm text-foreground">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <div>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
+                    Doctrine drift detected
+                  </span>
+                  <p className="mt-1 leading-snug">{driftSummary}</p>
+                </div>
+                <Link
+                  href="/rankings"
+                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:underline"
+                >
+                  Reconcile in the lab →
+                </Link>
+              </div>
+            </div>
           )}
 
           {/* Dual-column body. Hub left, coach right. Stacks on <lg. */}
