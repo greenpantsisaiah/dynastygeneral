@@ -680,6 +680,7 @@ function DialControl({
   onInfoClick: () => void;
   isOpen: boolean;
   locked: boolean;
+  // (v1 heuristic suffix is computed from dial id below)
   /**
    * Special-case for the Continuity dial today: signal table isn't
    * calibrated, so the slider has no effect on the live ranking. We
@@ -743,6 +744,18 @@ function DialControl({
         >
           affects · {affects === "table" ? "this table" : "Coach + Decision"}
         </span>
+        {(id === "risk_tolerance" || id === "consensus_lean") && (
+          <span
+            className="font-mono text-[8px] uppercase tracking-[0.14em] text-warning"
+            title={
+              id === "risk_tolerance"
+                ? "v1 heuristic: variance proxy from rookie status + position rank. v2 will incorporate KTC-vs-ADP divergence."
+                : "v1 heuristic: market-alignment proxy from position + market rank. Calibration in progress."
+            }
+          >
+            v1 heuristic
+          </span>
+        )}
         {locked && (
           <span
             className="font-mono text-[8px] uppercase tracking-[0.14em] text-warning"
