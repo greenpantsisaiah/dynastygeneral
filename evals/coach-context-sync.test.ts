@@ -124,6 +124,19 @@ const BINDINGS: Binding[] = [
     promptCitation: "opponents[].notes",
     routeShips: ["readOpponentNotesForLeague", "groupNotesByOpponent"],
   },
+  {
+    // Acceptance criterion #1 (INVARIANTS.md "Opponent rosters are
+    // named, not just counted"): every opponent ships a `roster`
+    // array with named players + KTC value, position rank, age. If a
+    // refactor strips the named-roster build, this test fails before
+    // Coach starts hallucinating "I don't have their specific roster
+    // in the snapshot" again. Pairs with the system_prompt rule
+    // "Opponent rosters are KNOWN. Name specific players."
+    rule: "opponent named rosters (trade-target acceptance criterion)",
+    fieldRef: "opponents[].roster[]",
+    promptCitation: "opponents[i].roster",
+    routeShips: ["opponentRostersByRosterId", "namedRoster"],
+  },
   // Sloan-mode register switch retired 2026-05-12: one product view,
   // always-on Sloan-level density.
 ];

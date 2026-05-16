@@ -11,6 +11,10 @@
 
 import { useMemo, useState } from "react";
 import type { LeagueOutlook, LeagueOutlookTeam } from "@/lib/strategy/league-outlook/compute";
+import {
+  tierForLeagueRank,
+  type RankTier,
+} from "@/lib/strategy/league-outlook/rank-tier";
 
 type SortKey =
   | "owner"
@@ -29,10 +33,10 @@ const TRAJECTORY_LABEL: Record<LeagueOutlookTeam["trajectory"], string> = {
   flat: "~ flat",
 };
 
-const TIER_LABEL: Record<string, string> = {
-  contender: "Contender",
-  bubble: "Bubble",
-  rebuild: "Rebuild",
+const TIER_TONE: Record<RankTier, string> = {
+  contender: "text-accent",
+  mix: "text-success",
+  longshot: "text-muted-2",
 };
 
 function compareNum(a: number | null, b: number | null, dir: SortDir): number {
@@ -76,6 +80,19 @@ function Sparkline({ team }: { team: LeagueOutlookTeam }) {
 export function LeagueTable({ outlook }: { outlook: LeagueOutlook }) {
   const [sortKey, setSortKey] = useState<SortKey>("peak_score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // Peak rank is stable across re-sorts of the table: a team's tier
+  // label reflects where their peak score lands in the league, not
+  // what column the user currently has sorted. Built once from a
+  // peak-desc snapshot of the teams.
+  const peakRankByTeam = useMemo(() => {
+    const byPeak = [...outlook.teams].sort(
+      (a, b) => (b.peak_score ?? -Infinity) - (a.peak_score ?? -Infinity),
+    );
+    const map = new Map<number, number>();
+    byPeak.forEach((t, idx) => map.set(t.roster_id, idx + 1));
+    return map;
+  }, [outlook.teams]);
 
   const sorted = useMemo(() => {
     const teams = [...outlook.teams];
@@ -174,9 +191,22 @@ export function LeagueTable({ outlook }: { outlook: LeagueOutlook }) {
                   <span className="font-mono text-foreground">
                     {t.peak_score}
                   </span>
-                  <span className="ml-2 font-mono text-[10px] text-muted-2">
-                    {TIER_LABEL[t.peak_tier] ?? t.peak_tier}
-                  </span>
+                  {(() => {
+                    const peakRank =
+                      peakRankByTeam.get(t.roster_id) ?? outlook.teams.length;
+                    const tier = tierForLeagueRank(
+                      peakRank,
+                      outlook.teams.length,
+                    );
+                    return (
+                      <span
+                        className={`ml-2 font-mono text-[10px] ${TIER_TONE[tier.tone]}`}
+                        title={`Peak rank ${peakRank} of ${outlook.teams.length} in this league`}
+                      >
+                        {tier.label}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-3 py-2 font-mono text-[11px] text-muted">
                   {TRAJECTORY_LABEL[t.trajectory]}

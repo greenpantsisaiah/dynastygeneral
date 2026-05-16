@@ -16,6 +16,7 @@
  */
 
 import type { LeagueOutlook } from "@/lib/strategy/league-outlook/compute";
+import { tierForLeagueRank } from "@/lib/strategy/league-outlook/rank-tier";
 
 type TeamRow = LeagueOutlook["teams"][number];
 
@@ -23,19 +24,6 @@ function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
   return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
-}
-
-function tierFor(rank: number, total: number): {
-  label: string;
-  tone: "contender" | "mix" | "longshot";
-} {
-  if (rank <= Math.max(1, Math.floor(total / 4))) {
-    return { label: "Contender", tone: "contender" };
-  }
-  if (rank <= Math.ceil(total * 0.66)) {
-    return { label: "In the mix", tone: "mix" };
-  }
-  return { label: "Long shot", tone: "longshot" };
 }
 
 export function LeagueDivergence({
@@ -87,7 +75,7 @@ export function LeagueDivergence({
       <div className="mt-4 space-y-2">
         {ranked.map((t, idx) => {
           const rank = idx + 1;
-          const tier = tierFor(rank, teams.length);
+          const tier = tierForLeagueRank(rank, teams.length);
           const futureRank =
             futureRankById.get(t.roster_id) ?? teams.length;
           return (

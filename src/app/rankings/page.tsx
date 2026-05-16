@@ -9,7 +9,10 @@ import { buildRankedPool } from "@/lib/rankings/build";
 import { readProfileServer } from "@/lib/lab/profile-storage";
 import { defaultProfile } from "@/lib/lab/dial-types";
 import { loadRankingsLeagueContext } from "@/lib/rankings/league-context";
-import { readLeagueDoctrine } from "@/lib/lab/league-doctrine";
+import {
+  readLeagueDoctrine,
+  resolveEffectiveDials,
+} from "@/lib/lab/league-doctrine";
 
 export const metadata: Metadata = {
   title: "Rankings · Dynasty General",
@@ -52,6 +55,16 @@ export default async function RankingsPage({ searchParams }: PageProps) {
       ? await readLeagueDoctrine(user.id, leagueCtx.selected.league_id)
       : null;
 
+  // Effective doctrine for the selected league. When the override is
+  // enabled, overlay its dials onto the global profile so the lab
+  // opens on the actual dial state the engine sees for this league.
+  // The user's global values are still passed separately so the lab
+  // can render a "Global: +N" annotation under each dial.
+  const initialDials = leagueOverride
+    ? resolveEffectiveDials(profile.dials, leagueOverride)
+    : profile.dials;
+  const initialProfile = { ...profile, dials: initialDials };
+
   return (
     <>
       <SiteNav />
@@ -91,7 +104,8 @@ export default async function RankingsPage({ searchParams }: PageProps) {
             <RankingsLab
               pool={pool}
               tier={tier}
-              initialProfile={profile}
+              initialProfile={initialProfile}
+              globalDials={profile.dials}
               leagueContext={
                 leagueCtx
                   ? {

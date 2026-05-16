@@ -29,6 +29,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RankedPlayer, RankedPool } from "@/lib/rankings/build";
 import { DIAL_METHODOLOGY } from "@/lib/rankings/methodology";
+import {
+  computeWhyBreakdown,
+  type WhyBreakdown,
+  type WhyComponent,
+} from "@/lib/rankings/why-breakdown";
 import { AlgorithmEquation } from "@/components/rankings/algorithm-equation";
 import {
   DIAL_SPECS,
@@ -210,11 +215,24 @@ export function RankingsLab({
   pool,
   tier,
   initialProfile,
+  globalDials,
   leagueContext,
 }: {
   pool: RankedPool;
   tier: "public" | "signed_in" | "premium";
+  /**
+   * Effective dial state when the page renders. Equals the global
+   * doctrine if no per-league override is enabled; equals the global
+   * dials overlaid with the league override otherwise.
+   */
   initialProfile: JudgmentProfile;
+  /**
+   * The user's global doctrine dials, regardless of override state.
+   * Used to render a "Global: +N" annotation under each dial when a
+   * per-league override is active and the local value diverges from
+   * the global value.
+   */
+  globalDials?: Record<DialId, DialValue>;
   leagueContext?: RankingsLeagueContextProp | null;
 }) {
   const canEditEngineDials = tier !== "public";
@@ -239,6 +257,53 @@ export function RankingsLab({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // When true, dial edits route to the per-league override endpoint
+  // instead of the global doctrine endpoint. Lifted up from
+  // LeagueOverrideToggle so the save-target indicator and per-dial
+  // "Global: +N" annotation stay in sync with the toggle state.
+  const [leagueOverrideEnabled, setLeagueOverrideEnabled] = useState<boolean>(
+    () => leagueContext?.override?.enabled ?? false,
+  );
+  const overrideLeagueId = leagueContext?.selectedLeagueId ?? null;
+  const overrideLeagueName = leagueContext?.selectedLeagueName ?? null;
+  const overrideTarget = leagueOverrideEnabled && overrideLeagueId !== null;
+  // Single-row "why" expansion. Only one row open at a time keeps the
+  // table scannable. Click the row (or its chevron) to toggle. The
+  // initial value can be seeded from `?player=X` so a deep link from
+  // The Call's dial-influence chip lands directly on the expanded row.
+  const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(
+    null,
+  );
+
+  // On mount, hydrate the expanded row from `?player=X` if a deep link
+  // brought the visitor here (e.g. from The Call's "see breakdown" link).
+  // Runs once; subsequent navigation via the address bar should not
+  // reopen a row the user closed.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const playerId = params.get("player");
+      if (!playerId) return;
+      const exists = pool.players.some((p) => p.player_id === playerId);
+      if (!exists) return;
+      setExpandedPlayerId(playerId);
+      // Defer scroll to next tick so the row has rendered. Block-center
+      // alignment keeps the expanded panel comfortably in view.
+      window.setTimeout(() => {
+        const row = document.querySelector(
+          `[data-row-player-id="${playerId}"]`,
+        );
+        if (row && row instanceof HTMLElement) {
+          row.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 50);
+    } catch {
+      // ignore
+    }
+    // Intentionally empty deps: this is a mount-time hydration only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // On mount, hydrate dial state from (a) URL params if a shared link
   // brought the visitor here, falling back to (b) localStorage for
@@ -314,20 +379,46 @@ export function RankingsLab({
     dials.youth_weight,
     dials.bellcow_pref,
     dials.continuity_weight,
+    dials.horizon,
+    dials.rookie_tilt,
+    dials.risk_tolerance,
+    dials.consensus_lean,
   ]);
 
   // Debounced persistence. Signed-in users save to Supabase; anonymous
-  // to localStorage.
+  // to localStorage. When a per-league override is active, the save
+  // routes to the per-league endpoint so dial edits stay scoped to
+  // this league. A ref keeps the debounced closure reading the live
+  // toggle state instead of a captured snapshot.
+  const overrideTargetRef = useRef(overrideTarget);
+  useEffect(() => {
+    overrideTargetRef.current = overrideTarget;
+  }, [overrideTarget]);
+  const overrideLeagueIdRef = useRef(overrideLeagueId);
+  useEffect(() => {
+    overrideLeagueIdRef.current = overrideLeagueId;
+  }, [overrideLeagueId]);
+
   function scheduleSave(next: Record<DialId, DialValue>) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       if (isSignedIn) {
         setSaveState("saving");
         try {
-          const res = await fetch("/api/soundboard/profile", {
+          const useOverride =
+            overrideTargetRef.current && overrideLeagueIdRef.current !== null;
+          const endpoint = useOverride
+            ? `/api/lab/league-profile/${encodeURIComponent(
+                overrideLeagueIdRef.current as string,
+              )}`
+            : "/api/soundboard/profile";
+          const body = useOverride
+            ? JSON.stringify({ enabled: true, dials: next })
+            : JSON.stringify({ dials: next });
+          const res = await fetch(endpoint, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ dials: next }),
+            body,
           });
           setSaveState(res.ok ? "saved" : "error");
           if (res.ok) {
@@ -441,6 +532,27 @@ export function RankingsLab({
               {saveState === "saved" && " · saved"}
               {saveState === "error" && " · save failed"}
             </div>
+            {isSignedIn && (
+              <div
+                className={`mt-1 inline-flex items-baseline gap-1.5 rounded-sm border px-1.5 py-0 font-mono text-[9px] uppercase tracking-[0.14em] ${
+                  overrideTarget
+                    ? "border-[color:#a78bfa]/60 bg-[color:#a78bfa]/10 text-[color:#a78bfa]"
+                    : "border-accent/40 bg-accent/5 text-accent"
+                }`}
+                title={
+                  overrideTarget
+                    ? "Dial edits save as a per-league override for this league."
+                    : "Dial edits save to your global doctrine."
+                }
+              >
+                <span>Saving to</span>
+                <span className="text-foreground">
+                  {overrideTarget
+                    ? `league override · ${overrideLeagueName ?? ""}`
+                    : "global doctrine"}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -506,6 +618,11 @@ export function RankingsLab({
               id={id}
               affects="table"
               value={asNumberDial(dials[id])}
+              globalValue={
+                overrideTarget && globalDials
+                  ? asNumberDial(globalDials[id])
+                  : null
+              }
               onChange={(v) => moveDial(id, v, false)}
               onInfoClick={() => toggleDrawer(id)}
               isOpen={openDrawer === id}
@@ -519,6 +636,11 @@ export function RankingsLab({
               id={id}
               affects="coach"
               value={asNumberDial(dials[id])}
+              globalValue={
+                overrideTarget && globalDials
+                  ? asNumberDial(globalDials[id])
+                  : null
+              }
               onChange={(v) => moveDial(id, v, !canEditEngineDials)}
               onInfoClick={() => toggleDrawer(id)}
               isOpen={openDrawer === id}
@@ -609,7 +731,8 @@ export function RankingsLab({
         <LeagueOverrideToggle
           leagueId={leagueContext.selectedLeagueId}
           leagueName={leagueContext.selectedLeagueName}
-          initialEnabled={leagueContext.override?.enabled ?? false}
+          enabled={leagueOverrideEnabled}
+          onEnabledChange={setLeagueOverrideEnabled}
           currentDials={dials}
         />
       )}
@@ -630,16 +753,36 @@ export function RankingsLab({
                 DG Index
               </th>
               <th className="px-3 py-2.5 text-right">Market</th>
+              <th
+                className="px-2 py-2.5 text-right"
+                title="Click any row to see which model components fire and how your dials weight them."
+              >
+                Why
+              </th>
             </tr>
           </thead>
           <tbody>
-            {visible.map((p) => (
-              <RankRow
-                key={p.player_id}
-                row={p}
-                isMine={myPlayerIds.has(p.player_id)}
-              />
-            ))}
+            {visible.map((p) => {
+              const isExpanded = expandedPlayerId === p.player_id;
+              return (
+                <RankRow
+                  key={p.player_id}
+                  row={p}
+                  isMine={myPlayerIds.has(p.player_id)}
+                  isExpanded={isExpanded}
+                  onToggle={() =>
+                    setExpandedPlayerId((curr) =>
+                      curr === p.player_id ? null : p.player_id,
+                    )
+                  }
+                  whyBreakdown={
+                    isExpanded
+                      ? computeWhyBreakdown(p, rankingDials)
+                      : null
+                  }
+                />
+              );
+            })}
           </tbody>
         </table>
         {visible.length === 0 && (
@@ -679,6 +822,7 @@ export function RankingsLab({
 function DialControl({
   id,
   value,
+  globalValue = null,
   affects,
   onChange,
   onInfoClick,
@@ -688,6 +832,14 @@ function DialControl({
 }: {
   id: DialId;
   value: number;
+  /**
+   * The user's global doctrine value for this dial. Null when no
+   * per-league override is active (i.e. there is nothing to compare
+   * against). When the override is on AND the global value differs
+   * from the local one, the card surfaces a small "Global: +N" note
+   * so the user can read what their global doctrine would say.
+   */
+  globalValue?: number | null;
   /**
    * Per-dial badge: "table" = moves the ranking table on this page,
    * appears in the algorithm equation below the dials. "coach" =
@@ -794,6 +946,19 @@ function DialControl({
         disabled={isDisabled}
         className="mt-2 w-full accent-accent"
       />
+      {globalValue !== null && globalValue !== value && (
+        <div
+          className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:#a78bfa]"
+          title="Your global doctrine value for this dial. The local league override is what's active."
+        >
+          global ·{" "}
+          {globalValue === 0
+            ? "0"
+            : globalValue > 0
+              ? `+${globalValue}`
+              : `${globalValue}`}
+        </div>
+      )}
       <p className="mt-1 text-xs leading-snug text-muted-2">{spec.short_blurb}</p>
     </div>
   );
@@ -874,15 +1039,16 @@ function DrawerBlock({
 function LeagueOverrideToggle({
   leagueId,
   leagueName,
-  initialEnabled,
+  enabled,
+  onEnabledChange,
   currentDials,
 }: {
   leagueId: string;
   leagueName: string;
-  initialEnabled: boolean;
+  enabled: boolean;
+  onEnabledChange: (next: boolean) => void;
   currentDials: Record<DialId, DialValue>;
 }) {
-  const [enabled, setEnabled] = useState(initialEnabled);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -905,13 +1071,13 @@ function LeagueOverrideToggle({
         setFeedback("Save failed.");
         return;
       }
-      setEnabled(nextEnabled);
+      onEnabledChange(nextEnabled);
       setFeedback(
         nextEnabled
           ? sendDials
-            ? "Saved as league override."
-            : "League override enabled."
-          : "League override disabled. Global doctrine applies.",
+            ? "Saved as league override. Future edits route here."
+            : "League override enabled. Future edits route here."
+          : "League override disabled. Future edits route to global doctrine.",
       );
       window.setTimeout(() => setFeedback(null), 2500);
     } catch {
@@ -925,14 +1091,14 @@ function LeagueOverrideToggle({
     <div className="flex flex-wrap items-baseline justify-between gap-3 rounded-lg border border-[color:#a78bfa]/30 bg-[color:#a78bfa]/5 px-4 py-3">
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[color:#a78bfa]">
-          League-specific tuning
+          League-specific tuning {enabled ? "· active" : "· off"}
         </div>
         <p className="mt-1 text-xs leading-snug text-muted">
-          When enabled, the dials above save as an override for{" "}
+          When enabled, every dial edit saves as an override for{" "}
           <span className="font-semibold text-foreground">{leagueName}</span>{" "}
           instead of your global doctrine. Coach and the Decision card
           for this league read the override; other leagues stay on
-          global.
+          global. Each dial annotates the global value when it differs.
         </p>
         {feedback && (
           <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
@@ -946,8 +1112,13 @@ function LeagueOverrideToggle({
           onClick={() => persist(true, true)}
           disabled={saving}
           className="rounded-md border border-accent/60 bg-accent/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:bg-accent/25 disabled:opacity-50"
+          title={
+            enabled
+              ? "Save the current dial values as this league's override."
+              : "Enable per-league tuning. Future dial edits save here."
+          }
         >
-          {enabled ? "Update override" : "Save as league override"}
+          {enabled ? "Save current dials" : "Enable league override"}
         </button>
         {enabled && (
           <button
@@ -955,6 +1126,7 @@ function LeagueOverrideToggle({
             onClick={() => persist(false, false)}
             disabled={saving}
             className="rounded-md border border-border-soft bg-surface-2 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-accent disabled:opacity-50"
+            title="Disable per-league tuning. Future edits save to your global doctrine. Saved override values are preserved."
           >
             Disable
           </button>
@@ -967,9 +1139,15 @@ function LeagueOverrideToggle({
 function RankRow({
   row,
   isMine = false,
+  isExpanded,
+  onToggle,
+  whyBreakdown,
 }: {
   row: ScoredRow;
   isMine?: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+  whyBreakdown: WhyBreakdown | null;
 }) {
   const delta = row.rank_delta;
   const deltaTone =
@@ -1030,40 +1208,211 @@ function RankRow({
   }
 
   return (
-    <tr className="border-t border-border-soft text-sm">
-      <td className="px-4 py-2 font-mono text-foreground">{row.dg_rank}</td>
-      <td className={`px-2 py-2 font-mono text-xs ${deltaTone}`}>
-        {deltaLabel}
-      </td>
-      <td className="px-4 py-2">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="font-medium text-foreground">{row.name}</span>
-          {signals.map((s) => (
-            <span
-              key={s.label}
-              title={s.hint}
-              className={`rounded-sm border bg-surface px-1.5 py-0 font-mono text-[8px] uppercase tracking-[0.14em] ${s.tone}`}
-            >
-              {s.label}
-            </span>
-          ))}
-        </div>
-        <div className="font-mono text-[10px] text-muted-2">
-          {row.team ?? "FA"}
-        </div>
-      </td>
-      <td className={`px-3 py-2 font-mono text-xs ${posTone(row.position)}`}>
-        {row.position}
-      </td>
-      <td className="px-3 py-2 font-mono text-xs text-muted-2">
-        {row.age ?? "?"}
-      </td>
-      <td className="px-3 py-2 text-right font-mono text-xs text-foreground">
-        {row.dg_index.toFixed(1)}
-      </td>
-      <td className="px-3 py-2 text-right font-mono text-xs text-muted-2">
-        {row.market_rank}
-      </td>
-    </tr>
+    <>
+      <tr
+        className={`border-t border-border-soft text-sm cursor-pointer transition-colors ${
+          isExpanded ? "bg-accent/5" : "hover:bg-surface-2/60"
+        }`}
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+        data-row-player-id={row.player_id}
+      >
+        <td className="px-4 py-2 font-mono text-foreground">{row.dg_rank}</td>
+        <td className={`px-2 py-2 font-mono text-xs ${deltaTone}`}>
+          {deltaLabel}
+        </td>
+        <td className="px-4 py-2">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="font-medium text-foreground">{row.name}</span>
+            {signals.map((s) => (
+              <span
+                key={s.label}
+                title={s.hint}
+                className={`rounded-sm border bg-surface px-1.5 py-0 font-mono text-[8px] uppercase tracking-[0.14em] ${s.tone}`}
+              >
+                {s.label}
+              </span>
+            ))}
+          </div>
+          <div className="font-mono text-[10px] text-muted-2">
+            {row.team ?? "FA"}
+          </div>
+        </td>
+        <td className={`px-3 py-2 font-mono text-xs ${posTone(row.position)}`}>
+          {row.position}
+        </td>
+        <td className="px-3 py-2 font-mono text-xs text-muted-2">
+          {row.age ?? "?"}
+        </td>
+        <td className="px-3 py-2 text-right font-mono text-xs text-foreground">
+          {row.dg_index.toFixed(1)}
+        </td>
+        <td className="px-3 py-2 text-right font-mono text-xs text-muted-2">
+          {row.market_rank}
+        </td>
+        <td
+          className="px-2 py-2 text-right font-mono text-xs text-muted-2"
+          aria-hidden
+        >
+          {isExpanded ? "▾" : "▸"}
+        </td>
+      </tr>
+      {isExpanded && whyBreakdown && (
+        <tr className="bg-surface/60">
+          <td colSpan={8} className="px-4 py-4">
+            <WhyPanel
+              playerName={row.name}
+              position={row.position}
+              breakdown={whyBreakdown}
+              onClose={onToggle}
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
+}
+
+function WhyPanel({
+  playerName,
+  position,
+  breakdown,
+  onClose,
+}: {
+  playerName: string;
+  position: string;
+  breakdown: WhyBreakdown;
+  onClose: () => void;
+}) {
+  const { components } = breakdown;
+  // Max absolute contribution for the bar scale. Floor at 1 so a
+  // single-component fire still renders a visible bar.
+  const maxAbs = Math.max(
+    1,
+    ...components.map((c) => Math.abs(c.contribution)),
+  );
+  return (
+    <div className="rounded-md border border-border-soft bg-surface px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+            Why the model places {playerName} here
+          </div>
+          <p className="mt-1 text-sm leading-snug text-foreground">
+            {breakdown.modelLeanSummary}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-accent"
+          aria-label="Hide why breakdown"
+        >
+          Hide
+        </button>
+      </div>
+
+      <div className="mt-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+        Component scorecard · {position}
+      </div>
+      <ul className="mt-2 space-y-2">
+        {components.map((c) => (
+          <WhyRow key={c.id} c={c} maxAbs={maxAbs} />
+        ))}
+      </ul>
+
+      <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 border-t border-border-soft pt-2">
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+          Baseline · FantasyCalc value
+          <span className="ml-1 text-foreground">
+            {Math.round(breakdown.baseline)}
+          </span>
+        </span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+          Total dial adjustment
+          <span
+            className={`ml-1 ${
+              breakdown.totalContribution > 0
+                ? "text-success"
+                : breakdown.totalContribution < 0
+                  ? "text-danger"
+                  : "text-foreground"
+            }`}
+          >
+            {formatSignedDisplay(breakdown.totalContribution)}
+          </span>
+        </span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+          Final raw
+          <span className="ml-1 text-foreground">
+            {Math.round(breakdown.finalRaw)}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function WhyRow({ c, maxAbs }: { c: WhyComponent; maxAbs: number }) {
+  const pct = Math.min(100, (Math.abs(c.contribution) / maxAbs) * 100);
+  const isPositive = c.contribution > 0.05;
+  const isNegative = c.contribution < -0.05;
+  const barTone = isPositive
+    ? "bg-success/50"
+    : isNegative
+      ? "bg-danger/50"
+      : "bg-muted-2/30";
+  const statusTone =
+    c.status === "validated"
+      ? "text-foreground"
+      : c.status === "partial"
+        ? "text-muted"
+        : "text-muted-2";
+  return (
+    <li className="text-xs leading-snug">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span
+            className={`font-mono text-[9px] uppercase tracking-[0.16em] ${statusTone}`}
+          >
+            [{c.status}]
+          </span>
+          <span className="font-medium text-foreground">{c.label}</span>
+          <span className="font-mono text-[10px] text-muted-2">
+            signal {formatSignedDisplay(c.score, 1)} · dial{" "}
+            {formatSignedDisplay(c.dial, 0)}
+          </span>
+        </div>
+        <span
+          className={`font-mono text-[10px] ${
+            isPositive
+              ? "text-success"
+              : isNegative
+                ? "text-danger"
+                : "text-muted-2"
+          }`}
+        >
+          {formatSignedDisplay(c.contribution, 1)}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 rounded-sm bg-surface-2">
+        <div
+          className={`h-full rounded-sm ${barTone}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {c.observation && (
+        <p className="mt-1 text-[11px] text-muted">{c.observation}</p>
+      )}
+    </li>
+  );
+}
+
+function formatSignedDisplay(n: number, decimals = 1): string {
+  const r = decimals === 0 ? Math.round(n) : Math.round(n * 10) / 10;
+  if (r === 0) return "0";
+  return r > 0 ? `+${r}` : `${r}`;
 }

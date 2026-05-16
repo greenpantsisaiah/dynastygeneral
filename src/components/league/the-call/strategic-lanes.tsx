@@ -304,10 +304,84 @@ function CandidateBlock({
       )}
 
       {!compact && isStandingCall && (
+        <DialInfluenceChip
+          influences={candidate.dial_influences ?? []}
+          playerId={candidate.player_id}
+        />
+      )}
+
+      {!compact && isStandingCall && (
         <p className="mt-2 text-[10px] leading-snug text-accent font-mono uppercase tracking-[0.14em]">
           ↑ Engine's lean if you must pick one
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * "Your dials are pushing this pick" chip. Surfaces the top 3
+ * dial influences from the synthesis layer so the user can see, in
+ * one line, which of their tuned dials are propping up the standing
+ * call. Echoes the per-row "Why" panel on /rankings; for the
+ * Decision card we keep it tight because users are time-pressed
+ * mid-draft.
+ */
+function DialInfluenceChip({
+  influences,
+  playerId,
+}: {
+  influences: NonNullable<DecisionQuadrantCandidate["dial_influences"]>;
+  playerId: string;
+}) {
+  const deepLink = `/rankings?player=${encodeURIComponent(playerId)}`;
+  if (influences.length === 0) {
+    return (
+      <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+        Dials neutral · pick stands on the engine's default doctrine ·{" "}
+        <a
+          href={deepLink}
+          className="underline decoration-dotted hover:text-accent"
+        >
+          see breakdown
+        </a>
+      </p>
+    );
+  }
+  const top = [...influences]
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, 3);
+  return (
+    <div
+      className="mt-2 rounded-sm border border-[color:#a78bfa]/40 bg-[color:#a78bfa]/5 px-2 py-1"
+      title="Top dial influences from /rankings. Each delta is in score units, signed."
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[color:#a78bfa]">
+          Your dials on this pick
+        </div>
+        <a
+          href={deepLink}
+          className="font-mono text-[9px] uppercase tracking-[0.14em] text-[color:#a78bfa] underline decoration-dotted hover:text-accent"
+        >
+          See full breakdown →
+        </a>
+      </div>
+      <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[10px] text-foreground">
+        {top.map((inf) => {
+          const sign = inf.delta >= 0 ? "+" : "";
+          const tone = inf.delta >= 0 ? "text-success" : "text-danger";
+          return (
+            <span key={inf.dial}>
+              {inf.label}
+              <span className={`ml-0.5 ${tone}`}>
+                ({sign}
+                {inf.delta.toFixed(1)})
+              </span>
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
