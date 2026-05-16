@@ -96,19 +96,33 @@ export function runEngineIntegrityChecks(args: {
 // 1. Pool completeness. Reuses the existing FantasyCalc-baseline
 // check from sanity.ts and projects results into the unified
 // IntegrityIssue shape. The LaPorta-class bug.
+//
+// Bug fix 2026-05-15 (Do or Dynasty incident): the prior implementation
+// only treated current-draft picks_made as "rostered." For returning
+// dynasty leagues with no active draft, every consensus top player
+// who is correctly excluded from `available` because they're on a
+// roster from a prior season fired as "silently missing." Founder
+// reported 169 severe issues on a clean pre-draft league. Fix: also
+// include every player on any current roster.players list in the
+// rostered set so the check distinguishes "rostered" from "missing."
 function runPoolCompletenessCheck(args: {
   snap: LeagueSnapshot;
   available: AvailablePlayer[];
   playerValues: Map<string, PlayerValue>;
 }): IntegrityIssue[] {
-  const draftedIds = new Set<string>();
+  const rosteredIds = new Set<string>();
   for (const p of args.snap.draft.picks_made) {
-    if (p.player_id) draftedIds.add(p.player_id);
+    if (p.player_id) rosteredIds.add(p.player_id);
+  }
+  for (const r of args.snap.rosters) {
+    for (const pid of r.player_ids) {
+      if (pid) rosteredIds.add(pid);
+    }
   }
   const missing = runCompletenessSanityChecks({
     available: args.available,
     playerValues: args.playerValues,
-    draftedIds,
+    draftedIds: rosteredIds,
   });
   return missing.map((m) => ({
     kind: "pool_missing_player" as const,
