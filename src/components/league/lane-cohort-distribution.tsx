@@ -3,19 +3,21 @@
  * every quantitative claim ships with a defensible source and the
  * stats credibility is surfaced (not yelled) on the hub itself.
  *
- * Renders per-lane mini histograms with the user's score marker and
- * CLOSE / IN threshold lines so the user can read at a glance:
- *   1. where their roster sits in the 82-roster cohort
- *   2. what percentile their score lands at
- *   3. how far the IN threshold is from where they are
+ * Each per-lane mini-chart shows:
+ *   1. Cohort histogram (accent-tinted bars) of where the 82 rosters
+ *      score on this lane.
+ *   2. Two dashed threshold lines: CLOSE (warning) and IN (success).
+ *      Inline text labels float next to each line so the dashed color
+ *      is unambiguous.
+ *   3. The user's score as a purple anchor with an inline "YOU"
+ *      label, so the marker is self-explanatory.
  *
- * Inline SVG so we have pixel-level control of the chart shape per the
- * redesign visualization map (no chart library unless the chart needs
- * interactive complexity).
+ * Per founder feedback 2026-05-15: "the huge left yellow line, the
+ * green and yellow dashed ones" weren't clear without inline labels.
+ * Adding inline labels + a top-of-section legend.
  *
  * Cohort source: `cohort-stats.ts` (82 rosters across 5 dynasty /
- * keeper leagues, baked 2026-05-08). Provenance rendered inline on the
- * section header per principle 0.
+ * keeper leagues, baked 2026-05-08).
  */
 
 import type { LaneMembership } from "@/lib/strategy/lane-identity";
@@ -27,16 +29,12 @@ import {
   percentileForScore,
 } from "@/lib/strategy/lane-identity/cohort-stats";
 
-const CHART_WIDTH = 280;
-const CHART_HEIGHT = 60;
-const X_AXIS_HEIGHT = 14;
+const CHART_WIDTH = 320;
+const CHART_HEIGHT = 70;
+const X_AXIS_HEIGHT = 16;
+const TOP_PAD = 14;
 const MAX_LANES_RENDERED = 4;
 
-/**
- * Score-rank the user's lanes so the chart leads with the strongest /
- * most-relevant signals. IN beats CLOSE beats NOT_IN; within a state
- * sort by percentile descending so the most-extreme positions surface.
- */
 function selectLanesToRender(
   memberships: LaneMembership[],
 ): LaneMembership[] {
@@ -89,7 +87,42 @@ export function LaneCohortDistribution({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      {/* Inline legend so the user can decode each chart without
+          guessing what the colors and dashed lines mean. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted-2">
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-2 w-3 rounded-sm bg-accent/30 border border-accent/50"
+            aria-hidden
+          />
+          <span>Cohort rosters at each score</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-3 w-px bg-warning"
+            style={{ backgroundImage: "repeating-linear-gradient(to bottom, var(--warning) 0 3px, transparent 3px 5px)" }}
+            aria-hidden
+          />
+          <span className="text-warning">CLOSE threshold</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-3 w-px bg-success"
+            style={{ backgroundImage: "repeating-linear-gradient(to bottom, var(--success) 0 3px, transparent 3px 5px)" }}
+            aria-hidden
+          />
+          <span className="text-success">IN threshold</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-3 w-0.5 bg-[color:#a78bfa]"
+            aria-hidden
+          />
+          <span className="text-[color:#a78bfa]">Your score</span>
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-5 sm:grid-cols-2">
         {lanes.map((m) => (
           <LaneDistribution key={m.lane_id} membership={m} />
         ))}
@@ -105,6 +138,7 @@ function LaneDistribution({ membership }: { membership: LaneMembership }) {
   const userScore = membership.aggregate_score;
   const userPct = percentileForScore(membership.lane_id, userScore);
   const maxCount = Math.max(...stats.bins, 1);
+  const innerH = CHART_HEIGHT - TOP_PAD;
   const binPxWidth = CHART_WIDTH / stats.bins.length;
 
   const scoreToX = (s: number): number => {
@@ -130,6 +164,17 @@ function LaneDistribution({ membership }: { membership: LaneMembership }) {
         ? "text-accent"
         : "text-muted-2";
 
+  // Position the inline labels for thresholds + user marker. When
+  // two labels would overlap, push the second one down a row so they
+  // stay readable.
+  const labelGap = 38;
+  const closeLabelX = closeX;
+  const inLabelX = inX;
+  const userLabelX = userX;
+  const closeAndInClose = Math.abs(inX - closeX) < labelGap;
+  const userNearClose = userInRange && Math.abs(userX - closeX) < labelGap;
+  const userNearIn = userInRange && Math.abs(userX - inX) < labelGap;
+
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
@@ -141,7 +186,8 @@ function LaneDistribution({ membership }: { membership: LaneMembership }) {
         </div>
       </div>
       <div className="mt-0.5 font-mono text-[10px] text-muted-2">
-        score {Math.round(userScore)} · {userPct}th percentile
+        score {Math.round(userScore)} · {userPct}th percentile · cohort
+        median {stats.p50}
       </div>
 
       <svg
@@ -151,7 +197,7 @@ function LaneDistribution({ membership }: { membership: LaneMembership }) {
         aria-label={`${membership.label} cohort distribution: your score ${Math.round(userScore)} at the ${userPct}th percentile`}
       >
         {stats.bins.map((count, i) => {
-          const h = (count / maxCount) * CHART_HEIGHT;
+          const h = (count / maxCount) * innerH;
           const x = i * binPxWidth;
           const y = CHART_HEIGHT - h;
           return (
@@ -170,38 +216,82 @@ function LaneDistribution({ membership }: { membership: LaneMembership }) {
           );
         })}
 
+        {/* CLOSE threshold + inline label */}
         <line
           x1={closeX}
           x2={closeX}
-          y1={0}
+          y1={TOP_PAD - 2}
           y2={CHART_HEIGHT}
           stroke="var(--warning)"
           strokeWidth={1}
           strokeDasharray="3 2"
-          opacity={0.65}
+          opacity={0.75}
         />
+        <text
+          x={closeLabelX}
+          y={TOP_PAD - 4}
+          fontSize={8}
+          fill="var(--warning)"
+          textAnchor={closeAndInClose || userNearClose ? "end" : "middle"}
+          fontFamily="ui-monospace, monospace"
+          style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}
+        >
+          close · {stats.close_threshold}
+        </text>
+
+        {/* IN threshold + inline label */}
         <line
           x1={inX}
           x2={inX}
-          y1={0}
+          y1={TOP_PAD - 2}
           y2={CHART_HEIGHT}
           stroke="var(--success)"
           strokeWidth={1}
           strokeDasharray="3 2"
-          opacity={0.75}
+          opacity={0.85}
         />
+        <text
+          x={inLabelX}
+          y={TOP_PAD - 4}
+          fontSize={8}
+          fill="var(--success)"
+          textAnchor={closeAndInClose ? "start" : "middle"}
+          fontFamily="ui-monospace, monospace"
+          style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}
+        >
+          in · {stats.in_threshold}
+        </text>
 
+        {/* User marker + inline "YOU" label */}
         {userInRange && (
           <>
             <line
               x1={userX}
               x2={userX}
-              y1={0}
+              y1={TOP_PAD - 6}
               y2={CHART_HEIGHT}
               stroke="#a78bfa"
               strokeWidth={2}
             />
-            <circle cx={userX} cy={4} r={3} fill="#a78bfa" />
+            <circle cx={userX} cy={TOP_PAD - 6} r={3.5} fill="#a78bfa" />
+            <text
+              x={userLabelX}
+              y={CHART_HEIGHT + X_AXIS_HEIGHT - 3}
+              fontSize={9}
+              fill="#a78bfa"
+              textAnchor={
+                userNearClose || userNearIn
+                  ? userX < CHART_WIDTH / 2
+                    ? "start"
+                    : "end"
+                  : "middle"
+              }
+              fontFamily="ui-monospace, monospace"
+              fontWeight={600}
+              style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}
+            >
+              you · {Math.round(userScore)}
+            </text>
           </>
         )}
 
@@ -214,15 +304,17 @@ function LaneDistribution({ membership }: { membership: LaneMembership }) {
           strokeWidth={0.5}
         />
 
-        <text
-          x={0}
-          y={CHART_HEIGHT + X_AXIS_HEIGHT - 3}
-          fontSize={8}
-          fill="var(--muted-2)"
-          fontFamily="ui-monospace, monospace"
-        >
-          0
-        </text>
+        {!userInRange && (
+          <text
+            x={0}
+            y={CHART_HEIGHT + X_AXIS_HEIGHT - 3}
+            fontSize={8}
+            fill="var(--muted-2)"
+            fontFamily="ui-monospace, monospace"
+          >
+            0
+          </text>
+        )}
         <text
           x={CHART_WIDTH}
           y={CHART_HEIGHT + X_AXIS_HEIGHT - 3}
@@ -234,16 +326,6 @@ function LaneDistribution({ membership }: { membership: LaneMembership }) {
           {Math.round(stats.range_max)}
         </text>
       </svg>
-
-      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[9px] text-muted-2">
-        <span>
-          <span className="text-warning">close</span> {stats.close_threshold}
-        </span>
-        <span>
-          <span className="text-success">in</span> {stats.in_threshold}
-        </span>
-        <span>cohort median {stats.p50}</span>
-      </div>
     </div>
   );
 }

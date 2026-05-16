@@ -1891,91 +1891,137 @@ export default async function LeagueHubPage({
                 </DashboardSection>
               )}
 
-              {/* SECTION: Your team. Always renders. Identity,
-                  comparator, risk fingerprint, contender outlook. */}
-              <DashboardSection
-                label="Your team"
-                title="Who you're building"
-                tagline="Identity, comparator, risk fingerprint, contender outlook."
-                defaultOpen={!draftActive}
-                hasChanges={lastVisitPicksMadeByUser > 0}
-                changeHint={
-                  lastVisitPicksMadeByUser > 0
-                    ? `${lastVisitPicksMadeByUser} pick${lastVisitPicksMadeByUser === 1 ? "" : "s"} added since you were last here`
-                    : undefined
-                }
-              >
-                {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
-                {rosterLaneMemberships.length > 0 && (
-                  <RosterLaneIdentity
-                    memberships={rosterLaneMemberships}
-                    moves={rosterLaneMoves}
-                    priorStates={priorLaneStates}
-                  />
-                )}
-                {rosterLaneMemberships.length > 0 && (
-                  <LaneCohortDistribution
-                    memberships={rosterLaneMemberships}
-                  />
-                )}
-                {inflectionItems.length > 0 && (
-                  <InflectionPanel items={inflectionItems} />
-                )}
-                {contenderOutlook && (
-                  <ContenderOutlookCard outlook={contenderOutlook} />
-                )}
-              </DashboardSection>
-
-              {/* SECTION: The league. Trade leverage, opponent
-                  intel, league-wide signals. Default-open varies by
-                  stage: collapsed during drafts (The Call dominates
-                  attention) and expanded post-draft / pre-draft
-                  (trade leverage IS the activity). */}
-              {(leagueRead ||
-                leagueOutlook ||
-                opponentCharacterizations.length > 0 ||
-                pathCompetition) && (
-                <DashboardSection
-                  label="The league"
-                  title="Trade leverage and opponent reads"
-                  tagline="Where the soft spots are, who needs what, what to send."
-                  defaultOpen={!draftActive}
-                  emphasize={!draftActive && draftState?.status === "complete"}
-                  hasChanges={
-                    lastVisitPicksMadeTotal > 0 || lastVisitHasSnipes
-                  }
-                  changeHint={
-                    lastVisitHasSnipes
-                      ? "Plan target sniped since last visit"
-                      : lastVisitPicksMadeTotal > 0
-                        ? `${lastVisitPicksMadeTotal} league picks since last visit`
+              {/* "Your team" and "The league" are siblings. For in-
+                  season leagues (no active draft AND draft already
+                  complete) we render The League FIRST because trade
+                  leverage IS the activity. For pre-draft / active-
+                  draft we keep Your Team first. Per founder feedback
+                  2026-05-15: surface standings higher in-season. */}
+              {(() => {
+                const inSeasonLayout =
+                  !draftActive && draftState?.status === "complete";
+                const yourTeamSection = (
+                  <DashboardSection
+                    key="your-team"
+                    label="Your team"
+                    title="Who you're building"
+                    tagline="Identity, comparator, risk fingerprint, contender outlook."
+                    defaultOpen={!draftActive}
+                    hasChanges={lastVisitPicksMadeByUser > 0}
+                    changeHint={
+                      lastVisitPicksMadeByUser > 0
+                        ? `${lastVisitPicksMadeByUser} pick${lastVisitPicksMadeByUser === 1 ? "" : "s"} added since you were last here`
                         : undefined
-                  }
-                >
-                  {leagueRead && <TradeStrategyPanel data={leagueRead} />}
-                  {opponentCharacterizations.length > 0 && (
-                    <OpponentCharacterizations
-                      items={opponentCharacterizations}
-                      leagueId={leagueId}
-                      notesByRoster={opponentNotesByRoster}
-                      tradeHistoryByRoster={opponentTradeHistoryByRoster}
-                      canWriteNotes={authUser != null}
-                    />
-                  )}
-                  {pathCompetition && (
-                    <SamePathThreatsCard competition={pathCompetition} />
-                  )}
-                  {leagueOutlook && leagueSnapshot && (
-                    <>
-                      <SwotCard
-                        swot={computeSwot(leagueSnapshot, leagueOutlook)}
+                    }
+                  >
+                    {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                    {rosterLaneMemberships.length > 0 && (
+                      <RosterLaneIdentity
+                        memberships={rosterLaneMemberships}
+                        moves={rosterLaneMoves}
+                        priorStates={priorLaneStates}
                       />
-                      <LeagueDivergence outlook={leagueOutlook} />
-                      <LeagueTable outlook={leagueOutlook} />
-                    </>
-                  )}
-                </DashboardSection>
-              )}
+                    )}
+                    {rosterLaneMemberships.length > 0 && (
+                      <LaneCohortDistribution
+                        memberships={rosterLaneMemberships}
+                      />
+                    )}
+                    {inflectionItems.length > 0 && (
+                      <InflectionPanel items={inflectionItems} />
+                    )}
+                    {contenderOutlook && (
+                      <ContenderOutlookCard outlook={contenderOutlook} />
+                    )}
+                  </DashboardSection>
+                );
+                const theLeagueSection =
+                  leagueRead ||
+                  leagueOutlook ||
+                  opponentCharacterizations.length > 0 ||
+                  pathCompetition ? (
+                    <DashboardSection
+                      key="the-league"
+                      label="The league"
+                      title={
+                        inSeasonLayout
+                          ? "Who is the team to beat?"
+                          : "Trade leverage and opponent reads"
+                      }
+                      tagline={
+                        inSeasonLayout
+                          ? "League standings, trade leverage, opponent reads."
+                          : "Where the soft spots are, who needs what, what to send."
+                      }
+                      defaultOpen={!draftActive}
+                      emphasize={inSeasonLayout}
+                      hasChanges={
+                        lastVisitPicksMadeTotal > 0 || lastVisitHasSnipes
+                      }
+                      changeHint={
+                        lastVisitHasSnipes
+                          ? "Plan target sniped since last visit"
+                          : lastVisitPicksMadeTotal > 0
+                            ? `${lastVisitPicksMadeTotal} league picks since last visit`
+                            : undefined
+                      }
+                    >
+                      {/* In-season: lead with standings so the table to
+                          beat is the first thing the user sees. */}
+                      {inSeasonLayout && leagueOutlook && leagueSnapshot && (
+                        <>
+                          <LeagueDivergence outlook={leagueOutlook} />
+                          <LeagueTable outlook={leagueOutlook} />
+                        </>
+                      )}
+                      {leagueRead && <TradeStrategyPanel data={leagueRead} />}
+                      {opponentCharacterizations.length > 0 && (
+                        <OpponentCharacterizations
+                          items={opponentCharacterizations}
+                          leagueId={leagueId}
+                          notesByRoster={opponentNotesByRoster}
+                          tradeHistoryByRoster={opponentTradeHistoryByRoster}
+                          canWriteNotes={authUser != null}
+                        />
+                      )}
+                      {pathCompetition && (
+                        <SamePathThreatsCard competition={pathCompetition} />
+                      )}
+                      {/* Off-season / non-in-season layout retains the
+                          original section order (SWOT > divergence >
+                          table) under the trade-leverage framing. */}
+                      {!inSeasonLayout &&
+                        leagueOutlook &&
+                        leagueSnapshot && (
+                          <>
+                            <SwotCard
+                              swot={computeSwot(leagueSnapshot, leagueOutlook)}
+                            />
+                            <LeagueDivergence outlook={leagueOutlook} />
+                            <LeagueTable outlook={leagueOutlook} />
+                          </>
+                        )}
+                      {inSeasonLayout &&
+                        leagueOutlook &&
+                        leagueSnapshot && (
+                          <SwotCard
+                            swot={computeSwot(leagueSnapshot, leagueOutlook)}
+                          />
+                        )}
+                    </DashboardSection>
+                  ) : null;
+                return inSeasonLayout ? (
+                  <>
+                    {theLeagueSection}
+                    {yourTeamSection}
+                  </>
+                ) : (
+                  <>
+                    {yourTeamSection}
+                    {theLeagueSection}
+                  </>
+                );
+              })()}
 
               {/* SECTION: Intel. Library + briefings + news +
                   alerts. Collapsed by default. */}

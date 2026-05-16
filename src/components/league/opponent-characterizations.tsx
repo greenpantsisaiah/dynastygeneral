@@ -241,7 +241,9 @@ function CharacterizationCard({
             )}
           </div>
           <div className="font-mono text-[11px] text-muted-2">
-            {item.picks_made} picks made
+            {item.picks_made > 0
+              ? `${item.picks_made} pick${item.picks_made === 1 ? "" : "s"} made`
+              : "Rookie draft not opened"}
           </div>
         </div>
         <div className="text-right">

@@ -220,11 +220,37 @@ export function characterizeOpponent(
     };
   }
 
-  // No strong trade signal. Use age-based gradient.
-  // Sub-2-pick rosters with no trade activity: still call it, but
-  // explicitly flag low confidence. Don't say "too early to call"
-  // because that hides the small signal we DO have.
+  // No strong trade signal AND sub-2-pick rosters in the current
+  // draft. Two cases worth distinguishing:
+  //   1. In-season / post-draft league. picks_made is empty because
+  //      the rookie draft hasn't started yet. The roster IS
+  //      established (roster.avg_age > 0). Use roster_avg_age as the
+  //      lean signal with medium confidence.
+  //   2. Genuinely pre-draft early stage. Roster is also empty
+  //      (avg_age == 0 or null). Fall back to low-confidence
+  //      "balanced" with the honest "no picks yet" message.
   if (ages.length < 2) {
+    const rosterAvgAge =
+      typeof roster.avg_age === "number" && roster.avg_age > 0
+        ? roster.avg_age
+        : null;
+    if (rosterAvgAge != null) {
+      // Established roster: lean from avg_age. Medium confidence
+      // because we're reading the roster as-of-today, not the
+      // user's recent acquisition behavior.
+      const lean = bucketFromAge(rosterAvgAge);
+      return {
+        roster_id: roster.roster_id,
+        owner_name: roster.owner_name ?? `Roster ${roster.roster_id}`,
+        picks_made: picksCount,
+        lean,
+        confidence: 0.45,
+        reasons: [
+          `Roster avg age ${rosterAvgAge.toFixed(1)} (in-season read; current rookie draft has not opened yet)`,
+        ],
+        trade_implication: tradeImplicationFor(lean),
+      };
+    }
     return {
       roster_id: roster.roster_id,
       owner_name: roster.owner_name ?? `Roster ${roster.roster_id}`,
@@ -233,7 +259,7 @@ export function characterizeOpponent(
       confidence: 0.15,
       reasons: [
         picksCount === 0
-          ? `No picks yet`
+          ? `No picks yet (pre-draft)`
           : `${picksCount} pick${picksCount === 1 ? "" : "s"} so far. very low signal`,
       ],
       trade_implication: tradeImplicationFor("balanced"),

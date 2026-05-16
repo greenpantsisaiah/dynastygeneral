@@ -137,6 +137,43 @@ export function RosterLaneIdentity({
         </div>
       )}
 
+      {/* When the user has NO IN or CLOSE lanes (common on in-season
+          rosters whose value is diffuse rather than concentrated),
+          surface the 3 NOT-IN lanes closest to CLOSE as "closest to
+          entering." Without this, the section reads as "you have no
+          identity" which is misleading when the math is just
+          calibrated against startup-draft cohorts. */}
+      {inLanes.length === 0 && closeLanes.length === 0 && notInLanes.length > 0 && (
+        <div className="border-b border-border-soft px-5 py-4">
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2 mb-2">
+            Closest to entering
+          </div>
+          <p className="text-xs leading-snug text-muted">
+            Lane thresholds are calibrated against fresh-startup cohorts.
+            In-season rosters often spread value diffusely without
+            triggering any single lane. These three are nearest to
+            clearing CLOSE.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {[...notInLanes]
+              .filter((m) => m.aggregate_score > 0 && m.close_threshold > 0)
+              .sort(
+                (a, b) =>
+                  b.aggregate_score / b.close_threshold -
+                  a.aggregate_score / a.close_threshold,
+              )
+              .slice(0, 3)
+              .map((m) => (
+                <LaneCard
+                  key={m.lane_id}
+                  membership={m}
+                  showProximity
+                />
+              ))}
+          </div>
+        </div>
+      )}
+
       {notInLanes.length > 0 && (
         <div className="px-5 py-3">
           <button
@@ -165,15 +202,26 @@ function LaneCard({
   compact = false,
   move,
   priorState = null,
+  showProximity = false,
 }: {
   membership: LaneMembership;
   compact?: boolean;
   move?: IdentityMove;
   priorState?: "in" | "close" | "not_in" | null;
+  /**
+   * When true, render the "closest to entering" framing: show the
+   * score, the close threshold, and the percentage of the way there
+   * inline so a NOT-IN lane is still informative.
+   */
+  showProximity?: boolean;
 }) {
   const stateChanged = priorState != null && priorState !== m.state;
   const style = STATE_STYLES[m.state];
   const contributors = m.contributors.slice(0, compact ? 0 : 5);
+  const proximityPct =
+    showProximity && m.close_threshold > 0
+      ? Math.round((m.aggregate_score / m.close_threshold) * 100)
+      : null;
   return (
     <div
       className={`rounded-md border ${style.border} ${style.bg} px-3 py-3`}
@@ -186,6 +234,12 @@ function LaneCard({
           <div className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
             {AXIS_LABEL[m.axis as keyof typeof AXIS_LABEL] ?? m.axis}
             {m.is_derived && " · composite"}
+            {proximityPct != null && (
+              <span className="text-foreground">
+                {" · "}
+                {proximityPct}% of the way to CLOSE
+              </span>
+            )}
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-1.5">
