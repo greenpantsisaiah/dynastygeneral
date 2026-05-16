@@ -82,6 +82,9 @@ export function DraftProgressPanel({
   data,
   leagueBank,
   evBankDelta,
+  positionCountDeltas,
+  leagueRankDelta,
+  leagueName,
 }: {
   data: DraftProgress | null;
   // Optional league EV bank readout. When provided and at least 2
@@ -96,6 +99,18 @@ export function DraftProgressPanel({
   // delta arrow next to the total ("+87.1 ↑0.4 since last visit").
   // Per REDESIGN_INTENTIONS principle 11.
   evBankDelta?: number | null;
+  // Optional per-position roster-count delta since last visit.
+  // PositionCard renders "+N" next to its have/need fraction when
+  // non-zero. Empty / undefined = no markers rendered.
+  positionCountDeltas?: Partial<Record<string, number>>;
+  // Optional league-rank delta since last visit. Negative means the
+  // user moved UP in rank (lower number = better). MetricCard renders
+  // an arrow + magnitude when non-zero.
+  leagueRankDelta?: number | null;
+  // Optional league name. When provided and the user has a real
+  // EV bank rank, the share button stamps it onto the shareable
+  // card for context.
+  leagueName?: string | null;
 }) {
   if (!data) return null;
   if (data.picks_made_by_user === 0) return null;
@@ -129,13 +144,33 @@ export function DraftProgressPanel({
         {data.headline}
       </p>
 
+      {/* EV bank leads the panel per founder feedback 2026-05-08:
+          "I can't even locate EV on the page." The bank is the
+          headline number this section reports; position diagnostic
+          and the rest are supporting cast. Hoisted to top of panel
+          2026-05-15. */}
+      {data.ev_bank && data.ev_bank.entries.length > 0 && (
+        <div className="border-t border-border-soft">
+          <EvBankSection
+            bank={data.ev_bank}
+            leagueBank={leagueBank ?? null}
+            delta={evBankDelta ?? null}
+            leagueName={leagueName ?? null}
+          />
+        </div>
+      )}
+
       <div className="border-t border-border-soft px-5 py-4">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
           Position diagnostic
         </div>
         <div className="mt-2 grid gap-2 sm:grid-cols-4">
           {data.position_diagnostic.map((diag) => (
-            <PositionCard key={diag.position} diag={diag} />
+            <PositionCard
+              key={diag.position}
+              diag={diag}
+              countDelta={positionCountDeltas?.[diag.position] ?? null}
+            />
           ))}
         </div>
       </div>
@@ -164,7 +199,7 @@ export function DraftProgressPanel({
       )}
 
       <div className="grid gap-3 border-t border-border-soft px-5 py-4 sm:grid-cols-2">
-        <MetricCard metric={data.league_rank} />
+        <MetricCard metric={data.league_rank} rankDelta={leagueRankDelta ?? null} />
         <MetricCard metric={data.best_value} />
       </div>
 
@@ -210,13 +245,6 @@ export function DraftProgressPanel({
         </div>
       )}
 
-      {data.ev_bank && data.ev_bank.entries.length > 0 && (
-        <EvBankSection
-          bank={data.ev_bank}
-          leagueBank={leagueBank ?? null}
-          delta={evBankDelta ?? null}
-        />
-      )}
     </section>
   );
 }
@@ -225,10 +253,12 @@ function EvBankSection({
   bank,
   leagueBank,
   delta,
+  leagueName,
 }: {
   bank: EvBank;
   leagueBank: LeagueEvBankReadout | null;
   delta: number | null;
+  leagueName: string | null;
 }) {
   // Bar scale for the per-pick detail view (kept as tap-to-expand).
   const maxAbsDelta = Math.max(
@@ -274,6 +304,20 @@ function EvBankSection({
         )}
       </div>
 
+      {leagueBank &&
+        leagueBank.ranked_count >= 2 &&
+        leagueBank.my_rank != null &&
+        bank.total_ev != null && (
+          <div className="px-5 pb-4">
+            <ShareEvBankButton
+              rank={leagueBank.my_rank}
+              total={leagueBank.ranked_count}
+              ev={bank.total_ev}
+              leagueName={leagueName ?? null}
+            />
+          </div>
+        )}
+
       {leagueBank && leagueBank.ranked_count >= 2 && (
         <div className="px-5 pb-4">
           <LeagueComparisonExpander leagueBank={leagueBank} />
@@ -281,6 +325,93 @@ function EvBankSection({
       )}
     </div>
   );
+}
+
+function ShareEvBankButton({
+  rank,
+  total,
+  ev,
+  leagueName,
+}: {
+  rank: number;
+  total: number;
+  ev: number;
+  leagueName: string | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function buildShareUrl(): string {
+    const params = new URLSearchParams();
+    params.set("rank", String(rank));
+    params.set("total", String(total));
+    params.set("ev", ev.toFixed(1));
+    if (leagueName) params.set("league", leagueName);
+    if (typeof window === "undefined") {
+      return `https://dynastygeneral.app/share/ev-bank?${params.toString()}`;
+    }
+    return `${window.location.origin}/share/ev-bank?${params.toString()}`;
+  }
+
+  async function onShare() {
+    const url = buildShareUrl();
+    const shareText = `${ordinalShort(rank)} of ${total} in EV banked on Dynasty General.`;
+    setError(null);
+    try {
+      const nav = typeof navigator !== "undefined" ? navigator : null;
+      if (nav && "share" in nav && typeof nav.share === "function") {
+        await nav.share({ title: "EV bank rank", text: shareText, url });
+        return;
+      }
+      if (nav && nav.clipboard && nav.clipboard.writeText) {
+        await nav.clipboard.writeText(url);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+        return;
+      }
+      setError("Share unsupported on this browser.");
+    } catch {
+      setError("Share canceled.");
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-3">
+      <button
+        type="button"
+        onClick={onShare}
+        className="rounded-md border border-accent/60 bg-accent/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:bg-accent/20"
+        title="Generates a shareable card with your rank, league size, and EV banked. Anyone with the link sees the same numbers."
+      >
+        Share this rank
+      </button>
+      {copied && (
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-success">
+          Link copied
+        </span>
+      )}
+      {error && (
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-warning">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ordinalShort(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
 }
 
 function LeagueComparisonExpander({
@@ -464,8 +595,15 @@ function EvBankRow({
   );
 }
 
-function PositionCard({ diag }: { diag: PositionDiagnostic }) {
+function PositionCard({
+  diag,
+  countDelta,
+}: {
+  diag: PositionDiagnostic;
+  countDelta: number | null;
+}) {
   const badge = POSITION_BADGE[diag.state];
+  const hasDelta = countDelta != null && countDelta !== 0;
   return (
     <div
       className={`rounded-md border ${POSITION_BORDER[diag.state]} px-3 py-2`}
@@ -480,15 +618,43 @@ function PositionCard({ diag }: { diag: PositionDiagnostic }) {
           {badge.label}
         </div>
       </div>
-      <div className={`mt-1 text-lg font-semibold ${POSITION_VALUE_COLOR[diag.state]}`}>
-        {diag.have} / {diag.need}
+      <div className="mt-1 flex items-baseline gap-2">
+        <span
+          className={`text-lg font-semibold ${POSITION_VALUE_COLOR[diag.state]}`}
+        >
+          {diag.have} / {diag.need}
+        </span>
+        {hasDelta && (
+          <span
+            className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
+              countDelta > 0 ? "text-success" : "text-warning"
+            }`}
+            title={`Position count moved ${countDelta > 0 ? "+" : ""}${countDelta} since your last visit.`}
+          >
+            {countDelta > 0 ? "+" : ""}
+            {countDelta} since last visit
+          </span>
+        )}
       </div>
       <p className="mt-1 text-[11px] leading-snug text-muted">{diag.summary}</p>
     </div>
   );
 }
 
-function MetricCard({ metric }: { metric: ProgressMetric }) {
+function MetricCard({
+  metric,
+  rankDelta = null,
+}: {
+  metric: ProgressMetric;
+  /**
+   * For league_rank: negative means the user moved UP (lower rank
+   * number is better, so going from 6 → 4 is delta -2 = up arrow).
+   * Null means no prior reading.
+   */
+  rankDelta?: number | null;
+}) {
+  const hasRankDelta = rankDelta != null && rankDelta !== 0;
+  const movedUp = (rankDelta ?? 0) < 0;
   return (
     <div
       className={`rounded-md border ${METRIC_BORDER[metric.tier]} px-4 py-3`}
@@ -496,8 +662,23 @@ function MetricCard({ metric }: { metric: ProgressMetric }) {
       <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
         {metric.label}
       </div>
-      <div className={`mt-1 text-xl font-semibold ${METRIC_VALUE_COLOR[metric.tier]}`}>
-        {metric.display_value}
+      <div className="mt-1 flex items-baseline gap-2">
+        <span
+          className={`text-xl font-semibold ${METRIC_VALUE_COLOR[metric.tier]}`}
+        >
+          {metric.display_value}
+        </span>
+        {hasRankDelta && (
+          <span
+            className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
+              movedUp ? "text-success" : "text-warning"
+            }`}
+            title={`Rank moved ${movedUp ? "up" : "down"} ${Math.abs(rankDelta!)} since your last visit.`}
+          >
+            {movedUp ? "↑" : "↓"}
+            {Math.abs(rankDelta!)} since last visit
+          </span>
+        )}
       </div>
       <p className="mt-2 text-xs leading-snug text-muted">{metric.sub_line}</p>
     </div>

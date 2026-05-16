@@ -1,20 +1,22 @@
 /**
- * Lane cohort distribution chart. Per principle 0 + 3 of the redesign:
- * every quantitative claim ships with a defensible source and the
- * stats credibility is surfaced (not yelled) on the hub itself.
+ * Lane progress bars. Per founder feedback 2026-05-15: the prior
+ * histogram-with-thresholds visual asked users to read statistics
+ * ("here's the cohort, here are two dashed lines, here's where you
+ * are"). It buried the question the user was actually asking: how
+ * far am I from being IN this lane?
  *
- * Each per-lane mini-chart shows:
- *   1. Cohort histogram (accent-tinted bars) of where the 82 rosters
- *      score on this lane.
- *   2. Two dashed threshold lines: CLOSE (warning) and IN (success).
- *      Inline text labels float next to each line so the dashed color
- *      is unambiguous.
- *   3. The user's score as a purple anchor with an inline "YOU"
- *      label, so the marker is self-explanatory.
+ * Replaced with a progress-bar / XP-bar metaphor. Each lane is a
+ * single horizontal bar split into three zones:
  *
- * Per founder feedback 2026-05-15: "the huge left yellow line, the
- * green and yellow dashed ones" weren't clear without inline labels.
- * Adding inline labels + a top-of-section legend.
+ *   - 0 to CLOSE: NOT IN zone (gray)
+ *   - CLOSE to IN: CLOSE zone (yellow)
+ *   - IN to max: IN zone (green)
+ *
+ * The user's fill grows from left to right and stops at their score.
+ * The zone where the fill ends colors the fill itself, so the
+ * status (NOT IN / CLOSE / IN) reads spatially before the user
+ * reads any words. Cohort context survives as a one-line "you
+ * vs cohort median" caption per lane.
  *
  * Cohort source: `cohort-stats.ts` (82 rosters across 5 dynasty /
  * keeper leagues, baked 2026-05-08).
@@ -29,10 +31,6 @@ import {
   percentileForScore,
 } from "@/lib/strategy/lane-identity/cohort-stats";
 
-const CHART_WIDTH = 320;
-const CHART_HEIGHT = 70;
-const X_AXIS_HEIGHT = 16;
-const TOP_PAD = 14;
 const MAX_LANES_RENDERED = 4;
 
 function selectLanesToRender(
@@ -70,13 +68,14 @@ export function LaneCohortDistribution({
       <div className="flex items-baseline justify-between gap-3">
         <div>
           <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
-            Where you sit in the cohort
+            Lane progress
           </div>
           <p className="mt-1 text-sm text-muted">
-            Your lane scores plotted against {COHORT_TOTAL} dynasty / keeper
-            rosters across {COHORT_LEAGUE_COUNT} leagues. The IN and CLOSE
-            thresholds are the same ones the engine uses to read your
-            roster identity.
+            How far your roster is from each lane. The bar fills as
+            your score rises; the color of the zone you end up in
+            tells you whether you are NOT IN, CLOSE, or IN. Thresholds
+            calibrated against {COHORT_TOTAL} dynasty / keeper rosters
+            across {COHORT_LEAGUE_COUNT} leagues.
           </p>
         </div>
         <span
@@ -87,93 +86,107 @@ export function LaneCohortDistribution({
         </span>
       </div>
 
-      {/* Inline legend so the user can decode each chart without
-          guessing what the colors and dashed lines mean. */}
+      {/* Compact zone legend. Maps each zone to plain words so the
+          first read of any bar below resolves without scrolling. */}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted-2">
-        <span className="flex items-center gap-1.5">
+        <span
+          className="flex items-center gap-1.5"
+          title="Gray zone: your roster has not yet accumulated enough concentrated value to be CLOSE to this lane."
+        >
           <span
-            className="inline-block h-2 w-3 rounded-sm bg-accent/30 border border-accent/50"
+            className="inline-block h-2.5 w-4 rounded-sm bg-muted-2/30"
             aria-hidden
           />
-          <span>Cohort rosters at each score</span>
+          <span>NOT IN</span>
         </span>
-        <span className="flex items-center gap-1.5">
+        <span
+          className="flex items-center gap-1.5"
+          title="Yellow zone: one or two acquisitions away from being IN this lane. The engine reads you as 'partway in.'"
+        >
           <span
-            className="inline-block h-3 w-px bg-warning"
-            style={{ backgroundImage: "repeating-linear-gradient(to bottom, var(--warning) 0 3px, transparent 3px 5px)" }}
+            className="inline-block h-2.5 w-4 rounded-sm bg-warning/40"
             aria-hidden
           />
-          <span className="text-warning">CLOSE threshold</span>
+          <span className="text-warning">CLOSE</span>
         </span>
-        <span className="flex items-center gap-1.5">
+        <span
+          className="flex items-center gap-1.5"
+          title="Green zone: your roster fits this lane. Enough concentrated value the engine treats you as committed to this archetype."
+        >
           <span
-            className="inline-block h-3 w-px bg-success"
-            style={{ backgroundImage: "repeating-linear-gradient(to bottom, var(--success) 0 3px, transparent 3px 5px)" }}
+            className="inline-block h-2.5 w-4 rounded-sm bg-success/45"
             aria-hidden
           />
-          <span className="text-success">IN threshold</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-3 w-0.5 bg-[color:#a78bfa]"
-            aria-hidden
-          />
-          <span className="text-[color:#a78bfa]">Your score</span>
+          <span className="text-success">IN</span>
         </span>
       </div>
 
       <div className="mt-4 grid gap-5 sm:grid-cols-2">
         {lanes.map((m) => (
-          <LaneDistribution key={m.lane_id} membership={m} />
+          <LaneProgressBar key={m.lane_id} membership={m} />
         ))}
       </div>
     </section>
   );
 }
 
-function LaneDistribution({ membership }: { membership: LaneMembership }) {
+const ZONE_LABEL_PILL: Record<
+  LaneMembership["state"],
+  { label: string; cls: string }
+> = {
+  in: {
+    label: "IN",
+    cls: "border-success/60 text-success bg-success/10",
+  },
+  close: {
+    label: "CLOSE",
+    cls: "border-warning/60 text-warning bg-warning/10",
+  },
+  not_in: {
+    label: "NOT IN",
+    cls: "border-border-soft text-muted-2 bg-surface-2",
+  },
+};
+
+function LaneProgressBar({ membership }: { membership: LaneMembership }) {
   const stats = COHORT_STATS_BY_LANE[membership.lane_id];
   if (!stats) return null;
 
   const userScore = membership.aggregate_score;
   const userPct = percentileForScore(membership.lane_id, userScore);
-  const maxCount = Math.max(...stats.bins, 1);
-  const innerH = CHART_HEIGHT - TOP_PAD;
-  const binPxWidth = CHART_WIDTH / stats.bins.length;
+  // Bar domain: 0 to whichever is larger between the cohort range_max
+  // and the user's score. A user who blew past the cohort never falls
+  // off the right edge.
+  const domainMax = Math.max(stats.range_max, userScore, stats.in_threshold);
 
-  const scoreToX = (s: number): number => {
-    const clamped = Math.min(Math.max(s, 0), stats.range_max);
-    return (clamped / stats.range_max) * CHART_WIDTH;
-  };
+  const closePct = (stats.close_threshold / domainMax) * 100;
+  const inPct = (stats.in_threshold / domainMax) * 100;
+  const fillPct = Math.min(100, (userScore / domainMax) * 100);
 
-  const userInRange = userScore <= stats.range_max;
-  const userX = scoreToX(userScore);
-  const closeX = scoreToX(stats.close_threshold);
-  const inX = scoreToX(stats.in_threshold);
-
-  const stateLabel =
+  // Fill color follows the zone the user lands in. Spatial color
+  // map: gray fill = NOT IN, yellow fill = CLOSE, green fill = IN.
+  const fillTone =
     membership.state === "in"
-      ? "IN"
+      ? "bg-success"
       : membership.state === "close"
-        ? "CLOSE"
-        : "NOT IN";
-  const stateTone =
-    membership.state === "in"
-      ? "text-success"
-      : membership.state === "close"
-        ? "text-accent"
-        : "text-muted-2";
+        ? "bg-warning"
+        : "bg-muted-2";
 
-  // Position the inline labels for thresholds + user marker. When
-  // two labels would overlap, push the second one down a row so they
-  // stay readable.
-  const labelGap = 38;
-  const closeLabelX = closeX;
-  const inLabelX = inX;
-  const userLabelX = userX;
-  const closeAndInClose = Math.abs(inX - closeX) < labelGap;
-  const userNearClose = userInRange && Math.abs(userX - closeX) < labelGap;
-  const userNearIn = userInRange && Math.abs(userX - inX) < labelGap;
+  const pill = ZONE_LABEL_PILL[membership.state];
+  const distanceToNextZone =
+    membership.state === "not_in"
+      ? Math.max(0, stats.close_threshold - userScore)
+      : membership.state === "close"
+        ? Math.max(0, stats.in_threshold - userScore)
+        : null;
+  const distanceCaption =
+    membership.state === "not_in" && distanceToNextZone !== null
+      ? `${Math.round(distanceToNextZone)} score to reach CLOSE`
+      : membership.state === "close" && distanceToNextZone !== null
+        ? `${Math.round(distanceToNextZone)} score to reach IN`
+        : membership.state === "in"
+          ? `${Math.round(userScore - stats.in_threshold)} score past IN`
+          : null;
 
   return (
     <div>
@@ -181,151 +194,91 @@ function LaneDistribution({ membership }: { membership: LaneMembership }) {
         <div className="text-xs font-semibold text-foreground">
           {membership.label}
         </div>
-        <div className={`font-mono text-[9px] uppercase tracking-[0.14em] ${stateTone}`}>
-          {stateLabel}
-        </div>
-      </div>
-      <div className="mt-0.5 font-mono text-[10px] text-muted-2">
-        score {Math.round(userScore)} · {userPct}th percentile · cohort
-        median {stats.p50}
+        <span
+          className={`font-mono text-[9px] uppercase tracking-[0.14em] border rounded-sm px-1.5 py-0 ${pill.cls}`}
+        >
+          {pill.label}
+        </span>
       </div>
 
-      <svg
-        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT + X_AXIS_HEIGHT}`}
-        className="mt-2 w-full"
-        role="img"
-        aria-label={`${membership.label} cohort distribution: your score ${Math.round(userScore)} at the ${userPct}th percentile`}
-      >
-        {stats.bins.map((count, i) => {
-          const h = (count / maxCount) * innerH;
-          const x = i * binPxWidth;
-          const y = CHART_HEIGHT - h;
-          return (
-            <rect
-              key={i}
-              x={x + 0.5}
-              y={y}
-              width={Math.max(binPxWidth - 1, 1)}
-              height={h}
-              fill="var(--accent)"
-              fillOpacity={0.18}
-              stroke="var(--accent)"
-              strokeOpacity={0.35}
-              strokeWidth={0.5}
-            />
-          );
-        })}
-
-        {/* CLOSE threshold + inline label */}
-        <line
-          x1={closeX}
-          x2={closeX}
-          y1={TOP_PAD - 2}
-          y2={CHART_HEIGHT}
-          stroke="var(--warning)"
-          strokeWidth={1}
-          strokeDasharray="3 2"
-          opacity={0.75}
+      {/* Zone bar: three stacked segments with the user's fill on top. */}
+      <div className="mt-2 relative h-5 w-full overflow-hidden rounded-sm bg-surface-2">
+        {/* Zone backgrounds */}
+        <div
+          className="absolute left-0 top-0 h-full bg-muted-2/15"
+          style={{ width: `${closePct}%` }}
+          aria-hidden
         />
-        <text
-          x={closeLabelX}
-          y={TOP_PAD - 4}
-          fontSize={8}
-          fill="var(--warning)"
-          textAnchor={closeAndInClose || userNearClose ? "end" : "middle"}
-          fontFamily="ui-monospace, monospace"
-          style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}
-        >
-          close · {stats.close_threshold}
-        </text>
-
-        {/* IN threshold + inline label */}
-        <line
-          x1={inX}
-          x2={inX}
-          y1={TOP_PAD - 2}
-          y2={CHART_HEIGHT}
-          stroke="var(--success)"
-          strokeWidth={1}
-          strokeDasharray="3 2"
-          opacity={0.85}
+        <div
+          className="absolute top-0 h-full bg-warning/15"
+          style={{ left: `${closePct}%`, width: `${inPct - closePct}%` }}
+          aria-hidden
         />
-        <text
-          x={inLabelX}
-          y={TOP_PAD - 4}
-          fontSize={8}
-          fill="var(--success)"
-          textAnchor={closeAndInClose ? "start" : "middle"}
-          fontFamily="ui-monospace, monospace"
-          style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}
-        >
-          in · {stats.in_threshold}
-        </text>
+        <div
+          className="absolute top-0 h-full bg-success/15"
+          style={{ left: `${inPct}%`, width: `${100 - inPct}%` }}
+          aria-hidden
+        />
 
-        {/* User marker + inline "YOU" label */}
-        {userInRange && (
+        {/* User fill: solid bar from 0 to user's score, tone matches zone. */}
+        <div
+          className={`absolute left-0 top-0 h-full ${fillTone}`}
+          style={{ width: `${fillPct}%`, opacity: 0.65 }}
+          aria-hidden
+        />
+
+        {/* Threshold gate ticks. Small vertical bars on the bar itself
+            so the boundary between zones reads as a literal gate. */}
+        <div
+          className="absolute top-0 h-full w-px bg-warning"
+          style={{ left: `${closePct}%` }}
+          aria-hidden
+        />
+        <div
+          className="absolute top-0 h-full w-px bg-success"
+          style={{ left: `${inPct}%` }}
+          aria-hidden
+        />
+
+        {/* User marker tick on top of fill. */}
+        <div
+          className="absolute top-0 h-full w-0.5 bg-[color:#a78bfa]"
+          style={{ left: `${fillPct}%` }}
+          aria-hidden
+        />
+      </div>
+
+      {/* Threshold scale row below the bar. Positions match the
+          dashed lines inside the bar so the gates are labeled. */}
+      <div className="relative mt-1 h-3 text-[9px] font-mono text-muted-2">
+        <span
+          className="absolute -translate-x-1/2 text-warning"
+          style={{ left: `${closePct}%` }}
+        >
+          CLOSE {Math.round(stats.close_threshold)}
+        </span>
+        <span
+          className="absolute -translate-x-1/2 text-success"
+          style={{ left: `${inPct}%` }}
+        >
+          IN {Math.round(stats.in_threshold)}
+        </span>
+      </div>
+
+      {/* Score + cohort + next-zone caption. */}
+      <div className="mt-3 font-mono text-[10px] leading-snug text-muted-2">
+        <span className="text-[color:#a78bfa]">
+          your score {Math.round(userScore)}
+        </span>
+        {" · "}
+        <span>{userPct}th percentile of cohort</span>
+        {distanceCaption && (
           <>
-            <line
-              x1={userX}
-              x2={userX}
-              y1={TOP_PAD - 6}
-              y2={CHART_HEIGHT}
-              stroke="#a78bfa"
-              strokeWidth={2}
-            />
-            <circle cx={userX} cy={TOP_PAD - 6} r={3.5} fill="#a78bfa" />
-            <text
-              x={userLabelX}
-              y={CHART_HEIGHT + X_AXIS_HEIGHT - 3}
-              fontSize={9}
-              fill="#a78bfa"
-              textAnchor={
-                userNearClose || userNearIn
-                  ? userX < CHART_WIDTH / 2
-                    ? "start"
-                    : "end"
-                  : "middle"
-              }
-              fontFamily="ui-monospace, monospace"
-              fontWeight={600}
-              style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}
-            >
-              you · {Math.round(userScore)}
-            </text>
+            {" · "}
+            <span className="text-foreground">{distanceCaption}</span>
           </>
         )}
-
-        <line
-          x1={0}
-          x2={CHART_WIDTH}
-          y1={CHART_HEIGHT}
-          y2={CHART_HEIGHT}
-          stroke="var(--border-soft)"
-          strokeWidth={0.5}
-        />
-
-        {!userInRange && (
-          <text
-            x={0}
-            y={CHART_HEIGHT + X_AXIS_HEIGHT - 3}
-            fontSize={8}
-            fill="var(--muted-2)"
-            fontFamily="ui-monospace, monospace"
-          >
-            0
-          </text>
-        )}
-        <text
-          x={CHART_WIDTH}
-          y={CHART_HEIGHT + X_AXIS_HEIGHT - 3}
-          fontSize={8}
-          textAnchor="end"
-          fill="var(--muted-2)"
-          fontFamily="ui-monospace, monospace"
-        >
-          {Math.round(stats.range_max)}
-        </text>
-      </svg>
+      </div>
     </div>
   );
 }

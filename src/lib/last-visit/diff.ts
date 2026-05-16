@@ -26,6 +26,16 @@ export type LastVisitDelta = {
   // Delta on EV bank total since last visit. Positive = banked more
   // value. Null when EV bank wasn't resolved at one or both points.
   ev_bank_delta: number | null;
+  // Per-position roster-count delta since last visit. Positive when
+  // the user added a player at that position between visits. Powers
+  // the within-surface delta marker on PositionCard. Empty when the
+  // prior fingerprint did not carry per-position counts.
+  position_count_deltas: Partial<Record<string, number>>;
+  // League rank delta. Negative means the user moved UP in rank
+  // (lower rank number = better). Null when either the prior or
+  // current rank is unknown. Powers the rank-delta marker on the
+  // league-rank MetricCard.
+  league_rank_delta: number | null;
   // Whether the digest is meaningful (any of the above moved). If
   // false, the Bridge can suppress the digest line.
   has_changes: boolean;
@@ -39,6 +49,8 @@ export function computeLastVisitDelta(args: {
     standing_call_id: string | null;
     ev_bank_total: number | null;
     my_roster_size: number;
+    my_position_counts?: Partial<Record<string, number>>;
+    my_league_rank?: number | null;
   };
 }): LastVisitDelta {
   const { prior, now } = args;
@@ -50,6 +62,8 @@ export function computeLastVisitDelta(args: {
       picks_made_by_user: 0,
       standing_call_changed: false,
       ev_bank_delta: null,
+      position_count_deltas: {},
+      league_rank_delta: null,
       has_changes: false,
     };
   }
@@ -73,10 +87,29 @@ export function computeLastVisitDelta(args: {
     prior.ev_bank_total != null && now.ev_bank_total != null
       ? round2(now.ev_bank_total - prior.ev_bank_total)
       : null;
+  const position_count_deltas: Partial<Record<string, number>> = {};
+  if (prior.my_position_counts && now.my_position_counts) {
+    const positions = new Set([
+      ...Object.keys(prior.my_position_counts),
+      ...Object.keys(now.my_position_counts),
+    ]);
+    for (const pos of positions) {
+      const a = prior.my_position_counts[pos] ?? 0;
+      const b = now.my_position_counts[pos] ?? 0;
+      const d = b - a;
+      if (d !== 0) position_count_deltas[pos] = d;
+    }
+  }
+  const league_rank_delta =
+    prior.my_league_rank != null && now.my_league_rank != null
+      ? now.my_league_rank - prior.my_league_rank
+      : null;
   const has_changes =
     picks_made_total > 0 ||
     standing_call_changed ||
-    (ev_bank_delta != null && Math.abs(ev_bank_delta) >= 0.5);
+    (ev_bank_delta != null && Math.abs(ev_bank_delta) >= 0.5) ||
+    Object.keys(position_count_deltas).length > 0 ||
+    (league_rank_delta != null && league_rank_delta !== 0);
   return {
     ms_since_last_visit,
     is_first_visit: false,
@@ -84,6 +117,8 @@ export function computeLastVisitDelta(args: {
     picks_made_by_user,
     standing_call_changed,
     ev_bank_delta,
+    position_count_deltas,
+    league_rank_delta,
     has_changes,
   };
 }

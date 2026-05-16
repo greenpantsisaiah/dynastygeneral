@@ -71,6 +71,15 @@ export type ProgressMetric = {
   sub_line: string;
   tier: ProgressTier;
   ungraded?: boolean;
+  /**
+   * Optional numeric value behind the display_value string. Powers
+   * within-surface delta marks: the hub captures it in the
+   * last-visit fingerprint and the next render can diff against
+   * the new numeric value to show "↑2 since last visit". For
+   * league_rank this is the integer rank; for best_value it would
+   * be the EV number. Null when ungraded.
+   */
+  numeric_value?: number | null;
 };
 
 export type DraftProgress = {

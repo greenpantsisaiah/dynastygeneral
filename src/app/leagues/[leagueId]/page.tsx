@@ -980,6 +980,8 @@ export default async function LeagueHubPage({
   let lastVisitStandingCallChanged = false;
   let lastVisitEvBankDelta: number | null = null;
   let lastVisitHasSnipes = false;
+  let lastVisitPositionCountDeltas: Partial<Record<string, number>> = {};
+  let lastVisitLeagueRankDelta: number | null = null;
   let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
@@ -1196,6 +1198,9 @@ export default async function LeagueHubPage({
             standing_call_id: decision?.recommendation.player_id ?? null,
             ev_bank_total: draftProgress?.ev_bank?.total_ev ?? null,
             my_roster_size: myRoster?.player_ids.length ?? 0,
+            my_position_counts: myRoster?.position_counts ?? undefined,
+            my_league_rank:
+              draftProgress?.league_rank.numeric_value ?? null,
           },
         });
         lastVisitDigestLine = composeDigestLine(delta);
@@ -1203,6 +1208,8 @@ export default async function LeagueHubPage({
         lastVisitPicksMadeByUser = delta.picks_made_by_user;
         lastVisitStandingCallChanged = delta.standing_call_changed;
         lastVisitEvBankDelta = delta.ev_bank_delta;
+        lastVisitPositionCountDeltas = delta.position_count_deltas;
+        lastVisitLeagueRankDelta = delta.league_rank_delta;
         priorLaneStates = prior?.lane_states ?? {};
         const disruption = detectPlanDisruption({
           prior,
@@ -1720,6 +1727,11 @@ export default async function LeagueHubPage({
                     my_roster_size:
                       leagueSnapshot.rosters.find((r) => r.is_me)?.player_ids
                         .length ?? 0,
+                    my_position_counts:
+                      leagueSnapshot.rosters.find((r) => r.is_me)
+                        ?.position_counts ?? undefined,
+                    my_league_rank:
+                      draftProgress?.league_rank.numeric_value ?? null,
                     plan_player_ids: buildPlanPlayerIds({
                       recommendation_id:
                         decision?.recommendation.player_id ?? null,
@@ -1886,6 +1898,9 @@ export default async function LeagueHubPage({
                       data={draftProgress}
                       leagueBank={leagueEvBank}
                       evBankDelta={lastVisitEvBankDelta}
+                      positionCountDeltas={lastVisitPositionCountDeltas}
+                      leagueRankDelta={lastVisitLeagueRankDelta}
+                      leagueName={league?.name ?? null}
                     />
                   )}
                 </DashboardSection>

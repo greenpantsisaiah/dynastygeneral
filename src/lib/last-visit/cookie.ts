@@ -55,6 +55,15 @@ export type LastVisitFingerprint = {
   // field are treated as no-prior-state and render no transition
   // markers.
   lane_states?: Record<string, "in" | "close" | "not_in">;
+  // Per-position counts on the user's roster at last render. Powers
+  // the within-surface delta marker on each PositionCard
+  // (e.g. "RB 4/3 (+1 since last visit)"). Optional; older cookies
+  // without this field render no per-position delta.
+  my_position_counts?: Partial<Record<string, number>>;
+  // The user's league rank at last render. Powers the rank delta
+  // marker on the league-rank MetricCard ("rank 4 ↑2 since last
+  // visit"). Optional; older cookies render no rank delta.
+  my_league_rank?: number | null;
 };
 
 function cookieNameFor(leagueId: string): string {

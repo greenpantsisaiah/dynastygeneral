@@ -307,6 +307,7 @@ function computeLeagueRankMetric(args: {
     display_value: `${myRank} of ${totalTeams}`,
     sub_line: sub,
     tier,
+    numeric_value: myRank,
   };
 }
 
