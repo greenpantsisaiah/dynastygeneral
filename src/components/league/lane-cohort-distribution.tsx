@@ -55,6 +55,89 @@ function selectLanesToRender(
     .slice(0, MAX_LANES_RENDERED);
 }
 
+/**
+ * Read the user's overall build-fit shape and produce a one-paragraph
+ * synthesis. The chart's bars by themselves read as a grade
+ * ("4x NO FIT means my team sucks") even when the user is solidly
+ * mid-pack to above-median on percentile. The synthesis names the
+ * SHAPE of the roster and contextualizes the calibration cohort so
+ * NO FIT cannot be misread as a verdict.
+ *
+ * Founder report 2026-05-16: "Does this just say 'your team sucks at
+ * everything' or is there more to it?" There is more. This paragraph
+ * is the more.
+ */
+function composeBuildFitSynthesis(memberships: LaneMembership[]): {
+  headline: string;
+  body: string;
+} {
+  const baseLanes = memberships.filter((m) => m.axis !== "composite");
+  const fits = baseLanes.filter((m) => m.state === "in");
+  const partials = baseLanes.filter((m) => m.state === "close");
+
+  if (fits.length > 0) {
+    const fitNames = fits.map((m) => m.label).join(", ");
+    const partialClause =
+      partials.length > 0
+        ? ` Partway into ${partials.length} more (${partials.map((m) => m.label).join(", ")}).`
+        : "";
+    return {
+      headline: `Your roster fits ${fits.length} build${fits.length === 1 ? "" : "s"}.`,
+      body: `Strong fits: ${fitNames}.${partialClause}`,
+    };
+  }
+
+  if (partials.length > 0) {
+    const partialNames = partials.map((m) => m.label).join(", ");
+    return {
+      headline: `Your roster is partway into ${partials.length} build${partials.length === 1 ? "" : "s"}.`,
+      body: `Partial fits: ${partialNames}. One or two targeted acquisitions could push you over into a strong fit.`,
+    };
+  }
+
+  // All NO FIT. Characterize the shape from percentile data rather
+  // than letting the pill repetition tell the user they are bad.
+  const scored = baseLanes
+    .map((m) => ({
+      m,
+      pct: percentileForScore(m.lane_id, m.aggregate_score),
+    }))
+    .filter((x) => x.m.aggregate_score > 0);
+
+  if (scored.length === 0) {
+    return {
+      headline: "Roster builds not yet evaluable.",
+      body: "Not enough resolved value on the roster to score against the cohort yet.",
+    };
+  }
+
+  const avgPct =
+    scored.reduce((s, x) => s + x.pct, 0) / scored.length;
+  const strongest = scored.reduce((best, x) =>
+    x.pct > best.pct ? x : best,
+  );
+  const aboveMedian = scored.filter((x) => x.pct >= 50).length;
+
+  if (avgPct >= 50) {
+    return {
+      headline: "Your roster is diffuse, not concentrated.",
+      body: `Your value spreads across multiple builds rather than stacking into one. Strongest profile is ${strongest.m.label} at the ${strongest.pct}th percentile of the cohort; ${aboveMedian} of ${scored.length} builds shown sit above cohort median. NO FIT here is not a grade. The fit thresholds are calibrated against fresh-startup cohorts where managers actively concentrate into archetypes; in-season rosters that traded value across positions normally read this way.`,
+    };
+  }
+
+  if (avgPct >= 30) {
+    return {
+      headline: "Mid-pack roster shape.",
+      body: `Your strongest profile is ${strongest.m.label} at the ${strongest.pct}th percentile. The other builds sit near cohort median or just below. Fit thresholds are calibrated against fresh-startup rosters that concentrate into archetypes; in-season rosters with spread value normally read this way without flagging a fit.`,
+    };
+  }
+
+  return {
+    headline: "Roster sits below the calibration band.",
+    body: `Strongest profile is ${strongest.m.label} at the ${strongest.pct}th percentile of the cohort. The calibration cohort skews startup-builder concentration; in-season rosters in active rebuild often read below the band until value consolidates.`,
+  };
+}
+
 export function LaneCohortDistribution({
   memberships,
 }: {
@@ -62,6 +145,7 @@ export function LaneCohortDistribution({
 }) {
   const lanes = selectLanesToRender(memberships);
   if (lanes.length === 0) return null;
+  const synthesis = composeBuildFitSynthesis(memberships);
 
   return (
     <section className="mt-6 rounded-lg border border-border-soft bg-surface px-4 py-4">
@@ -71,10 +155,10 @@ export function LaneCohortDistribution({
             Build fit
           </div>
           <p className="mt-1 text-sm text-muted">
-            How well your roster matches each build pattern. The bar
-            fills as the fit strengthens; the color of the zone you
-            end up in tells you whether you have NO FIT, a PARTIAL
-            fit, or a STRONG fit. Fit thresholds calibrated against{" "}
+            How your roster's value distribution compares to each
+            build pattern. Bars fill as the fit strengthens; the zone
+            color tells you whether you have NO FIT, a PARTIAL fit,
+            or a STRONG fit. Thresholds calibrated against{" "}
             {COHORT_TOTAL} dynasty / keeper rosters across{" "}
             {COHORT_LEAGUE_COUNT} leagues.
           </p>
@@ -85,6 +169,21 @@ export function LaneCohortDistribution({
         >
           n = {COHORT_TOTAL} · {COHORT_GENERATED_AT}
         </span>
+      </div>
+
+      {/* Shape synthesis. Reads the percentile data and tells the
+          user what their overall build-fit pattern means, so the
+          NO FIT pills below can't be misread as a grade. */}
+      <div className="mt-3 rounded-md border border-accent/40 bg-accent/5 px-4 py-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          Reading your shape
+        </div>
+        <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
+          {synthesis.headline}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          {synthesis.body}
+        </p>
       </div>
 
       {/* Compact zone legend. Maps each zone to plain words so the
