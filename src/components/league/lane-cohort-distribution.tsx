@@ -83,7 +83,9 @@ function composeBuildFitSynthesis(memberships: LaneMembership[]): {
         : "";
     return {
       headline: `Your roster fits ${fits.length} build${fits.length === 1 ? "" : "s"}.`,
-      body: `Strong fits: ${fitNames}.${partialClause}`,
+      body:
+        `Strong fits: ${fitNames}.${partialClause}\n\n` +
+        `What to do with this. The builds you fit name your trade leverage. Opponents who need pieces at those builds' signature positions are your best deal partners. Coach can route specific trade angles around these fits.`,
     };
   }
 
@@ -91,7 +93,9 @@ function composeBuildFitSynthesis(memberships: LaneMembership[]): {
     const partialNames = partials.map((m) => m.label).join(", ");
     return {
       headline: `Your roster is partway into ${partials.length} build${partials.length === 1 ? "" : "s"}.`,
-      body: `Partial fits: ${partialNames}. One or two targeted acquisitions could push you over into a strong fit.`,
+      body:
+        `Partial fits: ${partialNames}. One or two targeted acquisitions could push you over into a strong fit.\n\n` +
+        `What to do with this. Decide if you want to commit to one of these patterns. The Roster Identity panel above lists the specific players to target and the surplus pieces on your roster that could fund the deal.`,
     };
   }
 
@@ -118,23 +122,38 @@ function composeBuildFitSynthesis(memberships: LaneMembership[]): {
   );
   const aboveMedian = scored.filter((x) => x.pct >= 50).length;
 
+  // Common closing paragraph for the all-NO-FIT cases: tell the user
+  // what this panel is FOR. Without this the user reads four NO FIT
+  // pills and the takeaway is "my team sucks" instead of "here is
+  // the decision this panel supports."
+  const action =
+    `What to do with this. Your roster has the most ammunition for ${strongest.m.label} (${strongest.m.blurb.toLowerCase()}). ` +
+    `If you want to commit to a single archetype, lean toward that one in trades and waivers. ` +
+    `If you'd rather stay diffuse and play matchups, your trade strategy is to add starters at thin positions without forcing one shape.`;
+
   if (avgPct >= 50) {
     return {
       headline: "Your roster is diffuse, not concentrated.",
-      body: `Your value spreads across multiple builds rather than stacking into one. Strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters; ${aboveMedian} of ${scored.length} builds shown sit above the benchmark median. NO FIT here is not a grade. The thresholds are set from fresh-startup rosters that concentrate into single archetypes; in-season rosters that traded value across positions normally read this way.`,
+      body:
+        `Your value spreads across multiple builds rather than stacking into one. Strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters; ${aboveMedian} of ${scored.length} builds shown sit above the benchmark median. NO FIT here is not a grade. The thresholds are set from fresh-startup rosters that concentrate into single archetypes; in-season rosters that traded value across positions normally read this way.\n\n` +
+        action,
     };
   }
 
   if (avgPct >= 30) {
     return {
       headline: "Mid-pack roster shape.",
-      body: `Your strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters. The other builds land near the benchmark median or just below. Thresholds are set from fresh-startup rosters that concentrate into archetypes; in-season rosters with spread value normally read this way without flagging a fit.`,
+      body:
+        `Your strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters. The other builds land near the benchmark median or just below. Thresholds are set from fresh-startup rosters that concentrate into archetypes; in-season rosters with spread value normally read this way without flagging a fit.\n\n` +
+        action,
     };
   }
 
   return {
     headline: "Roster sits below the benchmark band.",
-    body: `Strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters. The benchmark set skews startup-builder concentration; in-season rosters in active rebuild often read below the band until value consolidates.`,
+    body:
+      `Strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters. The benchmark set skews startup-builder concentration; in-season rosters in active rebuild often read below the band until value consolidates.\n\n` +
+      action,
   };
 }
 
@@ -178,7 +197,9 @@ export function LaneCohortDistribution({
 
       {/* Shape synthesis. Reads the percentile data and tells the
           user what their overall build-fit pattern means, so the
-          NO FIT pills below can't be misread as a grade. */}
+          NO FIT pills below can't be misread as a grade. The
+          closing paragraph names the decision this panel supports
+          (lean in vs stay diffuse). */}
       <div className="mt-3 rounded-md border border-accent/40 bg-accent/5 px-4 py-3">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
           Reading your shape
@@ -186,9 +207,18 @@ export function LaneCohortDistribution({
         <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
           {synthesis.headline}
         </p>
-        <p className="mt-1 text-xs leading-relaxed text-muted">
-          {synthesis.body}
-        </p>
+        {synthesis.body.split("\n\n").map((para, i) => (
+          <p
+            key={i}
+            className={`mt-${i === 0 ? "1" : "2"} text-xs leading-relaxed ${
+              para.startsWith("What to do with this")
+                ? "text-foreground"
+                : "text-muted"
+            }`}
+          >
+            {para}
+          </p>
+        ))}
       </div>
 
       {/* Compact zone legend. Maps each zone to plain words so the
@@ -227,8 +257,12 @@ export function LaneCohortDistribution({
       </div>
 
       <div className="mt-4 grid gap-5 sm:grid-cols-2">
-        {lanes.map((m) => (
-          <LaneProgressBar key={m.lane_id} membership={m} />
+        {lanes.map((m, idx) => (
+          <LaneProgressBar
+            key={m.lane_id}
+            membership={m}
+            isClosestMatch={idx === 0 && m.state === "not_in"}
+          />
         ))}
       </div>
     </section>
@@ -253,7 +287,20 @@ const ZONE_LABEL_PILL: Record<
   },
 };
 
-function LaneProgressBar({ membership }: { membership: LaneMembership }) {
+function LaneProgressBar({
+  membership,
+  isClosestMatch = false,
+}: {
+  membership: LaneMembership;
+  /**
+   * When true, this bar is the user's strongest match (highest
+   * benchmark percentile among NO-FIT lanes). Renders a "CLOSEST
+   * MATCH" tag next to the build name + an "if you wanted to
+   * commit" line under the bar so the user has one concrete path
+   * to read.
+   */
+  isClosestMatch?: boolean;
+}) {
   const stats = COHORT_STATS_BY_LANE[membership.lane_id];
   if (!stats) return null;
 
@@ -296,8 +343,18 @@ function LaneProgressBar({ membership }: { membership: LaneMembership }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <div className="text-xs font-semibold text-foreground">
-          {membership.label}
+        <div className="flex items-baseline gap-2">
+          <div className="text-xs font-semibold text-foreground">
+            {membership.label}
+          </div>
+          {isClosestMatch && (
+            <span
+              className="font-mono text-[9px] uppercase tracking-[0.16em] text-[color:#a78bfa]"
+              title="The build pattern your roster has the most ammunition for. If you wanted to commit to a single archetype, this is the closest path."
+            >
+              ◂ closest match
+            </span>
+          )}
         </div>
         <span
           className={`font-mono text-[9px] uppercase tracking-[0.14em] border rounded-sm px-1.5 py-0 ${pill.cls}`}
@@ -393,6 +450,13 @@ function LaneProgressBar({ membership }: { membership: LaneMembership }) {
           </>
         )}
       </div>
+      {isClosestMatch && (
+        <p className="mt-1 text-[11px] leading-snug text-[color:#a78bfa]">
+          If you wanted to commit to one archetype, this is your
+          closest path. The build description above names what your
+          roster would need to consolidate toward.
+        </p>
+      )}
     </div>
   );
 }
