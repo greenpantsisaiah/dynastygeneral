@@ -249,15 +249,20 @@ selection lives in the hub render and uses
   with a real interpretation headline. NOT rendered on the hub.
 - PlaysFromHere, LiveStrategyBoard, DraftJournal: deprecated.
 
-## What's shipped vs. drifted vs. missing (audit, last updated 2026-05-08)
+## What's shipped vs. drifted vs. missing (audit, last updated 2026-05-15)
 
 ### Shipped + working
 - Voice A locked + BRAND_VOICE.md
-- Sloan-mode infrastructure (cookie, hook, toggle on The Call,
-  Coach register switch)
-- Last-visit fingerprint write-side
+- Last-visit fingerprint write-side (cookie) + read-side digest
+  rendering (`LastVisitDigest` at the top of the hub)
+- Plan-disruption acknowledgment (rendered inside `LastVisitDigest`
+  when a planned target was sniped between visits)
+- EV bank percentile chip at the top of the hub
+  (`EvBankPercentileChip`); the at-a-glance "where do I rank" read
+  Principle 8 calls for, above the fold
 - Stage-adaptation function (`selectSurfaceLayout`)
-- Comparator team narrative data layer (12 cases passing)
+- Comparator team narrative rendered inline in Team Identity panel
+  (`team-identity-panel.tsx`)
 - League EV bank data layer (`analyzeLeagueEvBank`)
 - What-if counterfactual data layer (`computeWhatIfReadout`)
 - Plan-disruption detection (data layer)
@@ -273,7 +278,7 @@ selection lives in the hub render and uses
   footer with dynastygeneral.app footnote)
 - Coach payload self-consistency (Swift fix)
 - Coach context: league_read, inflections, opponent_trade_history,
-  opponent_notes plumbed
+  opponent_notes, opponents[i].roster (named) plumbed
 - Counterparty-stated-plans schema (migration 0012, API route,
   storage helpers)
 - Dashboard sections: Pre-draft prep, How you're doing, Your team,
@@ -284,47 +289,68 @@ selection lives in the hub render and uses
 - LeagueOutlook + SwotCard + LeagueDivergence + LeagueTable +
   OpponentCharacterizations + SamePathThreatsCard restored to
   The League section
+- Rankings Lab: 7 wired dials + global vs. per-league override
+  routing with inline "Saving to: ..." indicator and per-dial
+  "Global: +N" annotation
+- League doctrines override cascade (migration 0013) +
+  resolveEffectiveDials canonical resolver consumed by both /rankings
+  and Coach
+- Per-section change dots (Principle 11): `DashboardSection` carries
+  `hasChanges` + `changeHint`; "How you're doing", "Your team", and
+  "The league" all light up when their underlying data moved since
+  last visit, with hover hint naming the change
+- Per-row "Why" panel on /rankings + standing-call dial-influence
+  chip on The Call. `computeWhyBreakdown` is the canonical helper;
+  the chip carries a "See full breakdown →" deep link that lands on
+  the expanded /rankings row via `?player=X`. Echoes the inflection
+  panel's signal-scorecard register
+- Within-surface delta marks: `PositionCard` shows "+N since last
+  visit" when a position count moved; `MetricCard` shows "↑N since
+  last visit" on league rank when it changed. Cookie fingerprint
+  carries `my_position_counts` + `my_league_rank` (optional fields,
+  older cookies degrade gracefully)
+- EV bank rank screenshot artifact: `/share/ev-bank` shareable page
+  with proper OpenGraph + a sibling `opengraph-image.tsx` that
+  renders a 1200×630 PNG. Share button on the EV bank section
+  uses Web Share API with clipboard fallback. Stateless: card data
+  lives in the URL's query string. Every shared image carries the
+  dynastygeneral.app footnote
+- EV bank prominence inside DraftProgressPanel: hoisted to lead the
+  panel above position_diagnostic so the user reads the headline
+  number first
+- Public standings table tier labels: switched to relative rank
+  tiers (`tierForLeagueRank`) so compressed leagues no longer
+  label 9 of 10 rosters "Contender". Both the in-app and public
+  surfaces consume the same canonical labeler
 
-### Drifted from the principle (data exists, rendering missing)
+### Retired (was listed; intentionally removed)
+- **Sloan-mode register switch.** Retired 2026-05-12 in favor of
+  always-on Sloan density. The toggle + cookie + register switch
+  on The Call + Coach register fork were deleted. Any future
+  "casual lite" mode is a fresh decision, not a revival.
 
-- **Principle 11 last-visit "Since [time]: ..." digest line.** Data
-  is computed; cookie is written. NO UI surface renders the digest
-  on the hub. Need to render at the top of the hub above the first
-  section.
-- **Principle 11 plan-disruption acknowledgment.** Data is computed
-  (`detectPlanDisruption`). NO UI surface renders the
-  acknowledgment band when a planned target gets sniped between
-  visits.
-- **Principle 11 per-section change dots.** Not implemented. Each
-  section header should carry a small dot when underlying data has
-  changed since last visit.
+### Drifted from the principle (genuinely open, ranked by leverage)
+
 - **Principle 11 within-surface delta marks.** Not implemented.
-- **Principle 8 EV bank percentile chip in the Bridge / hub
-  header.** No Bridge yet; no chip yet. The user wanted at-a-glance
-  EV bank context BEFORE scrolling to "How you're doing."
+  Small "+2" / "▲" markers next to numbers that moved (position
+  counts, league rank, EV bank total, opponent position rooms).
+  Requires a per-number diff source; cookie fingerprint covers
+  total picks + standing call + EV bank but not position counts
+  or league rank deltas. Either widen the fingerprint or render
+  only the deltas the cookie already supports.
 - **Principle 7 visual rendering of underlying question.** Coach
-  rule shipped; UI surface (a small "underneath:" line above the
-  answer) not implemented.
-- **Principle 9 comparator team narrative rendering.** Data layer
-  shipped (12 test cases). The redesigned Team Identity panel is
-  expected to render the comparator inline; verify it does. If
-  not, render it.
+  system-prompt rule shipped; UI surface (a small "underneath: ..."
+  line above the answer in Coach replies) not implemented.
 - **Principle 9 EV bank rank screenshot artifact.** No dedicated
-  shareable card / OG image generator.
+  shareable card / OG-image generator for a "3rd of 12 in EV
+  banked" moment. Would touch the OG-image route plus a client
+  share button on the EV bank section.
 - **Principle 3 statistical-claims chart on the hub.** No hub-
-  visible chart that surfaces a methodology claim with annotation.
-  The Library has the long-form articles; the HUB has nothing
-  that says "here's the bold statistical claim, here's the chart
-  that proves it."
-- **Principle 5 + 6 Sloan mode beyond The Call.** Toggle exists
-  but only The Call switches register. The rest of the page does
-  not honor Sloan mode.
-- **Visual hierarchy: EV bank prominence.** The EV bank is buried
-  inside DraftProgressPanel which has many other panels above it
-  (position diagnostic, watch the board, secondary metrics, sharp
-  positioning, wins/gaps). The user has named this directly: "I
-  can't even locate EV on the page." It needs to lead the section
-  or get its own section.
+  visible chart that surfaces a bold methodology claim with
+  annotated provenance. The Library has the long-form articles;
+  the HUB has nothing that says "here's the claim, here's the
+  chart that proves it." Candidate claims: age curves, bellcow
+  workload bimodality, KTC-vs-FantasyCalc divergence.
 
 ### Parked (not built; reserved for future)
 
@@ -334,12 +360,9 @@ selection lives in the hub render and uses
   opponent dossier
 - Counterparty-stated-plans UI control (the schema is shipped; no
   client UI to add notes from inside the product)
-- Plan-disruption acknowledgment band visual + transition
-  animation
 - "Argue with the mixer" / Soundboard adversarial feedback
   (parked until engine wiring lands)
 - Player-trade visual breakdown by position
-- Sloan-mode register applied to all sections (not just The Call)
 
 ### Specific founder feedback log (chronological)
 
@@ -357,7 +380,9 @@ selection lives in the hub render and uses
 | 2026-05-08 | Counterintuitive value (Tyson 47 picks past ADP) needs language | New disclaimer trigger when standing call has fallen 15+ picks past ADP |
 | 2026-05-08 | "Your ADP and the ADP I'm used to seeing are different planets" | Surface every ADP variant on candidate cards via tap-to-reveal; Coach context includes adp_alternatives; system_prompt rule mandates variant + cross-reference |
 | 2026-05-08 | Forgot a ton of stuff in the rebuild | Brought back OpponentCharacterizations + SamePathThreatsCard + LeagueOutlook + SwotCard + LeagueDivergence + LeagueTable + BriefingFeed |
-| 2026-05-08 | Lanes is still here / can't locate EV | PENDING (this audit) |
+| 2026-05-08 | Lanes is still here / can't locate EV | Partially resolved: EvBankPercentileChip at top of hub gives at-a-glance read; inside DraftProgressPanel the bank still renders after position_diagnostic (open) |
+| 2026-05-15 | "Bring up the parked items"; audit was stale | Audit refresh sweep: confirmed LastVisitDigest, plan-disruption ack, EV percentile chip, comparator narrative all shipped; Sloan-mode toggle moved to retired bucket; genuinely-open work ranked by leverage |
+| 2026-05-15 | "I can't even locate EV on the page" | Hoisted EvBankSection to lead DraftProgressPanel, directly after the headline. Position diagnostic + rest now follow as supporting cast |
 
 ## Strategic Lanes (THE active-draft hero, locked 2026-05-08 PM)
 
