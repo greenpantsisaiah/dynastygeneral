@@ -16,6 +16,7 @@ import { z } from "zod";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { getOptionalUser } from "@/lib/auth/session";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { sendFeedbackNotification } from "@/lib/email/feedback-notify";
 
 export const runtime = "nodejs";
 
@@ -75,13 +76,42 @@ export async function POST(req: Request) {
   const user = await getOptionalUser();
   try {
     const admin = getAdminClient();
-    await admin.from("feedback").insert({
-      user_id: user?.id ?? null,
+    const { data: inserted, error: insertError } = await admin
+      .from("feedback")
+      .insert({
+        user_id: user?.id ?? null,
+        rating: parsed.data.rating ?? null,
+        message: parsed.data.message,
+        page_url: parsed.data.page_url ?? null,
+        contact_email: parsed.data.contact_email ?? null,
+      })
+      .select("id, created_at")
+      .single();
+    if (insertError) throw insertError;
+
+    // Fire-and-forget notification email. The DB insert succeeded;
+    // notification failure must not turn a 200 into a 500. Logs failures
+    // so we can see misconfigured env in Vercel logs.
+    const appUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ?? "https://dynastygeneral.app";
+    void sendFeedbackNotification({
       rating: parsed.data.rating ?? null,
       message: parsed.data.message,
-      page_url: parsed.data.page_url ?? null,
-      contact_email: parsed.data.contact_email ?? null,
+      pageUrl: parsed.data.page_url ?? null,
+      contactEmail: parsed.data.contact_email ?? null,
+      submitterEmail: user?.email ?? null,
+      submitterUserId: user?.id ?? null,
+      feedbackId: (inserted?.id as string | undefined) ?? "",
+      createdAtIso:
+        (inserted?.created_at as string | undefined) ??
+        new Date().toISOString(),
+      appUrl,
+    }).then((res) => {
+      if (!res.ok) {
+        console.error("[feedback:notify]", res.reason);
+      }
     });
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[feedback]", err);
