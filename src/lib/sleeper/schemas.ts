@@ -104,6 +104,28 @@ export const sleeperTransactionSchema = z
   .passthrough();
 export type SleeperTransaction = z.infer<typeof sleeperTransactionSchema>;
 
+/**
+ * Sleeper winners-bracket entry. Each entry is one playoff match.
+ * The championship match is the one with the highest `r` (round)
+ * and `p === 1` (place). The winner roster_id is in `w`.
+ *
+ * Permissive: Sleeper has many sparsely-populated fields here and the
+ * exact shape varies by league. Only `r` and (after completion) `w`
+ * are needed for championship detection.
+ */
+export const sleeperBracketEntrySchema = z
+  .object({
+    r: z.number().nullable().optional(),
+    m: z.number().nullable().optional(),
+    t1: z.number().nullable().optional(),
+    t2: z.number().nullable().optional(),
+    w: z.number().nullable().optional(),
+    l: z.number().nullable().optional(),
+    p: z.number().nullable().optional(),
+  })
+  .passthrough();
+export type SleeperBracketEntry = z.infer<typeof sleeperBracketEntrySchema>;
+
 export const sleeperTradedPickSchema = z
   .object({
     season: z.string(),

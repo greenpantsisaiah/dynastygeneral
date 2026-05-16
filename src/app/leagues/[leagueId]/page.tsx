@@ -102,6 +102,11 @@ import {
 } from "@/lib/strategy/team-identity";
 import { RosterLaneIdentity } from "@/components/league/roster-lane-identity";
 import { LaneCohortDistribution } from "@/components/league/lane-cohort-distribution";
+import { PostureBanner } from "@/components/league/posture-banner";
+import { FuturePickCabinet } from "@/components/league/future-pick-cabinet";
+import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
+import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
+import type { RosterPosture } from "@/lib/strategy/posture/types";
 import {
   aggregateRosterIdentity,
   identityMoves,
@@ -982,6 +987,7 @@ export default async function LeagueHubPage({
   let lastVisitHasSnipes = false;
   let lastVisitPositionCountDeltas: Partial<Record<string, number>> = {};
   let lastVisitLeagueRankDelta: number | null = null;
+  let rosterPosture: RosterPosture | null = null;
   let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
@@ -1089,6 +1095,39 @@ export default async function LeagueHubPage({
         getAdp,
         availablePool: availablePlayers,
       });
+
+      // Roster Posture. Reads multi-year position from current value
+      // rank + future pick capital + champion history. Lights up the
+      // hub's posture banner at the top so teardown / rebuilder /
+      // contender postures route the rest of the page differently.
+      // Per founder direction 2026-05-16: dynasty is multi-year; the
+      // current single-year framing was missing the question.
+      try {
+        const myRoster = leagueSnapshot.rosters.find((r) => r.is_me);
+        if (myRoster) {
+          let championHistory = null;
+          if (sleeperUser?.user_id) {
+            try {
+              championHistory = await readChampionHistory({
+                leagueId,
+                userOwnerId: sleeperUser.user_id,
+              });
+            } catch (err) {
+              console.error("[hub:champion-history]", err);
+            }
+          }
+          rosterPosture = classifyRosterPosture({
+            snap: leagueSnapshot,
+            myRosterId: myRoster.roster_id,
+            myCurrentValueRank:
+              draftProgress?.league_rank.numeric_value ?? null,
+            totalTeams: leagueSnapshot.total_teams,
+            championHistory,
+          });
+        }
+      } catch (err) {
+        console.error("[hub:posture]", err);
+      }
 
       // League-relative EV bank leaderboard. Per founder feedback
       // 2026-05-08: "the EV is cool but I want full league EV so I
@@ -1337,6 +1376,8 @@ export default async function LeagueHubPage({
             digestLine={lastVisitDigestLine}
             disruptionAcknowledgment={lastVisitDisruptionAck}
           />
+
+          {rosterPosture && <PostureBanner posture={rosterPosture} />}
 
           <EvBankPercentileChip
             leagueBank={leagueEvBank}
@@ -1930,6 +1971,13 @@ export default async function LeagueHubPage({
                     }
                   >
                     {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                    {rosterPosture &&
+                      Object.keys(rosterPosture.future_capital.by_season)
+                        .length > 0 && (
+                        <FuturePickCabinet
+                          capital={rosterPosture.future_capital}
+                        />
+                      )}
                     {rosterLaneMemberships.length > 0 && (
                       <RosterLaneIdentity
                         memberships={rosterLaneMemberships}

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   nflStateSchema,
+  sleeperBracketEntrySchema,
   sleeperDraftPickSchema,
   sleeperDraftSchema,
   sleeperLeagueSchema,
@@ -11,6 +12,7 @@ import {
   sleeperTransactionSchema,
   sleeperUserSchema,
   type NflState,
+  type SleeperBracketEntry,
   type SleeperDraft,
   type SleeperDraftPick,
   type SleeperLeague,
@@ -176,6 +178,26 @@ export async function getTradedPicks(
     `/league/${encodeURIComponent(leagueId)}/traded_picks`,
     z.array(sleeperTradedPickSchema),
     { revalidate: 300 },
+  );
+  return data ?? [];
+}
+
+/**
+ * Fetches a league's playoff (winners) bracket. The championship is
+ * the entry with the largest round number `r` and `p === 1`; its
+ * winner roster_id sits in `w`. Returns null when the league has no
+ * recorded playoff bracket yet (current season pre-playoffs, or
+ * Sleeper just doesn't have it).
+ *
+ * Cached 1 hour; historical playoff brackets do not change.
+ */
+export async function getWinnersBracket(
+  leagueId: string,
+): Promise<SleeperBracketEntry[]> {
+  const data = await sleeperGet(
+    `/league/${encodeURIComponent(leagueId)}/winners_bracket`,
+    z.array(sleeperBracketEntrySchema),
+    { revalidate: 3600 },
   );
   return data ?? [];
 }
