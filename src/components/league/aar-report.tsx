@@ -291,7 +291,7 @@ export function AarReport({
             {shapeHeadline}
           </div>
           <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-            {inCount} lanes in · {closeCount} close ·{" "}
+            {inCount} builds fit · {closeCount} partial ·{" "}
             <span className="text-foreground">{ordinal(data.win_now_rank)}</span>{" "}
             of {data.totalTeams} on win-now ·{" "}
             <span className="text-foreground">{ordinal(data.future_rank)}</span>{" "}

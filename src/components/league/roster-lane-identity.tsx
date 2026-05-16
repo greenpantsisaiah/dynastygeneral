@@ -1,16 +1,24 @@
 "use client";
 
 /**
- * Roster Lane Identity. The Venn-membership panel.
+ * Roster Build Fit. The Venn-membership panel.
  *
- * Renders the lanes the roster is IN (with contributing players),
- * lanes the roster is CLOSE to (with the gap line and move type),
- * and a collapsed expander for lanes the roster is NOT_IN.
+ * Renders the builds the roster FITS (with contributing players),
+ * builds the roster PARTLY FITS (with the gap line and move type),
+ * and a collapsed expander for builds that DON'T FIT.
  *
- * Per founder direction 2026-05-11: a roster is in N lanes
+ * Per founder direction 2026-05-11: a roster matches N builds
  * simultaneously, not on a single horizon point. This panel shows
  * the Venn picture across horizon + archetype + composite axes.
- * Voice is descriptive, never evaluative; lanes are characterized,
+ *
+ * Vocabulary note 2026-05-15: surface copy renamed from
+ * "lane/IN/CLOSE/NOT IN" to "build/FITS/PARTIAL/NO FIT" because the
+ * lane metaphor didn't compose with multi-membership ("close to a
+ * lane" is meaningless). Internal data layer (LaneMembership,
+ * lane_id, etc.) keeps the original names; only user-facing copy
+ * changed.
+ *
+ * Voice is descriptive, never evaluative; builds are characterized,
  * not graded.
  *
  * Reads canonical LaneMembership[] from aggregateRosterIdentity. No
@@ -29,21 +37,21 @@ const STATE_STYLES = {
     bg: "bg-success/5",
     pillText: "text-success",
     pillBorder: "border-success/60",
-    label: "IN",
+    label: "FITS",
   },
   close: {
     border: "border-warning/50",
     bg: "bg-warning/5",
     pillText: "text-warning",
     pillBorder: "border-warning/50",
-    label: "CLOSE",
+    label: "PARTIAL",
   },
   not_in: {
     border: "border-border-soft",
     bg: "bg-surface/30",
     pillText: "text-muted-2",
     pillBorder: "border-border-soft",
-    label: "NOT IN",
+    label: "NO FIT",
   },
 } as const;
 
@@ -89,15 +97,15 @@ export function RosterLaneIdentity({
   return (
     <section
       className="mb-6 overflow-hidden rounded-lg border border-border-strong bg-surface"
-      aria-label="Roster lane identity"
+      aria-label="Roster build fit"
     >
       <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-border-soft px-5 py-3">
         <div className="flex items-baseline gap-3">
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            Roster identity
+            Roster build fit
           </span>
           <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
-            {inLanes.length} in · {closeLanes.length} close · {notInLanes.length} not in
+            {inLanes.length} fits · {closeLanes.length} partial · {notInLanes.length} no fit
           </span>
         </div>
       </header>
@@ -105,7 +113,7 @@ export function RosterLaneIdentity({
       {inLanes.length > 0 && (
         <div className="border-b border-border-soft px-5 py-4">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-success mb-3">
-            Lanes you are in ({inLanes.length})
+            Builds you fit ({inLanes.length})
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {inLanes.map((m) => (
@@ -122,7 +130,7 @@ export function RosterLaneIdentity({
       {closeLanes.length > 0 && (
         <div className="border-b border-border-soft px-5 py-4">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-warning mb-3">
-            Lanes you are close to ({closeLanes.length})
+            Builds you partly fit ({closeLanes.length})
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {closeLanes.map((m) => (
@@ -146,13 +154,13 @@ export function RosterLaneIdentity({
       {inLanes.length === 0 && closeLanes.length === 0 && notInLanes.length > 0 && (
         <div className="border-b border-border-soft px-5 py-4">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2 mb-2">
-            Closest to entering
+            Closest to a partial fit
           </div>
           <p className="text-xs leading-snug text-muted">
-            Lane thresholds are calibrated against fresh-startup cohorts.
+            Fit thresholds are calibrated against fresh-startup cohorts.
             In-season rosters often spread value diffusely without
-            triggering any single lane. These three are nearest to
-            clearing CLOSE.
+            matching any single build. These three are nearest to a
+            partial fit.
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {[...notInLanes]
@@ -182,7 +190,7 @@ export function RosterLaneIdentity({
             className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent transition-colors"
             aria-expanded={showNotIn}
           >
-            {showNotIn ? "Hide" : "Show"} lanes you are not in ({notInLanes.length})
+            {showNotIn ? "Hide" : "Show"} builds that don't fit ({notInLanes.length})
           </button>
           {showNotIn && (
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -237,7 +245,7 @@ function LaneCard({
             {proximityPct != null && (
               <span className="text-foreground">
                 {" · "}
-                {proximityPct}% of the way to CLOSE
+                {proximityPct}% of the way to a partial fit
               </span>
             )}
           </div>

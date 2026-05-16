@@ -18,8 +18,8 @@ const HERO_TOP_PAD = 16;
 
 /**
  * The hero distribution. Win-Now Floor scores across 82 dynasty
- * rosters, with the CLOSE / IN thresholds the engine uses to read
- * roster identity and a "you" marker the visitor's eye anchors to.
+ * rosters, with the PARTIAL / FIT thresholds the engine uses to read
+ * roster build fit and a "you" marker the visitor's eye anchors to.
  * The visual rhetoric is "your roster fits somewhere on this chart;
  * we tell you where."
  */
@@ -46,7 +46,7 @@ export function HeroCohortChart() {
         viewBox={`0 0 ${HERO_WIDTH} ${HERO_HEIGHT + HERO_AXIS_HEIGHT}`}
         className="w-full"
         role="img"
-        aria-label={`Distribution of Win-Now Floor scores across ${COHORT_TOTAL} dynasty rosters in 5 calibration leagues. CLOSE threshold at ${stats.close_threshold}, IN threshold at ${stats.in_threshold}.`}
+        aria-label={`Distribution of Win-Now Floor scores across ${COHORT_TOTAL} dynasty rosters in 5 calibration leagues. PARTIAL fit threshold at ${stats.close_threshold}, full fit threshold at ${stats.in_threshold}.`}
       >
         {stats.bins.map((count, i) => {
           const h = (count / maxCount) * innerHeight;
@@ -118,7 +118,7 @@ export function HeroCohortChart() {
           fontFamily="ui-monospace, monospace"
           style={{ letterSpacing: "0.14em", textTransform: "uppercase" }}
         >
-          close {stats.close_threshold}
+          partial {stats.close_threshold}
         </text>
         <text
           x={inX + 6}
@@ -128,7 +128,7 @@ export function HeroCohortChart() {
           fontFamily="ui-monospace, monospace"
           style={{ letterSpacing: "0.14em", textTransform: "uppercase" }}
         >
-          in {stats.in_threshold}
+          fit {stats.in_threshold}
         </text>
 
         <line
@@ -224,7 +224,7 @@ function ProofShape() {
   return (
     <div>
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-        Lane shape
+        Build shape
       </div>
       <p className="mt-1 text-sm text-foreground leading-snug">
         Same league, eleven shapes. One number cannot tell them apart.
@@ -424,7 +424,7 @@ function ProofCalibration() {
         viewBox={`0 0 ${W} ${H + 18}`}
         className="mt-3 w-full"
         role="img"
-        aria-label={`Trade Capital lane score distribution across ${stats.n} dynasty rosters`}
+        aria-label={`Trade Capital build-fit score distribution across ${stats.n} dynasty rosters`}
       >
         {stats.bins.map((count, i) => {
           const h = (count / maxCount) * innerH;

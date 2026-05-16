@@ -53,7 +53,7 @@ const INTERSECTION_LABEL = {
   x: 230,
   y: 175,
   primary: "Sustained Contender",
-  secondary: "lane = composite IN when all three are IN",
+  secondary: "composite fits when all three fit",
 };
 
 export function LaneVennSample() {
@@ -62,13 +62,13 @@ export function LaneVennSample() {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            Lane membership · sample
+            Build fit · sample
           </div>
           <p className="mt-1 text-sm text-muted">
-            One roster scored across three of the eleven lanes. Lanes
-            overlap by design: a roster IN Win-Now Floor AND RB Bellcow
-            AND WR Anchor is also IN the composite Sustained Contender
-            lane.
+            One roster scored across three of the eleven builds.
+            Builds overlap by design: a roster that fits Win-Now
+            Floor AND RB Bellcow AND WR Anchor also fits the
+            composite Sustained Contender build.
           </p>
         </div>
       </div>
@@ -137,7 +137,7 @@ export function LaneVennSample() {
               Win-Now Floor
             </div>
             <p className="mt-1 text-muted">
-              IN when the top-K contributors' value sum exceeds the
+              Fits when the top-K contributors' value sum exceeds the
               cohort threshold for proven win-now production. Calibrated
               from the 82-roster cohort.
             </p>
@@ -147,7 +147,7 @@ export function LaneVennSample() {
               RB Bellcow
             </div>
             <p className="mt-1 text-muted">
-              IN when the roster's RB room scores above the workhorse
+              Fits when the roster's RB room scores above the workhorse
               threshold. Specific to RB and weighted by role tier when
               the signal table fills out.
             </p>
@@ -157,7 +157,7 @@ export function LaneVennSample() {
               WR Anchor
             </div>
             <p className="mt-1 text-muted">
-              IN when the roster's top WR clears the anchor threshold
+              Fits when the roster's top WR clears the anchor threshold
               (high-value-70+ WR with surrounding production).
             </p>
           </div>
@@ -166,8 +166,8 @@ export function LaneVennSample() {
               Composite · Sustained Contender
             </div>
             <p className="mt-1 text-muted">
-              Derived from constituent lanes. A roster IN all three
-              base lanes above is mathematically IN Sustained
+              Derived from constituent builds. A roster that fits all
+              three base builds above mathematically fits Sustained
               Contender. Architecturally distinct from a single-axis
               archetype assignment.
             </p>
@@ -176,12 +176,12 @@ export function LaneVennSample() {
       </div>
 
       <p className="mt-5 text-xs leading-relaxed text-muted">
-        The Venn shows three lanes for legibility; the full model
+        The Venn shows three builds for legibility; the full model
         scores all eleven (Win-Now Floor, Balanced, Future Stock, RB
         Bellcow, WR Anchor, WR Stable, QB Stable, TE-Premium Lock,
         Trade Capital, Sustained Contender, Zero-RB). A roster's full
-        identity is a vector across all eleven, not a single archetype
-        label.
+        identity is a vector across all eleven builds, not a single
+        archetype label.
       </p>
     </div>
   );

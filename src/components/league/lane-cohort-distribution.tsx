@@ -68,14 +68,15 @@ export function LaneCohortDistribution({
       <div className="flex items-baseline justify-between gap-3">
         <div>
           <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
-            Lane progress
+            Build fit
           </div>
           <p className="mt-1 text-sm text-muted">
-            How far your roster is from each lane. The bar fills as
-            your score rises; the color of the zone you end up in
-            tells you whether you are NOT IN, CLOSE, or IN. Thresholds
-            calibrated against {COHORT_TOTAL} dynasty / keeper rosters
-            across {COHORT_LEAGUE_COUNT} leagues.
+            How well your roster matches each build pattern. The bar
+            fills as the fit strengthens; the color of the zone you
+            end up in tells you whether you have NO FIT, a PARTIAL
+            fit, or a STRONG fit. Fit thresholds calibrated against{" "}
+            {COHORT_TOTAL} dynasty / keeper rosters across{" "}
+            {COHORT_LEAGUE_COUNT} leagues.
           </p>
         </div>
         <span
@@ -91,33 +92,33 @@ export function LaneCohortDistribution({
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted-2">
         <span
           className="flex items-center gap-1.5"
-          title="Gray zone: your roster has not yet accumulated enough concentrated value to be CLOSE to this lane."
+          title="Gray zone: your roster does not yet match this build. Not enough concentrated value at the build's signature shape."
         >
           <span
             className="inline-block h-2.5 w-4 rounded-sm bg-muted-2/30"
             aria-hidden
           />
-          <span>NOT IN</span>
+          <span>NO FIT</span>
         </span>
         <span
           className="flex items-center gap-1.5"
-          title="Yellow zone: one or two acquisitions away from being IN this lane. The engine reads you as 'partway in.'"
+          title="Yellow zone: one or two acquisitions away from a strong fit. The engine reads you as partway built toward this archetype."
         >
           <span
             className="inline-block h-2.5 w-4 rounded-sm bg-warning/40"
             aria-hidden
           />
-          <span className="text-warning">CLOSE</span>
+          <span className="text-warning">PARTIAL</span>
         </span>
         <span
           className="flex items-center gap-1.5"
-          title="Green zone: your roster fits this lane. Enough concentrated value the engine treats you as committed to this archetype."
+          title="Green zone: your roster fits this build. Enough concentrated value the engine reads you as committed to this archetype."
         >
           <span
             className="inline-block h-2.5 w-4 rounded-sm bg-success/45"
             aria-hidden
           />
-          <span className="text-success">IN</span>
+          <span className="text-success">FITS</span>
         </span>
       </div>
 
@@ -135,15 +136,15 @@ const ZONE_LABEL_PILL: Record<
   { label: string; cls: string }
 > = {
   in: {
-    label: "IN",
+    label: "FITS",
     cls: "border-success/60 text-success bg-success/10",
   },
   close: {
-    label: "CLOSE",
+    label: "PARTIAL",
     cls: "border-warning/60 text-warning bg-warning/10",
   },
   not_in: {
-    label: "NOT IN",
+    label: "NO FIT",
     cls: "border-border-soft text-muted-2 bg-surface-2",
   },
 };
@@ -181,11 +182,11 @@ function LaneProgressBar({ membership }: { membership: LaneMembership }) {
         : null;
   const distanceCaption =
     membership.state === "not_in" && distanceToNextZone !== null
-      ? `${Math.round(distanceToNextZone)} score to reach CLOSE`
+      ? `${Math.round(distanceToNextZone)} points to a PARTIAL fit`
       : membership.state === "close" && distanceToNextZone !== null
-        ? `${Math.round(distanceToNextZone)} score to reach IN`
+        ? `${Math.round(distanceToNextZone)} points to FIT`
         : membership.state === "in"
-          ? `${Math.round(userScore - stats.in_threshold)} score past IN`
+          ? `${Math.round(userScore - stats.in_threshold)} points past the FIT threshold`
           : null;
 
   return (
@@ -255,13 +256,13 @@ function LaneProgressBar({ membership }: { membership: LaneMembership }) {
           className="absolute -translate-x-1/2 text-warning"
           style={{ left: `${closePct}%` }}
         >
-          CLOSE {Math.round(stats.close_threshold)}
+          PARTIAL {Math.round(stats.close_threshold)}
         </span>
         <span
           className="absolute -translate-x-1/2 text-success"
           style={{ left: `${inPct}%` }}
         >
-          IN {Math.round(stats.in_threshold)}
+          FIT {Math.round(stats.in_threshold)}
         </span>
       </div>
 

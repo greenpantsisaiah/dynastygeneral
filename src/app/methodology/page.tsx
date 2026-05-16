@@ -233,23 +233,23 @@ export default function MethodologyPage() {
           </div>
         </section>
 
-        {/* Lane membership Venn */}
+        {/* Build fit Venn */}
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 6 · lane membership
+                Receipt 6 · build fit
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                Eleven lanes, multi-attribute roster classification.
+                Eleven builds, multi-attribute roster classification.
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted">
-                A roster is not one archetype. It is a vector across
-                eleven lanes, each with its own threshold calibrated
-                against the cohort. Lanes overlap by design; the
-                composite lanes (Sustained Contender, Zero-RB) are
-                derived from constituent base-lane memberships. Venn
-                shows three lanes for legibility.
+                A roster is not one archetype. It fits a vector across
+                eleven builds, each with its own threshold calibrated
+                against the cohort. Builds overlap by design; the
+                composite builds (Sustained Contender, Zero-RB) are
+                derived from the constituent base-build fits. Venn
+                shows three builds for legibility.
               </p>
             </div>
             <LaneVennSample />
