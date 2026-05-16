@@ -1,25 +1,25 @@
 /**
- * Lane progress bars. Per founder feedback 2026-05-15: the prior
- * histogram-with-thresholds visual asked users to read statistics
- * ("here's the cohort, here are two dashed lines, here's where you
- * are"). It buried the question the user was actually asking: how
- * far am I from being IN this lane?
+ * Build fit progress bars. Per founder feedback 2026-05-15 and
+ * 2026-05-16:
  *
- * Replaced with a progress-bar / XP-bar metaphor. Each lane is a
- * single horizontal bar split into three zones:
+ *  - The original histogram-with-thresholds visual asked users to
+ *    read statistics. Replaced with a progress-bar / XP-bar metaphor
+ *    (three colored zones, fill stops at user's score).
+ *  - The vocabulary "lane / IN / CLOSE / NOT IN" did not compose.
+ *    Replaced with "build / FITS / PARTIAL / NO FIT".
+ *  - "Cohort" was unexplained jargon. Replaced with "benchmark
+ *    rosters" + a plain-English lead sentence that names what we're
+ *    comparing against ("82 real dynasty teams we benchmarked the
+ *    model against").
+ *  - Per-build inline blurb so the user knows what each pattern
+ *    means without leaving the panel.
+ *  - Synthesis band at the top interprets the overall shape so the
+ *    repeated NO FIT pills below can't be misread as a grade.
  *
- *   - 0 to CLOSE: NOT IN zone (gray)
- *   - CLOSE to IN: CLOSE zone (yellow)
- *   - IN to max: IN zone (green)
- *
- * The user's fill grows from left to right and stops at their score.
- * The zone where the fill ends colors the fill itself, so the
- * status (NOT IN / CLOSE / IN) reads spatially before the user
- * reads any words. Cohort context survives as a one-line "you
- * vs cohort median" caption per lane.
- *
- * Cohort source: `cohort-stats.ts` (82 rosters across 5 dynasty /
- * keeper leagues, baked 2026-05-08).
+ * Benchmark source: `cohort-stats.ts` (82 real dynasty / keeper
+ * rosters across 5 leagues, snapshotted 2026-05-08). Internal data
+ * names (LaneMembership, cohort-stats, etc.) keep their original
+ * naming; only user-facing copy uses the new vocabulary.
  */
 
 import type { LaneMembership } from "@/lib/strategy/lane-identity";
@@ -121,20 +121,20 @@ function composeBuildFitSynthesis(memberships: LaneMembership[]): {
   if (avgPct >= 50) {
     return {
       headline: "Your roster is diffuse, not concentrated.",
-      body: `Your value spreads across multiple builds rather than stacking into one. Strongest profile is ${strongest.m.label} at the ${strongest.pct}th percentile of the cohort; ${aboveMedian} of ${scored.length} builds shown sit above cohort median. NO FIT here is not a grade. The fit thresholds are calibrated against fresh-startup cohorts where managers actively concentrate into archetypes; in-season rosters that traded value across positions normally read this way.`,
+      body: `Your value spreads across multiple builds rather than stacking into one. Strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters; ${aboveMedian} of ${scored.length} builds shown sit above the benchmark median. NO FIT here is not a grade. The thresholds are set from fresh-startup rosters that concentrate into single archetypes; in-season rosters that traded value across positions normally read this way.`,
     };
   }
 
   if (avgPct >= 30) {
     return {
       headline: "Mid-pack roster shape.",
-      body: `Your strongest profile is ${strongest.m.label} at the ${strongest.pct}th percentile. The other builds sit near cohort median or just below. Fit thresholds are calibrated against fresh-startup rosters that concentrate into archetypes; in-season rosters with spread value normally read this way without flagging a fit.`,
+      body: `Your strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters. The other builds land near the benchmark median or just below. Thresholds are set from fresh-startup rosters that concentrate into archetypes; in-season rosters with spread value normally read this way without flagging a fit.`,
     };
   }
 
   return {
-    headline: "Roster sits below the calibration band.",
-    body: `Strongest profile is ${strongest.m.label} at the ${strongest.pct}th percentile of the cohort. The calibration cohort skews startup-builder concentration; in-season rosters in active rebuild often read below the band until value consolidates.`,
+    headline: "Roster sits below the benchmark band.",
+    body: `Strongest match is ${strongest.m.label}, where you sit above ${strongest.pct}% of the benchmark rosters. The benchmark set skews startup-builder concentration; in-season rosters in active rebuild often read below the band until value consolidates.`,
   };
 }
 
@@ -155,19 +155,24 @@ export function LaneCohortDistribution({
             Build fit
           </div>
           <p className="mt-1 text-sm text-muted">
-            How your roster's value distribution compares to each
-            build pattern. Bars fill as the fit strengthens; the zone
-            color tells you whether you have NO FIT, a PARTIAL fit,
-            or a STRONG fit. Thresholds calibrated against{" "}
-            {COHORT_TOTAL} dynasty / keeper rosters across{" "}
-            {COHORT_LEAGUE_COUNT} leagues.
+            Your roster compared to the shapes of{" "}
+            <span
+              className="text-foreground"
+              title={`Benchmark rosters: ${COHORT_TOTAL} real dynasty and keeper teams we pulled from ${COHORT_LEAGUE_COUNT} leagues on ${COHORT_GENERATED_AT}. The model studied them to find what each build pattern actually looks like in a built roster.`}
+            >
+              {COHORT_TOTAL} real dynasty teams
+            </span>{" "}
+            we benchmarked the model against. Each build below is a
+            value-stack shape we found repeating across those real
+            rosters. Your bar tells you how close your shape is to
+            each pattern.
           </p>
         </div>
         <span
           className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2"
-          title={`Cohort baked ${COHORT_GENERATED_AT} from cohort.json (gitignored). Aggregate bins + percentiles only.`}
+          title={`Benchmark set: ${COHORT_TOTAL} real dynasty and keeper rosters from ${COHORT_LEAGUE_COUNT} leagues, snapshotted ${COHORT_GENERATED_AT}. Aggregate bins + percentiles only.`}
         >
-          n = {COHORT_TOTAL} · {COHORT_GENERATED_AT}
+          {COHORT_TOTAL} benchmark rosters · {COHORT_LEAGUE_COUNT} leagues
         </span>
       </div>
 
@@ -300,6 +305,11 @@ function LaneProgressBar({ membership }: { membership: LaneMembership }) {
           {pill.label}
         </span>
       </div>
+      {membership.blurb && (
+        <p className="mt-0.5 text-[11px] leading-snug text-muted">
+          {membership.blurb}
+        </p>
+      )}
 
       {/* Zone bar: three stacked segments with the user's fill on top. */}
       <div className="mt-2 relative h-5 w-full overflow-hidden rounded-sm bg-surface-2">
@@ -365,13 +375,17 @@ function LaneProgressBar({ membership }: { membership: LaneMembership }) {
         </span>
       </div>
 
-      {/* Score + cohort + next-zone caption. */}
+      {/* Score + benchmark-rank + next-zone caption. */}
       <div className="mt-3 font-mono text-[10px] leading-snug text-muted-2">
         <span className="text-[color:#a78bfa]">
           your score {Math.round(userScore)}
         </span>
         {" · "}
-        <span>{userPct}th percentile of cohort</span>
+        <span
+          title={`Your score on this build is higher than ${userPct}% of the ${COHORT_TOTAL} benchmark rosters.`}
+        >
+          above {userPct}% of benchmarks
+        </span>
         {distanceCaption && (
           <>
             {" · "}
