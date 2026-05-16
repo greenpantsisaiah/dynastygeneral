@@ -9,6 +9,7 @@ import { buildRankedPool } from "@/lib/rankings/build";
 import { readProfileServer } from "@/lib/lab/profile-storage";
 import { defaultProfile } from "@/lib/lab/dial-types";
 import { loadRankingsLeagueContext } from "@/lib/rankings/league-context";
+import { readLeagueDoctrine } from "@/lib/lab/league-doctrine";
 
 export const metadata: Metadata = {
   title: "Rankings · Dynasty General",
@@ -42,6 +43,14 @@ export default async function RankingsPage({ searchParams }: PageProps) {
         })
       : Promise.resolve(null),
   ]);
+
+  // Per-league override row if a league is selected and the user is
+  // signed in. Drives the "League-specific tuning" toggle in the
+  // Rankings Lab. Null when no league context or no signed-in user.
+  const leagueOverride =
+    user && leagueCtx
+      ? await readLeagueDoctrine(user.id, leagueCtx.selected.league_id)
+      : null;
 
   return (
     <>
@@ -92,6 +101,12 @@ export default async function RankingsPage({ searchParams }: PageProps) {
                       selectedTotalRosters: leagueCtx.selected.total_rosters,
                       myPlayerIds: Array.from(leagueCtx.myPlayerIds),
                       draftedPlayerIds: Array.from(leagueCtx.drafted),
+                      override: leagueOverride
+                        ? {
+                            enabled: Boolean(leagueOverride.enabled_at),
+                            dials: leagueOverride.dials,
+                          }
+                        : null,
                     }
                   : null
               }

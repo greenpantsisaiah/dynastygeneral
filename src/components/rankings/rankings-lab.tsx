@@ -192,6 +192,16 @@ export type RankingsLeagueContextProp = {
   /** Serialized player ids; rehydrated into Set on the client. */
   myPlayerIds: string[];
   draftedPlayerIds: string[];
+  /**
+   * Per-league doctrine override row. When present + enabled, the
+   * dials override the global doctrine for this league. The toggle
+   * in the lab surfaces this state and lets the user enable/disable
+   * the override without leaving the page.
+   */
+  override: {
+    enabled: boolean;
+    dials: Partial<Record<string, number | string | string[] | [number, number]>>;
+  } | null;
 };
 
 type RowFilter = "all" | "mine" | "available";
@@ -595,6 +605,15 @@ export function RankingsLab({
         </div>
       )}
 
+      {leagueContext && (
+        <LeagueOverrideToggle
+          leagueId={leagueContext.selectedLeagueId}
+          leagueName={leagueContext.selectedLeagueName}
+          initialEnabled={leagueContext.override?.enabled ?? false}
+          currentDials={dials}
+        />
+      )}
+
       <div className="overflow-x-auto rounded-lg border border-border-soft bg-surface">
         <table className="w-full min-w-[680px] text-sm">
           <thead className="bg-surface-2">
@@ -848,6 +867,99 @@ function DrawerBlock({
           <li key={i}>· {line}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function LeagueOverrideToggle({
+  leagueId,
+  leagueName,
+  initialEnabled,
+  currentDials,
+}: {
+  leagueId: string;
+  leagueName: string;
+  initialEnabled: boolean;
+  currentDials: Record<DialId, DialValue>;
+}) {
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  async function persist(nextEnabled: boolean, sendDials: boolean) {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const res = await fetch(
+        `/api/lab/league-profile/${encodeURIComponent(leagueId)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            enabled: nextEnabled,
+            ...(sendDials ? { dials: currentDials } : {}),
+          }),
+        },
+      );
+      if (!res.ok) {
+        setFeedback("Save failed.");
+        return;
+      }
+      setEnabled(nextEnabled);
+      setFeedback(
+        nextEnabled
+          ? sendDials
+            ? "Saved as league override."
+            : "League override enabled."
+          : "League override disabled. Global doctrine applies.",
+      );
+      window.setTimeout(() => setFeedback(null), 2500);
+    } catch {
+      setFeedback("Network error.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-3 rounded-lg border border-[color:#a78bfa]/30 bg-[color:#a78bfa]/5 px-4 py-3">
+      <div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[color:#a78bfa]">
+          League-specific tuning
+        </div>
+        <p className="mt-1 text-xs leading-snug text-muted">
+          When enabled, the dials above save as an override for{" "}
+          <span className="font-semibold text-foreground">{leagueName}</span>{" "}
+          instead of your global doctrine. Coach and the Decision card
+          for this league read the override; other leagues stay on
+          global.
+        </p>
+        {feedback && (
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+            {feedback}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => persist(true, true)}
+          disabled={saving}
+          className="rounded-md border border-accent/60 bg-accent/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:bg-accent/25 disabled:opacity-50"
+        >
+          {enabled ? "Update override" : "Save as league override"}
+        </button>
+        {enabled && (
+          <button
+            type="button"
+            onClick={() => persist(false, false)}
+            disabled={saving}
+            className="rounded-md border border-border-soft bg-surface-2 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2 hover:text-accent disabled:opacity-50"
+          >
+            Disable
+          </button>
+        )}
+      </div>
     </div>
   );
 }

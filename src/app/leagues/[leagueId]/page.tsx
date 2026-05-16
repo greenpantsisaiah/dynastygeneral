@@ -33,6 +33,7 @@ import {
 import { readProfileServer } from "@/lib/lab/profile-storage";
 import { deriveDoctrine, formatDoctrineLine } from "@/lib/lab/doctrine";
 import { detectDoctrineDrift } from "@/lib/lab/drift";
+import { loadEffectiveDials } from "@/lib/lab/league-doctrine";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { LiveStrategyBoard } from "@/components/league/live-strategy-board";
 import { computeWindows, type WindowsResult } from "@/lib/strategy/windows/compute";
@@ -322,6 +323,7 @@ export default async function LeagueHubPage({
   // synthesizeDecision.
   let doctrineLine: string | null = null;
   let doctrineCalibratedCount: number | null = null;
+  let doctrineHasLeagueOverride = false;
   let driftSummary: string | null = null;
   let playsFromHere: ResolvedPlayFromHere[] = [];
   let pickApproach: PickApproachData | null = null;
@@ -411,11 +413,20 @@ export default async function LeagueHubPage({
         leagueBriefing = buildLeagueBriefing(snapshot, judgmentProfile);
 
         // Doctrine readout + drift detection. Both render in the
-        // hub header / banner once available.
+        // hub header / banner once available. Reads the EFFECTIVE
+        // dials (global + per-league override) so the chip reflects
+        // what's actually shaping this league's recommendations.
         if (judgmentProfile) {
-          const doctrine = deriveDoctrine(judgmentProfile.dials);
+          const { effective: effectiveDialsForChip, override } =
+            await loadEffectiveDials({
+              userId: authUser?.id ?? null,
+              leagueId,
+              globalProfile: judgmentProfile,
+            });
+          const doctrine = deriveDoctrine(effectiveDialsForChip);
           doctrineLine = formatDoctrineLine(doctrine);
           doctrineCalibratedCount = doctrine.calibrated_count;
+          doctrineHasLeagueOverride = Boolean(override?.enabled_at);
 
           // Drift: compare last N user picks' implied horizon
           // against the declared Horizon dial. Only fires when the
@@ -871,6 +882,14 @@ export default async function LeagueHubPage({
           const profileForDials = await readProfileServer().catch(
             () => null,
           );
+          // Per-league override resolution. When the user has opted
+          // into per-league tuning for this league, those dial values
+          // overlay the global doctrine. Phase 2.4 wiring.
+          const { effective: effectiveDials } = await loadEffectiveDials({
+            userId: authUser?.id ?? null,
+            leagueId,
+            globalProfile: profileForDials,
+          });
           decision = synthesizeDecision({
             snap: snapshot,
             ranked: rankedArchetypes,
@@ -879,7 +898,7 @@ export default async function LeagueHubPage({
             picks_until_me: pickApproach?.picks_until_me ?? 0,
             player_values: playerValuesByIdJson,
             ktc_overall_ranks: ktcOverallRanksByIdJson,
-            dials: dialsForSynthesisFrom(profileForDials?.dials ?? null),
+            dials: dialsForSynthesisFrom(effectiveDials),
           });
         } catch (err) {
           console.error("[hub:decision-synthesis]", err);
@@ -1367,13 +1386,21 @@ export default async function LeagueHubPage({
                   <span className="font-mono uppercase tracking-[0.14em] text-foreground">
                     {doctrineLine}
                   </span>
+                  {doctrineHasLeagueOverride && (
+                    <span
+                      className="rounded-sm border border-[color:#a78bfa]/60 bg-[color:#a78bfa]/10 px-1.5 py-0 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:#a78bfa]"
+                      title="Per-league override is active. Resets to global doctrine when disabled in the Rankings Lab."
+                    >
+                      league override
+                    </span>
+                  )}
                   {doctrineCalibratedCount != null && (
                     <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
                       {doctrineCalibratedCount} of 8 calibrated
                     </span>
                   )}
                   <Link
-                    href="/rankings"
+                    href={`/rankings?league=${encodeURIComponent(leagueId)}`}
                     className="font-mono uppercase tracking-[0.14em] text-accent hover:underline"
                   >
                     Tune →

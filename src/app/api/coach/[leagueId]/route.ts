@@ -57,6 +57,7 @@ import {
   formatDoctrineLine,
 } from "@/lib/lab/doctrine";
 import { DIAL_SPECS, isAtDefault } from "@/lib/lab/dial-types";
+import { loadEffectiveDials } from "@/lib/lab/league-doctrine";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -662,7 +663,18 @@ export async function POST(
   // dials shape which candidates the Decision card surfaces; if Coach
   // is going to cite "your Bellcow +60 doctrine," the Decision card
   // had better already reflect that tune.
+  //
+  // Per-league override resolution: when the user has opted into
+  // per-league tuning, those dials overlay the global doctrine.
+  // Phase 2.4 wiring (matches the hub call).
   const judgmentProfileEarly = await readProfileServer().catch(() => null);
+  const { effective: effectiveDialsForCoach, override: coachLeagueOverride } =
+    await loadEffectiveDials({
+      userId:
+        gate.user.id !== "anonymous-dev" ? gate.user.id : null,
+      leagueId,
+      globalProfile: judgmentProfileEarly,
+    });
 
   // request if synthesis errors; coach can still reason from context.
   let decision: Awaited<ReturnType<typeof synthesizeDecision>> | null = null;
@@ -676,7 +688,7 @@ export async function POST(
         picks_until_me: pickApproach?.picks_until_me ?? 0,
         player_values: coachPlayerValues,
         ktc_overall_ranks: coachKtcOverallRanks,
-        dials: dialsForSynthesisFrom(judgmentProfileEarly?.dials ?? null),
+        dials: dialsForSynthesisFrom(effectiveDialsForCoach),
       });
     }
   } catch (err) {
@@ -919,19 +931,24 @@ export async function POST(
   // onto the context payload as `doctrine` so the system prompt rule
   // below can bind to it.
   const judgmentProfile = judgmentProfileEarly;
+  // Doctrine summary reads the EFFECTIVE dials (global + per-league
+  // override) so Coach references the same posture the Decision card
+  // is acting on. When a per-league override is enabled, the doctrine
+  // line reflects that; otherwise it reads the global doctrine.
   const doctrineSummary = judgmentProfile
-    ? deriveDoctrine(judgmentProfile.dials)
+    ? deriveDoctrine(effectiveDialsForCoach)
     : null;
   const tunedDials = judgmentProfile
     ? DIAL_SPECS.filter(
-        (spec) => !isAtDefault(spec, judgmentProfile.dials[spec.id]),
+        (spec) => !isAtDefault(spec, effectiveDialsForCoach[spec.id]),
       ).map((spec) => ({
         id: spec.id,
         name: spec.name,
-        value: judgmentProfile.dials[spec.id],
+        value: effectiveDialsForCoach[spec.id],
       }))
     : [];
   const userHasTunedDoctrine = tunedDials.length > 0;
+  const hasLeagueOverride = Boolean(coachLeagueOverride?.enabled_at);
   const playerValueMap = new Map(
     Object.entries(opContext.pricing.player_values).map(([id, v]) => [id, v]),
   );
@@ -1022,6 +1039,8 @@ export async function POST(
           voice: doctrineSummary.voice,
           calibrated_count: doctrineSummary.calibrated_count,
           tuned_dials: tunedDials,
+          /** True when the user has a per-league override active for this league. */
+          has_league_override: hasLeagueOverride,
         }
       : null,
     // The system's official recommendation for the user's current/next
