@@ -108,6 +108,7 @@ import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import type { RosterPosture } from "@/lib/strategy/posture/types";
 import { DraftPositionBanner } from "@/components/league/draft-position-banner";
+import { PositionRunWatch } from "@/components/league/position-run-watch";
 import {
   summarizeUpcomingDraft,
   type UpcomingDraftSummary,
@@ -1147,13 +1148,26 @@ export default async function LeagueHubPage({
               console.error("[hub:champion-history]", err);
             }
           }
-          rosterPosture = classifyRosterPosture({
-            snap: leagueSnapshot,
-            myRosterId: myRoster.roster_id,
-            myCurrentValueRank: valueRank,
-            totalTeams: leagueSnapshot.total_teams,
-            championHistory,
-          });
+          // Active startup draft: rounds > 6 indicates a startup
+          // rather than a rookie-only draft. Posture math fires on
+          // degenerate near-zero rosters mid-startup (every team is
+          // "12 of 12 by value" until the round completes), producing
+          // false TANK classifications. Skip posture in this window;
+          // it has no signal until the startup completes. Per founder
+          // report 2026-05-18 pick 1.10 TANK false-positive.
+          const isStartupDraft =
+            (leagueSnapshot.draft.rounds ?? 0) > 6;
+          const inActiveStartup =
+            draftActive && isStartupDraft;
+          rosterPosture = inActiveStartup
+            ? null
+            : classifyRosterPosture({
+                snap: leagueSnapshot,
+                myRosterId: myRoster.roster_id,
+                myCurrentValueRank: valueRank,
+                totalTeams: leagueSnapshot.total_teams,
+                championHistory,
+              });
 
           // Upcoming-draft summary. Only meaningful in pre-draft state
           // for now; we compute it always for cheap access by the
@@ -1903,6 +1917,29 @@ export default async function LeagueHubPage({
                   "The Call should only show up while drafting, right?
                   Need a pre-draft and post-draft plan, probably
                   focused more on trades, opportunities, etc." */}
+
+              {/* Position Run Watch. Renders during active draft so
+                  the user reads the position-run signal BEFORE making
+                  their first pick. The DraftProgressPanel surfaces the
+                  same data inside its "Watch the board" sub-section,
+                  but that whole panel is gated behind
+                  picks_made_by_user > 0 and is invisible at the user's
+                  first-pick moment. Per founder report 2026-05-18 pick
+                  1.10: the WR run that drove the question wasn't
+                  surfaced anywhere. */}
+              {draftActive &&
+                leagueSnapshot &&
+                leagueSnapshot.draft.picks_made.length > 0 && (
+                  <PositionRunWatch
+                    picksMade={leagueSnapshot.draft.picks_made}
+                    totalTeams={leagueSnapshot.total_teams}
+                    myNextPickNo={
+                      leagueSnapshot.draft.my_pick_schedule[0]?.pick_no ??
+                      leagueSnapshot.draft.next_pick_no ??
+                      null
+                    }
+                  />
+                )}
 
               {/* SECTION: The Call (active draft only). */}
               {draftActive && decision && (

@@ -201,7 +201,16 @@ function buildLeaguePulse(
     // Confidence threshold: ignore opponents with weak signals (not
     // enough picks made yet OR roster shape is ambiguous). Without
     // this the pulse fires too early in the draft.
+    //
+    // Founder report 2026-05-18: 9 picks deep in a startup draft, the
+    // hub reported "6 of 8 opponents are building for the future"
+    // when every opponent had exactly 1 pick. That's not signal,
+    // it's just BPA. Require BOTH (a) a confidence floor AND (b) at
+    // least 3 picks per opponent before they count for the pulse.
+    // The pick-count gate is what defeats the startup-draft early-
+    // round noise.
     if (c.confidence < 0.35) continue;
+    if ((c.picks_made ?? 0) < 3) continue;
     totalSignal++;
     if (c.lean === "win_now" || c.lean === "lean_win_now") winNow++;
     else if (c.lean === "win_future" || c.lean === "lean_win_future")

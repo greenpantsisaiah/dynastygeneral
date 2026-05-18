@@ -200,6 +200,30 @@ function runRosterIdentityVerification(args: {
     (p) => p.roster_id === me.roster_id,
   ).length;
   if (minePickCount > 0) return [];
+
+  // Has the user's slot been reached yet? In a snake-or-linear draft
+  // for slot N, the first pick belonging to slot N is pick_no N in
+  // round 1. If the most recent pick number is below the user's slot,
+  // zero attributed picks is the NORMAL state (the user hasn't been
+  // up yet). The integrity check should only fire when picks SHOULD
+  // exist but are missing.
+  //
+  // Founder report 2026-05-18: SEVERE banner fired on a startup draft
+  // at pick 1.10 because the user (slot 10) had not picked yet. Zero
+  // picks for slot 10 with 9 picks made is correct behavior, not a
+  // mismatch. The check was treating "draft has progressed" as binary
+  // (picks.length > 0) instead of slot-aware.
+  const mySlot = args.snap.draft.my_slot;
+  const nextPickNo = args.snap.draft.next_pick_no;
+  if (
+    typeof mySlot === "number" &&
+    typeof nextPickNo === "number" &&
+    nextPickNo <= mySlot
+  ) {
+    // Draft has not yet reached the user's slot. Zero picks is normal.
+    return [];
+  }
+
   return [
     {
       kind: "roster_identity_mismatch",
@@ -207,7 +231,7 @@ function runRosterIdentityVerification(args: {
       headline: `You are mapped to roster ${me.roster_id} but Sleeper shows zero picks for that roster in this draft`,
       detail:
         "The hub identified your roster from owner_id matching, but ground-truth draft picks attribute zero selections to that roster while the draft has progressed. You are almost certainly viewing the wrong team. Common causes: a stale ?username= in the URL, a navigation that loaded another manager's view, or a saved-username mismatch. Every recommendation below this banner reflects the WRONG team's roster.",
-      evidence: `is_me roster_id=${me.roster_id}, owner_id=${me.owner_id}, picks_in_draft=${picks.length}, picks_attributed_to_me=${minePickCount}`,
+      evidence: `is_me roster_id=${me.roster_id}, owner_id=${me.owner_id}, picks_in_draft=${picks.length}, picks_attributed_to_me=${minePickCount}, my_slot=${args.snap.draft.my_slot}, next_pick_no=${args.snap.draft.next_pick_no}`,
     },
   ];
 }
