@@ -107,6 +107,11 @@ import { FuturePickCabinet } from "@/components/league/future-pick-cabinet";
 import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import type { RosterPosture } from "@/lib/strategy/posture/types";
+import { DraftPositionBanner } from "@/components/league/draft-position-banner";
+import {
+  summarizeUpcomingDraft,
+  type UpcomingDraftSummary,
+} from "@/lib/strategy/pre-draft/upcoming-draft";
 import {
   aggregateRosterIdentity,
   identityMoves,
@@ -988,6 +993,7 @@ export default async function LeagueHubPage({
   let lastVisitPositionCountDeltas: Partial<Record<string, number>> = {};
   let lastVisitLeagueRankDelta: number | null = null;
   let rosterPosture: RosterPosture | null = null;
+  let upcomingDraft: UpcomingDraftSummary | null = null;
   let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
@@ -1096,15 +1102,40 @@ export default async function LeagueHubPage({
         availablePool: availablePlayers,
       });
 
-      // Roster Posture. Reads multi-year position from current value
-      // rank + future pick capital + champion history. Lights up the
-      // hub's posture banner at the top so teardown / rebuilder /
-      // contender postures route the rest of the page differently.
-      // Per founder direction 2026-05-16: dynasty is multi-year; the
-      // current single-year framing was missing the question.
+      // Roster Posture + Upcoming Draft. Reads multi-year position
+      // from current value rank + future pick capital + champion
+      // history, plus the user's slot in the upcoming rookie draft +
+      // visible traded picks. Both fire pre-draft / active-draft /
+      // in-season; the posture banner adapts category, the draft
+      // banner only renders when status === "pre_draft".
       try {
         const myRoster = leagueSnapshot.rosters.find((r) => r.is_me);
         if (myRoster) {
+          // Inline value-rank fallback. analyzeDraftProgress fills
+          // league_rank.numeric_value only when the player-value map
+          // is populated AND the league's roster total values are
+          // non-zero. Pre-rookie-draft dynasty leagues sometimes
+          // present near-zero rosters which short-circuits that path,
+          // leaving the posture classifier with null rank. Compute it
+          // here so posture always has a tier to read.
+          let valueRank = draftProgress?.league_rank.numeric_value ?? null;
+          if (valueRank == null) {
+            const totalsByRoster = new Map<number, number>();
+            for (const r of leagueSnapshot.rosters) {
+              let sum = 0;
+              for (const id of r.player_ids ?? []) {
+                const v = lrValueMap.get(id);
+                if (v && typeof v.value === "number") sum += v.value;
+              }
+              totalsByRoster.set(r.roster_id, sum);
+            }
+            const ranked = [...totalsByRoster.entries()].sort(
+              (a, b) => b[1] - a[1],
+            );
+            const idx = ranked.findIndex(([rid]) => rid === myRoster.roster_id);
+            if (idx >= 0) valueRank = idx + 1;
+          }
+
           let championHistory = null;
           if (sleeperUser?.user_id) {
             try {
@@ -1119,10 +1150,17 @@ export default async function LeagueHubPage({
           rosterPosture = classifyRosterPosture({
             snap: leagueSnapshot,
             myRosterId: myRoster.roster_id,
-            myCurrentValueRank:
-              draftProgress?.league_rank.numeric_value ?? null,
+            myCurrentValueRank: valueRank,
             totalTeams: leagueSnapshot.total_teams,
             championHistory,
+          });
+
+          // Upcoming-draft summary. Only meaningful in pre-draft state
+          // for now; we compute it always for cheap access by the
+          // banner, but the renderer gates on draftState.status.
+          upcomingDraft = summarizeUpcomingDraft({
+            snap: leagueSnapshot,
+            myRosterId: myRoster.roster_id,
           });
         }
       } catch (err) {
@@ -1378,6 +1416,20 @@ export default async function LeagueHubPage({
           />
 
           {rosterPosture && <PostureBanner posture={rosterPosture} />}
+
+          {draftState?.status === "pre_draft" && upcomingDraft && (
+            <DraftPositionBanner
+              summary={upcomingDraft}
+              ownerNameByRosterId={
+                new Map(
+                  leagueSnapshot?.rosters.map((r) => [
+                    r.roster_id,
+                    r.owner_name ?? `roster #${r.roster_id}`,
+                  ]) ?? [],
+                )
+              }
+            />
+          )}
 
           <EvBankPercentileChip
             leagueBank={leagueEvBank}
@@ -2037,23 +2089,34 @@ export default async function LeagueHubPage({
                           <LeagueTable outlook={leagueOutlook} />
                         </>
                       )}
-                      {leagueRead && <TradeStrategyPanel data={leagueRead} />}
-                      {opponentCharacterizations.length > 0 && (
-                        <OpponentCharacterizations
-                          items={opponentCharacterizations}
-                          leagueId={leagueId}
-                          notesByRoster={opponentNotesByRoster}
-                          tradeHistoryByRoster={opponentTradeHistoryByRoster}
-                          canWriteNotes={authUser != null}
-                        />
+                      {leagueRead && draftState?.status !== "pre_draft" && (
+                        <TradeStrategyPanel data={leagueRead} />
                       )}
-                      {pathCompetition && (
+                      {opponentCharacterizations.length > 0 &&
+                        draftState?.status !== "pre_draft" && (
+                          <OpponentCharacterizations
+                            items={opponentCharacterizations}
+                            leagueId={leagueId}
+                            notesByRoster={opponentNotesByRoster}
+                            tradeHistoryByRoster={opponentTradeHistoryByRoster}
+                            canWriteNotes={authUser != null}
+                          />
+                        )}
+                      {pathCompetition && draftState?.status !== "pre_draft" && (
                         <SamePathThreatsCard competition={pathCompetition} />
                       )}
                       {/* Off-season / non-in-season layout retains the
                           original section order (SWOT > divergence >
-                          table) under the trade-leverage framing. */}
+                          table) under the trade-leverage framing.
+                          Suppress entirely in pre_draft state: SWOT
+                          fires "0 on roster" reads, LeagueDivergence /
+                          LeagueTable shows identical 38/35 for every
+                          team because nobody's rookie-drafted yet, and
+                          opponent characterizations are uniformly
+                          "BALANCED · EARLY · 15%". Pre-draft uses the
+                          DraftPositionBanner + path projector instead. */}
                       {!inSeasonLayout &&
+                        draftState?.status !== "pre_draft" &&
                         leagueOutlook &&
                         leagueSnapshot && (
                           <>
@@ -2071,6 +2134,15 @@ export default async function LeagueHubPage({
                             swot={computeSwot(leagueSnapshot, leagueOutlook)}
                           />
                         )}
+                      {draftState?.status === "pre_draft" && (
+                        <div className="rounded-md border border-border-soft bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
+                          League-shape surfaces (SWOT, standings,
+                          opponent reads) start firing once the rookie
+                          draft differentiates rosters. Until then your
+                          draft position and projected sequence carry
+                          the read.
+                        </div>
+                      )}
                     </DashboardSection>
                   ) : null;
                 return inSeasonLayout ? (
