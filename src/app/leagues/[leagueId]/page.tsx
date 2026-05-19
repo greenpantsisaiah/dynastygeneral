@@ -116,6 +116,9 @@ import { readLeagueDoctrine } from "@/lib/lab/league-doctrine";
 import { DraftPathProjector } from "@/components/league/draft-path-projector";
 import { projectDraftPaths } from "@/lib/strategy/draft-paths/project";
 import type { DraftPathProjection } from "@/lib/strategy/draft-paths/types";
+import { TradeOpportunitiesPanel } from "@/components/league/trade-opportunities-panel";
+import { detectTradeOpportunities } from "@/lib/strategy/trade-opportunities/detect";
+import type { TradeOpportunity } from "@/lib/strategy/trade-opportunities/detect";
 import {
   summarizeUpcomingDraft,
   type UpcomingDraftSummary,
@@ -1022,6 +1025,7 @@ export default async function LeagueHubPage({
   let upcomingDraft: UpcomingDraftSummary | null = null;
   let classStrength: ClassStrength | null = null;
   let draftPathProjection: DraftPathProjection | null = null;
+  let tradeOpportunities: TradeOpportunity[] = [];
   let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
@@ -1258,6 +1262,36 @@ export default async function LeagueHubPage({
               });
             } catch (err) {
               console.error("[hub:draft-paths]", err);
+            }
+          }
+
+          // Trade opportunities. Proactively scan for actionable
+          // trades during active draft early-mid rounds. Per founder
+          // direction 2026-05-19: platform should treat pick trades
+          // as the meta, not the exception.
+          if (
+            upcomingDraft &&
+            (draftState?.status === "drafting" ||
+              draftState?.status === "paused")
+          ) {
+            try {
+              const availableForOpps =
+                await getAvailableForRequest(leagueSnapshot).catch(
+                  () => [],
+                );
+              const valueLookup = (id: string): number | null => {
+                const v = lrValueMap.get(id)?.value;
+                return typeof v === "number" ? v : null;
+              };
+              tradeOpportunities = detectTradeOpportunities({
+                snap: leagueSnapshot,
+                myRosterId: myRoster.roster_id,
+                upcomingDraft,
+                available: availableForOpps,
+                playerValueLookup: valueLookup,
+              });
+            } catch (err) {
+              console.error("[hub:trade-opportunities]", err);
             }
           }
         }
@@ -2050,6 +2084,17 @@ export default async function LeagueHubPage({
                 (draftState?.status === "pre_draft" || draftActive) && (
                   <DraftPathProjector projection={draftPathProjection} />
                 )}
+
+              {/* Trade Opportunities. Proactive trade scout during
+                  active-draft early-mid rounds. Surfaces 1-3 named
+                  partners + value math + draft messages. Founder
+                  direction 2026-05-19: treat pick trading as the
+                  meta. */}
+              {tradeOpportunities.length > 0 && draftActive && (
+                <TradeOpportunitiesPanel
+                  opportunities={tradeOpportunities}
+                />
+              )}
 
               {/* SECTION: The Call (active draft only). */}
               {draftActive && decision && (
