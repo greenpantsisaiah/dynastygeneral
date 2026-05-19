@@ -92,6 +92,27 @@ export type DraftPath = {
   dial_influences: PathDialInfluence[];
 };
 
+/**
+ * Picks the user has already made in this draft. Surfaced above the
+ * projection so the user sees their full trajectory (locked picks +
+ * projected future picks) instead of just the future. Updates live
+ * as picks land via the noStore fresh-fetch pattern on traded_picks
+ * + rosters.
+ */
+export type LockedPick = {
+  pick_no: number;
+  pick_label: string;
+  round: number;
+  player_id: string;
+  player_name: string;
+  position: PathPosition | string;
+  team: string | null;
+  age: number | null;
+  is_rookie: boolean;
+  /** FantasyCalc value when available; null if not resolvable. */
+  value: number | null;
+};
+
 /** Full projection output. */
 export type DraftPathProjection = {
   /** The picks the user owns in this projection window. */
@@ -101,6 +122,12 @@ export type DraftPathProjection = {
     round: number;
     slot: number;
   }>;
+  /**
+   * Picks the user has already made in this draft. Last 5 by pick_no
+   * descending; capped so the UI doesn't get crowded by 20+ picks
+   * deep into the draft. Empty when the user hasn't picked yet.
+   */
+  locked_picks: LockedPick[];
   /** Candidate paths sorted by rank (best first). */
   paths: DraftPath[];
   /** Class-strength inputs used. Surfaced for provenance. */

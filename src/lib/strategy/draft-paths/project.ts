@@ -26,6 +26,7 @@ import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
 import type { AvailablePlayer } from "@/lib/players/available";
 import { resolvePlayerValues } from "@/lib/players/values";
+import { resolvePlayers } from "@/lib/players/cache";
 import type { WhyDials } from "@/lib/rankings/why-breakdown";
 import type {
   ClassStrength,
@@ -34,6 +35,7 @@ import type {
 import type {
   DraftPath,
   DraftPathProjection,
+  LockedPick,
   PathCandidate,
   PathDialInfluence,
   PathPick,
@@ -593,8 +595,41 @@ export async function projectDraftPaths(args: {
     p.is_recommended = i === 0;
   });
 
+  // Locked picks: the user's already-made picks in this draft. Pull
+  // from snap.draft.picks_made filtered by myRosterId, sorted by
+  // pick_no descending, capped at 5 so the UI doesn't get crowded
+  // deep into the draft. Resolve player names via the Sleeper cache
+  // since DraftPickRecord only ships ids.
+  const myPicksRaw = snap.draft.picks_made
+    .filter((p) => p.roster_id === myRosterId)
+    .sort((a, b) => b.pick_no - a.pick_no)
+    .slice(0, 5);
+  const playerNameMap = await resolvePlayers(
+    myPicksRaw.map((p) => p.player_id),
+  );
+  const lockedPicks: LockedPick[] = myPicksRaw
+    .map((p) => {
+      const positionRaw = (p.position ?? "").toUpperCase();
+      const value = valueMap.get(p.player_id)?.value ?? null;
+      const sp = playerNameMap.get(p.player_id);
+      return {
+        pick_no: p.pick_no,
+        pick_label: labelForPickNo(p.pick_no, snap.total_teams),
+        round: Math.ceil(p.pick_no / snap.total_teams),
+        player_id: p.player_id,
+        player_name: sp?.full_name ?? p.player_id,
+        position: positionRaw,
+        team: sp?.team ?? null,
+        age: typeof p.age === "number" ? p.age : null,
+        is_rookie: p.years_exp === 0,
+        value,
+      };
+    })
+    .reverse(); // oldest-to-newest for display
+
   return {
     my_slots: mySlots,
+    locked_picks: lockedPicks,
     paths,
     class_strength: classStrength,
     generated_at: new Date().toISOString(),

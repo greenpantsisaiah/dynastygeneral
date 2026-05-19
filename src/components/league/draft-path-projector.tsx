@@ -20,6 +20,7 @@ import { useState } from "react";
 import type {
   DraftPath,
   DraftPathProjection,
+  LockedPick,
   PathCandidate,
   PathPick,
   PathPosition,
@@ -67,6 +68,10 @@ export function DraftPathProjector({
             .join(" · ")}
         </span>
       </div>
+
+      {projection.locked_picks.length > 0 && (
+        <LockedPicksStrip lockedPicks={projection.locked_picks} />
+      )}
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {projection.paths.map((path) => (
@@ -248,5 +253,58 @@ function CandidateLine({ c }: { c: PathCandidate }) {
         {c.expected_value.toFixed(1)}
       </span>
     </li>
+  );
+}
+
+function LockedPicksStrip({ lockedPicks }: { lockedPicks: LockedPick[] }) {
+  return (
+    <section className="mt-4 rounded-md border border-success/40 bg-success/5 px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-success">
+          Already picked · {lockedPicks.length}
+        </div>
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+          Locked context for path projection below
+        </div>
+      </div>
+      <ul className="mt-2 space-y-1">
+        {lockedPicks.map((lp) => {
+          const positionTone =
+            lp.position === "QB"
+              ? "text-success"
+              : lp.position === "RB"
+                ? "text-accent"
+                : lp.position === "TE"
+                  ? "text-warning"
+                  : "text-foreground";
+          return (
+            <li
+              key={`${lp.pick_no}-${lp.player_id}`}
+              className="flex flex-wrap items-baseline gap-2 text-[12px] leading-snug"
+            >
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+                {lp.pick_label}
+              </span>
+              <span
+                className={`font-mono text-[10px] uppercase tracking-[0.14em] ${positionTone}`}
+              >
+                {lp.position}
+              </span>
+              <span className="font-semibold text-foreground">
+                {lp.player_name}
+              </span>
+              <span className="font-mono text-[10px] text-muted-2">
+                {lp.team ?? "FA"}
+                {lp.age != null && ` · age ${lp.age}`}
+                {lp.is_rookie && (
+                  <span className="ml-1 text-accent">· rookie</span>
+                )}
+                {lp.value != null && ` · value ${Math.round(lp.value)}`}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
