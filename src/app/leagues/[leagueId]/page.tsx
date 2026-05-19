@@ -113,6 +113,9 @@ import { ClassStrengthChip } from "@/components/league/class-strength-chip";
 import { computeClassStrength } from "@/lib/strategy/class-strength/compute";
 import type { ClassStrength } from "@/lib/strategy/class-strength/compute";
 import { readLeagueDoctrine } from "@/lib/lab/league-doctrine";
+import { DraftPathProjector } from "@/components/league/draft-path-projector";
+import { projectDraftPaths } from "@/lib/strategy/draft-paths/project";
+import type { DraftPathProjection } from "@/lib/strategy/draft-paths/types";
 import {
   summarizeUpcomingDraft,
   type UpcomingDraftSummary,
@@ -1000,6 +1003,7 @@ export default async function LeagueHubPage({
   let rosterPosture: RosterPosture | null = null;
   let upcomingDraft: UpcomingDraftSummary | null = null;
   let classStrength: ClassStrength | null = null;
+  let draftPathProjection: DraftPathProjection | null = null;
   let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
@@ -1201,6 +1205,42 @@ export default async function LeagueHubPage({
             });
           } catch (err) {
             console.error("[hub:class-strength]", err);
+          }
+
+          // Draft Path Projection. Phase D 2026-05-19. Consumes class
+          // strength + user dials + the user's next N owned slots to
+          // produce 3-5 ranked positional sequences. Renders the
+          // killer pre-draft + active-draft surface that lets the
+          // user compare RB-WR-RB-WR-TE vs WR-WR-RB-RB-QB etc. side-
+          // by-side.
+          if (classStrength) {
+            try {
+              const profile = await readProfileServer().catch(() => null);
+              const { effective: effectiveDials } = await loadEffectiveDials({
+                userId: authUser?.id ?? null,
+                leagueId,
+                globalProfile: profile,
+              });
+              const numAsDial = (v: unknown): number =>
+                typeof v === "number" ? v : 0;
+              const whyDials = {
+                youth: numAsDial(effectiveDials.youth_weight),
+                bellcow: numAsDial(effectiveDials.bellcow_pref),
+                continuity: numAsDial(effectiveDials.continuity_weight),
+                horizon: numAsDial(effectiveDials.horizon),
+                rookie: numAsDial(effectiveDials.rookie_tilt),
+                risk: numAsDial(effectiveDials.risk_tolerance),
+                consensus: numAsDial(effectiveDials.consensus_lean),
+              };
+              draftPathProjection = await projectDraftPaths({
+                snap: leagueSnapshot,
+                myRosterId: myRoster.roster_id,
+                dials: whyDials,
+                classStrength,
+              });
+            } catch (err) {
+              console.error("[hub:draft-paths]", err);
+            }
           }
         }
       } catch (err) {
@@ -1978,6 +2018,18 @@ export default async function LeagueHubPage({
                     leagueId={leagueId}
                     canEdit={authUser != null}
                   />
+                )}
+
+              {/* Draft Path Projector. Phase D 2026-05-19. The killer
+                  pre-draft + active-draft surface. 3-5 ranked
+                  positional sequences side-by-side with per-slot
+                  candidates + survival probabilities. Renders only
+                  when paths are available + draft is pre-draft or
+                  active (no value post-draft). */}
+              {draftPathProjection &&
+                draftPathProjection.paths.length > 0 &&
+                (draftState?.status === "pre_draft" || draftActive) && (
+                  <DraftPathProjector projection={draftPathProjection} />
                 )}
 
               {/* SECTION: The Call (active draft only). */}
