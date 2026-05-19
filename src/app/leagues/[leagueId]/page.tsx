@@ -1497,19 +1497,20 @@ export default async function LeagueHubPage({
 
           {rosterPosture && <PostureBanner posture={rosterPosture} />}
 
-          {draftState?.status === "pre_draft" && upcomingDraft && (
-            <DraftPositionBanner
-              summary={upcomingDraft}
-              ownerNameByRosterId={
-                new Map(
-                  leagueSnapshot?.rosters.map((r) => [
-                    r.roster_id,
-                    r.owner_name ?? `roster #${r.roster_id}`,
-                  ]) ?? [],
-                )
-              }
-            />
-          )}
+          {(draftState?.status === "pre_draft" || draftActive) &&
+            upcomingDraft && (
+              <DraftPositionBanner
+                summary={upcomingDraft}
+                ownerNameByRosterId={
+                  new Map(
+                    leagueSnapshot?.rosters.map((r) => [
+                      r.roster_id,
+                      r.owner_name ?? `roster #${r.roster_id}`,
+                    ]) ?? [],
+                  )
+                }
+              />
+            )}
 
           <EvBankPercentileChip
             leagueBank={leagueEvBank}

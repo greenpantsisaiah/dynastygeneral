@@ -127,6 +127,48 @@ export function DraftPositionBanner({
           emptyText="No picks acquired in this draft."
         />
       </div>
+
+      {summary.consecutive_pairs.length > 0 && (
+        <div className="mt-4 rounded-md border border-[color:#a78bfa]/40 bg-[color:#a78bfa]/5 px-3 py-2">
+          <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-[color:#a78bfa]">
+            Back-to-back · pair strategy in play
+          </div>
+          <ul className="mt-1 space-y-1 text-[11px] leading-snug text-foreground">
+            {summary.consecutive_pairs.map((pair) => (
+              <li key={`${pair.first.pick_no}-${pair.second.pick_no}`}>
+                <span className="font-mono text-muted-2">
+                  {pair.first.pick_label}
+                </span>{" "}
+                +{" "}
+                <span className="font-mono text-muted-2">
+                  {pair.second.pick_label}
+                </span>
+                {pair.length > 2 && (
+                  <span className="font-mono text-muted-2">
+                    {" "}
+                    (+{pair.length - 2} more)
+                  </span>
+                )}
+                <span className="ml-2 text-muted">
+                  back-to-back. The field does not pick between these
+                  slots: you can pair a target + its natural backup, or
+                  reach + wait, without losing tier.
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {summary.total_pick_trades_in_draft > 0 && (
+        <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
+          Pick trades in this draft ·{" "}
+          <span className="text-foreground">
+            {summary.total_pick_trades_in_draft}
+          </span>{" "}
+          · early-round trade volume is normal for dynasty startups
+        </div>
+      )}
     </section>
   );
 }

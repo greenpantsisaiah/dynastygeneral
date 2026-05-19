@@ -174,10 +174,18 @@ export async function getTransactions(
 export async function getTradedPicks(
   leagueId: string,
 ): Promise<SleeperTradedPick[]> {
+  // Always fresh. Pick trades fire rapidly during active drafts (10-20
+  // trades in the first three rounds of a typical dynasty startup);
+  // a 5-minute revalidate was leaving users seeing stale pick
+  // ownership after their own trades. Mirrors the same noStore pattern
+  // getRosters uses for the same reason. Founder report 2026-05-19:
+  // "after my trades, when I was refreshing the page a few minutes
+  // later it didn't seem to know I even had the picks." The 5-min
+  // cache matched the symptom exactly.
   const data = await sleeperGet(
     `/league/${encodeURIComponent(leagueId)}/traded_picks`,
     z.array(sleeperTradedPickSchema),
-    { revalidate: 300 },
+    { noStore: true },
   );
   return data ?? [];
 }

@@ -30,6 +30,24 @@ export type UpcomingPickRow = {
   is_currently_mine: boolean;
 };
 
+/**
+ * Two or more back-to-back owned picks (consecutive pick_no). Powers
+ * the "pair strategy" callout: when a user owns picks 7.5 + 7.6
+ * back-to-back, they can lock a player AND their natural pairing
+ * (e.g. RB + their handcuff, or two same-tier WRs) before the field
+ * gets another shot.
+ *
+ * Per founder report 2026-05-19: "I'll know you nailed this when the
+ * page is noticing I have upcoming 7.5 and 7.6 back to back picks
+ * and something on the page suggests how to play that."
+ */
+export type ConsecutivePair = {
+  first: UpcomingPickRow;
+  second: UpcomingPickRow;
+  /** Length of the run (2 for a pair, 3+ for a longer run). */
+  length: number;
+};
+
 export type UpcomingDraftSummary = {
   season: string;
   total_teams: number;
@@ -44,6 +62,10 @@ export type UpcomingDraftSummary = {
   acquired: Array<UpcomingPickRow & { acquired_from_roster_id: number }>;
   /** Net change in R1 slots (negative = lost ground in R1, positive = gained). */
   r1_slot_delta: number;
+  /** Sequences of 2+ owned consecutive pick numbers. */
+  consecutive_pairs: ConsecutivePair[];
+  /** Total count of pick trades in this draft's season (informational chip). */
+  total_pick_trades_in_draft: number;
 };
 
 function labelForPickNo(pickNo: number, teams: number): string {
@@ -172,14 +194,58 @@ export function summarizeUpcomingDraft(args: {
     }
   }
 
+  // During active draft, filter my_owned to FUTURE picks only.
+  // Already-made picks live in snap.draft.picks_made and shouldn't
+  // appear as "upcoming you own." The canonical my_pick_schedule
+  // already does this filter at the snapshot layer; we mirror it here
+  // so the banner doesn't surface picks the user has already used.
+  const nextPickNo = snap.draft.next_pick_no;
+  const upcomingOnly = (rows: UpcomingPickRow[]): UpcomingPickRow[] =>
+    typeof nextPickNo === "number"
+      ? rows.filter((r) => r.pick_no >= nextPickNo)
+      : rows;
+  const myOwnedUpcoming = upcomingOnly(myOwned);
+
+  // Consecutive-pair detection runs against UPCOMING owned picks only;
+  // pairs that already resolved (both picks made) are not actionable.
+  // Walk myOwnedUpcoming sorted by pick_no; any run of 2+ picks where
+  // each pick_no === previous + 1 is a back-to-back.
+  const consecutivePairs: ConsecutivePair[] = [];
+  for (let i = 0; i < myOwnedUpcoming.length; i++) {
+    let runLength = 1;
+    while (
+      i + runLength < myOwnedUpcoming.length &&
+      myOwnedUpcoming[i + runLength].pick_no ===
+        myOwnedUpcoming[i + runLength - 1].pick_no + 1
+    ) {
+      runLength++;
+    }
+    if (runLength >= 2) {
+      consecutivePairs.push({
+        first: myOwnedUpcoming[i],
+        second: myOwnedUpcoming[i + 1],
+        length: runLength,
+      });
+      // Skip past the consumed run so we don't double-count.
+      i += runLength - 1;
+    }
+  }
+
+  // Trade-count chip. Only count trades matching this draft's season.
+  const totalTradesInDraft = snap.draft.traded_picks.filter(
+    (tp) => tp.season === season,
+  ).length;
+
   return {
     season,
     total_teams: totalTeams,
     rounds,
     my_slot: mySlot,
-    my_owned: myOwned,
+    my_owned: myOwnedUpcoming,
     traded_away: tradedAway,
     acquired,
     r1_slot_delta: r1SlotDelta,
+    consecutive_pairs: consecutivePairs,
+    total_pick_trades_in_draft: totalTradesInDraft,
   };
 }
