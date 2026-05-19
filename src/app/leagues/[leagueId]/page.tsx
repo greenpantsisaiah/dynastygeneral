@@ -109,6 +109,10 @@ import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import type { RosterPosture } from "@/lib/strategy/posture/types";
 import { DraftPositionBanner } from "@/components/league/draft-position-banner";
 import { PositionRunWatch } from "@/components/league/position-run-watch";
+import { ClassStrengthChip } from "@/components/league/class-strength-chip";
+import { computeClassStrength } from "@/lib/strategy/class-strength/compute";
+import type { ClassStrength } from "@/lib/strategy/class-strength/compute";
+import { readLeagueDoctrine } from "@/lib/lab/league-doctrine";
 import {
   summarizeUpcomingDraft,
   type UpcomingDraftSummary,
@@ -995,6 +999,7 @@ export default async function LeagueHubPage({
   let lastVisitLeagueRankDelta: number | null = null;
   let rosterPosture: RosterPosture | null = null;
   let upcomingDraft: UpcomingDraftSummary | null = null;
+  let classStrength: ClassStrength | null = null;
   let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
@@ -1176,6 +1181,27 @@ export default async function LeagueHubPage({
             snap: leagueSnapshot,
             myRosterId: myRoster.roster_id,
           });
+
+          // Class strength. Per-position rookie class multipliers
+          // (RB strong, TE thin, etc.) derived from FantasyCalc's
+          // top-N rookie pool per position. User can override per
+          // league via the league_doctrines.class_strength jsonb.
+          // Phase B 2026-05-19. Phase C path projector consumes this
+          // to bias toward scarce positions during pick projection.
+          try {
+            let overrides:
+              | Awaited<ReturnType<typeof readLeagueDoctrine>>
+              | null = null;
+            if (authUser?.id) {
+              overrides = await readLeagueDoctrine(authUser.id, leagueId);
+            }
+            classStrength = await computeClassStrength({
+              snap: leagueSnapshot,
+              overrides: overrides?.class_strength ?? {},
+            });
+          } catch (err) {
+            console.error("[hub:class-strength]", err);
+          }
         }
       } catch (err) {
         console.error("[hub:posture]", err);
@@ -1938,6 +1964,19 @@ export default async function LeagueHubPage({
                       leagueSnapshot.draft.next_pick_no ??
                       null
                     }
+                  />
+                )}
+
+              {/* Class Strength Chip. Visible pre-draft AND active-
+                  draft (the rookie-class shape is fixed for the year
+                  regardless of draft state). User can override per
+                  league when signed in. Phase B 2026-05-19. */}
+              {classStrength &&
+                (draftState?.status === "pre_draft" || draftActive) && (
+                  <ClassStrengthChip
+                    classStrength={classStrength}
+                    leagueId={leagueId}
+                    canEdit={authUser != null}
                   />
                 )}
 

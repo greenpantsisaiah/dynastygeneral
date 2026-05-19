@@ -29,6 +29,11 @@ export type LeagueDoctrineRow = {
   /** Sparse: only dials the user explicitly overrode for this league. */
   dials: Partial<Record<DialId, DialValue>>;
   notes: Partial<Record<DialId, string>>;
+  /**
+   * Sparse per-position class-strength multipliers. Missing positions
+   * fall through to FantasyCalc-derived values. Migration 0014.
+   */
+  class_strength: Partial<Record<"QB" | "RB" | "WR" | "TE", number>>;
   /** Non-null means the user opted into per-league tuning for this league. */
   enabled_at: string | null;
   last_edited_at: string;
@@ -64,6 +69,24 @@ function sanitizeNoteMap(raw: unknown): Partial<Record<DialId, string>> {
   return out;
 }
 
+const VALID_CLASS_STRENGTH_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
+
+function sanitizeClassStrengthMap(
+  raw: unknown,
+): Partial<Record<"QB" | "RB" | "WR" | "TE", number>> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Partial<Record<"QB" | "RB" | "WR" | "TE", number>> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!VALID_CLASS_STRENGTH_POSITIONS.has(k)) continue;
+    if (typeof v !== "number" || !Number.isFinite(v)) continue;
+    // Plausibility band: multipliers outside [0.25, 4.0] are almost
+    // certainly garbage entered by mistake.
+    if (v < 0.25 || v > 4.0) continue;
+    out[k as "QB" | "RB" | "WR" | "TE"] = v;
+  }
+  return out;
+}
+
 /**
  * Read the user's per-league doctrine row. Returns null when no row
  * exists (user has never opted into per-league tuning for this
@@ -77,7 +100,9 @@ export async function readLeagueDoctrine(
     const supabase = await createClient();
     const { data } = await supabase
       .from("league_doctrines")
-      .select("user_id, league_id, dials, notes, enabled_at, last_edited_at")
+      .select(
+        "user_id, league_id, dials, notes, class_strength, enabled_at, last_edited_at",
+      )
       .eq("user_id", userId)
       .eq("league_id", leagueId)
       .maybeSingle();
@@ -87,6 +112,7 @@ export async function readLeagueDoctrine(
       league_id: data.league_id as string,
       dials: sanitizeDialMap(data.dials),
       notes: sanitizeNoteMap(data.notes),
+      class_strength: sanitizeClassStrengthMap(data.class_strength),
       enabled_at: (data.enabled_at as string | null) ?? null,
       last_edited_at: (data.last_edited_at as string) ?? new Date().toISOString(),
     };
@@ -106,12 +132,16 @@ export async function writeLeagueDoctrine(args: {
   leagueId: string;
   dials?: Partial<Record<DialId, DialValue>>;
   notes?: Partial<Record<DialId, string>>;
+  classStrength?: Partial<Record<"QB" | "RB" | "WR" | "TE", number>>;
   enabled: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
     const cleanDials = args.dials ? sanitizeDialMap(args.dials) : {};
     const cleanNotes = args.notes ? sanitizeNoteMap(args.notes) : {};
+    const cleanClassStrength = args.classStrength
+      ? sanitizeClassStrengthMap(args.classStrength)
+      : {};
     const now = new Date().toISOString();
     const { error } = await supabase.from("league_doctrines").upsert(
       {
@@ -119,6 +149,7 @@ export async function writeLeagueDoctrine(args: {
         league_id: args.leagueId,
         dials: cleanDials,
         notes: cleanNotes,
+        class_strength: cleanClassStrength,
         enabled_at: args.enabled ? now : null,
         last_edited_at: now,
       },

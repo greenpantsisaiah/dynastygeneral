@@ -32,9 +32,14 @@ const dialValueSchema = z.union([
   z.array(z.string()),
 ]);
 
+const classStrengthSchema = z
+  .record(z.enum(["QB", "RB", "WR", "TE"]), z.number().min(0.25).max(4.0))
+  .optional();
+
 const bodySchema = z.object({
   dials: z.record(z.string(), dialValueSchema).optional(),
   notes: z.record(z.string(), z.string()).optional(),
+  class_strength: classStrengthSchema,
   enabled: z.boolean(),
 });
 
@@ -89,6 +94,7 @@ export async function POST(
     leagueId,
     dials: parsed.data.dials as Partial<Record<string, unknown>> as never,
     notes: parsed.data.notes,
+    classStrength: parsed.data.class_strength,
     enabled: parsed.data.enabled,
   });
   if (!result.ok) {
