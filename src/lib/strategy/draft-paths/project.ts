@@ -241,7 +241,15 @@ function buildCandidate(args: {
       ? (args.player as AvailablePlayer & { value: number }).value
       : Math.max(1, 100 - args.player.dynasty_rank * 0.4);
 
-  const classMult = args.classStrengthByPos[position] ?? 1;
+  // Class strength multiplier applies ONLY to rookies. The
+  // multipliers describe the strength of the rookie class at each
+  // position; they shouldn't inflate veterans' values. Veteran
+  // (years_exp > 0) values come from FantasyCalc as-is. Founder
+  // report 2026-05-19: late-round veteran RBs were being boosted by
+  // the RB class strength multiplier and dominating the BPA path.
+  const classMult = args.player.is_rookie
+    ? (args.classStrengthByPos[position] ?? 1)
+    : 1;
   const fit = args.rosterFit[position] ?? 1;
   const bias = dialBiasFor({
     position,
@@ -348,6 +356,19 @@ const ARCHETYPES: Archetype[] = [
 /**
  * Pick the best candidate at this slot whose position matches the
  * archetype's slot constraint. Returns null if no candidate viable.
+ *
+ * Backup candidate behavior:
+ * - When constraint is a specific position (e.g. "RB"), top3 returns
+ *   the three highest-EV players at THAT position so the user sees
+ *   "if my RB target is gone, here's my RB backup."
+ * - When constraint is "any" (BPA archetype), top3 returns the
+ *   highest-EV player at the recommendation's position PLUS the
+ *   highest-EV player at each of the other 3 positions. This gives
+ *   position diversity in the backup view so the user can compare
+ *   "BPA RB at this slot vs BPA WR vs BPA TE." Founder report
+ *   2026-05-19: BPA was showing 3 RBs at every slot because RBs
+ *   happened to dominate the EV ranking; user wanted to see the
+ *   best across positions.
  */
 function pickForSlot(args: {
   poolForSlot: PathCandidate[];
@@ -361,10 +382,39 @@ function pickForSlot(args: {
   );
   if (eligible.length === 0) return null;
   eligible.sort((a, b) => b.expected_value - a.expected_value);
-  return {
-    rec: eligible[0],
-    top3: eligible.slice(0, MAX_CANDIDATES_PER_PICK),
-  };
+  const rec = eligible[0];
+
+  if (args.constraint !== "any") {
+    // Same-position backup view: top 3 at the constrained position.
+    return {
+      rec,
+      top3: eligible.slice(0, MAX_CANDIDATES_PER_PICK),
+    };
+  }
+
+  // BPA: diversify the backup view across positions. Walk through
+  // eligible in EV order, take the recommendation first, then the
+  // best player at each other position (up to MAX_CANDIDATES_PER_PICK).
+  const top3: PathCandidate[] = [rec];
+  const seenPositions = new Set<PathPosition>([rec.position]);
+  for (const c of eligible) {
+    if (top3.length >= MAX_CANDIDATES_PER_PICK) break;
+    if (seenPositions.has(c.position)) continue;
+    top3.push(c);
+    seenPositions.add(c.position);
+  }
+  // If position diversity didn't fill all slots (rare; happens only
+  // when fewer than 3 positions are available), fall back to next-
+  // highest EV regardless of position.
+  if (top3.length < MAX_CANDIDATES_PER_PICK) {
+    const takenIds = new Set(top3.map((c) => c.player_id));
+    for (const c of eligible) {
+      if (top3.length >= MAX_CANDIDATES_PER_PICK) break;
+      if (takenIds.has(c.player_id)) continue;
+      top3.push(c);
+    }
+  }
+  return { rec, top3 };
 }
 
 /**

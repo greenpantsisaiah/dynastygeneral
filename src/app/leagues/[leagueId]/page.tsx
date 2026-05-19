@@ -476,14 +476,32 @@ export default async function LeagueHubPage({
               });
             }
           }
-          const drift = detectDoctrineDrift({
-            rosters: snapshot.rosters,
-            picks_made: snapshot.draft.picks_made,
-            declared_horizon: declaredHorizon,
-            player_meta_by_id: playerMetaForDrift,
-          });
-          if (drift.detected) {
-            driftSummary = drift.summary;
+          // Drift suppressed in active startup draft. Founder report
+          // 2026-05-19: "+50 before my last pick and I literally
+          // picked Saquon Barkley... very hard to feel like that's a
+          // drift further to future-leaning." In a startup, the
+          // top of the board is dominated by young / rookie assets
+          // (Bowers, Daniels, Jeanty at ADP 1-12) so taking them is
+          // a market-driven choice, not a posture commitment. Drift
+          // detection makes more sense in-season when the user is
+          // actively trading + waiver-claiming. Same suppression
+          // pattern Phase A.1 uses for posture banner.
+          const isStartupDraft =
+            (snapshot.draft.rounds ?? 0) > 6;
+          const inActiveStartupForDrift =
+            (draftState?.status === "drafting" ||
+              draftState?.status === "paused") &&
+            isStartupDraft;
+          if (!inActiveStartupForDrift) {
+            const drift = detectDoctrineDrift({
+              rosters: snapshot.rosters,
+              picks_made: snapshot.draft.picks_made,
+              declared_horizon: declaredHorizon,
+              player_meta_by_id: playerMetaForDrift,
+            });
+            if (drift.detected) {
+              driftSummary = drift.summary;
+            }
           }
         }
       } catch (err) {

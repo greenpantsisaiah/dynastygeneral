@@ -30,7 +30,14 @@ export function DraftPositionBanner({
     traded_away,
     acquired,
     r1_slot_delta,
+    rounds,
   } = summary;
+
+  // Rookie drafts run 4-6 rounds; startup drafts run 12-25. Labeling
+  // a 12-round startup as "rookie draft" was the 2026-05-19 founder
+  // complaint. The rounds heuristic is the same one used by
+  // resolveRookieRounds + the active-startup posture suppression.
+  const draftKindLabel = rounds > 6 ? "startup draft" : "rookie draft";
 
   return (
     <section
@@ -43,10 +50,7 @@ export function DraftPositionBanner({
             Draft position
           </span>
           <span className={`font-mono text-[10px] uppercase tracking-[0.18em] ${SEASON_TONE}`}>
-            {season} rookie draft
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-            pre-draft
+            {season} {draftKindLabel}
           </span>
         </div>
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">

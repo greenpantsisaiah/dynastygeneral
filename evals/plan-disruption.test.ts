@@ -192,6 +192,13 @@ function run() {
       my_roster_size: 5,
       plan_player_ids: ["a", "b", "c", "d"],
     };
+    // 12-team league so the reachability band (one round = 12 picks)
+    // includes the 51 / 52 / 53 → 60 snipe range.
+    const rosterNames: Record<number, string> = {};
+    for (let i = 1; i <= 12; i++) rosterNames[i] = `Roster ${i}`;
+    rosterNames[1] = "Me";
+    rosterNames[2] = "Opp1";
+    rosterNames[3] = "Opp2";
     const snap = makeSnap({
       myRosterId: 1,
       myNextPickNo: 60,
@@ -201,7 +208,7 @@ function run() {
         { pick_no: 52, roster_id: 3, player_id: "b" },
         { pick_no: 53, roster_id: 2, player_id: "c" },
       ],
-      rosterNames: { 1: "Me", 2: "Opp1", 3: "Opp2" },
+      rosterNames,
     });
     const result = detectPlanDisruption({
       prior,

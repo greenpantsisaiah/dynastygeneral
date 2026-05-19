@@ -75,6 +75,20 @@ export function detectPlanDisruption(args: {
   const myRoster = snap.rosters.find((r) => r.is_me);
   const myRosterId = myRoster?.roster_id ?? null;
 
+  // Reachability filter. A "plan player" who was picked WAY before
+  // the user's next slot was never realistically going to survive.
+  // Sniping them is not disruption; it's the field doing what the
+  // field does. One full round (snap.total_teams picks) is the
+  // outer plausibility band: if the snipe happened more than a
+  // round before the user's next pick, the player had ~zero chance
+  // of being there anyway.
+  //
+  // Founder report 2026-05-19: "Plan disruption 27 picks before my
+  // turn kind of shows you more of the ridiculous optimism the
+  // platform seems to have regarding my next pick chances."
+  const myNextPickNo = snap.draft.my_pick_schedule?.[0]?.pick_no ?? null;
+  const reachabilityBand = snap.total_teams; // 1 round = realistic shot
+
   const planSet = new Set(prior.plan_player_ids);
   const snipes: PlanSnipe[] = [];
   for (const p of snap.draft.picks_made) {
@@ -89,6 +103,14 @@ export function detectPlanDisruption(args: {
     // pick_no > prior.total_picks_made. That bounds the snipe set
     // to picks made strictly between visits.
     if (p.pick_no <= prior.total_picks_made) continue;
+    // Reachability: if snipe happened > reachabilityBand picks before
+    // user's next pick, the player wasn't reachable anyway. Skip.
+    if (
+      myNextPickNo != null &&
+      myNextPickNo - p.pick_no > reachabilityBand
+    ) {
+      continue;
+    }
     const meta = playerNameLookup(p.player_id);
     const drafter = snap.rosters.find((r) => r.roster_id === p.roster_id);
     snipes.push({

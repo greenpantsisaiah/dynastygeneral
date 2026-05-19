@@ -145,7 +145,10 @@ export function ClassStrengthChip({
         )}
       </div>
 
-      <p className="mt-2 text-xs leading-snug text-muted">
+      <p className="mt-2 text-sm font-medium leading-snug text-foreground">
+        {composeClassStrengthSummary(classStrength)}
+      </p>
+      <p className="mt-1 text-xs leading-snug text-muted">
         How strong each position's portion of the {classStrength.season}{" "}
         rookie class is, relative to the average of all four positions.
         Stronger position = more depth, more value to find later. Weaker
@@ -248,4 +251,29 @@ export function ClassStrengthChip({
       </div>
     </section>
   );
+}
+
+/**
+ * One-sentence summary naming strong / weak positions in plain English.
+ * Buckets the multipliers and produces text like "Loaded WR class,
+ * strong RB; QB and TE classes are thin."
+ */
+function composeClassStrengthSummary(cs: ClassStrength): string {
+  const strong: ClassStrengthPosition[] = [];
+  const weak: ClassStrengthPosition[] = [];
+  const loaded: ClassStrengthPosition[] = [];
+  for (const pos of POSITIONS) {
+    const m = cs.by_position[pos];
+    if (m >= 1.4) loaded.push(pos);
+    else if (m >= 1.1) strong.push(pos);
+    else if (m <= 0.7) weak.push(pos);
+  }
+  const parts: string[] = [];
+  if (loaded.length > 0) parts.push(`Loaded ${loaded.join(" / ")} class`);
+  if (strong.length > 0) parts.push(`strong ${strong.join(" / ")} class`);
+  if (weak.length > 0) parts.push(`thin ${weak.join(" and ")} class`);
+  if (parts.length === 0) {
+    return `${cs.season} class is balanced across positions; no obvious scarcity to play.`;
+  }
+  return `${cs.season} class: ${parts.join(", ")}.`;
 }
