@@ -24,6 +24,7 @@ import type {
   PathCandidate,
   PathPick,
   PathPosition,
+  RosterContext,
 } from "@/lib/strategy/draft-paths/types";
 
 const POSITION_TONE: Record<PathPosition, string> = {
@@ -69,8 +70,11 @@ export function DraftPathProjector({
         </span>
       </div>
 
-      {projection.locked_picks.length > 0 && (
-        <LockedPicksStrip lockedPicks={projection.locked_picks} />
+      {projection.roster_context.picks_made > 0 && (
+        <RosterSynthesisStrip
+          rosterContext={projection.roster_context}
+          lockedPicks={projection.locked_picks}
+        />
       )}
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -256,55 +260,162 @@ function CandidateLine({ c }: { c: PathCandidate }) {
   );
 }
 
-function LockedPicksStrip({ lockedPicks }: { lockedPicks: LockedPick[] }) {
+/**
+ * Roster synthesis: the founder critique that the literal "Already
+ * picked" list provided no interpretation. This component leads with
+ * the engine's read of the user's build so far (summary line +
+ * position-by-position anchor view), then folds the raw pick order
+ * behind a toggle for users who want to re-read the chronology.
+ *
+ * Founder direction 2026-05-19: "The last 5 picks showing doesn't
+ * seem to help me without any interpretation/judgment to it." The
+ * synthesis answers the WHY of every pick already on the roster
+ * before projecting the next 5.
+ */
+function RosterSynthesisStrip({
+  rosterContext,
+  lockedPicks,
+}: {
+  rosterContext: RosterContext;
+  lockedPicks: LockedPick[];
+}) {
+  const [showOrder, setShowOrder] = useState(false);
+  const positions: PathPosition[] = ["QB", "RB", "WR", "TE"];
   return (
     <section className="mt-4 rounded-md border border-success/40 bg-success/5 px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-success">
-          Already picked · {lockedPicks.length}
+          Your build so far · {rosterContext.picks_made} pick
+          {rosterContext.picks_made === 1 ? "" : "s"}
         </div>
         <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
-          Locked context for path projection below
+          Roster going into the next {lockedPicks.length > 0 ? 5 : "5"} slots
         </div>
       </div>
-      <ul className="mt-2 space-y-1">
-        {lockedPicks.map((lp) => {
-          const positionTone =
-            lp.position === "QB"
-              ? "text-success"
-              : lp.position === "RB"
-                ? "text-accent"
-                : lp.position === "TE"
-                  ? "text-warning"
-                  : "text-foreground";
-          return (
+
+      <p className="mt-2 text-[12px] leading-snug text-foreground">
+        {rosterContext.summary}
+      </p>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {positions.map((pos) => (
+          <PositionAnchorCell
+            key={pos}
+            position={pos}
+            count={rosterContext.position_counts[pos]}
+            need={rosterContext.starter_needs[pos]}
+            anchors={rosterContext.anchors[pos]}
+          />
+        ))}
+      </div>
+
+      {lockedPicks.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setShowOrder((v) => !v)}
+            className="mt-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent"
+            aria-expanded={showOrder}
+          >
+            {showOrder ? "Hide" : "Show"} pick order
+          </button>
+
+          {showOrder && (
+            <ul className="mt-2 space-y-1 border-t border-success/30 pt-2">
+              {lockedPicks.map((lp) => (
+                <LockedPickLine key={`${lp.pick_no}-${lp.player_id}`} lp={lp} />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function PositionAnchorCell({
+  position,
+  count,
+  need,
+  anchors,
+}: {
+  position: PathPosition;
+  count: number;
+  need: number;
+  anchors: Array<{ name: string; value: number }>;
+}) {
+  const tone = POSITION_TONE[position];
+  const status: { label: string; toneClass: string } =
+    count === 0
+      ? { label: "empty", toneClass: "text-danger" }
+      : count < need
+        ? { label: `${count} of ${need}`, toneClass: "text-warning" }
+        : count === need
+          ? { label: "starter met", toneClass: "text-success" }
+          : { label: `+${count - need} depth`, toneClass: "text-muted-2" };
+  return (
+    <div className="rounded-sm border border-border-soft bg-surface-2 px-3 py-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span
+          className={`font-mono text-[11px] font-semibold uppercase tracking-[0.16em] ${tone}`}
+        >
+          {position}
+        </span>
+        <span
+          className={`font-mono text-[9px] uppercase tracking-[0.14em] ${status.toneClass}`}
+        >
+          {status.label}
+        </span>
+      </div>
+      {anchors.length === 0 ? (
+        <p className="mt-1 text-[11px] leading-snug text-muted-2">
+          No {position} on roster yet.
+        </p>
+      ) : (
+        <ul className="mt-1 space-y-0.5">
+          {anchors.map((a) => (
             <li
-              key={`${lp.pick_no}-${lp.player_id}`}
-              className="flex flex-wrap items-baseline gap-2 text-[12px] leading-snug"
+              key={a.name}
+              className="flex items-baseline justify-between gap-2 text-[11px] leading-snug"
             >
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                {lp.pick_label}
-              </span>
-              <span
-                className={`font-mono text-[10px] uppercase tracking-[0.14em] ${positionTone}`}
-              >
-                {lp.position}
-              </span>
-              <span className="font-semibold text-foreground">
-                {lp.player_name}
-              </span>
-              <span className="font-mono text-[10px] text-muted-2">
-                {lp.team ?? "FA"}
-                {lp.age != null && ` · age ${lp.age}`}
-                {lp.is_rookie && (
-                  <span className="ml-1 text-accent">· rookie</span>
-                )}
-                {lp.value != null && ` · value ${Math.round(lp.value)}`}
+              <span className="text-foreground">{a.name}</span>
+              <span className="font-mono text-[9px] text-muted-2">
+                {Math.round(a.value)}
               </span>
             </li>
-          );
-        })}
-      </ul>
-    </section>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function LockedPickLine({ lp }: { lp: LockedPick }) {
+  const positionTone =
+    lp.position === "QB"
+      ? "text-success"
+      : lp.position === "RB"
+        ? "text-accent"
+        : lp.position === "TE"
+          ? "text-warning"
+          : "text-foreground";
+  return (
+    <li className="flex flex-wrap items-baseline gap-2 text-[12px] leading-snug">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+        {lp.pick_label}
+      </span>
+      <span
+        className={`font-mono text-[10px] uppercase tracking-[0.14em] ${positionTone}`}
+      >
+        {lp.position}
+      </span>
+      <span className="font-semibold text-foreground">{lp.player_name}</span>
+      <span className="font-mono text-[10px] text-muted-2">
+        {lp.team ?? "FA"}
+        {lp.age != null && ` · age ${lp.age}`}
+        {lp.is_rookie && <span className="ml-1 text-accent">· rookie</span>}
+        {lp.value != null && ` · value ${Math.round(lp.value)}`}
+      </span>
+    </li>
   );
 }

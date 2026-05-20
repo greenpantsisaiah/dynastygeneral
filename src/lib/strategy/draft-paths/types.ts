@@ -113,6 +113,26 @@ export type LockedPick = {
   value: number | null;
 };
 
+/**
+ * Read of the user's roster state going into the projected picks.
+ * Used both for the "your build so far" synthesis line in the UI and
+ * for roster-aware archetype framing in the engine. Counts come from
+ * snap.rosters[me].position_counts; anchors are the top 1-2 players
+ * by FantasyCalc value at each position.
+ */
+export type RosterContext = {
+  position_counts: Record<PathPosition, number>;
+  starter_needs: Record<PathPosition, number>;
+  /** Gap by position (need - count, clamped at 0). */
+  gaps: Record<PathPosition, number>;
+  /** Top 1-2 players at each position (already on the roster). */
+  anchors: Record<PathPosition, Array<{ name: string; value: number }>>;
+  /** Plain-English summary line. */
+  summary: string;
+  /** Total picks user has made so far in this draft. */
+  picks_made: number;
+};
+
 /** Full projection output. */
 export type DraftPathProjection = {
   /** The picks the user owns in this projection window. */
@@ -128,6 +148,8 @@ export type DraftPathProjection = {
    * deep into the draft. Empty when the user hasn't picked yet.
    */
   locked_picks: LockedPick[];
+  /** Synthesized roster state going into the projected picks. */
+  roster_context: RosterContext;
   /** Candidate paths sorted by rank (best first). */
   paths: DraftPath[];
   /** Class-strength inputs used. Surfaced for provenance. */

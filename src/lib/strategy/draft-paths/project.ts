@@ -40,6 +40,7 @@ import type {
   PathDialInfluence,
   PathPick,
   PathPosition,
+  RosterContext,
 } from "./types";
 
 const POSITIONS: PathPosition[] = ["QB", "RB", "WR", "TE"];
@@ -54,6 +55,108 @@ function labelForPickNo(pickNo: number, teams: number): string {
   const round = Math.ceil(pickNo / teams);
   const within = ((pickNo - 1) % teams) + 1;
   return `${round}.${within < 10 ? `0${within}` : within}`;
+}
+
+/**
+ * Build a RosterContext from snap + value lookup. Reads the user's
+ * roster, counts positions, identifies anchors (top 1-2 by value at
+ * each position), and composes a plain-English summary line.
+ */
+function buildRosterContext(args: {
+  snap: LeagueSnapshot;
+  myRosterId: number;
+  valueMap: Map<string, { value: number }>;
+  lockedNameMap?: Map<string, string>;
+}): RosterContext {
+  const { snap, myRosterId, valueMap } = args;
+  const me = snap.rosters.find((r) => r.roster_id === myRosterId);
+  const isSuperflex =
+    snap.format === "superflex" || snap.format === "2qb";
+  const starterNeeds: Record<PathPosition, number> = {
+    QB: isSuperflex ? 2 : 1,
+    RB: 2,
+    WR: 3,
+    TE: 1,
+  };
+  const counts: Record<PathPosition, number> = {
+    QB: me?.position_counts.QB ?? 0,
+    RB: me?.position_counts.RB ?? 0,
+    WR: me?.position_counts.WR ?? 0,
+    TE: me?.position_counts.TE ?? 0,
+  };
+  const gaps: Record<PathPosition, number> = {
+    QB: Math.max(0, starterNeeds.QB - counts.QB),
+    RB: Math.max(0, starterNeeds.RB - counts.RB),
+    WR: Math.max(0, starterNeeds.WR - counts.WR),
+    TE: Math.max(0, starterNeeds.TE - counts.TE),
+  };
+
+  // Anchors: for each position, find the user's top 1-2 picks by
+  // FantasyCalc value. Pulled from picks_made attributed to the user.
+  const anchors: Record<
+    PathPosition,
+    Array<{ name: string; value: number }>
+  > = {
+    QB: [],
+    RB: [],
+    WR: [],
+    TE: [],
+  };
+  const myPicks = snap.draft.picks_made.filter(
+    (p) => p.roster_id === myRosterId,
+  );
+  for (const pos of ["QB", "RB", "WR", "TE"] as PathPosition[]) {
+    const candidates = myPicks
+      .filter((p) => (p.position ?? "").toUpperCase() === pos)
+      .map((p) => ({
+        name:
+          args.lockedNameMap?.get(p.player_id) ?? p.player_id.slice(0, 10),
+        value: valueMap.get(p.player_id)?.value ?? 0,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 2);
+    anchors[pos] = candidates;
+  }
+
+  // Summary: position counts + gaps + biggest hole.
+  const filled: PathPosition[] = [];
+  const partial: PathPosition[] = [];
+  const empty: PathPosition[] = [];
+  for (const pos of ["QB", "RB", "WR", "TE"] as PathPosition[]) {
+    if (counts[pos] >= starterNeeds[pos]) filled.push(pos);
+    else if (counts[pos] > 0) partial.push(pos);
+    else empty.push(pos);
+  }
+  const summaryParts: string[] = [];
+  if (myPicks.length === 0) {
+    summaryParts.push("No picks made yet; projection starts from your first slot.");
+  } else {
+    summaryParts.push(
+      `${myPicks.length} pick${myPicks.length === 1 ? "" : "s"} made.`,
+    );
+    if (filled.length > 0) {
+      summaryParts.push(`Starter quota met at ${filled.join(", ")}.`);
+    }
+    if (empty.length > 0) {
+      summaryParts.push(`No bodies at ${empty.join(", ")} yet.`);
+    }
+    if (partial.length > 0) {
+      const partialDescriptions = partial.map(
+        (p) => `${counts[p]}/${starterNeeds[p]} ${p}`,
+      );
+      summaryParts.push(`Partial: ${partialDescriptions.join(", ")}.`);
+    }
+  }
+  const summary = summaryParts.join(" ");
+
+  return {
+    position_counts: counts,
+    starter_needs: starterNeeds,
+    gaps,
+    anchors,
+    summary,
+    picks_made: myPicks.length,
+  };
 }
 
 /**
@@ -293,65 +396,119 @@ function buildCandidate(args: {
 type Archetype = {
   id: string;
   label: string;
-  why: string;
+  /**
+   * Returns the one-line why for this path given the user's current
+   * roster state. Lets the description acknowledge "you already have
+   * Saquon + Judkins, extend with a 3rd RB" instead of the static
+   * pre-draft "lock the bellcow at slot 1" line.
+   */
+  why: (ctx: RosterContext) => string;
   /** Sequence template across N slots. "any" = BPA, else fixed position. */
   build: (mySlotsCount: number) => Array<PathPosition | "any">;
-  /** Format gate. */
-  appliesTo: (snap: LeagueSnapshot) => boolean;
+  /** Format + roster gate. Excludes paths that don't apply. */
+  appliesTo: (snap: LeagueSnapshot, ctx: RosterContext) => boolean;
 };
+
+function listAnchors(
+  ctx: RosterContext,
+  position: PathPosition,
+  max = 2,
+): string {
+  const names = ctx.anchors[position].slice(0, max).map((a) => a.name);
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} + ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} + ${names[names.length - 1]}`;
+}
 
 const ARCHETYPES: Archetype[] = [
   {
     id: "bpa",
     label: "Best Player Available",
-    why: "Take the highest-value player on the board at every slot. Position-agnostic. Best when the field is unpredictable.",
+    why: () =>
+      "Take the highest-value player on the board at every slot. Position-agnostic. Best when the field is unpredictable.",
     build: (n) => Array(n).fill("any"),
     appliesTo: () => true,
   },
   {
     id: "anchor_rb",
     label: "Anchor RB",
-    why: "Lock the bellcow at slot 1, then stack WR depth. Defends against the RB cliff.",
+    why: (ctx) => {
+      const rbs = ctx.position_counts.RB;
+      if (rbs === 0)
+        return "Lock the bellcow at slot 1, then stack WR depth. Defends against the RB cliff.";
+      if (rbs === 1) {
+        const anchor = listAnchors(ctx, "RB", 1);
+        return `Pair ${anchor} with a complementary RB2, then build WR depth around them.`;
+      }
+      // 2+ RBs already.
+      const anchors = listAnchors(ctx, "RB");
+      return `You have ${anchors}. Extend the RB lead with a third anchor to insulate against injury, then stack WR depth.`;
+    },
     build: (n) => {
       const seq: Array<PathPosition | "any"> = ["RB"];
       for (let i = 1; i < n; i++) seq.push(i % 2 === 1 ? "WR" : "any");
       return seq;
     },
-    appliesTo: () => true,
+    appliesTo: (_snap, ctx) => ctx.position_counts.RB < 4,
   },
   {
     id: "zero_rb",
     label: "Zero RB",
-    why: "Pass on early RB for elite WR talent. Trust late-round RB lottery tickets + injury opportunity later.",
+    why: (ctx) => {
+      const wrs = ctx.position_counts.WR;
+      if (wrs === 0)
+        return "Pass on early RB for elite WR talent. Trust late-round RB lottery tickets + injury opportunity later.";
+      const anchor = listAnchors(ctx, "WR", 1);
+      return `Extend the WR lead with ${anchor} on roster; late-round RB lottery tickets + injury opportunity later.`;
+    },
     build: (n) => {
       const seq: Array<PathPosition | "any"> = ["WR", "WR"];
       for (let i = 2; i < n; i++) seq.push(i < 4 ? "any" : "RB");
       return seq;
     },
-    appliesTo: () => true,
+    appliesTo: (_snap, ctx) => ctx.position_counts.RB < 2,
   },
   {
     id: "sf_qb_first",
     label: "Superflex QB-first",
-    why: "Lock a top-tier QB early. In SF, QB scarcity is the dominant constraint.",
+    why: (ctx) => {
+      const qbs = ctx.position_counts.QB;
+      if (qbs === 0)
+        return "Lock a top-tier QB early. In SF, QB scarcity is the dominant constraint.";
+      if (qbs === 1) {
+        const anchor = listAnchors(ctx, "QB", 1);
+        return `Pair ${anchor} with a second SF-eligible QB to lock both starter slots. SF starter QB count maxes at 2.`;
+      }
+      const anchors = listAnchors(ctx, "QB");
+      return `You have ${anchors} locked at QB. This path adds a QB3 for SF flex insurance, then stacks skill depth.`;
+    },
     build: (n) => {
       const seq: Array<PathPosition | "any"> = ["QB"];
       for (let i = 1; i < n; i++) seq.push(i === 2 ? "QB" : "any");
       return seq;
     },
-    appliesTo: (snap) =>
-      snap.format === "superflex" || snap.format === "2qb",
+    appliesTo: (snap, ctx) =>
+      (snap.format === "superflex" || snap.format === "2qb") &&
+      ctx.position_counts.QB < 3,
   },
   {
     id: "te_premium",
     label: "TE-Premium Lock",
-    why: "Take a top-end TE in your first two picks. TE-premium scoring inflates their value past consensus.",
+    why: (ctx) => {
+      const tes = ctx.position_counts.TE;
+      if (tes === 0)
+        return "Take a top-end TE in your first two picks. TE-premium scoring inflates their value past consensus.";
+      const anchor = listAnchors(ctx, "TE", 1);
+      return `You have ${anchor} locked at TE. Add a second top-end TE to extend the position lead in TE-premium scoring.`;
+    },
     build: (n) => {
       const seq: Array<PathPosition | "any"> = ["TE", "any"];
       for (let i = 2; i < n; i++) seq.push("any");
       return seq;
     },
-    appliesTo: (snap) => snap.scoring.includes("TE-premium"),
+    appliesTo: (snap, ctx) =>
+      snap.scoring.includes("TE-premium") && ctx.position_counts.TE < 2,
   },
 ];
 
@@ -428,6 +585,7 @@ function walkArchetype(args: {
   rank: number;
   mySlots: Array<{ pick_no: number; pick_label: string; round: number; slot: number }>;
   candidatesBySlot: PathCandidate[][];
+  rosterContext: RosterContext;
 }): DraftPath | null {
   const template = args.archetype.build(args.mySlots.length);
   const picks: PathPick[] = [];
@@ -503,7 +661,7 @@ function walkArchetype(args: {
     id: args.archetype.id,
     position_signature: positionSig.join("-"),
     archetype: args.archetype.label,
-    why: args.archetype.why,
+    why: args.archetype.why(args.rosterContext),
     picks,
     total_value: Math.round(totalValue * 100) / 100,
     total_ev: Math.round(totalEv * 100) / 100,
@@ -575,8 +733,32 @@ export async function projectDraftPaths(args: {
     return candidates.slice(0, 60); // top-60 per slot is plenty
   });
 
+  // Resolve player names for the user's full pick history so the
+  // RosterContext anchors carry real names ("Saquon Barkley"), not
+  // truncated player_id stubs.
+  const allMyPickIds = snap.draft.picks_made
+    .filter((p) => p.roster_id === myRosterId)
+    .map((p) => p.player_id);
+  const fullNameMap = new Map<string, string>();
+  if (allMyPickIds.length > 0) {
+    const resolved = await resolvePlayers(allMyPickIds);
+    for (const [id, sp] of resolved) {
+      if (sp.full_name) fullNameMap.set(id, sp.full_name);
+    }
+  }
+
+  // Roster context. Used by archetype filters + dynamic why functions
+  // so descriptions read "you have Saquon + Judkins, extend with a
+  // third anchor" instead of the static "lock the bellcow at slot 1."
+  const rosterContext = buildRosterContext({
+    snap,
+    myRosterId,
+    valueMap,
+    lockedNameMap: fullNameMap,
+  });
+
   // Walk every applicable archetype, produce one DraftPath each.
-  const applicable = ARCHETYPES.filter((a) => a.appliesTo(snap));
+  const applicable = ARCHETYPES.filter((a) => a.appliesTo(snap, rosterContext));
   const paths: DraftPath[] = [];
   for (const archetype of applicable) {
     const path = walkArchetype({
@@ -584,6 +766,7 @@ export async function projectDraftPaths(args: {
       rank: 0, // placeholder; assigned below
       mySlots,
       candidatesBySlot,
+      rosterContext,
     });
     if (path) paths.push(path);
   }
@@ -595,41 +778,43 @@ export async function projectDraftPaths(args: {
     p.is_recommended = i === 0;
   });
 
-  // Locked picks: the user's already-made picks in this draft. Pull
-  // from snap.draft.picks_made filtered by myRosterId, sorted by
-  // pick_no descending, capped at 5 so the UI doesn't get crowded
-  // deep into the draft. Resolve player names via the Sleeper cache
-  // since DraftPickRecord only ships ids.
+  // Locked picks: the user's last 5 picks in this draft, sorted
+  // oldest-to-newest for display. Reuses fullNameMap built above
+  // (avoids redundant resolvePlayers call).
   const myPicksRaw = snap.draft.picks_made
     .filter((p) => p.roster_id === myRosterId)
     .sort((a, b) => b.pick_no - a.pick_no)
     .slice(0, 5);
-  const playerNameMap = await resolvePlayers(
-    myPicksRaw.map((p) => p.player_id),
-  );
+  // Resolve teams (full_name already in fullNameMap). One more
+  // resolvePlayers call for team data when needed.
+  const teamMap = new Map<string, string | null>();
+  if (myPicksRaw.length > 0) {
+    const resolved = await resolvePlayers(myPicksRaw.map((p) => p.player_id));
+    for (const [id, sp] of resolved) teamMap.set(id, sp.team ?? null);
+  }
   const lockedPicks: LockedPick[] = myPicksRaw
     .map((p) => {
       const positionRaw = (p.position ?? "").toUpperCase();
       const value = valueMap.get(p.player_id)?.value ?? null;
-      const sp = playerNameMap.get(p.player_id);
       return {
         pick_no: p.pick_no,
         pick_label: labelForPickNo(p.pick_no, snap.total_teams),
         round: Math.ceil(p.pick_no / snap.total_teams),
         player_id: p.player_id,
-        player_name: sp?.full_name ?? p.player_id,
+        player_name: fullNameMap.get(p.player_id) ?? p.player_id,
         position: positionRaw,
-        team: sp?.team ?? null,
+        team: teamMap.get(p.player_id) ?? null,
         age: typeof p.age === "number" ? p.age : null,
         is_rookie: p.years_exp === 0,
         value,
       };
     })
-    .reverse(); // oldest-to-newest for display
+    .reverse();
 
   return {
     my_slots: mySlots,
     locked_picks: lockedPicks,
+    roster_context: rosterContext,
     paths,
     class_strength: classStrength,
     generated_at: new Date().toISOString(),
