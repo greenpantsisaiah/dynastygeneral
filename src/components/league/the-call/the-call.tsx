@@ -75,6 +75,7 @@ export function TheCall({
         decision={decision}
         leagueType={leagueType}
         maxKeepers={maxKeepers}
+        leagueId={leagueId}
       />
 
       {decision.plays_this_enables.length > 0 && (

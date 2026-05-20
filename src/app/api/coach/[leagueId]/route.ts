@@ -67,9 +67,24 @@ const messageSchema = z.object({
   content: z.string().min(1).max(8000),
 });
 
+const activePlaySchema = z.object({
+  archetype: z.string(),
+  play_name: z.string(),
+  primary_player_name: z.string(),
+  primary_player_position: z.string(),
+  followthrough_description: z.string(),
+  followthrough_target_names: z.array(z.string()),
+});
+
 const bodySchema = z.object({
   history: z.array(messageSchema).max(40),
   message: z.string().min(1).max(4000),
+  // Active plays the user has committed to. Plumbed from client
+  // localStorage so Coach can warn when a proposed trade or pick
+  // would violate (or advance) the user's plan. Founder direction
+  // 2026-05-20: "help me simply remember when I'm considering a
+  // trade or something if it violates my plan."
+  active_plays: z.array(activePlaySchema).max(10).optional(),
 });
 
 // Coach voice extension. Layered onto SYSTEM_PROMPT so the existing
@@ -537,6 +552,46 @@ labeled as a "dream ask, anchoring opener" and immediately followed
 by the realistic landing inside the band. Never lead with an
 outside-band offer as the recommended trade.
 
+## Active plays. Cross-reference every trade and pick against the user's committed plan.
+
+\`<current_state>.active_plays\` is an array of multi-pick intentional
+sequences the user has committed to (stacks, handcuffs, bridge-QB
+succession). The user opted into these via the engine's plays system
+and is asking us to remember them. When a user asks about a trade,
+a pick, or a strategic move, you MUST:
+
+1. Check each active_play for relevance to the move.
+2. If the move VIOLATES a play (e.g., trading away the play's
+   primary_player; sending one of the followthrough_targets in a
+   trade; recommending a position that crowds out the follow-through
+   pick), name the violation explicitly:
+
+   "Heads up: this trades away Baker Mayfield. You committed to the
+    Mayfield + TB Stack play (still active, follow-through is Mike
+    Evans or Bucky Irving). Breaking the play costs you the
+    correlated upside that was the point of the original pick."
+
+3. If the move ADVANCES a play (e.g., trade brings in a
+   followthrough_target; pick is one of the followthrough_targets),
+   name the advance explicitly:
+
+   "This trade picks up Mike Evans, which advances your Mayfield +
+    TB Stack play. Net result: stack locked, correlated TD upside."
+
+4. If the move is neutral relative to all active plays, you still
+   end with a one-line "Active plays: X, Y" status so the user
+   knows you checked.
+
+5. NEVER recommend abandoning a play without naming what changed:
+   either the play's primary_player got traded away, or the
+   follow-through window is structurally impossible (e.g., every
+   followthrough_target has been drafted by someone else).
+
+Failure mode to ban: proposing a trade that violates an active play
+without acknowledging it. The plays system exists because the user
+asked us to enforce discipline; staying silent on a violation
+breaks the contract.
+
 ## Dynasty perception ≠ FantasyCalc value. Calibrate cross-position swaps.
 
 FantasyCalc's normalized value is the raw market number, but dynasty
@@ -750,6 +805,7 @@ export async function POST(
     );
   }
   const { history, message } = parsed.data;
+  const activePlays = parsed.data.active_plays ?? [];
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -1191,6 +1247,23 @@ export async function POST(
     // compose arithmetically with pick values. See SYSTEM_PROMPT
     // hard rules.
     pricing: opContext.pricing,
+    // Active plays the user has committed to. Each is a multi-pick
+    // intentional sequence (stack, handcuff, bridge-QB succession).
+    // Coach MUST cross-reference any proposed trade or pick against
+    // these plays and warn when a move violates the plan or
+    // advances it. Founder direction 2026-05-20: "help me simply
+    // remember when I'm considering a trade or something if it
+    // violates my plan."
+    active_plays: activePlays.map((p) => ({
+      archetype: p.archetype,
+      play_name: p.play_name,
+      primary_player: {
+        name: p.primary_player_name,
+        position: p.primary_player_position,
+      },
+      followthrough: p.followthrough_description,
+      followthrough_targets: p.followthrough_target_names,
+    })),
     draft: {
       status: snapshot.draft.status,
       next_pick_no: snapshot.draft.next_pick_no,

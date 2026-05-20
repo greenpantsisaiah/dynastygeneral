@@ -32,6 +32,7 @@ import {
 } from "@/components/billing/paywall-modal";
 import { UsageChip } from "@/components/billing/usage-meter";
 import { track } from "@/lib/analytics";
+import { getActivePlayCommitments } from "@/lib/plays-storage";
 
 type Role = "user" | "assistant";
 type ChatMessage = { role: Role; content: string; ts: number };
@@ -288,6 +289,16 @@ export function CoachChat({
               content: m.content,
             })),
             message,
+            active_plays: getActivePlayCommitments(leagueId).map((c) => ({
+              archetype: c.archetype,
+              play_name: c.play_name,
+              primary_player_name: c.primary_player.name,
+              primary_player_position: c.primary_player.position,
+              followthrough_description: c.followthrough_description,
+              followthrough_target_names: c.followthrough_targets.map(
+                (t) => t.name,
+              ),
+            })),
           }),
         });
         const reason = await readPaywallReason(res);

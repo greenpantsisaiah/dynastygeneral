@@ -119,6 +119,11 @@ import { projectDraftPaths } from "@/lib/strategy/draft-paths/project";
 import type { DraftPathProjection } from "@/lib/strategy/draft-paths/types";
 import { TradeOpportunitiesPanel } from "@/components/league/trade-opportunities-panel";
 import { detectTradeOpportunities } from "@/lib/strategy/trade-opportunities/detect";
+import {
+  suggestPlaysFromRoster,
+  type OwnedRosterPlayer,
+} from "@/lib/strategy/plays/detect";
+import type { Play } from "@/lib/strategy/plays/types";
 import type { TradeOpportunity } from "@/lib/strategy/trade-opportunities/detect";
 import {
   summarizeUpcomingDraft,
@@ -193,7 +198,10 @@ import type { ActivePathCommitment } from "@/lib/strategy/path-commitment/types"
 import { SamePathThreatsCard } from "@/components/league/same-path-threats";
 import { buildPathCompetition } from "@/lib/strategy/same-path-threats/build";
 import type { PathCompetition } from "@/lib/strategy/same-path-threats/build";
-import type { RankedArchetype } from "@/lib/strategy/archetypes/schema";
+import type {
+  RankedArchetype,
+  Position,
+} from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
   params: Promise<{ leagueId: string }>;
@@ -1027,6 +1035,7 @@ export default async function LeagueHubPage({
   let classStrength: ClassStrength | null = null;
   let draftPathProjection: DraftPathProjection | null = null;
   let tradeOpportunities: TradeOpportunity[] = [];
+  let suggestedPlays: Play[] = [];
   let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
@@ -1291,6 +1300,54 @@ export default async function LeagueHubPage({
                 available: availableForOpps,
                 playerValueLookup: valueLookup,
               });
+
+              // Plays the user could / should commit to based on
+              // their current roster shape. Founder direction 2026-
+              // 05-20: "Identify what they could/should be, help me
+              // commit to them." Distinct from the per-pick
+              // detectPlaysEnabledBy which only fires on the winner;
+              // this scans the user's drafted players for archetype
+              // triggers (anchor RB → handcuff suggestion, aging QB
+              // → bridge suggestion, owned QB → stack suggestion).
+              const ownedIdsSet = new Set<string>();
+              for (const p of leagueSnapshot.draft.picks_made) {
+                if (p.roster_id === myRoster.roster_id) {
+                  ownedIdsSet.add(p.player_id);
+                }
+              }
+              for (const id of myRoster.player_ids ?? []) {
+                ownedIdsSet.add(id);
+              }
+              const ownedIds = Array.from(ownedIdsSet);
+              if (ownedIds.length > 0) {
+                const ownedResolved = await resolvePlayers(ownedIds);
+                const ownedPlayers: OwnedRosterPlayer[] = [];
+                for (const id of ownedIds) {
+                  const sp = ownedResolved.get(id);
+                  if (!sp) continue;
+                  const pos = (sp.position ?? "").toUpperCase();
+                  if (!["QB", "RB", "WR", "TE"].includes(pos)) continue;
+                  ownedPlayers.push({
+                    id,
+                    name: sp.full_name ?? id,
+                    position: pos as Position,
+                    team: sp.team ?? null,
+                    age: typeof sp.age === "number" ? sp.age : null,
+                    is_rookie: (sp.years_exp ?? 99) === 0,
+                    yearsExp: sp.years_exp ?? 0,
+                  });
+                }
+                const ktcValuesForPlays: Record<string, number> = {};
+                for (const [id, v] of lrValueMap.entries()) {
+                  ktcValuesForPlays[id] = v.value;
+                }
+                suggestedPlays = suggestPlaysFromRoster({
+                  snap: leagueSnapshot,
+                  available: availableForOpps,
+                  ktcValues: ktcValuesForPlays,
+                  ownedPlayers,
+                });
+              }
             } catch (err) {
               console.error("[hub:trade-opportunities]", err);
             }
@@ -2070,6 +2127,16 @@ export default async function LeagueHubPage({
                   currentPickNo={
                     leagueSnapshot?.draft.next_pick_no ?? null
                   }
+                  suggestedPlays={suggestedPlays}
+                  picksMadeForUser={(() => {
+                    if (!leagueSnapshot || !myRoster) return [];
+                    return leagueSnapshot.draft.picks_made
+                      .filter((p) => p.roster_id === myRoster.roster_id)
+                      .map((p) => ({
+                        player_id: p.player_id,
+                        pick_no: p.pick_no,
+                      }));
+                  })()}
                 />
               )}
 

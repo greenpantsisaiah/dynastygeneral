@@ -200,6 +200,87 @@ function detectBridgeQb(args: {
   };
 }
 
+export type OwnedRosterPlayer = {
+  id: string;
+  name: string;
+  position: Position;
+  team: string | null;
+  age: number | null;
+  is_rookie: boolean;
+  yearsExp: number;
+};
+
+/**
+ * Suggest plays the engine sees as possible based on the user's
+ * CURRENT roster (already-drafted players + active-draft picks).
+ * Distinct from detectPlaysEnabledBy which only fires for the
+ * immediate pick decision; this surface answers "what plays could /
+ * should I be running right now given who I already have?"
+ *
+ * Founder direction 2026-05-20: "Identify what they could/should be,
+ * help me commit to them."
+ *
+ * Filtering rules:
+ *   - A suggestion fires for each owned player that, treated as the
+ *     "trigger pick," activates a library archetype.
+ *   - Suggestions whose follow-through targets are already on the
+ *     user's roster get filtered out (play implicitly executed).
+ *   - Dedupe by (archetype, primary_player_id) so the same play
+ *     doesn't appear twice.
+ */
+export function suggestPlaysFromRoster(args: {
+  snap: LeagueSnapshot;
+  available: AvailablePlayer[];
+  ktcValues: Record<string, number>;
+  ownedPlayers: OwnedRosterPlayer[];
+}): Play[] {
+  if (args.ownedPlayers.length === 0) return [];
+
+  const ownedIds = new Set(args.ownedPlayers.map((p) => p.id));
+  const suggestions: Play[] = [];
+
+  for (const player of args.ownedPlayers) {
+    const winnerLike = {
+      id: player.id,
+      name: player.name,
+      position: player.position,
+      team: player.team,
+      age: player.age,
+      yearsExp: player.yearsExp,
+      is_rookie: player.is_rookie,
+      adp: null,
+      adp_variant: null,
+      search_rank: 100,
+      dynasty_rank: 100,
+    } as unknown as AvailablePlayer;
+    const plays = detectPlaysEnabledBy({
+      winner: winnerLike,
+      snap: args.snap,
+      available: [winnerLike, ...args.available],
+      ktcValues: args.ktcValues,
+    });
+    suggestions.push(...plays);
+  }
+
+  // Dedupe by archetype + primary player.
+  const seen = new Set<string>();
+  const deduped: Play[] = [];
+  for (const p of suggestions) {
+    const key = `${p.archetype}:${p.primary_player.player_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(p);
+  }
+
+  // Filter out plays whose follow-through is already on the roster.
+  // If user owns Mayfield + Evans, "Mayfield + TB Stack" is already
+  // executed and doesn't need to be surfaced.
+  return deduped.filter(
+    (p) =>
+      !p.followthrough.target_candidates.some((t) => ownedIds.has(t.player_id)),
+  );
+}
+
 /**
  * Detect all plays the winner candidate enables. Returns an empty
  * array when no plays apply. Order matters: the most-conditional play

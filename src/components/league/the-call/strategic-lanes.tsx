@@ -27,7 +27,7 @@
  * to every number (per principle 0: MIT-grade statistical floor).
  */
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   Decision,
   DecisionQuadrantCandidate,
@@ -36,6 +36,8 @@ import {
   laneDefinitionsForFormat,
   type LaneDefinition,
 } from "@/lib/engine/build-trajectory";
+import { getActivePlayCommitments } from "@/lib/plays-storage";
+import type { PlayCommitment } from "@/lib/strategy/plays/types";
 
 const ADP_NOISE_PICKS = 3;
 
@@ -43,15 +45,39 @@ export type StrategicLanesProps = {
   decision: Decision;
   leagueType: "dynasty" | "keeper" | "redraft" | "unknown";
   maxKeepers: number | null;
+  leagueId: string;
 };
 
 export function StrategicLanes({
   decision,
   leagueType,
   maxKeepers,
+  leagueId,
 }: StrategicLanesProps) {
   const lanes = laneDefinitionsForFormat(leagueType, maxKeepers);
   const standingCallId = decision.recommendation.player_id;
+
+  // Read active plays from localStorage so we can badge candidates
+  // that advance a committed play. The STAY DISCIPLINED verb of the
+  // plays system: when the user is mid-draft, the engine reminds
+  // them which alts advance their plan.
+  const [activePlays, setActivePlays] = useState<PlayCommitment[]>([]);
+  useEffect(() => {
+    setActivePlays(getActivePlayCommitments(leagueId));
+  }, [leagueId]);
+
+  // Map of player_id → list of (play_name) the candidate advances.
+  const advancesByPlayer = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const c of activePlays) {
+      for (const t of c.followthrough_targets) {
+        const existing = m.get(t.player_id);
+        if (existing) existing.push(c.play_name);
+        else m.set(t.player_id, [c.play_name]);
+      }
+    }
+    return m;
+  }, [activePlays]);
 
   // Group quadrant candidates by timeline lane. Quadrant has more
   // depth than top_candidates so each lane usually has at least one
@@ -82,6 +108,7 @@ export function StrategicLanes({
               isStandingCallHere={hasStandingCall}
               standingCallId={standingCallId}
               currentPickNo={decision.pick_no}
+              advancesByPlayer={advancesByPlayer}
             />
           );
         })}
@@ -100,12 +127,14 @@ function LaneCard({
   isStandingCallHere,
   standingCallId,
   currentPickNo,
+  advancesByPlayer,
 }: {
   lane: LaneDefinition;
   candidates: DecisionQuadrantCandidate[];
   isStandingCallHere: boolean;
   standingCallId: string;
   currentPickNo: number;
+  advancesByPlayer: Map<string, string[]>;
 }) {
   const [showAlts, setShowAlts] = useState(false);
   const primary = candidates[0] ?? null;
@@ -147,6 +176,7 @@ function LaneCard({
         candidate={primary}
         currentPickNo={currentPickNo}
         isStandingCall={primary.player_id === standingCallId}
+        advancesPlays={advancesByPlayer.get(primary.player_id) ?? []}
       />
 
       {alts.length > 0 && (
@@ -168,6 +198,7 @@ function LaneCard({
                   candidate={c}
                   currentPickNo={currentPickNo}
                   isStandingCall={c.player_id === standingCallId}
+                  advancesPlays={advancesByPlayer.get(c.player_id) ?? []}
                   compact
                 />
               ))}
@@ -217,11 +248,13 @@ function CandidateBlock({
   candidate,
   currentPickNo,
   isStandingCall,
+  advancesPlays = [],
   compact = false,
 }: {
   candidate: DecisionQuadrantCandidate;
   currentPickNo: number;
   isStandingCall: boolean;
+  advancesPlays?: string[];
   compact?: boolean;
 }) {
   const ev = computeEv(candidate, currentPickNo);
@@ -258,6 +291,20 @@ function CandidateBlock({
           </div>
         )}
       </div>
+
+      {advancesPlays.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {advancesPlays.map((playName) => (
+            <span
+              key={playName}
+              className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent border border-accent/50 rounded-full px-1.5 py-0.5"
+              title={`This candidate advances your active play: ${playName}`}
+            >
+              Advances · {playName}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mt-1 flex flex-wrap items-baseline gap-2 font-mono text-[10px] text-muted">
         <span>
