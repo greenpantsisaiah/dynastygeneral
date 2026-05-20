@@ -18,6 +18,7 @@
 
 import type { Position } from "../archetypes/schema";
 import type { PickDensityKind } from "../league-state/snapshot";
+import type { Play } from "../plays/types";
 import type { AdpVariantEntry } from "@/lib/players/projections";
 
 // The rule that ultimately broke the tie and produced the recommendation.
@@ -376,4 +377,13 @@ export type Decision = {
     // the trade lever explicitly.
     framing: string;
   } | null;
+  // Plays this pick enables. Multi-pick intentional sequences where
+  // the winner's value is conditional on follow-through moves
+  // (stack a Bucs WR after Mayfield, lock down the handcuff after an
+  // elite RB, pair an aging QB with a developmental QB in SF). The
+  // user "commits" to a play via the UI (localStorage) and the
+  // active play surfaces as a discipline reminder on subsequent
+  // picks. Founder direction 2026-05-20: "We have to help me see
+  // it, choose it, and then remember it / stay disciplined."
+  plays_this_enables: Play[];
 };

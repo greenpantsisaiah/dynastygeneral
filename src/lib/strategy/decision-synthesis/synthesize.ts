@@ -49,6 +49,7 @@ import type {
   SynthesisDials,
 } from "./types";
 import { NEUTRAL_SYNTHESIS_DIALS } from "./types";
+import { detectPlaysEnabledBy } from "../plays/detect";
 
 const POSITION_LABEL: Record<Position, string> = {
   QB: "QB",
@@ -2197,6 +2198,17 @@ export function synthesizeDecision(args: {
     nextUserPickNo,
   });
 
+  // Plays this pick enables. Surfaces multi-pick intentional sequences
+  // (stacks, handcuffs, bridge-QB succession) so the user sees how to
+  // make this pick "genius" instead of average. Detection is hardcoded
+  // per archetype for Phase 1; library lives at src/lib/strategy/plays.
+  const plays_this_enables = detectPlaysEnabledBy({
+    winner: winner.player,
+    snap,
+    available,
+    ktcValues: playerValues,
+  });
+
   return {
     pick_label: current.pick_label,
     pick_no: current.pick_no,
@@ -2219,6 +2231,7 @@ export function synthesizeDecision(args: {
     counter_view,
     feel_weird_disclaimer,
     trade_up_consideration: tradeUpConsideration,
+    plays_this_enables,
   };
 }
 

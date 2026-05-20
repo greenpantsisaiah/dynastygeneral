@@ -89,6 +89,7 @@ import {
   composeDigestLine,
 } from "@/lib/last-visit/diff";
 import { TheCall } from "@/components/league/the-call/the-call";
+import { ActivePlaysPanel } from "@/components/league/active-plays-panel";
 import { LibraryTeaser } from "@/components/league/triage/library-teaser";
 import { DashboardSection } from "@/components/league/dashboard/dashboard-section";
 // LeagueEvBankLeaderboard standalone widget removed: the league
@@ -2052,8 +2053,24 @@ export default async function LeagueHubPage({
                     decision={decision}
                     leagueType={leagueSnapshot?.league_type ?? "unknown"}
                     maxKeepers={leagueSnapshot?.max_keepers ?? null}
+                    leagueId={leagueId}
                   />
                 </div>
+              )}
+
+              {/* Active Plays Panel. Reads localStorage; the REMEMBER
+                  + STAY DISCIPLINED verbs of the plays system. Surfaces
+                  the user's committed multi-pick plays plus follow-
+                  through deadlines. Founder direction 2026-05-20:
+                  intentional sequencing across multiple picks is what
+                  separates the shark from the mark. */}
+              {draftActive && (
+                <ActivePlaysPanel
+                  leagueId={leagueId}
+                  currentPickNo={
+                    leagueSnapshot?.draft.next_pick_no ?? null
+                  }
+                />
               )}
 
               {/* Position Run Watch. Renders during active draft so

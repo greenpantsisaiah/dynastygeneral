@@ -34,14 +34,21 @@
 import { useState } from "react";
 import type { Decision } from "@/lib/strategy/decision-synthesis/types";
 import { StrategicLanes } from "./strategic-lanes";
+import { PlaysEnabledCallout } from "../plays-enabled-callout";
 
 export type TheCallProps = {
   decision: Decision;
   leagueType: "dynasty" | "keeper" | "redraft" | "unknown";
   maxKeepers: number | null;
+  leagueId: string;
 };
 
-export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
+export function TheCall({
+  decision,
+  leagueType,
+  maxKeepers,
+  leagueId,
+}: TheCallProps) {
   return (
     <section
       className="mb-6 overflow-hidden rounded-lg border-2 border-accent/60"
@@ -69,6 +76,14 @@ export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
         leagueType={leagueType}
         maxKeepers={maxKeepers}
       />
+
+      {decision.plays_this_enables.length > 0 && (
+        <PlaysEnabledCallout
+          plays={decision.plays_this_enables}
+          leagueId={leagueId}
+          currentPickNo={decision.pick_no}
+        />
+      )}
 
       {decision.trade_up_consideration && (
         <TradeUpConsiderationBlock consideration={decision.trade_up_consideration} />
