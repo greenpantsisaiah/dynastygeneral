@@ -1784,8 +1784,99 @@ export function synthesizeDecision(args: {
   );
   if (candidates.length === 0) return null;
 
+  // Survival-weighted scoring. Pre-turn the user can't act on an
+  // unreachable player; multiplying score by P(survives to user's
+  // pick) formalizes "expected gain from recommending this pick" and
+  // prevents unreachable high-EV players from winning THE CALL.
+  // Founder report 2026-05-19: Skattebo +12.6 EV at "probably gone 2%"
+  // beat DJ Moore +6.2 at "coin flip 48%" because the score didn't
+  // account for the user's reach. At-turn semantics are different
+  // (every available player is reachable now; survival there asks
+  // "if you pass, will they survive" which is a different decision),
+  // so the weighting is gated on pre_turn.
+  //
+  // Capture pre-weighting scores so we can surface the would-be lead
+  // as a trade-up consideration if a high-EV unreachable player got
+  // demoted.
+  const rawScoresById = new Map<string, number>();
+  for (const c of candidates) rawScoresById.set(c.player.id, c.score);
+  let tradeUpConsideration: Decision["trade_up_consideration"] = null;
+
+  if (survivalWindow.kind === "pre_turn") {
+    for (const c of candidates) {
+      const survPctRaw = survivalPctFor({
+        player: c.player,
+        availability: availabilityAt(c.player, nextUserPickNo),
+        signal: null,
+        available,
+        gap: gapAnalysis,
+      });
+      if (survPctRaw != null) {
+        c.score = c.score * (survPctRaw / 100);
+      }
+    }
+    candidates.sort((a, b) => b.score - a.score);
+  }
+
   const winner = candidates[0];
   const runners = candidates.slice(1, 4);
+
+  // Trade-up consideration. Look for the highest unweighted-score
+  // candidate that's probably_gone AND whose raw EV materially beats
+  // the actual winner's raw EV. If found, surface "or trade up to
+  // lock [name]" as a secondary path on The Call. Threshold: raw
+  // score must exceed the winner's raw score by at least 5 points
+  // (noise filter) so we don't surface marginal-EV alternates.
+  if (survivalWindow.kind === "pre_turn") {
+    const winnerRawScore = rawScoresById.get(winner.player.id) ?? 0;
+    let bestUnreachable: { c: ScoredCandidate; survPct: number } | null = null;
+    for (const c of candidates) {
+      if (c.player.id === winner.player.id) continue;
+      const rawScore = rawScoresById.get(c.player.id) ?? 0;
+      if (rawScore < winnerRawScore + 5) continue;
+      const pct = survivalPctFor({
+        player: c.player,
+        availability: availabilityAt(c.player, nextUserPickNo),
+        signal: null,
+        available,
+        gap: gapAnalysis,
+      });
+      const bucket = availabilityFromPct(pct);
+      if (bucket !== "probably_gone") continue;
+      if (pct == null) continue;
+      if (!bestUnreachable || rawScore > (rawScoresById.get(bestUnreachable.c.player.id) ?? 0)) {
+        bestUnreachable = { c, survPct: pct };
+      }
+    }
+    if (bestUnreachable) {
+      const c = bestUnreachable.c;
+      const adp = c.player.adp;
+      const gapPicks =
+        typeof adp === "number"
+          ? Math.max(0, Math.round(current.pick_no - adp))
+          : null;
+      const framingParts: string[] = [];
+      framingParts.push(`${c.player.name} would be your top call by value`);
+      if (gapPicks != null && gapPicks > 0) {
+        framingParts.push(
+          `(${c.position}, ADP ${Math.round(adp as number)}, ${gapPicks} pick${gapPicks === 1 ? "" : "s"} past consensus)`,
+        );
+      } else {
+        framingParts.push(`(${c.position}, ADP ${adp != null ? Math.round(adp) : "?"})`);
+      }
+      framingParts.push(
+        `. Survival to your slot is ${bestUnreachable.survPct}%. If you want him, the lever is a trade-up, not a wait.`,
+      );
+      tradeUpConsideration = {
+        player_id: c.player.id,
+        player_name: c.player.name,
+        position: c.position,
+        adp: adp ?? null,
+        survival_pct: bestUnreachable.survPct,
+        framing: framingParts.join(""),
+      };
+    }
+  }
 
   const why: string[] = [];
   why.push(winner.primary_reason);
@@ -2127,6 +2218,7 @@ export function synthesizeDecision(args: {
     emergency_trade_up,
     counter_view,
     feel_weird_disclaimer,
+    trade_up_consideration: tradeUpConsideration,
   };
 }
 

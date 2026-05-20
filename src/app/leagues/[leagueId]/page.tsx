@@ -2035,7 +2035,26 @@ export default async function LeagueHubPage({
                   surfaces respectively. Founder feedback 2026-05-08:
                   "The Call should only show up while drafting, right?
                   Need a pre-draft and post-draft plan, probably
-                  focused more on trades, opportunities, etc." */}
+                  focused more on trades, opportunities, etc."
+
+                  Order updated 2026-05-19 per founder direction: The
+                  Call leads the active-draft hub. It is the highest-
+                  signal panel and was buried below run-watch, class-
+                  strength, path projector, and trade opportunities.
+                  Those supporting panels still render, but below the
+                  primary call. */}
+
+              {/* SECTION: The Call (active draft only). Leads the
+                  active-draft hub. */}
+              {draftActive && decision && (
+                <div className="mb-8">
+                  <TheCall
+                    decision={decision}
+                    leagueType={leagueSnapshot?.league_type ?? "unknown"}
+                    maxKeepers={leagueSnapshot?.max_keepers ?? null}
+                  />
+                </div>
+              )}
 
               {/* Position Run Watch. Renders during active draft so
                   the user reads the position-run signal BEFORE making
@@ -2094,17 +2113,6 @@ export default async function LeagueHubPage({
                 <TradeOpportunitiesPanel
                   opportunities={tradeOpportunities}
                 />
-              )}
-
-              {/* SECTION: The Call (active draft only). */}
-              {draftActive && decision && (
-                <div className="mb-8">
-                  <TheCall
-                    decision={decision}
-                    leagueType={leagueSnapshot?.league_type ?? "unknown"}
-                    maxKeepers={leagueSnapshot?.max_keepers ?? null}
-                  />
-                </div>
               )}
 
               {/* SECTION: Pre-draft prep (pre-draft / no-draft only).

@@ -357,4 +357,23 @@ export type Decision = {
   // fall 14 more picks. Survival to your next slot is 35%. Trust
   // the math." Null when the standing call is not a sharp lock.
   feel_weird_disclaimer: string | null;
+  // Trade-up consideration. Populated when the engine identifies a
+  // high-value but unreachable player (probably_gone) whose unweighted
+  // EV exceeds the (survival-weighted) standing call by a meaningful
+  // margin. Surfaces "or trade up to lock him" as a secondary path on
+  // The Call card. Founder direction 2026-05-19: when a player is
+  // wanted but unreachable from the user's slot, the engine should
+  // name him AND name the trade lever, not pretend he's reachable.
+  trade_up_consideration: {
+    player_id: string;
+    player_name: string;
+    position: Position;
+    // Player's ADP. Anchors "how big a trade-up would this require."
+    adp: number | null;
+    // P(player is on the board when user picks), in 5-95 range.
+    survival_pct: number;
+    // Voice A line for the card. Names the player, the EV gap, and
+    // the trade lever explicitly.
+    framing: string;
+  } | null;
 };

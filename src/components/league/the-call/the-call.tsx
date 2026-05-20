@@ -70,6 +70,10 @@ export function TheCall({ decision, leagueType, maxKeepers }: TheCallProps) {
         maxKeepers={maxKeepers}
       />
 
+      {decision.trade_up_consideration && (
+        <TradeUpConsiderationBlock consideration={decision.trade_up_consideration} />
+      )}
+
       {decision.scarcity_callout && (
         <ScarcityCallout text={decision.scarcity_callout} />
       )}
@@ -176,6 +180,34 @@ function ScarcityCallout({ text }: { text: string }) {
   );
 }
 
+function TradeUpConsiderationBlock({
+  consideration,
+}: {
+  consideration: NonNullable<Decision["trade_up_consideration"]>;
+}) {
+  return (
+    <div className="border-b border-accent/40 bg-accent/5 px-5 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          Or make a trade
+        </div>
+        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+          {consideration.position} · survival {consideration.survival_pct}%
+        </span>
+      </div>
+      <p className="mt-1 text-[12px] leading-snug text-foreground">
+        {consideration.framing}
+      </p>
+      <a
+        href="#coach-panel"
+        className="mt-2 inline-block font-mono text-[10px] uppercase tracking-[0.16em] text-accent hover:text-foreground transition-colors"
+      >
+        Plan a trade-up with Coach ↗
+      </a>
+    </div>
+  );
+}
+
 function CounterView({
   counter,
 }: {
@@ -240,10 +272,16 @@ function WhyAndNext({
                   >
                     <span className="font-mono text-muted-2">{np.pick_label}</span>
                     <span>
-                      <span className="font-medium">
-                        {np.target_names.join(" or ")}
-                      </span>{" "}
-                      <span className="text-muted-2">· {np.reason}</span>
+                      {np.target_names.length > 0 ? (
+                        <>
+                          <span className="font-medium">
+                            {np.target_names.join(" or ")}
+                          </span>{" "}
+                          <span className="text-muted-2">· {np.reason}</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-2">{np.reason}</span>
+                      )}
                     </span>
                   </li>
                 ))}
