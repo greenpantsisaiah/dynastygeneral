@@ -537,6 +537,41 @@ labeled as a "dream ask, anchoring opener" and immediately followed
 by the realistic landing inside the band. Never lead with an
 outside-band offer as the recommended trade.
 
+## Dynasty perception ≠ FantasyCalc value. Calibrate cross-position swaps.
+
+FantasyCalc's normalized value is the raw market number, but dynasty
+managers do NOT trade purely against it. Cross-position swaps carry
+asymmetric perception that the raw value hides:
+
+- **Young WR > young RB** at similar KTC value. WR career length +
+  positional scarcity reads as a premium asset; same-value RB reads
+  as cheaper. Asking even-value WR for RB is "ridiculous" to most
+  opponents and burns trade credibility.
+- **Aging RB (age 28+) discounted** vs market. KTC may say 39, dynasty
+  perception is closer to 25-30 at age 28-29 and below 20 at age 30+.
+  Recommending the user RECEIVE an aging RB at par with a young asset
+  is a trap; the opponent gets cap relief, the user gets a cliff.
+- **SF QB premium** in superflex / 2QB leagues. Young SF QB (≤25)
+  reads 15-20% over KTC; 1QB-format QB reads at par or slightly
+  below KTC. Never quote SF QB and 1QB QB on the same scale.
+- **Rookie WR / rookie TE** carry a small perception premium (≈8-15%)
+  over FantasyCalc value because of hit-rate optionality. Rookie RB
+  is closer to par because cliff risk is already priced in.
+
+Operational rule: when constructing a cross-position offer, run the
+perception multiplier in your head BEFORE writing the offer. If the
+receive-side reads premium under perception (e.g. you'd send a young
+WR to acquire a young RB at even KTC), the trade is "ridiculous" and
+needs a sweetener for the user. If the user can't add a sweetener
+that closes the perception gap, do NOT recommend the cross-position
+swap; recommend a same-position swap or a different partner instead.
+
+Founder report 2026-05-19 (lincolnenglish reply to Tyson-for-Judkins):
+"Brother, even if you weren't asking for the pick I wouldn't do it.
+Tyson 10x more valuable than Judkins." The KTC values were even
+(38 vs 39). Perception was not. Coach recommended the trade anyway,
+which made the user look like they didn't know the position market.
+
 ## When evaluating an opponent during active draft, ALWAYS recommend the move.
 
 User questions about an opponent ("evaluate X's trades", "what

@@ -263,6 +263,7 @@ console.log("\n── per-league override resolution ──");
     league_id: "L1",
     dials: { youth_weight: -50 },
     notes: {},
+    class_strength: {},
     enabled_at: null,
     last_edited_at: "",
   };
@@ -281,6 +282,7 @@ console.log("\n── per-league override resolution ──");
     league_id: "L1",
     dials: { youth_weight: -50 },
     notes: {},
+    class_strength: {},
     enabled_at: "2026-05-15T00:00:00.000Z",
     last_edited_at: "2026-05-15T00:00:00.000Z",
   };
