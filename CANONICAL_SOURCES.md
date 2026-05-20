@@ -38,13 +38,23 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern 2**: deriving the bucket from anything other than the pct (e.g., re-classifying gap arithmetic in a body-text template). The bucket comes from the pct; the pct comes from the canonical. One probability, one classifier.
 - **Bug class avoided**: 2026-05-06 "every lane shows 50% even with very different position-need contexts." 2026-04-25 "ADP -3 in round 15 rendered 15% bar but is actually ~50/50." 2026-04-29 "available pool past consensus rendered probably_gone but should have been likely_here."
 
+### Survival window (which slot survival is computed TO)
+
+- **Canonical**: `computeSurvivalWindow(snap, schedule)` in `src/lib/strategy/decision-synthesis/synthesize.ts`
+- **Returns**: `SurvivalWindow` = `{ live_pick_no, target_pick_no, from_pick_no, to_pick_no, kind: "pre_turn" | "at_turn" }`
+- **Rule**: `from_pick_no` + `to_pick_no` are the (exclusive, exclusive) bounds for the opponent gap walk. `target_pick_no` is what the rest of the engine treats as "the user's next slot" for ADP-gap copy and downstream consumers.
+- **Pre-turn** (live pick on the clock < user's first upcoming pick): walks live → user's first pick. The user's question is "will this player be there when my turn comes."
+- **At-turn** (live === user's first upcoming pick): walks user's first pick → first CONTESTED next slot. Back-to-back consecutive picks (snake wraparound, traded slots) are skipped because they contribute zero opponent contention.
+- **Anti-pattern**: setting `nextUserPickNo = schedule[1]?.pick_no` inline without going through this helper. That was the old broken behavior: pre-turn showed 100% survival on candidates with 37 picks of cushion before the user's turn; at-turn back-to-back ownership showed trivial 100% on every candidate.
+- **Bug class avoided**: 2026-05-19 founder report (lincolnenglish / Finders Keepers). Skattebo "coin flip 40%" with 37 picks of cushion (real ~3%); DeVonta Smith "likely here 100%" with 2-3 opponents about to pick (real ~70%); every Win-Now-lane candidate trivially 100% for back-to-back owners. Locked by `evals/survival-window.test.ts`.
+
 ### Opponent gap analysis (per-position demand in the gap before user's next pick)
 
 - **Canonical**: `analyzeOpponentsInGap(args)` in `src/lib/strategy/decision-synthesis/synthesize.ts`
 - **Returns**: `OpponentGapAnalysis` with per-opponent `position_demand` (normalized 0..1 across QB/RB/WR/TE), aggregate demand, and primary opponent
-- **Inputs**: snapshot, current pick, next user pick number
+- **Inputs**: snapshot, `fromPickNo`, `toPickNo` (the half-open window from `computeSurvivalWindow`). Pass the window directly; do not pass `current` or `nextUserPickNo` shapes.
 - **Internal**: uses `rosterAtPickNo` (the canonical above) to attribute pick numbers to rosters
-- **Anti-pattern**: re-walking the gap to compute "what does opponent X need" anywhere else. Consume the gap analysis result.
+- **Anti-pattern**: re-walking the gap to compute "what does opponent X need" anywhere else. Consume the gap analysis result. Also: deriving `fromPickNo` / `toPickNo` inline rather than going through `computeSurvivalWindow`.
 
 ### Starter requirements
 

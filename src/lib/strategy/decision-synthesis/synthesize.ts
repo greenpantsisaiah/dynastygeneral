@@ -351,17 +351,99 @@ function availabilityAt(
 // wants a TE badly). The engine has the data; it just wasn't
 // applying it.
 //
-// `analyzeOpponentsInGap` walks the picks between current and the
-// user's next slot, identifies each opponent, and computes their
-// per-position demand (raw need-weighting then normalized to sum to
-// 1.0 across QB/RB/WR/TE). Aggregate demand per position summed
-// across all gap opponents drives the per-candidate signal.
+/**
+ * Survival window: the window of opponent picks survival is computed
+ * across. Replaces the old hard-coded "user's first pick to user's
+ * second pick" window that was correct only at-turn-with-spaced-picks.
+ *
+ * Pre-turn (live draft cursor is BEFORE the user's first upcoming
+ * pick): the window walks live → user's first pick. The user is
+ * watching the board; the meaningful survival question is "will this
+ * player still be on the board when my turn comes."
+ *
+ * At-turn (live === user's first upcoming pick): the window walks
+ * user's first pick → first CONTESTED next slot. Back-to-back
+ * consecutive picks (snake wraparound, traded slots) are skipped
+ * over because they contribute no opponent contention. The
+ * meaningful question is "if I pass on this player here, will they
+ * survive to my next REAL chance."
+ *
+ * Founder report 2026-05-19 (lincolnenglish + Finders Keepers): the
+ * old implementation showed Skattebo at "coin flip 40%" with 37
+ * picks until the user's turn (real survival ~3%), and DeVonta Smith
+ * at "likely here 100%" with 2-3 opponents about to pick (real
+ * survival ~70%). Same root cause both cases: gap walked the wrong
+ * window.
+ */
+export type SurvivalWindow = {
+  live_pick_no: number;
+  target_pick_no: number;
+  from_pick_no: number;
+  to_pick_no: number;
+  kind: "pre_turn" | "at_turn";
+};
+
+export function computeSurvivalWindow(
+  snap: LeagueSnapshot,
+  schedule: PickScheduleEntry[],
+): SurvivalWindow {
+  const userFirstPickNo = schedule[0].pick_no;
+  const livePickNo = snap.draft.next_pick_no ?? userFirstPickNo;
+
+  if (livePickNo < userFirstPickNo) {
+    return {
+      live_pick_no: livePickNo,
+      target_pick_no: userFirstPickNo,
+      from_pick_no: livePickNo - 1,
+      to_pick_no: userFirstPickNo,
+      kind: "pre_turn",
+    };
+  }
+
+  // At-turn: skip past back-to-back consecutive picks to find the
+  // first contested next slot. For a user with picks at 7.5, 7.6,
+  // 8.5 the contested target is 8.5 (back-to-back at 7.5 / 7.6
+  // contribute zero opponents).
+  let nextContestedPickNo: number | null = null;
+  for (let i = 1; i < schedule.length; i++) {
+    if (schedule[i].pick_no - schedule[i - 1].pick_no > 1) {
+      nextContestedPickNo = schedule[i].pick_no;
+      break;
+    }
+  }
+  const fallbackTarget =
+    schedule[1]?.pick_no ?? userFirstPickNo + 999;
+  const target = nextContestedPickNo ?? fallbackTarget;
+
+  return {
+    live_pick_no: livePickNo,
+    target_pick_no: target,
+    from_pick_no: userFirstPickNo,
+    to_pick_no: target,
+    kind: "at_turn",
+  };
+}
+
+// `analyzeOpponentsInGap` walks opponent picks in a half-open window
+// (fromPickNo, toPickNo), identifies each opponent, and computes
+// their per-position demand (raw need-weighting then normalized to
+// sum to 1.0 across QB/RB/WR/TE). Aggregate demand per position
+// summed across all gap opponents drives the per-candidate signal.
+//
+// The window is configured by the caller via `computeSurvivalWindow`.
+// Pre-turn the window is (live_pick - 1, user_first_pick); at-turn
+// the window is (user_first_pick, first_contested_next_slot). The
+// PRIOR implementation hard-coded `current.pick_no + 1` to
+// `nextUserPickNo`, which answered the wrong question pre-turn
+// (showed 100% on players that wouldn't survive the 37 opponents
+// before the user's pick) and trivially collapsed for back-to-back
+// consecutive picks (zero opponents in the gap).
 function analyzeOpponentsInGap(args: {
   snap: LeagueSnapshot;
-  current: PickScheduleEntry;
-  nextUserPickNo: number;
+  fromPickNo: number;
+  toPickNo: number;
 }): OpponentGapAnalysis {
-  const { snap, current, nextUserPickNo } = args;
+  const { snap, fromPickNo, toPickNo } = args;
   const totalTeams = snap.total_teams;
 
   // Trade-aware pick owner resolution lives in sleeper/pick-resolution.
@@ -380,10 +462,10 @@ function analyzeOpponentsInGap(args: {
     DST: 0,
   };
 
-  // Walk pick numbers strictly between current and next user pick.
+  // Walk pick numbers strictly inside the (fromPickNo, toPickNo) window.
   for (
-    let pickNo = current.pick_no + 1;
-    pickNo < nextUserPickNo;
+    let pickNo = fromPickNo + 1;
+    pickNo < toPickNo;
     pickNo++
   ) {
     const currentOwner = rosterAtPickNo({
@@ -1279,19 +1361,6 @@ function buildNextPicksPlan(
   // QB-leaned at 6.2 with the same "1/2" label.
   leanPosition: Position | null,
   leanPlayerId: string | null,
-  // OpponentGapAnalysis from the outer scope (computed once for
-  // current pick, reused for future picks as a coarse approximation).
-  // 2026-05-08 fix: without this, the survivor predicate used only
-  // the raw ADP-gap heuristic via availabilityAt, which drifts from
-  // the canonical survivalPctFor + availabilityFromPct pipeline used
-  // by top_candidates. The integrity check then fired
-  // AVAILABILITY_INCOHERENT for any player the opponent-game-theory
-  // layer downgraded to probably_gone but the raw ADP gap rated as
-  // coin_flip (Egbuka @ 6.9, Warren @ 7.8 / 8.5 in izzydabomb's
-  // Finders Keepers 2026 league). Per CANONICAL_SOURCES.md
-  // anti-pattern 2: deriving the bucket from anything other than the
-  // pct violates the canonical. This call site is now corrected.
-  gapAnalysis: OpponentGapAnalysis,
 ): NextPickPlanItem[] {
   if (schedule.length <= 1) return [];
   const me = snap.rosters.find((r) => r.is_me);
@@ -1307,26 +1376,43 @@ function buildNextPicksPlan(
   const simulated: Record<Position, number> = { ...me.position_counts };
   if (leanPosition) simulated[leanPosition] = (simulated[leanPosition] ?? 0) + 1;
 
+  // Track players projected to be taken at PRIOR future slots so
+  // subsequent slots see them removed from the pool. Without this the
+  // plan repeats the same top-2 names at every slot (founder report
+  // 2026-05-19: Sadiq + Cooper appeared at 11.5, 12.2, 12.8, 13.5, 14.8).
+  // Seed with the lean's player id so slot 1 doesn't suggest the lean.
+  const projectedTaken = new Set<string>();
+  if (leanPlayerId) projectedTaken.add(leanPlayerId);
+
   const futures = schedule.slice(1, 1 + MAX_NEXT_PICKS);
   const items: NextPickPlanItem[] = [];
   for (let idx = 0; idx < futures.length; idx++) {
     const future = futures[idx];
+    // Per-slot gap analysis: the survival window for this future slot
+    // is "between the previous user pick and THIS user pick." Reusing
+    // the current-pick gap across all future slots (the prior behavior)
+    // applied the wrong demand pattern far out from the call. Each
+    // slot now computes its own opponent window.
+    const slotFromPickNo =
+      idx === 0 ? schedule[0].pick_no : futures[idx - 1].pick_no;
+    const slotGapAnalysis = analyzeOpponentsInGap({
+      snap,
+      fromPickNo: slotFromPickNo,
+      toPickNo: future.pick_no,
+    });
+
     // Bind to the SAME canonical availability classifier the Top 3
     // card uses (survivalPctFor → availabilityFromPct), not the raw
-    // ADP-gap heuristic. The opponent-game-theory layer is the
-    // load-bearing differentiator: without it, we let players through
-    // here that the canonical elsewhere flagged as probably_gone, and
-    // the integrity check correctly fires AVAILABILITY_INCOHERENT.
-    // Per CANONICAL_SOURCES.md anti-pattern 2.
+    // ADP-gap heuristic. Per CANONICAL_SOURCES.md anti-pattern 2.
     const survivor = (p: AvailablePlayer): boolean => {
-      if (leanPlayerId && p.id === leanPlayerId) return false;
+      if (projectedTaken.has(p.id)) return false;
       const baseAvail = availabilityAt(p, future.pick_no);
       const survivalPct = survivalPctFor({
         player: p,
         availability: baseAvail,
         signal: null,
         available,
-        gap: gapAnalysis,
+        gap: slotGapAnalysis,
       });
       const adjusted = availabilityFromPct(survivalPct);
       if (adjusted == null) return true;
@@ -1417,15 +1503,38 @@ function buildNextPicksPlan(
     const confidence: "high" | "medium" | "directional" =
       idx === 0 ? "high" : idx === 1 ? "medium" : "directional";
 
+    // Specificity degradation: past slot 2 ahead, named player
+    // predictions are noise. Slot 0 + 1 keep named recommendations
+    // (high / medium confidence). Slot 2+ pivots to positional /
+    // profile language because the compounding uncertainty of roster
+    // state + opponent contention makes specific names unreliable
+    // four picks out. Founder direction 2026-05-19: "perhaps these
+    // need to be as much positional as named players."
+    const displayNames = idx >= 2 ? [] : names;
+    const displayReason =
+      idx >= 2
+        ? targetPos === "any"
+          ? "Earned value, best on board."
+          : isFillingHole
+            ? `Best available ${POSITION_LABEL[targetPos as Position]} (starter need).`
+            : `Best available ${POSITION_LABEL[targetPos as Position]} (earned value).`
+        : reason;
+    const displayAlternates = idx >= 2 ? [] : alternates;
+
+    // Record this slot's projected picks so subsequent slots see them
+    // gone from the pool. Without this, the same top-2 keeps winning
+    // at every slot.
+    for (const id of primaryIds) projectedTaken.add(id);
+
     items.push({
       pick_label: future.pick_label,
       pick_no: future.pick_no,
       density: future.density_kind,
       target_position: targetPos,
-      target_names: names,
-      reason,
+      target_names: displayNames,
+      reason: displayReason,
       confidence,
-      alternates,
+      alternates: displayAlternates,
     });
   }
   return items;
@@ -1607,8 +1716,13 @@ export function synthesizeDecision(args: {
   if (available.length === 0) return null;
 
   const current = schedule[0];
-  const nextUserPickNo =
-    schedule.length > 1 ? schedule[1].pick_no : current.pick_no + 999;
+
+  // Survival window: pre-turn walks live → user's first pick; at-turn
+  // walks user's first pick → next contested slot (skipping back-to-
+  // back). target_pick_no replaces the old `nextUserPickNo` as the
+  // anchor for "what slot are we computing survival to."
+  const survivalWindow = computeSurvivalWindow(snap, schedule);
+  const nextUserPickNo = survivalWindow.target_pick_no;
 
   // Game-theory layer: identify gap-fillers + their position needs.
   // Drives the per-candidate opponent_signal and the OPPONENT BETWEEN
@@ -1616,8 +1730,8 @@ export function synthesizeDecision(args: {
   // wherever availability is computed.
   const gapAnalysis = analyzeOpponentsInGap({
     snap,
-    current,
-    nextUserPickNo,
+    fromPickNo: survivalWindow.from_pick_no,
+    toPickNo: survivalWindow.to_pick_no,
   });
 
   // Build trajectory for behavioral read on the user's actual picks
@@ -1925,7 +2039,6 @@ export function synthesizeDecision(args: {
     schedule,
     winner.position,
     winner.player.id,
-    gapAnalysis,
   );
   const scarcity_callout = buildScarcityCallout(
     winner,

@@ -690,10 +690,15 @@ export function DecisionCard({
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-2">
                       <span className="flex-1">
-                        <span className="font-medium">
-                          {item.target_names.join(" or ")}
-                        </span>
-                        <span className="text-muted-2"> · {item.reason}</span>
+                        {item.target_names.length > 0 && (
+                          <>
+                            <span className="font-medium">
+                              {item.target_names.join(" or ")}
+                            </span>
+                            <span className="text-muted-2"> · </span>
+                          </>
+                        )}
+                        <span className="text-muted-2">{item.reason}</span>
                       </span>
                       <div className="flex items-baseline gap-2">
                         <span
