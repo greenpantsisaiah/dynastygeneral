@@ -170,6 +170,18 @@ export function buildLeagueReadFromSnapshot(args: {
     });
   }
 
+  // User picks remaining from the canonical schedule. Per
+  // CANONICAL_SOURCES.md: `snap.draft.my_pick_schedule` is the
+  // trade-aware, post-traded_picks source of truth for user pick
+  // ownership. Entries with pick_no >= live pick are still ahead.
+  const livePickNo = snap.draft.next_pick_no;
+  const userPicksRemaining =
+    livePickNo != null
+      ? (snap.draft.my_pick_schedule ?? []).filter(
+          (p) => p.pick_no >= livePickNo,
+        ).length
+      : null;
+
   return analyzeLeagueRead({
     profile,
     formatRules,
@@ -181,6 +193,7 @@ export function buildLeagueReadFromSnapshot(args: {
     opponentRosters,
     pickQuality,
     currentPickNo: snap.draft.next_pick_no,
+    userPicksRemaining,
     totalRosters: snap.total_teams,
     rounds: snap.draft.rounds,
   });

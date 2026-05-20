@@ -99,6 +99,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Canonical**: `getAvailablePlayers(...)` (filtered by `picks_made` during active draft, by `roster.players` union otherwise) + KTC harmonization across the FULL pool
 - **Anti-pattern**: filtering by `team != null`. Pre-NFL-draft rookies have `team: null`; the filter silently excludes them. Lint rule "no team!=null player-pool filter" enforces this.
 
+### Structural constraint state (hold-pick-equity gating)
+
+- **Canonical**: `analyzeLeagueRead(args)` in `src/lib/strategy/league-read/analyze.ts`. Returns `StructuralConstraint[]` with fields `positions_unfilled`, `starter_gap_by_position`, `total_starter_gap`, `picks_remaining`, `unrecoverable_severity`, `early_round_pick_equity`, `is_active`, `guardrail_message`.
+- **Returns**: structured data. `is_active: true` only when (unrecoverable_severity AND early_round_pick_equity AND a real positions_unfilled gap) all hold; this is the narrow Massey-Thaler-supported case.
+- **Inputs**: `userState.position_counts`, `formatRules` starter maxes, `currentPickNo`, `userPicksRemaining` (from `snap.draft.my_pick_schedule` post-traded_picks).
+- **Anti-pattern 1**: re-deriving "is the user below starter requirement at any position → should they hold picks" inline in any other surface. The check has no useful signal as a binary; consume the canonical's structured fields and respect the conditional.
+- **Anti-pattern 2**: appending a prescriptive "hold pick equity" sentence to trade evaluations or pick recommendations when `is_active: false`. The COMMON case of `positions_unfilled.length > 0` with `is_active: false` is recoverable; standard ±15% fairness band governs. Lint rule "no structural-guardrail prescription when is_active: false" enforces the conditional.
+- **Bug class avoided**: 2026-05-20 founder report on the lincolnenglish/izzydabomb offer. Coach correctly declined a 2.3:1 lopsided trade but appended "you are below starter requirement at RB, WR, TE → hold pick equity until those holes fill," which is tautological in mid-draft and contradicts the EV-arbitrage thesis (Principle 8). Three independent reports (dynasty-canon-keeper DEBUNK, dynasty-assumption-auditor, founder critique) agreed the prior binary was research-indefensible. Sources: Massey-Thaler 2013, Stuart Football Perspective AV chart, KTC FAQ repricing latency.
+
 ### Decision-rule scoring (multi-candidate differentiation)
 
 - **Canonical**: every `push({ rule, score })` in `src/lib/strategy/decision-synthesis/synthesize.ts` must produce a `score` that varies based on signals already computed for that candidate (survival pct, ADP-extremeness via `adpGapModifier`, KTC value rank, position-saturation penalty, drift score). A flat literal score across multiple candidates of the same rule leaves V8's stable sort + position iteration order (`["QB", "RB", "WR", "TE"]`) as the tiebreaker. RB then always wins over TE / WR / QB regardless of relative value.

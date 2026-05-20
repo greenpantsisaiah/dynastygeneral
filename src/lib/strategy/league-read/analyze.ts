@@ -27,6 +27,86 @@ import type { OpponentPickQuality } from "./pick-quality";
 type ScoringPosition = "QB" | "RB" | "WR" | "TE";
 const SCORING_POSITIONS: ScoringPosition[] = ["QB", "RB", "WR", "TE"];
 
+/**
+ * Panic-label leverage scores. Reordered 2026-05-20 per dynasty-
+ * assumption-auditor: autopickers are absent rather than panicking;
+ * tilted_buyers respond and overpay. The prior ordering ranked
+ * autopicker (80) above tilted_buyer (75), which dynasty community
+ * consensus and KTC trade-acceptance behavior both flip.
+ *
+ * Magnitudes are dynasty-pro / sharp-gambler interim values, not
+ * KTC-calibrated. Calibration source needed: observed trade
+ * acceptance probability × overpay magnitude conditioned on label.
+ */
+const PANIC_LEVERAGE_BY_LABEL = {
+  desperation: 90,
+  tilted_buyer: 80,
+  qb_needy_with_qb_send: 75,
+  autopicker: 40,
+  default: 50,
+} as const;
+
+/**
+ * Trade window peak round, format-aware. Per dynasty-canon-keeper
+ * DEBUNK (2026-05-20): a single hardcoded constant across formats is
+ * indefensible. Panic timing shifts with format. The values below
+ * are dynasty community consensus, not calibrated.
+ *
+ * Calibration source needed: KTC trade-volume-by-round data
+ * segmented by format (SF vs 1QB vs TE-premium startups).
+ */
+const PANIC_BASELINE_BY_FORMAT = {
+  superflex: 5,
+  te_premium: 8,
+  standard: 10,
+} as const;
+
+/**
+ * Per dynasty-assumption-auditor (2026-05-20): count-only surplus
+ * loses the value distribution. A 3-QB roster with Allen/Mahomes/
+ * Geno trades very differently than Allen/Mahomes/Levis. Value
+ * floor requires the marginal (trade-chip) body to clear a non-
+ * trivial KTC value before the position registers as surplus.
+ *
+ * KTC 30 is the body that actually trades for non-trivial return.
+ * Position-specific floors (TE floor lower than RB in TE-premium)
+ * are the upgrade path; not yet calibrated.
+ */
+const SURPLUS_VALUE_FLOOR = 30;
+
+/**
+ * Sophistication-tier adjustment. Direction (asymmetric, low > |high|)
+ * is defensible: low-sophistication opponents overpay in trades more
+ * than high-sophistication opponents underpay. Magnitudes below are
+ * uncalibrated placeholders. Per dynasty-assumption-auditor (2026-
+ * 05-20).
+ *
+ * Calibration source needed: KTC trade-acceptance data conditioned
+ * on counterparty pick-quality tier.
+ */
+const SOPHISTICATION_ADJUSTMENT = {
+  low: 8,
+  high: -5,
+} as const;
+
+/**
+ * Severity tolerance for the structural-guardrail unrecoverable
+ * check. Some remaining picks land on bench depth or future-pick
+ * swaps rather than starters, so "gap == picks_remaining" is
+ * already structurally tight, not just exactly closeable. Per
+ * Massey-Thaler 2013 path-dependence on pick-value math.
+ */
+const SEVERITY_TOLERANCE = 1;
+
+/**
+ * Round threshold below which a user's near-term pick carries
+ * meaningful AV-weighted equity. Per Stuart (Football Perspective)
+ * AV-based draft chart: pick value decays steeply by round; round-9+
+ * picks have near-zero "equity worth protecting." Rounds 1-6 inclusive
+ * carry meaningful equity.
+ */
+const EARLY_ROUND_THRESHOLD = 6;
+
 type UserState = {
   position_counts: Record<Position, number>;
   // KTC values (FantasyCalc-normalized 0-100) per position rank for
@@ -72,14 +152,28 @@ export function analyzeLeagueRead(args: {
   // Current draft pick number (1-N) used for trade-window estimate.
   // Null when the league is not in active draft.
   currentPickNo: number | null;
+  // Number of picks the user has remaining in the draft, counted
+  // from `snap.draft.my_pick_schedule` post-traded_picks (canonical
+  // per CANONICAL_SOURCES.md). Null when not in active draft. Used
+  // for the unrecoverable-severity check on structural_constraints.
+  userPicksRemaining?: number | null;
   totalRosters: number;
   rounds: number;
 }): LeagueRead {
-  const { profile, formatRules, userState, myRosterId, opponentRosters, pickQuality, currentPickNo, totalRosters, rounds } = args;
+  const { profile, formatRules, userState, myRosterId, opponentRosters, pickQuality, currentPickNo, userPicksRemaining = null, totalRosters, rounds } = args;
 
-  // Compute user's structural constraints. "Don't trade picks while
-  // you have positions below starter_max."
+  // Compute the user's structural state as DATA, not as a prescriptive
+  // guardrail. Per dynasty-canon-keeper DEBUNK (2026-05-20): the prior
+  // binary "any position below starter_max → fire hold-pick-equity"
+  // check was research-indefensible (Massey-Thaler 2013 convex pick-
+  // value curve; KTC repricing in days, not multi-round windows). The
+  // narrow research-supported cautious case requires THREE conditions:
+  // unrecoverable severity + early-round pick equity + a real starter
+  // gap. All other states are recoverable through normal drafting and
+  // surplus-to-need swaps remain the doctrine.
   const positions_unfilled: ScoringPosition[] = [];
+  const starter_gap_by_position: Partial<Record<Position, number>> = {};
+  let total_starter_gap = 0;
   const starterReqs: Record<ScoringPosition, number> = {
     QB: formatRules.qb_starters_max,
     RB: formatRules.rb_starters_max,
@@ -87,34 +181,77 @@ export function analyzeLeagueRead(args: {
     TE: formatRules.te_starters_max,
   };
   for (const pos of SCORING_POSITIONS) {
-    if ((userState.position_counts[pos] ?? 0) < starterReqs[pos]) {
+    const have = userState.position_counts[pos] ?? 0;
+    const need = starterReqs[pos];
+    if (have < need) {
       positions_unfilled.push(pos);
+      starter_gap_by_position[pos] = need - have;
+      total_starter_gap += need - have;
     }
   }
-  const structural_constraints: StructuralConstraint[] =
-    positions_unfilled.length > 0
-      ? [
-          {
-            positions_unfilled,
-            is_active: true,
-            guardrail_message: `Hold pick equity for now. You are below starter requirement at ${positions_unfilled.join(", ")}. Trading picks before structural holes are filled spends draft equity on the wrong axis. The trade leverage you sense from QB / RB-starved opponents only STRENGTHENS as their panic builds; you do not need to act now.`,
-          },
-        ]
-      : [
-          {
-            positions_unfilled: [],
-            is_active: false,
-            guardrail_message:
-              "Starters covered at every position; trade window is open. Pick equity can now be deployed for surplus-to-need swaps.",
-          },
-        ];
 
-  // Compute user's surplus positions: where the user has at least
-  // (starter_max + 1) bodies, the marginal player is the trade chip.
-  // In SF, the third QB is by definition trade-eligible (only 2 start).
+  // Unrecoverable severity: gap exceeds remaining picks minus a
+  // tolerance for bench/future-pick spend. The only Massey-Thaler-
+  // supported case for "hold pick equity" as a prescription.
+  const unrecoverable_severity =
+    userPicksRemaining != null &&
+    total_starter_gap > userPicksRemaining - SEVERITY_TOLERANCE;
+
+  // Early-round pick equity. Stuart AV chart: surplus value decays
+  // steeply by round. Rounds 1-6 carry meaningful equity; round-9+
+  // picks have near-zero "equity worth protecting."
+  const currentRound =
+    currentPickNo != null && totalRosters > 0
+      ? Math.ceil(currentPickNo / totalRosters)
+      : null;
+  const early_round_pick_equity =
+    currentRound != null && currentRound <= EARLY_ROUND_THRESHOLD;
+
+  const guardrail_active =
+    positions_unfilled.length > 0 &&
+    unrecoverable_severity &&
+    early_round_pick_equity;
+
+  let guardrail_message: string;
+  if (guardrail_active) {
+    guardrail_message = `Unrecoverable starter gap at ${positions_unfilled.join(", ")} (total gap ${total_starter_gap} bodies, ${userPicksRemaining ?? "unknown"} picks remaining, round ${currentRound}). Pick equity at this round carries real AV-weighted surplus value (Stuart, Football Perspective). Pick-out trades without a positional return compound the structural problem.`;
+  } else if (positions_unfilled.length > 0) {
+    guardrail_message = `Below starter requirement at ${positions_unfilled.join(", ")} (gap ${total_starter_gap}${userPicksRemaining != null ? `, ${userPicksRemaining} picks remaining` : ""}). Recoverable through normal drafting. Standard ±15% trade fairness band governs; surplus-to-need swaps remain on the table.`;
+  } else {
+    guardrail_message =
+      "Starters covered at every position. Pick equity available for surplus-to-need swaps.";
+  }
+
+  const structural_constraints: StructuralConstraint[] = [
+    {
+      positions_unfilled,
+      starter_gap_by_position,
+      total_starter_gap,
+      picks_remaining: userPicksRemaining,
+      unrecoverable_severity,
+      early_round_pick_equity,
+      is_active: guardrail_active,
+      guardrail_message,
+    },
+  ];
+
+  // Compute user's surplus positions with VALUE FLOOR. Per dynasty-
+  // assumption-auditor (2026-05-20): count-only surplus loses the
+  // value distribution. Requires count > starter_max AND the
+  // marginal (median-by-value) body to clear SURPLUS_VALUE_FLOOR.
+  // Falls back to count-only when player values aren't available.
   const userSurplusPositions: ScoringPosition[] = [];
   for (const pos of SCORING_POSITIONS) {
-    if ((userState.position_counts[pos] ?? 0) > starterReqs[pos]) {
+    if ((userState.position_counts[pos] ?? 0) <= starterReqs[pos]) continue;
+    const candidates = userState.player_values_by_position[pos] ?? [];
+    if (candidates.length === 0) {
+      // No values available; count-only fallback.
+      userSurplusPositions.push(pos);
+      continue;
+    }
+    const sortedAsc = [...candidates].sort((a, b) => a.value - b.value);
+    const marginal = sortedAsc[Math.floor(sortedAsc.length / 2)];
+    if (marginal.value >= SURPLUS_VALUE_FLOOR) {
       userSurplusPositions.push(pos);
     }
   }
@@ -196,12 +333,15 @@ export function analyzeLeagueRead(args: {
     }
 
     // Score: combine opponent label severity + position-fit quality.
-    let baseScore = 0;
-    if (team.label === "desperation") baseScore = 90;
-    else if (team.label === "qb_needy" && bestSendPosition === "QB") baseScore = 85;
-    else if (team.label === "tilted_buyer") baseScore = 75;
-    else if (team.label === "autopicker") baseScore = 80;
-    else baseScore = 50;
+    // Reordering 2026-05-20: autopicker dropped below tilted_buyer.
+    // Autopickers are absent rather than panicking; tilted_buyers
+    // respond and overpay. See PANIC_LEVERAGE_BY_LABEL header.
+    let baseScore: number = PANIC_LEVERAGE_BY_LABEL.default;
+    if (team.label === "desperation") baseScore = PANIC_LEVERAGE_BY_LABEL.desperation;
+    else if (team.label === "qb_needy" && bestSendPosition === "QB")
+      baseScore = PANIC_LEVERAGE_BY_LABEL.qb_needy_with_qb_send;
+    else if (team.label === "tilted_buyer") baseScore = PANIC_LEVERAGE_BY_LABEL.tilted_buyer;
+    else if (team.label === "autopicker") baseScore = PANIC_LEVERAGE_BY_LABEL.autopicker;
     // Bonus when their hole matches what we want too.
     if (
       receivePosition != null &&
@@ -227,11 +367,13 @@ export function analyzeLeagueRead(args: {
     if (oppPickQuality) {
       // Boost leverage score when sophistication is LOW (they're
       // more likely to overpay in trades the same way they overpay
-      // in the draft).
+      // in the draft). Magnitudes (+8, -5) are uncalibrated
+      // placeholders; direction (asymmetric, low > |high|) is the
+      // defensible signal. See SOPHISTICATION_ADJUSTMENT header.
       if (oppPickQuality.sophistication_tier === "low") {
-        baseScore += 8;
+        baseScore += SOPHISTICATION_ADJUSTMENT.low;
       } else if (oppPickQuality.sophistication_tier === "high") {
-        baseScore -= 5; // sophisticated drafter; harder extraction
+        baseScore += SOPHISTICATION_ADJUSTMENT.high;
       }
       for (const s of oppPickQuality.signals) {
         softnessSignals.push(s);
@@ -286,17 +428,29 @@ export function analyzeLeagueRead(args: {
   opportunities.sort((a, b) => b.leverage_score - a.leverage_score);
   const top_leverage_opportunities = opportunities.slice(0, 3);
 
-  // Trade window estimate. Phase 1 heuristic: peak window is rounds
-  // 7-9 in dynasty startups, when teams that chased ceiling early
-  // start panicking on structural holes.
+  // Trade window estimate. Format-aware: SF panic comes earlier
+  // (post-QB1 tier clear, ~rd 5), TE-premium mid-late (~rd 7-8),
+  // 1QB late (~rd 10). Floored against currentRound + 2 so the
+  // forecast always points forward. See PANIC_BASELINE_BY_FORMAT
+  // header.
   let trade_window: TradeWindowEstimate | null = null;
   if (currentPickNo != null && rounds > 0 && totalRosters > 0) {
-    const currentRound = Math.ceil(currentPickNo / totalRosters);
-    const peakRound = Math.min(rounds, Math.max(7, currentRound + 2));
+    const liveRound = Math.ceil(currentPickNo / totalRosters);
+    const formatBaseline = formatRules.is_superflex
+      ? PANIC_BASELINE_BY_FORMAT.superflex
+      : formatRules.te_premium
+        ? PANIC_BASELINE_BY_FORMAT.te_premium
+        : PANIC_BASELINE_BY_FORMAT.standard;
+    const peakRound = Math.min(rounds, Math.max(formatBaseline, liveRound + 2));
+    const formatName = formatRules.is_superflex
+      ? "superflex"
+      : formatRules.te_premium
+        ? "TE-premium"
+        : "1QB";
     const message =
-      currentRound < peakRound
-        ? `Hold conversations until round ${peakRound}. Opponent panic peaks around then; your leverage strengthens as their structural holes deepen. Trading earlier spends draft equity on the wrong axis.`
-        : `Trade window is open NOW. Opponent panic is at or near peak; act on the leverage opportunities listed above before they paper over their holes through the draft.`;
+      liveRound < peakRound
+        ? `Format-adjusted panic peak around round ${peakRound} (${formatName}). Leverage opportunities listed above are real now; surplus-to-need swaps don't require waiting. If holding pick equity for the peak, do so only when the structural-state read is unrecoverable.`
+        : `Trade window is at or past format-adjusted peak (round ${peakRound}, ${formatName}). Act on the leverage opportunities listed above before opponents paper over their holes through the draft.`;
     trade_window = { peak_round: peakRound, message };
   }
 
@@ -360,8 +514,9 @@ function composeHeadline(args: {
   }
 
   if (activeConstraints.length > 0) {
+    const c = activeConstraints[0];
     parts.push(
-      `Structural guardrail active: holes at ${activeConstraints[0].positions_unfilled.join(", ")}. Don't trade picks until these fill.`,
+      `Unrecoverable starter gap at ${c.positions_unfilled.join(", ")} (gap ${c.total_starter_gap}, ${c.picks_remaining ?? "unknown"} picks remaining). Hold pick equity only when the trade is pick-out without a positional return.`,
     );
   }
 

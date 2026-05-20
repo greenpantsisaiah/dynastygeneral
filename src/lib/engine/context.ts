@@ -721,9 +721,15 @@ export function renderContextForPrompt(ctx: DecisionContext): string {
       }
     }
     for (const c of lr.structural_constraints) {
-      if (c.is_active) {
-        lines.push(`- Structural guardrail: ${c.guardrail_message}`);
-      }
+      // Ship the structured fields so Coach can reason on the
+      // research-grounded conditional (unrecoverable_severity AND
+      // early_round_pick_equity AND a real gap), not on a binary.
+      // The Coach system prompt's structural_constraints rule
+      // binds on these field names directly.
+      lines.push(
+        `- Structural state: positions_unfilled=[${c.positions_unfilled.join(", ") || "none"}], total_starter_gap=${c.total_starter_gap}, picks_remaining=${c.picks_remaining ?? "unknown"}, unrecoverable_severity=${c.unrecoverable_severity}, early_round_pick_equity=${c.early_round_pick_equity}, is_active=${c.is_active}`,
+      );
+      lines.push(`  Read: ${c.guardrail_message}`);
     }
     if (lr.trade_window) {
       lines.push(`- Trade window: ${lr.trade_window.message}`);

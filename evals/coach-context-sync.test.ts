@@ -107,6 +107,20 @@ const BINDINGS: Binding[] = [
     routeShips: ["league_read"],
   },
   {
+    // 2026-05-20 retirement of the binary starter-gap guardrail.
+    // The structural_constraints object now ships structured fields
+    // and the system prompt fires the cautious "hold equity" read
+    // ONLY when (unrecoverable_severity AND early_round_pick_equity
+    // AND positions_unfilled.length > 0) all hold. If a future
+    // refactor strips the conditional reference, the LLM falls back
+    // to the prior binary interpretation. This binding locks the
+    // three-layer fix.
+    rule: "structural_constraints conditional (unrecoverable_severity gate)",
+    fieldRef: "league_read.structural_constraints[].unrecoverable_severity",
+    promptCitation: "unrecoverable_severity",
+    routeShips: ["league_read"],
+  },
+  {
     rule: "inflection bifurcation framing",
     fieldRef: "inflections[]",
     promptCitation: "inflections",

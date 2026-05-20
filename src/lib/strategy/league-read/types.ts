@@ -75,30 +75,72 @@ export type LeverageOpportunity = {
 };
 
 /**
- * Structural constraint on the user's draft. "Don't trade picks
- * while you have 0 RB and 0 TE" is a structural-constraint
- * guardrail. Surfaces automatically; user doesn't have to know
- * to ask for it.
+ * Structural state of the user's roster, surfaced as DATA, not as a
+ * prescriptive guardrail. Per dynasty-canon-keeper DEBUNK (2026-05-20)
+ * and dynasty-assumption-auditor: the prior binary "any position
+ * below starter_max fires a hold-pick-equity guardrail" was research-
+ * indefensible. Massey-Thaler 2013 ("The Loser's Curse," Mgmt Sci
+ * 59(7)) puts pick value on a steeply convex curve; round-9+ picks
+ * carry near-zero arbitrage equity. KTC repricing latency (FAQ) is
+ * days, not multi-round windows. The research-supported cautious
+ * "hold equity" case is narrow: unrecoverable severity AND early-
+ * round pick equity AND pick-out without positional return. All
+ * other states are recoverable through normal drafting and surplus-
+ * to-need swaps remain the doctrine.
+ *
+ * `is_active: true` now fires ONLY in that narrow conditional. The
+ * Coach system prompt reads the underlying fields and reasons.
  */
 export type StructuralConstraint = {
   positions_unfilled: Position[];
+  // Per-position gap (starter_max - current_count) for unfilled
+  // positions. Zero or positive.
+  starter_gap_by_position: Partial<Record<Position, number>>;
+  // Sum of starter_gap_by_position. Total bodies short of starting
+  // a full lineup at QB / RB / WR / TE.
+  total_starter_gap: number;
+  // Number of picks the user has remaining in the draft (counted
+  // from `my_pick_schedule` post-traded_picks). Null when not in an
+  // active draft or the schedule isn't available.
+  picks_remaining: number | null;
+  // True when total_starter_gap exceeds picks_remaining minus a
+  // small tolerance (some picks land on depth, not starters). This
+  // is the Massey-Thaler path-dependence case: the gap is
+  // structurally tight or impossible to close.
+  unrecoverable_severity: boolean;
+  // True when the user's near-term pick sits in a round where AV-
+  // weighted pick value is non-trivial (Stuart, Football Perspective
+  // AV-based draft chart). Late-round picks have near-zero "equity
+  // worth protecting," so the cautious read is incoherent there.
+  early_round_pick_equity: boolean;
+  // Plain-English summary of the structural state. NOT a
+  // prescription; describes the data. The Coach system prompt owns
+  // the conditional prescription that wraps these fields.
   guardrail_message: string;
-  // True if the constraint is currently active. False once positions
-  // are filled to at least the starter requirement.
+  // True only when the narrow research-supported conditional holds
+  // (unrecoverable_severity AND early_round_pick_equity AND a real
+  // starter gap). UI surfaces the warning only when this is true.
   is_active: boolean;
 };
 
 /**
  * Estimate of when the trade window peaks (when opponent panic is
  * highest and your structural pressure has eased). Phase 1 is a
- * coarse round-band heuristic; Phase 2 may incorporate per-opponent
- * panic timing.
+ * coarse format-adjusted heuristic; Phase 2 will key on positional-
+ * run intensity in the last N picks.
+ *
+ * Calibration source needed: KTC trade-volume-by-round data
+ * segmented by format (SF vs 1QB vs TE-premium). Until that lands,
+ * the format baselines below are dynasty community consensus, not
+ * a fit.
  */
 export type TradeWindowEstimate = {
-  // Round number when leverage tends to peak. Phase 1 heuristic:
-  // 7-9 in dynasty startups (after most teams have filled key
-  // starters but some still have structural holes from chasing
-  // ceiling early).
+  // Round number when leverage tends to peak. Format-aware:
+  // SF dynasty around round 5 (after the QB1 tier clears), TE-
+  // premium around round 7-8 (after the TE1 tier drop), 1QB
+  // dynasty / redraft around round 10 (late QB panic). Floored
+  // against currentRound + 2 so the forecast always points
+  // forward.
   peak_round: number;
   // Plain-English: "Hold conversations until round 7-8; let
   // QB-starved teams sweat through round 6 first."

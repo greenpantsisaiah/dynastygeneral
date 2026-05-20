@@ -427,6 +427,26 @@ selection lives in the hub render and uses
   always-on Sloan density. The toggle + cookie + register switch
   on The Call + Coach register fork were deleted. Any future
   "casual lite" mode is a fresh decision, not a revival.
+- **Binary starter-gap "hold pick equity" guardrail.** Retired
+  2026-05-20 after dynasty-canon-keeper DEBUNK and dynasty-
+  assumption-auditor verdicts both ruled the prior implementation
+  INDEFENSIBLE. The check (any position below starter_max fires a
+  prescriptive "don't trade picks" sentence) was severity-blind,
+  round-blind, and trade-shape-blind. It fired for nearly every
+  roster in early/mid draft and contradicted the EV-arbitrage
+  thesis of Principle 8. Research grounding: Massey-Thaler 2013
+  ("The Loser's Curse," Mgmt Sci 59(7)) puts pick value on a
+  steeply convex curve, so equity at round 9+ is near-zero; KTC
+  FAQ documents repricing latency in days, not multi-round panic
+  windows; Stuart (Football Perspective) AV-based draft chart
+  confirms the convex decay. The structural_constraints object is
+  now DATA (positions_unfilled, starter_gap_by_position,
+  total_starter_gap, picks_remaining, unrecoverable_severity,
+  early_round_pick_equity, is_active). The Coach system prompt
+  reads the structured fields and fires the cautious read ONLY
+  when (unrecoverable_severity AND early_round_pick_equity AND a
+  real gap) all hold. Do not reintroduce a binary prescriptive
+  guardrail without explicit founder go-ahead.
 
 ### Drifted from the principle (genuinely open, ranked by leverage)
 
