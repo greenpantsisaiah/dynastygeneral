@@ -113,6 +113,32 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: `score: <literal>` with no per-candidate term. If a new rule's score doesn't naturally differentiate, the rule needs another signal, not a flat number with stable-sort fallback.
 - **Bug class avoided**: 2026-05-08 Warren-vs-Judkins incident. Both candidates fired `fill_starter_urgent` at flat 100; stable sort picked Judkins (RB iterates before TE) over Warren despite Warren being ADP-extreme + lower survival + higher value in TE-premium SF. Coach correctly re-derived Warren when prompted, proving the data was present but ignored at scoring time. Locked by `evals/fill-starter-urgent.test.ts`.
 
+### Play state (the Plays panel)
+
+- **Canonical**: `derivePlayState(snap, play, userOptIn)` (to be added at `src/lib/strategy/plays/state.ts`)
+- **Returns**: `PlayState` = `"suggested" | "tracking" | "auto_active" | "committed" | "dismissed" | "achieved" | "dead" | "morphed"`
+- **Inputs**: snapshot (for roster signals + format_rules), play definition (with anchor + partners + format_gates), user opt-in record (commit / track / dismiss state from storage), stage (draft / in-season)
+- **State transitions**: documented in `REDESIGN_INTENTIONS.md` under "Plays panel" → "Play state model"
+- **Anti-pattern**: deriving state inline in render components. The render reads `play.state`; the engine derives.
+
+### Play urgency (per-partner survival rolled up)
+
+- **Canonical per-partner survival**: `survivalPctFor` from `decision-synthesis/synthesize.ts` (the existing canonical), consumed once per partner per play card render.
+- **Canonical play urgency**: `derivePlayUrgency(partners)` (to be added at `src/lib/strategy/plays/urgency.ts`)
+- **Returns**: `Urgency` = `"act_now" | "this_round" | "two_round_cushion" | "no_rush"`
+- **Math**: per-partner urgency from `urgencyFromSurvival(survival_pct_to_next_pick)` (`act_now` if <25%, `this_round` if 25-50%, `two_round_cushion` if 50-75%, `no_rush` if 75%+). Play urgency = urgency of the partner with the highest `(ev_contribution × urgencyScalar)` where `urgencyScalar` weights `act_now` partners much more than `no_rush` partners. A high-EV anchor at 18% survival pulls the play to `act_now` regardless of fallback comfort.
+- **Anti-pattern 1**: hardcoded "next N picks" copy in play cards. The urgency comes from the canonical above; the follow-through copy names a specific deadline pick number, not a generic window. Bug: 2026-05-20 "Your active plays" shipped with identical "next 4 picks" framing on every play card.
+- **Anti-pattern 2**: deriving play urgency in a render component instead of consuming `play.play_urgency`. The engine derives; the render reads.
+
+### Play format gates (engine emission gate)
+
+- **Canonical**: `playFormatGates: Record<PlayType, FormatGates>` (to be added at `src/lib/strategy/plays/catalog.ts`) + `canEmitPlay(snap, playType)` consumer
+- **Returns**: boolean (whether a play type is eligible for the league's format)
+- **Inputs**: snapshot (for `buildFormatRulesFromSnapshot(snap)` access), play type
+- **Use**: `canEmitPlay` consults the matrix + `format_rules` before emitting a play. The engine MUST NOT emit a play whose gates are unsatisfied.
+- **Anti-pattern**: per-play-type if/else format checks scattered across emission code. One matrix, one gate.
+- **Bug class avoided**: 2026-05-20 founder report "The platform has been over-prioritizing TEs in my no-TEP league." Two-pronged fix: (1) gate TE-Premium Double-Up play at emission via `requires_te_premium: true` matrix entry; (2) fix non-TEP TE EV overweighting in scoring (tracked separately via `dynasty-bug-investigator`).
+
 ## Adding a new entry
 
 Use this template:

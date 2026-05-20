@@ -153,6 +153,70 @@ Implementation pieces:
   (data shipped, rendering MISSING)
 - Within-surface delta marks (rendering MISSING)
 
+### 12. Plays are the cornerstone strategic frame (NEW principle, locked 2026-05-20)
+
+ADDED 2026-05-20. Per founder direction reviewing the "Your active
+plays" surface (commit d698d0d): "I think this surface finally nails
+the lanes concept so I'd like to see what happens if this surface
+becomes the cornerstone."
+
+Plays are the strategic frame the engine and user share across the
+draft AND in-season. Every multi-pick or multi-week plan is a Play.
+A play has a thesis ("Genius IF X, Otherwise Y"), named partners
+with per-partner survival math, a follow-through, and a state.
+
+Plays survive the season. A draft-phase play morphs into its
+in-season variant rather than dying. QB Stack (draft) becomes QB
+Flip Window (week 8-12). Anchor + Handcuff (draft) becomes Handcuff
+Watch + FA Priority (week 1+). 2027 1st Sniping is in-season-only;
+Multi-Handcuff Lottery spans both.
+
+A play does not require commitment to be ACTIVE. The engine
+auto-detects when conditions are met (4 QBs in a 1QB league means
+QB Hoard is auto-active) and surfaces governance without forcing a
+checkbox.
+
+The plays panel has NO noise cap. Multi-play tracking is the norm
+during a season. The user commits to some, tracks many, dismisses
+few.
+
+Dismissed plays are forgiven. One click to dismiss; dismissed plays
+go to a collapsed section and can be un-dismissed in one click.
+Dismissed plays still receive engine updates: when conditions
+intensify, the dismissed card surfaces a small "Engine sees this
+again. Un-dismiss?" chip rather than auto-resurfacing.
+
+Per-partner survival math is canonical. Each partner card shows
+`survivalPctFor` to the user's next pick with CI, NOT a generic
+"next 4 picks" window. The play's overall urgency comes from the
+urgent EV-weighted partner: an 18% anchor with 70% fallbacks
+renders `act_now`; all-70%+ partners renders `no_rush`. This is
+what reflects "Tank Bigsby goes in two picks" being different from
+"Jalen McMillan is in zero danger."
+
+Format gates are declarative. Every play type declares which
+`format_rules` fields enable / disable it
+(`forbid_te_premium: true` suppresses TE-Premium Double-Up in
+non-TEP leagues, etc.). The engine MUST NOT emit a play whose
+format gates are unsatisfied.
+
+Best Value collapses into the Standing Call. The standing call IS
+the best-EV available with format-aware suppressions and
+play-aware lift. When the standing call IS the best-EV available,
+the card carries a `Best EV available` badge. When the engine
+suppresses or lifts away (TE suppressed in non-TEP, saturation,
+active-play lift), the standing call shows a transparency line
+("Best raw EV: X (+N). Standing call diverges because Y") with
+tap-to-elevate to override the suppression.
+
+Play activation badges replace The Call's lanes mini-section.
+Every candidate in The Call (standing call + alternatives) carries
+badges where applicable: `Activates: QB Hoard` (suggested flips to
+auto-active), `Advances: Lamar + BAL Stack (Andrews +6 EV)` (named
+partner in a tracked / committed play), `Breaks: WR Stable (-4 EV)`
+(undermines an active play). Badges are the bridge from the moment
+(the pick) to the future (the plays panel).
+
 ## Voice (locked)
 
 ### Voice A: default brand
@@ -211,39 +275,74 @@ selection lives in the hub render and uses
 
 1. **Pre-draft prep** (pre-draft only)
    - Team Identity preview, Library articles for prep
-2. **The Call** (active draft only; standing call dominates)
+2. **The Call** (active draft only; single-pick verdict)
    - Disclaimer band when present
-   - Standing call hero with EV number
+   - Standing call hero with EV number, plus `Best EV available`
+     badge when the standing call IS the best-EV pick on the board,
+     OR a transparency line ("Best raw EV: X (+N). Standing call
+     diverges because Y") with tap-to-elevate when the engine has
+     suppressed or lifted away from raw best-EV
    - Opponent gap line
-   - Lanes (3 cards: Win-Now / Trade-Flex / Keeper-Lock with
-     format-adaptive labels)
    - Scarcity callout when present
    - Counter view when present
-   - Why landscape + Next picks plan (collapsed)
-3. **How you're doing** (during + post-draft)
+   - Candidate badges: each candidate (standing call + near-call
+     alternatives) carries `Activates` / `Advances` / `Breaks` chips
+     linking to plays
+   - RETIRED 2026-05-20: Lanes mini-section, Why landscape, Next
+     picks plan. The strategic frame lives in Plays (section 3).
+3. **Plays** (active draft + in-season cornerstone; new 2026-05-20)
+   - State sections in priority order: Committed → Auto-active →
+     Tracking → Suggested → Dismissed (collapsed) → Recently
+     achieved / dead (collapsed history)
+   - Each play card: type badge + anchor + Genius IF / Otherwise
+     thesis + per-partner survival math (canonical `survivalPctFor`
+     with CI) + follow-through with deadline pick number + state
+     chip + urgency chip + one-click dismiss
+   - No noise cap. Multi-play tracking is the norm.
+   - In-season variant morphs draft plays into week-window plays
+     (QB Flip Window week 8-12, Handcuff Watch + FA Priority week
+     1+, 2027 1st Sniping week 6+, Buy-the-Dip rolling,
+     Multi-Handcuff Lottery spans both)
+4. **How you're doing** (during + post-draft)
    - DraftProgressPanel: position diagnostic + watch the board +
-     league rank + best value + sharp positioning + wins/gaps
+     league rank + sharp positioning + wins/gaps
+   - RETIRED 2026-05-20: best value chip in this panel. The
+     standing call carries the `Best EV available` badge now;
+     divergence cases render the transparency line on the call.
    - EV bank section INSIDE DraftProgressPanel: per-pick bars + total
      + range + collapsible "see how the league stands" expander
    - WindowsBar (next to EV bank per founder direction 2026-05-08)
-4. **Your team** (always)
+5. **Your team** (always)
    - Team Identity (build, comparator, risk, lineup talent)
    - Inflection panel (player-relevant variance windows)
    - Contender outlook
-5. **The league** (default-open varies by stage)
+6. **The league** (default-open varies by stage)
    - TradeStrategyPanel
    - OpponentCharacterizations
    - SamePathThreatsCard
    - LeagueOutlook + SwotCard + LeagueDivergence + LeagueTable
-6. **Intel** (collapsed by default)
+7. **Intel** (collapsed by default)
    - Library teaser
    - Briefing feed
-7. **Coach** (sticky right column, unchanged)
+8. **Coach** (sticky right column, unchanged)
 
 ### Components retired (do not bring back without revisiting the spec)
 
-- StrategicForks: covered by The Call's lanes
-- TierMap: covered by The Call's candidate context
+- StrategicForks: covered by The Call's lanes (until 2026-05-20);
+  now covered by Plays.
+- Strategic Lanes mini-section inside The Call: RETIRED 2026-05-20
+  in favor of Plays-as-cornerstone (Principle 12). The "Your active
+  plays" surface (commit d698d0d) finally landed the multi-pick
+  reasoning Strategic Lanes was reaching for, with named partners,
+  per-partner survival math, commitment memory, format gates, and
+  in-season lifecycle. Per-candidate `Activates` / `Advances` /
+  `Breaks` badges in The Call link to the dedicated Plays panel; the
+  lanes mini-section no longer renders on the hub.
+- Best Value (as a separate widget in DraftProgressPanel): RETIRED
+  2026-05-20. The standing call carries `Best EV available` badging;
+  divergence cases render an inline transparency line on the call
+  with tap-to-elevate.
+- TierMap: covered by The Call's candidate context.
 - DecisionQuadrant: parked at `the-call/decision-quadrant.tsx`,
   reserved for a future `/pick` deep-dive page where it can live
   with a real interpretation headline. NOT rendered on the hub.
@@ -383,8 +482,24 @@ selection lives in the hub render and uses
 | 2026-05-08 | Lanes is still here / can't locate EV | Partially resolved: EvBankPercentileChip at top of hub gives at-a-glance read; inside DraftProgressPanel the bank still renders after position_diagnostic (open) |
 | 2026-05-15 | "Bring up the parked items"; audit was stale | Audit refresh sweep: confirmed LastVisitDigest, plan-disruption ack, EV percentile chip, comparator narrative all shipped; Sloan-mode toggle moved to retired bucket; genuinely-open work ranked by leverage |
 | 2026-05-15 | "I can't even locate EV on the page" | Hoisted EvBankSection to lead DraftProgressPanel, directly after the headline. Position diagnostic + rest now follow as supporting cast |
+| 2026-05-20 | "Your active plays" finally nails lanes; "next 4 picks" is data-blind; no harmony with broader strategies | Plays-as-cornerstone spec amendment (Principle 12). Per-partner survival math via canonical `survivalPctFor`. In-season lifecycle (QB Flip Window, Handcuff Watch, 2027 1st Sniping, Buy-the-Dip, Multi-Handcuff Lottery). Declarative format gates per play type. Strategic Lanes retired in favor of Plays. Best Value collapsed into standing call (badge or transparency line). Candidate badges (`Activates` / `Advances` / `Breaks`) replace The Call's lanes mini-section. Coach gets `active_plays` context + hard rule. New states: `auto_active`, `dismissed` (forgiven). No noise cap. |
 
-## Strategic Lanes (THE active-draft hero, locked 2026-05-08 PM)
+## Strategic Lanes (RETIRED 2026-05-20, see Plays panel below)
+
+RETIRED 2026-05-20 in favor of Plays-as-cornerstone (Principle 12).
+The "Your active plays" surface (commit d698d0d) finally lands the
+multi-pick reasoning Strategic Lanes was reaching for, with named
+partners + per-partner survival math + commitment memory + format
+gates + in-season lifecycle. See the "Plays panel" section below
+for the canonical spec.
+
+The historical Strategic Lanes spec is preserved below for
+compression survival and as a record of intent. The lane card
+chrome (mini path diagram + sparkline + horizon meter + EV chips +
+hover detail) is preserved inside the Plays panel's play-card
+chrome.
+
+---
 
 UPDATED 2026-05-08 PM per founder direction: "I preferred some
 earlier panels that had 3 picks if going this way, that way, the
@@ -430,6 +545,177 @@ Color: archetype-tinted hue per lane.
 EV and Future-Trade Stock surface as chips inside each lane, not as
 separate lanes themselves.
 
+## Plays panel (THE strategic frame, cornerstone locked 2026-05-20)
+
+The plays panel is the cornerstone strategic frame (Principle 12).
+Every multi-pick or multi-week plan is a Play. Plays survive the
+draft → in-season transition with lifecycle variants.
+
+### Play state model
+
+```ts
+type PlayState =
+  | "suggested"     // engine sees the opening; user has not opted in
+  | "tracking"      // user said "watch this" without committing
+  | "auto_active"   // engine detects conditions met without explicit commit
+  | "committed"     // user explicitly chose to govern decisions by this
+  | "dismissed"     // user dismissed; forgiven, one-click un-dismiss
+  | "achieved"      // anchor + 50%+ partners locked in
+  | "dead"          // anchor or critical partner unreachable AND window expired
+  | "morphed";      // transitioned across stage (draft → in-season)
+
+type Urgency = "act_now" | "this_round" | "two_round_cushion" | "no_rush";
+```
+
+State transitions:
+- Engine sees a play type matching roster signals → `suggested`
+- User clicks "track" → `tracking`
+- User clicks "commit" → `committed`
+- Conditions met without commit (e.g., `position_count.QB ≥ starter
+  + 2` in 1QB format) → `auto_active`
+- User clicks "dismiss" from any state → `dismissed`
+- User clicks "un-dismiss" → re-enters appropriate prior state
+- Anchor + 50%+ partners locked in → `achieved`
+- Anchor unreachable OR critical partner unreachable AND window
+  expired → `dead`
+- Stage transition (draft → in-season) → `morphed`; display the
+  variant, preserve prior form in history
+
+### Per-partner survival math (canonical)
+
+Each partner card consumes `survivalPctFor` (the canonical from
+`decision-synthesis/synthesize.ts`) to the user's next pick by
+default, with CI inline. A tap reveals survival to the pick after.
+
+The play's headline urgency = the urgent EV-weighted partner's
+urgency:
+
+```
+For each partner:
+  partner_urgency = urgencyFromSurvival(survival_pct_to_next_pick)
+  // act_now if <25%, this_round if 25-50%,
+  // two_round_cushion if 50-75%, no_rush if 75%+
+
+play_urgency = urgency of the partner with the highest
+  (ev_contribution × urgencyScalar)
+```
+
+A high-EV anchor surviving at 18% pulls the play to `act_now`
+regardless of how comfortable the fallbacks are. This is what
+reflects "Tank Bigsby goes next two picks" (act_now) being
+different from "Jalen McMillan is in zero danger of going in the
+next four picks" (no_rush).
+
+NO hardcoded "next N picks" windows in copy. The follow-through
+line names a specific deadline pick number ("before pick 7.04 if
+Andrews; otherwise Sarratt / Lane sit comfortably at 7+").
+
+### Play card chrome
+
+- Type badge (small mono uppercase: `QB STACK`, `ANCHOR + HANDCUFF`,
+  `QB HOARD FLIP`, etc.)
+- Anchor + partners headline
+- Genius IF / Otherwise thesis (Voice A, no em dashes, no hedging)
+- Partners table: name + position + EV contribution with CI +
+  survival pct with CI + per-partner urgency
+- Follow-through line: deadline pick number + named action
+- State chip
+- Urgency chip (graduated from math)
+- One-click dismiss affordance with forgiveness (re-enters via
+  un-dismiss)
+- Source-signals tooltip naming the engine fields that produced
+  the play (for transparency + Coach citation)
+- For committed / auto_active plays: a small "next planned" chip
+  pointing at the next partner to take
+
+### Format gates
+
+Every play type declares its gates:
+
+```ts
+interface FormatGates {
+  requires_te_premium?: boolean;
+  forbid_te_premium?: boolean;          // for non-TEP suppression
+  requires_superflex?: boolean;
+  requires_1qb_starter?: boolean;       // for QB-Hoard-Flip
+  requires_deep_bench_min?: number;     // for Multi-Handcuff Lottery
+  requires_dynasty?: boolean;           // for 2027-Pick-Sniping
+}
+```
+
+The engine MUST NOT emit a play whose gates are unsatisfied. Lint
+candidate: enumerate every PlayType in a format-gate matrix and
+verify the matrix at engine boundary.
+
+Known suppression: TE-Premium Double-Up requires `te_premium: true`.
+This is the non-TEP TE overweighting bug class (founder report
+2026-05-20). The bug also lives in `decision-synthesis/synthesize.ts`
+scoring where TE EV gets over-weighted in non-TEP standing calls;
+separate fix tracked outside this spec via `dynasty-bug-investigator`.
+
+### Play type catalog (initial)
+
+Draft-phase:
+- **QB Stack** (anchor QB + correlated WR/TE pass-catcher)
+- **Anchor + Handcuff** (workhorse RB + their backup)
+- **Bridge QB** (bridge starter + dev QB)
+- **RB Bellcow** (collect verified 15+ touch RBs; lane-matched)
+- **Zero-RB Recovery** (early WR-heavy + thin RB room; late-round
+  RB committee bets)
+- **WR Stable** (5+ WRs with stable 18%+ target share)
+- **Future Stock** (2026+ rookies + young roster + picks held)
+- **TE Premium Double-Up** (TEP only; 2 TE1s where the gap is
+  biggest)
+- **Multi-Handcuff Lottery** (bench depth low + 2+ high-injury-risk
+  anchors; collect 3 high-upside backups)
+
+In-season morphs (draft play → in-season play):
+- **QB Hoard → QB Flip Window** (week 8-12, trigger: ≥3 leaguewide
+  QB1 injuries, action: flip one QB at +30% markup)
+- **Anchor + Handcuff → Handcuff Watch + FA Priority** (week 1+,
+  trigger: snap-count anomaly / beat-writer note / active injury on
+  anchor, action: claim named handcuff via FA before the league
+  reads the tea leaves)
+
+In-season only:
+- **2027 1st Sniping** (week 6+, trigger: bottom-3 EV rank + 1-win
+  + old core opponent, action: offer win-now veterans for 2027 1sts
+  at 15%+ discount to KTC)
+- **Buy-the-Dip** (rolling, trigger: top-30 KTC player + 2-game
+  cold streak + sub-10% market dip, action: offer dip-discounted
+  bundle)
+
+### Coach contract for plays
+
+Context fields shipped to Coach:
+- `active_plays: Play[]` (every play in committed / auto_active /
+  tracking states)
+- `recently_dead_plays: Play[]` (for honest mention of moved-past
+  paths)
+- `play_state_summary: { committed_count, auto_active_count,
+  tracking_count, suggested_count }`
+
+System prompt hard rule (Coach):
+
+> The user is operating with named active plays. Treat them as the
+> strategic frame. Before recommending any pick, trade, or roster
+> move, check whether it ADVANCES, BREAKS, or is NEUTRAL to each
+> active play. If it BREAKS a play, name the breach by play type
+> and explain the cost in EV. If it ADVANCES, name the play and
+> the survival math that makes the move time-sensitive. NEVER
+> recommend a move silently inconsistent with an active play.
+
+### Hand-off from The Call (active draft)
+
+When The Call's standing call breaks a committed play, The Call's
+disclaimer band carries the breach note: "Standing call (Player X)
+breaks your committed QB Hoard. Cost: -4 EV vs the alternative
+that advances QB Hoard. Take Player X anyway if you want to break
+the play; otherwise the alternative is named below."
+
+This is the active-play strip's full surface. It lives inside The
+Call, not as a separate strip, and only renders on breach.
+
 ## Visualization map (538-editor pass, locked 2026-05-08 PM)
 
 Founder direction: "If you were an editor/designer for fivethirtyeight
@@ -460,10 +746,16 @@ per event (training camp, post-game weekly recalc, injury report,
 NFL Draft window). Above the strip: fan chart of how EV could move
 under each event. Hover marker: event detail + EV swing range.
 
-### Strategic Lanes (active-draft hero)
-3 cards side-by-side (vertical stack on mobile). Each card per the
-spec above: mini path diagram + sparkline + horizon meter + EV
-chips + tap-to-expand for full candidate detail.
+### Plays panel (cornerstone strategic frame)
+Vertical stack of play cards, grouped by state (Committed →
+Auto-active → Tracking → Suggested → Dismissed → Achieved/Dead).
+Each card: type badge + anchor headline + Genius IF / Otherwise
+prose + partners table (with per-partner survival sparkline + CI
+band) + follow-through with deadline pick number + state chip +
+urgency chip + dismiss. A partner's survival pct renders as a
+small horizontal bar with a CI ribbon. The card's urgency chip
+graduates color: red (act_now), amber (this_round), neutral
+(two_round_cushion / no_rush). No fixed "next N picks" copy.
 
 ### Tier Map (late-draft hero, RESTORED to component inventory)
 **Tier ladder per position.** 4 columns (QB/RB/WR/TE). Each column
