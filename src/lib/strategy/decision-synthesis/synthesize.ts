@@ -1384,6 +1384,37 @@ function buildNextPicksPlan(
   const projectedTaken = new Set<string>();
   if (leanPlayerId) projectedTaken.add(leanPlayerId);
 
+  // Pre-filter the pool by survival to the user's FIRST upcoming pick
+  // (the lane decision). Without this, the per-slot incremental gap
+  // math reads "likely here" at slot 12.2 for a player who is already
+  // probably_gone before the user even reaches their first pick at
+  // 10.8. The integrity check (runAvailabilityCoherenceCheck) then
+  // correctly fires AVAILABILITY_INCOHERENT (Higgins bug class).
+  // Founder report 2026-05-19: KC Concepcion flagged "probably gone 2%"
+  // in the Future lane at 10.8 but recommended in Next Picks Plan at
+  // 12.2. Cumulative survival from LIVE through 12.2 was effectively
+  // zero, but the engine only measured the short 11.5 -> 12.2 hop.
+  const initialWindow = computeSurvivalWindow(snap, schedule);
+  const initialGap = analyzeOpponentsInGap({
+    snap,
+    fromPickNo: initialWindow.from_pick_no,
+    toPickNo: initialWindow.to_pick_no,
+  });
+  const firstPickNo = schedule[0].pick_no;
+  const realisticAvailable = available.filter((p) => {
+    const baseAvail = availabilityAt(p, firstPickNo);
+    const pct = survivalPctFor({
+      player: p,
+      availability: baseAvail,
+      signal: null,
+      available,
+      gap: initialGap,
+    });
+    const adjusted = availabilityFromPct(pct);
+    if (adjusted == null) return true;
+    return adjusted !== "probably_gone";
+  });
+
   const futures = schedule.slice(1, 1 + MAX_NEXT_PICKS);
   const items: NextPickPlanItem[] = [];
   for (let idx = 0; idx < futures.length; idx++) {
@@ -1404,6 +1435,9 @@ function buildNextPicksPlan(
     // Bind to the SAME canonical availability classifier the Top 3
     // card uses (survivalPctFor → availabilityFromPct), not the raw
     // ADP-gap heuristic. Per CANONICAL_SOURCES.md anti-pattern 2.
+    // Operates on realisticAvailable (already pre-filtered above by
+    // survival to user's first pick) so the per-slot incremental
+    // survival math is consistent with the lane decision's view.
     const survivor = (p: AvailablePlayer): boolean => {
       if (projectedTaken.has(p.id)) return false;
       const baseAvail = availabilityAt(p, future.pick_no);
@@ -1411,14 +1445,14 @@ function buildNextPicksPlan(
         player: p,
         availability: baseAvail,
         signal: null,
-        available,
+        available: realisticAvailable,
         gap: slotGapAnalysis,
       });
       const adjusted = availabilityFromPct(survivalPct);
       if (adjusted == null) return true;
       return adjusted !== "probably_gone";
     };
-    const pool = available.filter(survivor);
+    const pool = realisticAvailable.filter(survivor);
 
     let targetPos: Position | "any" = "any";
     let names: string[] = [];
