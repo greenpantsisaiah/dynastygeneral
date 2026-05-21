@@ -12,7 +12,11 @@
  * archetypes.
  */
 
-import { detectPlaysEnabledBy } from "../src/lib/strategy/plays/detect";
+import {
+  detectPlaysEnabledBy,
+  detectRosterShapePlays,
+  type OwnedRosterPlayer,
+} from "../src/lib/strategy/plays/detect";
 import { canEmitPlay } from "../src/lib/strategy/plays/catalog";
 import {
   derivePlayUrgency,
@@ -458,6 +462,73 @@ function run() {
       "EV-weighted rollup favors valuable comfortable partner",
       derivePlayUrgency(partners) === "no_rush",
       derivePlayUrgency(partners) ?? "null",
+    );
+  }
+
+  console.log("\n── 10. QB Hoard roster-shape play (1QB surplus) ──");
+  {
+    const makeQb = (name: string, value: number): [OwnedRosterPlayer, number] => {
+      const id = `q${nextId++}`;
+      return [
+        {
+          id,
+          name,
+          position: "QB",
+          team: "X",
+          age: 27,
+          is_rookie: false,
+          yearsExp: 4,
+        },
+        value,
+      ];
+    };
+    const [a, av] = makeQb("QB A", 60);
+    const [b, bv] = makeQb("QB B", 40);
+    const [c, cv] = makeQb("QB C", 20);
+    const ktc: Record<string, number> = { [a.id]: av, [b.id]: bv, [c.id]: cv };
+
+    // 1QB + 3 QBs = surplus → fires.
+    const fires = detectRosterShapePlays({
+      snap: makeSnap("1qb"),
+      ownedPlayers: [a, b, c],
+      ktcValues: ktc,
+    });
+    const hoard = fires.find((p) => p.archetype === "qb_hoard");
+    check("QB Hoard fires in 1QB with 3 QBs", hoard != null);
+    check(
+      "QB Hoard anchors on the top-value QB",
+      hoard?.primary_player.player_id === a.id,
+      hoard?.primary_player.name,
+    );
+    check(
+      "QB Hoard thesis names all held QBs",
+      hoard
+        ? ["QB A", "QB B", "QB C"].every((n) =>
+            hoard.upside_thesis.includes(n),
+          )
+        : false,
+    );
+
+    // Only 2 QBs in 1QB = a starter + a backup, not a hoard.
+    const twoOnly = detectRosterShapePlays({
+      snap: makeSnap("1qb"),
+      ownedPlayers: [a, b],
+      ktcValues: ktc,
+    });
+    check(
+      "QB Hoard suppressed with only 2 QBs",
+      twoOnly.find((p) => p.archetype === "qb_hoard") == null,
+    );
+
+    // 3 QBs in superflex = depth, not surplus → format-gated off.
+    const sf = detectRosterShapePlays({
+      snap: makeSnap("superflex"),
+      ownedPlayers: [a, b, c],
+      ktcValues: ktc,
+    });
+    check(
+      "QB Hoard suppressed in superflex (depth, not surplus)",
+      sf.find((p) => p.archetype === "qb_hoard") == null,
     );
   }
 

@@ -25,6 +25,10 @@ export const playFormatGates: Record<PlayArchetype, FormatGates> = {
   qb_wr_stack: {},
   anchor_handcuff: {},
   bridge_qb: { requires_superflex: true },
+  // QB Hoard only makes sense where you start one QB: a third QB is
+  // pure surplus. In superflex / 2QB, QB depth is a need, not a flip
+  // asset, so the play must never surface there.
+  qb_hoard: { requires_1qb_starter: true },
 };
 
 /**

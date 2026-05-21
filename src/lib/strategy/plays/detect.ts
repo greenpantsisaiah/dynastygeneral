@@ -27,9 +27,14 @@ import {
   urgencyLabel,
 } from "./urgency";
 import { canEmitPlay, playFormatGates } from "./catalog";
+import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 
 const STARTING_QB_KTC_RANK_CAP = 24;
 const ELITE_RB_KTC_RANK_CAP = 12;
+// A QB count this far above the starter requirement is pure surplus
+// in a 1QB league: one starter, one prudent backup, the rest is a
+// flip asset.
+const QB_HOARD_SURPLUS_OVER_STARTERS = 2;
 // Lapse horizons (in user-pick rounds) kept for storage lapse math
 // only. NOT surfaced in user-facing copy; urgency comes from survival.
 const STACK_LAPSE_ROUNDS = 4;
@@ -423,6 +428,74 @@ export function suggestPlaysFromRoster(args: {
     (p) =>
       !p.followthrough.target_candidates.some((t) => ownedIds.has(t.player_id)),
   );
+}
+
+// Roster-shape plays don't lapse on a draft-pick window; they are
+// season-long. A very large window keeps the storage lapse math from
+// ever firing during a draft.
+const SEASON_LONG_NO_LAPSE_ROUNDS = 999;
+
+/**
+ * QB Hoard. A roster-shape play (not triggered by one pick): in a 1QB
+ * league, holding QBs well past the starter requirement turns the
+ * surplus into an in-season trade asset. Format-gated to 1QB via
+ * canEmitPlay; in superflex / 2QB a third QB is depth, not surplus.
+ */
+function detectQbHoard(args: {
+  snap: LeagueSnapshot;
+  ownedPlayers: OwnedRosterPlayer[];
+  ktcValues: Record<string, number>;
+}): Play | null {
+  if (!canEmitPlay(args.snap, "qb_hoard")) return null;
+  const fmt = buildFormatRulesFromSnapshot(args.snap);
+  const qbs = args.ownedPlayers.filter((p) => p.position === "QB");
+  const threshold = fmt.qb_starters_max + QB_HOARD_SURPLUS_OVER_STARTERS;
+  if (qbs.length < threshold) return null;
+
+  // Anchor on the highest-value owned QB so the play has a real, stable
+  // primary. The surplus QBs are named in the thesis.
+  const sortedQbs = [...qbs].sort(
+    (a, b) => (args.ktcValues[b.id] ?? 0) - (args.ktcValues[a.id] ?? 0),
+  );
+  const names = sortedQbs.map((q) => q.name);
+  const anchor = sortedQbs[0];
+
+  return {
+    archetype: "qb_hoard",
+    name: "QB Hoard",
+    primary_player: {
+      player_id: anchor.id,
+      name: anchor.name,
+      position: "QB",
+      team: anchor.team,
+    },
+    upside_thesis: `You hold ${qbs.length} QBs (${names.join(", ")}) in a ${fmt.qb_starters_max}-QB league. QB scoring is replaceable week to week, but a contender whose QB1 goes down will overpay. The surplus is a trade asset, not bench rot.`,
+    followthrough: {
+      description:
+        "Hold the surplus. Shop your most expendable QB when the first contender loses a starter (QB injuries spike weeks 6-12); do not pre-sell at a discount.",
+      target_candidates: [],
+      picks_window: SEASON_LONG_NO_LAPSE_ROUNDS,
+    },
+    genius_vs_average_line:
+      "Genius if you flip a surplus QB when a contender's starter goes down. Bench rot otherwise.",
+    format_gates: playFormatGates.qb_hoard,
+  };
+}
+
+/**
+ * Detect plays that emerge from the user's whole roster shape rather
+ * than a single trigger pick. Today: QB Hoard. Future: archetype-path
+ * plays from lane membership, multi-handcuff lottery, future stock.
+ */
+export function detectRosterShapePlays(args: {
+  snap: LeagueSnapshot;
+  ownedPlayers: OwnedRosterPlayer[];
+  ktcValues: Record<string, number>;
+}): Play[] {
+  const plays: Play[] = [];
+  const hoard = detectQbHoard(args);
+  if (hoard) plays.push(hoard);
+  return plays;
 }
 
 /**

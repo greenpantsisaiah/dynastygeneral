@@ -273,5 +273,7 @@ export function archetypeLabel(archetype: PlayArchetype): string {
       return "Anchor + Handcuff";
     case "bridge_qb":
       return "Bridge QB";
+    case "qb_hoard":
+      return "QB Hoard";
   }
 }

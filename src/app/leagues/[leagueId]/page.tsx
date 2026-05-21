@@ -124,6 +124,7 @@ import { TradeOpportunitiesPanel } from "@/components/league/trade-opportunities
 import { detectTradeOpportunities } from "@/lib/strategy/trade-opportunities/detect";
 import {
   suggestPlaysFromRoster,
+  detectRosterShapePlays,
   type OwnedRosterPlayer,
 } from "@/lib/strategy/plays/detect";
 import type { Play } from "@/lib/strategy/plays/types";
@@ -1344,16 +1345,23 @@ export default async function LeagueHubPage({
                 for (const [id, v] of lrValueMap.entries()) {
                   ktcValuesForPlays[id] = v.value;
                 }
-                suggestedPlays = suggestPlaysFromRoster({
-                  snap: leagueSnapshot,
-                  available: availableForOpps,
-                  ktcValues: ktcValuesForPlays,
-                  ownedPlayers,
-                  survival: buildSurvivalResolver(
-                    leagueSnapshot,
-                    availableForOpps,
-                  ),
-                });
+                suggestedPlays = [
+                  ...suggestPlaysFromRoster({
+                    snap: leagueSnapshot,
+                    available: availableForOpps,
+                    ktcValues: ktcValuesForPlays,
+                    ownedPlayers,
+                    survival: buildSurvivalResolver(
+                      leagueSnapshot,
+                      availableForOpps,
+                    ),
+                  }),
+                  ...detectRosterShapePlays({
+                    snap: leagueSnapshot,
+                    ownedPlayers,
+                    ktcValues: ktcValuesForPlays,
+                  }),
+                ];
               }
             } catch (err) {
               console.error("[hub:trade-opportunities]", err);
