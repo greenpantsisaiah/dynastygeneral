@@ -50,7 +50,10 @@ import { enrichPlaysFromHere } from "@/lib/strategy/plays-from-here/enrich";
 import type { ResolvedPlayFromHere } from "@/lib/strategy/plays-from-here/types";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import type { PickApproach as PickApproachData } from "@/lib/strategy/pick-approach/types";
-import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
+import {
+  synthesizeDecision,
+  buildSurvivalResolver,
+} from "@/lib/strategy/decision-synthesis/synthesize";
 import {
   dialsForSynthesisFrom,
   type Decision,
@@ -1346,6 +1349,10 @@ export default async function LeagueHubPage({
                   available: availableForOpps,
                   ktcValues: ktcValuesForPlays,
                   ownedPlayers,
+                  survival: buildSurvivalResolver(
+                    leagueSnapshot,
+                    availableForOpps,
+                  ),
                 });
               }
             } catch (err) {

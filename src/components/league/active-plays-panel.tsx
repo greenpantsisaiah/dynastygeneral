@@ -29,6 +29,7 @@ import type {
   Play,
   PlayCommitment,
 } from "@/lib/strategy/plays/types";
+import { PlayUrgencyChip, PartnerSurvivalList } from "./plays-shared";
 
 type PickRef = { player_id: string; pick_no: number };
 
@@ -283,6 +284,7 @@ function SuggestionRow({
           <span className="text-sm font-semibold text-foreground">
             {play.name}
           </span>
+          <PlayUrgencyChip urgency={play.play_urgency} />
         </div>
         <button
           type="button"
@@ -301,6 +303,7 @@ function SuggestionRow({
         </span>{" "}
         {play.followthrough.description}
       </p>
+      <PartnerSurvivalList partners={play.followthrough.target_candidates} />
     </li>
   );
 }

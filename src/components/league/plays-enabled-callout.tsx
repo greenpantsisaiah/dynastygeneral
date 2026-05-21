@@ -15,6 +15,7 @@
 import { useState } from "react";
 import type { Play } from "@/lib/strategy/plays/types";
 import { archetypeLabel, commitPlay, getPlayCommitments } from "@/lib/plays-storage";
+import { PlayUrgencyChip, PartnerSurvivalList } from "./plays-shared";
 
 export function PlaysEnabledCallout({
   plays,
@@ -84,6 +85,7 @@ function PlayCard({
           <span className="text-sm font-semibold text-foreground">
             {play.name}
           </span>
+          <PlayUrgencyChip urgency={play.play_urgency} />
         </div>
         {committed ? (
           <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-success">
@@ -111,6 +113,7 @@ function PlayCard({
         </span>{" "}
         {play.followthrough.description}
       </p>
+      <PartnerSurvivalList partners={play.followthrough.target_candidates} />
     </div>
   );
 }

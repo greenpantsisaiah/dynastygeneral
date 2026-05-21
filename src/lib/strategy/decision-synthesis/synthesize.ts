@@ -733,6 +733,97 @@ function availabilityFromPct(pct: number | null): Availability | null {
   return "probably_gone";
 }
 
+export type SurvivalReadout = {
+  pct: number;
+  ci_low: number;
+  ci_high: number;
+  to_pick_no: number;
+};
+
+export type SurvivalResolver = (
+  player: AvailablePlayer,
+) => SurvivalReadout | null;
+
+// Demand-sensitivity band: re-run the opponent survival math with the
+// per-opponent position demand scaled +/- 25%. An honest CI (a stated
+// modeling-input sensitivity), not a fabricated stat. Lower demand
+// means higher survival and vice versa.
+function scaleGapDemand(
+  gap: OpponentGapAnalysis,
+  factor: number,
+): OpponentGapAnalysis {
+  return {
+    ...gap,
+    opponents: gap.opponents.map((o) => {
+      const scaled: Record<Position, number> = { ...o.position_demand };
+      for (const k of Object.keys(scaled) as Position[]) {
+        scaled[k] = Math.min(1, Math.max(0, scaled[k] * factor));
+      }
+      return { ...o, position_demand: scaled };
+    }),
+  };
+}
+
+/**
+ * Build a reusable survival resolver for a snapshot + available pool.
+ * Play detection consumes this to attach per-partner survival (the
+ * canonical `survivalPctFor` math) so neither the per-pick decision
+ * path nor the hub roster-suggestion path ships a hardcoded
+ * "next N picks" window. Returns null for any player when there is no
+ * live contested gap to compute survival across (no upcoming pick).
+ *
+ * CANONICAL_SOURCES.md "Play urgency (per-partner survival rolled up)".
+ */
+export function buildSurvivalResolver(
+  snap: LeagueSnapshot,
+  available: AvailablePlayer[],
+): SurvivalResolver {
+  const schedule = snap.draft.my_pick_schedule ?? [];
+  if (schedule.length === 0) return () => null;
+
+  const window = computeSurvivalWindow(snap, schedule);
+  if (!window || window.target_pick_no <= 0) return () => null;
+
+  const gap = analyzeOpponentsInGap({
+    snap,
+    fromPickNo: window.from_pick_no,
+    toPickNo: window.to_pick_no,
+  });
+  const gapLessDemand = scaleGapDemand(gap, 0.75);
+  const gapMoreDemand = scaleGapDemand(gap, 1.25);
+
+  return (player: AvailablePlayer): SurvivalReadout | null => {
+    const oppRaw = survivalProbabilityFromOpponents({ player, available, gap });
+    if (oppRaw != null) {
+      const pct = Math.round(oppRaw * 100);
+      const hi = survivalProbabilityFromOpponents({
+        player,
+        available,
+        gap: gapLessDemand,
+      });
+      const lo = survivalProbabilityFromOpponents({
+        player,
+        available,
+        gap: gapMoreDemand,
+      });
+      const ci_high = hi != null ? Math.max(pct, Math.round(hi * 100)) : pct;
+      const ci_low = lo != null ? Math.min(pct, Math.round(lo * 100)) : pct;
+      return { pct, ci_low, ci_high, to_pick_no: window.target_pick_no };
+    }
+
+    // Fallback (non-skill / unranked): point estimate, no band claimed.
+    const pct = survivalPctFor({
+      player,
+      availability: availabilityAt(player, window.target_pick_no),
+      signal: null,
+      available,
+      gap,
+    });
+    if (pct == null) return null;
+    return { pct, ci_low: pct, ci_high: pct, to_pick_no: window.target_pick_no };
+  };
+}
+
 /**
  * Per-candidate age-curve component in signed [-1, +1] space. Positive
  * for young end of position's peak; negative for past-peak. Matches
@@ -2207,6 +2298,7 @@ export function synthesizeDecision(args: {
     snap,
     available,
     ktcValues: playerValues,
+    survival: buildSurvivalResolver(snap, available),
   });
 
   return {

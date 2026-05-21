@@ -28,11 +28,59 @@ export type PlayArchetype =
   | "anchor_handcuff"
   | "bridge_qb";
 
+/**
+ * Graduated urgency for a play or a partner. Derived from survival
+ * math (the canonical `urgencyFromSurvival` in urgency.ts), never a
+ * fixed pick window. act_now = the piece goes before your next turn;
+ * no_rush = it sits comfortably for at least a round.
+ */
+export type Urgency =
+  | "act_now"
+  | "this_round"
+  | "two_round_cushion"
+  | "no_rush";
+
+/**
+ * Format requirements that gate whether a play type may be emitted.
+ * The engine MUST NOT emit a play whose gates are unsatisfied (see
+ * CANONICAL_SOURCES.md "Play format gates"). All fields optional; an
+ * empty object means the play has no format requirement.
+ */
+export type FormatGates = {
+  requires_superflex?: boolean;
+  requires_te_premium?: boolean;
+  forbid_te_premium?: boolean;
+  requires_1qb_starter?: boolean;
+  requires_dynasty?: boolean;
+  requires_deep_bench_min?: number;
+};
+
+/**
+ * Per-partner survival readout, computed from the canonical
+ * `survivalPctFor` to the user's next contested pick. Optional so
+ * older stored PlayCommitment objects (localStorage) still parse.
+ */
+export type PartnerSurvival = {
+  /** P(survives) to the user's next pick, 0-100. */
+  pct: number;
+  /** Sensitivity-band bounds (demand estimate +/- 25%). */
+  ci_low: number;
+  ci_high: number;
+  /** The pick number survival is computed to. */
+  to_pick_no: number;
+  /** Graduated urgency for THIS partner. */
+  urgency: Urgency;
+};
+
 export type PlayPlayerRef = {
   player_id: string;
   name: string;
   position: Position;
   team: string | null;
+  /** Market value (FantasyCalc/KTC) used to EV-weight urgency. */
+  ktc_value?: number | null;
+  /** Survival readout; absent when no live contested gap exists. */
+  survival?: PartnerSurvival | null;
 };
 
 export type Play = {
@@ -55,6 +103,14 @@ export type Play = {
   };
   /** Voice A line: "Genius if you stack a Bucs WR. Average otherwise." */
   genius_vs_average_line: string;
+  /**
+   * Overall play urgency, derived from the urgent EV-weighted partner
+   * (canonical `derivePlayUrgency`). Absent when no partner carries a
+   * survival readout (no live contested gap).
+   */
+  play_urgency?: Urgency;
+  /** Format requirements that gated this play's emission. */
+  format_gates?: FormatGates;
 };
 
 /**
