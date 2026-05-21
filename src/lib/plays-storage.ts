@@ -17,9 +17,14 @@ import type {
 } from "./strategy/plays/types";
 
 const STORAGE_KEY_PREFIX = "dg.plays.";
+const DISMISSED_KEY_PREFIX = "dg.plays.dismissed.";
 
 function storageKey(leagueId: string): string {
   return `${STORAGE_KEY_PREFIX}${leagueId}`;
+}
+
+function dismissedStorageKey(leagueId: string): string {
+  return `${DISMISSED_KEY_PREFIX}${leagueId}`;
 }
 
 function safeReadAll(leagueId: string): PlayCommitment[] {
@@ -167,6 +172,93 @@ export function findActivePlaysAdvancedBy(args: {
 }): PlayCommitment[] {
   return getActivePlayCommitments(args.leagueId).filter((c) =>
     c.followthrough_targets.some((t) => t.player_id === args.playerId),
+  );
+}
+
+/**
+ * A dismissed suggestion. Stored separately from commitments so the
+ * user can clear plays they don't care about without losing them.
+ * Forgiveness is the design (founder direction 2026-05-21): one click
+ * to dismiss, one click to restore; nothing penalizes a wrong dismiss.
+ */
+export type DismissedSuggestion = {
+  /** `${archetype}:${primary_player_id}`. */
+  key: string;
+  archetype: PlayArchetype;
+  play_name: string;
+  dismissed_at: string;
+};
+
+/** Stable key matching a suggestion to its dismissal record. */
+export function suggestionKey(
+  archetype: PlayArchetype,
+  primaryPlayerId: string,
+): string {
+  return `${archetype}:${primaryPlayerId}`;
+}
+
+function safeReadDismissed(leagueId: string): DismissedSuggestion[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(dismissedStorageKey(leagueId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed as DismissedSuggestion[];
+  } catch {
+    return [];
+  }
+}
+
+function safeWriteDismissed(
+  leagueId: string,
+  items: DismissedSuggestion[],
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      dismissedStorageKey(leagueId),
+      JSON.stringify(items),
+    );
+  } catch {
+    // Quota exceeded or storage disabled; silently skip.
+  }
+}
+
+/** Read all dismissed suggestions for a league. */
+export function getDismissedSuggestions(
+  leagueId: string,
+): DismissedSuggestion[] {
+  return safeReadDismissed(leagueId);
+}
+
+/** Dismiss a suggested play. Idempotent. */
+export function dismissSuggestion(args: {
+  leagueId: string;
+  play: Play;
+}): void {
+  const { leagueId, play } = args;
+  const key = suggestionKey(play.archetype, play.primary_player.player_id);
+  const all = safeReadDismissed(leagueId);
+  if (all.some((d) => d.key === key)) return;
+  all.push({
+    key,
+    archetype: play.archetype,
+    play_name: play.name,
+    dismissed_at: new Date().toISOString(),
+  });
+  safeWriteDismissed(leagueId, all);
+}
+
+/** Restore (un-dismiss) a previously dismissed suggestion. */
+export function restoreSuggestion(args: {
+  leagueId: string;
+  key: string;
+}): void {
+  const { leagueId, key } = args;
+  safeWriteDismissed(
+    leagueId,
+    safeReadDismissed(leagueId).filter((d) => d.key !== key),
   );
 }
 

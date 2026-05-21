@@ -21,9 +21,14 @@ import {
   abandonPlay,
   archetypeLabel,
   commitPlay,
+  dismissSuggestion,
+  getDismissedSuggestions,
   getPlayCommitments,
   lapseStaleCommitments,
   markPlayExecuted,
+  restoreSuggestion,
+  suggestionKey,
+  type DismissedSuggestion,
 } from "@/lib/plays-storage";
 import type {
   Play,
@@ -45,7 +50,9 @@ export function ActivePlaysPanel({
   picksMadeForUser?: PickRef[];
 }) {
   const [commitments, setCommitments] = useState<PlayCommitment[]>([]);
+  const [dismissed, setDismissed] = useState<DismissedSuggestion[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showDismissed, setShowDismissed] = useState(false);
 
   // Mount + dependency-driven sync. Order:
   //   1. Lapse stale commitments
@@ -80,10 +87,15 @@ export function ActivePlaysPanel({
     }
 
     setCommitments(getPlayCommitments(leagueId));
+    setDismissed(getDismissedSuggestions(leagueId));
   }, [leagueId, currentPickNo, picksMadeForUser]);
 
   const active = commitments.filter((c) => c.status === "active");
   const historic = commitments.filter((c) => c.status !== "active");
+  const dismissedKeys = useMemo(
+    () => new Set(dismissed.map((d) => d.key)),
+    [dismissed],
+  );
 
   // Suggestions: filter out anything already actively committed so
   // the same play doesn't show twice.
@@ -96,13 +108,25 @@ export function ActivePlaysPanel({
     }
     return keys;
   }, [commitments]);
-  const openSuggestions = suggestedPlays.filter(
-    (p) => !committedKeys.has(`${p.archetype}:${p.primary_player.player_id}`),
-  );
+  const openSuggestions = suggestedPlays.filter((p) => {
+    const key = `${p.archetype}:${p.primary_player.player_id}`;
+    return !committedKeys.has(key) && !dismissedKeys.has(key);
+  });
+
+  function handleDismiss(play: Play) {
+    dismissSuggestion({ leagueId, play });
+    setDismissed(getDismissedSuggestions(leagueId));
+  }
+
+  function handleRestore(key: string) {
+    restoreSuggestion({ leagueId, key });
+    setDismissed(getDismissedSuggestions(leagueId));
+  }
 
   if (
     commitments.length === 0 &&
-    openSuggestions.length === 0
+    openSuggestions.length === 0 &&
+    dismissed.length === 0
   ) {
     return null;
   }
@@ -165,6 +189,7 @@ export function ActivePlaysPanel({
                 leagueId={leagueId}
                 currentPickNo={currentPickNo}
                 onCommit={() => setCommitments(getPlayCommitments(leagueId))}
+                onDismiss={() => handleDismiss(p)}
               />
             ))}
           </ul>
@@ -192,6 +217,44 @@ export function ActivePlaysPanel({
             <ul className="mt-2 space-y-1 border-t border-border-soft pt-2">
               {historic.map((c) => (
                 <HistoricPlayRow key={c.commitment_id} commitment={c} />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      {dismissed.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setShowDismissed((v) => !v)}
+            className="mt-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent transition-colors"
+            aria-expanded={showDismissed}
+          >
+            {showDismissed ? "Hide" : "Show"} dismissed ({dismissed.length})
+          </button>
+          {showDismissed && (
+            <ul className="mt-2 space-y-1 border-t border-border-soft pt-2">
+              {dismissed.map((d) => (
+                <li
+                  key={d.key}
+                  className="flex items-center justify-between gap-2 text-[11px] leading-snug"
+                >
+                  <span>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+                      {archetypeLabel(d.archetype)}
+                    </span>{" "}
+                    <span className="text-foreground">{d.play_name}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRestore(d.key)}
+                    className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-accent transition-colors"
+                    title="Restore this play"
+                  >
+                    Restore
+                  </button>
+                </li>
               ))}
             </ul>
           )}
@@ -260,11 +323,13 @@ function SuggestionRow({
   leagueId,
   currentPickNo,
   onCommit,
+  onDismiss,
 }: {
   play: Play;
   leagueId: string;
   currentPickNo: number | null;
   onCommit: () => void;
+  onDismiss: () => void;
 }) {
   function handleCommit() {
     commitPlay({
@@ -286,13 +351,23 @@ function SuggestionRow({
           </span>
           <PlayUrgencyChip urgency={play.play_urgency} />
         </div>
-        <button
-          type="button"
-          onClick={handleCommit}
-          className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent hover:text-foreground transition-colors"
-        >
-          Commit to play
-        </button>
+        <div className="flex items-baseline gap-3">
+          <button
+            type="button"
+            onClick={handleCommit}
+            className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent hover:text-foreground transition-colors"
+          >
+            Commit to play
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
+            title="Dismiss this suggestion (restore anytime)"
+          >
+            Dismiss
+          </button>
+        </div>
       </div>
       <p className="mt-1 text-[12px] leading-snug text-foreground">
         {play.genius_vs_average_line}
