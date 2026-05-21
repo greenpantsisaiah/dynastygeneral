@@ -180,15 +180,33 @@ function scoreRoster(
   };
 }
 
+/**
+ * labelTeam QB-count thresholds. SF-centric heuristics, UNCALIBRATED.
+ * Per dynasty-assumption-auditor (2026-05-20): these feed the panic-
+ * label leverage scores downstream (league-read/analyze.ts
+ * PANIC_LEVERAGE_BY_LABEL); if the classifier is miscalibrated the
+ * leverage audit compounds. Direction is defensible (QB scarcity in
+ * superflex drives panic), but the exact counts need calibration
+ * against realized trade behavior conditioned on label. Same trade-log
+ * dataset as pick-quality.ts and the arbitrage backtest.
+ */
+const QB_BANKER_MIN = 3; // 3+ QBs reads as a superflex QB surplus
+const QB_DESPERATION_MAX = 1; // 0-1 QBs reads as a superflex structural hole
+const QB_STABLE_COUNT = 2; // exactly 2 QBs covers SF starters
+const TILTED_MIN_PAINS = 2; // other holes that flip "stable" to "tilted"
+
 function labelTeam(t: TeamProfile, totalRosters: number): TeamLabel {
   void totalRosters;
   // QB bank: 3+ QBs and at least "solid" QB tier
-  if (t.counts.QB >= 3 && t.starter_quality.QB !== "thin") return "qb_banker";
+  if (t.counts.QB >= QB_BANKER_MIN && t.starter_quality.QB !== "thin")
+    return "qb_banker";
   // desperation: 0-1 QBs or a thin QB tier
-  if (t.counts.QB <= 1 || t.starter_quality.QB === "thin") return "desperation";
+  if (t.counts.QB <= QB_DESPERATION_MAX || t.starter_quality.QB === "thin")
+    return "desperation";
   // 2 QBs, solid tier: stable or tilted depending on other holes
-  if (t.counts.QB === 2 && t.pain_points.length >= 2) return "tilted_buyer";
-  if (t.counts.QB === 2) return "qb_stable";
+  if (t.counts.QB === QB_STABLE_COUNT && t.pain_points.length >= TILTED_MIN_PAINS)
+    return "tilted_buyer";
+  if (t.counts.QB === QB_STABLE_COUNT) return "qb_stable";
   return "balanced";
 }
 

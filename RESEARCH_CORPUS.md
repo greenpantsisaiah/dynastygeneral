@@ -313,6 +313,37 @@ These are honest gaps the corpus surfaced. Maintenance passes should target them
 8. Concussion return-to-form curves: not surfaced in the v1 sweep; high-priority maintenance topic given the medical-research density of the area.
 9. ACL recovery position-specificity beyond WR: Mody et al. 2022 covered overall NFL, Provencher covered WR; deeper RB-specific and TE-specific studies are needed.
 10. Massey-Thaler 2013 successor work post-rookie-wage-scale era (2011 CBA changed the economics; the original paper's data predates this). Modern Over The Cap and PFF surplus-value updates should be cited explicitly in the next pass.
+11. Continuous arbitrage vs fill-then-trade in dynasty startup drafts: which strategy ends with a higher-value roster? No observational answer is possible (counterfactual). Experiment spec below. Surfaced by the 2026-05-20 binary-guardrail retirement; the cautious "hold equity" thresholds (`unrecoverable_severity`, `EARLY_ROUND_THRESHOLD`) need this before they ship as hard rules rather than format-consensus heuristics.
+
+## Validated findings + experiment specs (2026-05-21)
+
+### VALIDATED: pick-value convexity (the premise behind the guardrail retirement)
+
+The 2026-05-20 retirement of the binary starter-gap guardrail rests on one empirical claim: dynasty pick value decays steeply by round (convex), so late-round picks carry near-zero arbitrage equity and a guardrail that treats every pick as equal "equity to protect" is wrong. This is the Massey-Thaler 2013 / Stuart (Football Perspective) finding; `scripts/validate-pick-value-convexity.ts` reproduces it on real KTC market data (`historical_market_values`, latest snapshot 2024-12-09, top 240 by rank, 12-team round mapping).
+
+Result:
+- **SF**: mean round-over-round value drop in rounds 1-6 is 845, in rounds 6+ is 200. Early drop is 4.2x the late drop (CONVEX). 65% of above-replacement surplus value sits in rounds 1-6.
+- **1QB**: early drop 680 vs late drop 233, 2.9x (CONVEX). 61% of surplus in rounds 1-6.
+
+Conclusion: the convex curve is confirmed on real dynasty data, independent of the cited papers. `EARLY_ROUND_THRESHOLD = 6` is grounded: the majority of pick equity is concentrated in rounds 1-6, so gating the cautious "hold equity" read on round <= 6 is defensible. Caveat: the snapshot is from 2024-12-09 (latest in the DB); convexity is a structural property and stable across snapshots, but the next KTC ingest should re-run this to confirm the curve has not shifted. Re-run command is in the script header.
+
+### EXPERIMENT SPEC: continuous arbitrage vs fill-then-trade
+
+Status: NOT YET RUN. Documented so a future pass executes it rather than guessing.
+
+**Hypothesis (H1)**: a manager who deploys pick equity continuously (takes +EV surplus-to-need swaps and market-gap trades inside the ±15% fairness band at any point in the draft) ends with a higher-value roster than a manager who refuses to trade picks until every starter slot is filled. **H0**: no outcome difference, or fill-then-trade wins.
+
+**Why this cannot be answered observationally.** Historical league data shows only what each manager actually did; there is no counterfactual "what would the same manager's roster be worth had they used the other policy." Trade logs alone cannot separate strategy effect from manager-skill and league-luck confounds. This is why the question is an open problem, not a SQL query. Anyone who claims an observational answer is fooling themselves; Massey/Winston would catch it immediately.
+
+**Required design: counterfactual simulation, not a backtest of real drafts.**
+- **Value model**: the empirical value-by-overall_rank curve validated above (real KTC snapshots), NOT the engine's own `startupPickValue` (using the engine to validate the engine is circular).
+- **Draft model**: N-team snake (sweep N in {10, 12}), R rounds (sweep R in {15, 20}), Monte Carlo over the user's draft slot (1..N) with >= 2000 runs per cell for tight CIs.
+- **Two policies under test**: FILL_FIRST (no pick trades until starters filled, then BPA) vs ARBITRAGE (accept any +EV surplus-to-need or market-gap trade inside ±15% at any time).
+- **Opponent model is the hard part and the main confounder.** Trade availability is endogenous: arbitrage only wins if soft counterparties exist to trade with. The opponent mix (share of overpaying vs sharp managers) must be a swept parameter, and the result reported as a function of it. A sim that hard-codes abundant +EV trades will trivially conclude arbitrage wins; that is the circular trap to avoid. The honest output is a curve: "arbitrage edge in roster value as a function of the fraction of soft opponents," with the break-even fraction named.
+- **Metric**: final roster value = sum of starter-slot values (format-correct) + discounted bench depth, averaged across runs, reported with CIs. Secondary: multi-season value trajectory using historical KTC curves to capture dynasty (not just startup) outcomes.
+- **Falsification**: if ARBITRAGE does not beat FILL_FIRST across a realistic range of soft-opponent fractions (say 20-50%), H1 is rejected and the product's EV-arbitrage thesis (REDESIGN_INTENTIONS Principle 8) needs revisiting.
+
+**Data needed that we do NOT yet have**: a calibrated opponent trade-acceptance model (acceptance probability and overpay magnitude conditioned on counterparty type). This is the same missing dataset that blocks calibrating the `opponent.ts` panic-label leverage scores and `pick-quality.ts` sophistication cutoffs. One data-collection effort (logging real trade offers, acceptances, and counterparty profiles in-product) unblocks all three.
 
 ## Maintenance notes
 

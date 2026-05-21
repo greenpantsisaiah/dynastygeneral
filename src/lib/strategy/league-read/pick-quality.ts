@@ -19,6 +19,32 @@
 
 import type { DraftPickRecord } from "@/lib/strategy/league-state/snapshot";
 
+/**
+ * Pick-quality / sophistication tier thresholds. These are
+ * UNCALIBRATED heuristics: round numbers chosen by inspection, not
+ * fit to outcome data. Per dynasty-assumption-auditor (2026-05-20),
+ * the direction is sound (consistent value-over-consensus reads as a
+ * sharp drafter; repeated reaches read as a soft drafter) but the
+ * magnitudes need calibration.
+ *
+ * Calibration source needed: realized trade-acceptance probability
+ * and overpay magnitude conditioned on a drafter's observed pick
+ * quality, from in-product trade logs. Until that dataset exists,
+ * these stay tagged as heuristics, and the sophistication leverage
+ * adjustment they feed (SOPHISTICATION_ADJUSTMENT in
+ * league-read/analyze.ts) is likewise a documented placeholder. The
+ * same trade-log collection unblocks the panic-label leverage scores
+ * and the arbitrage-vs-fill backtest (RESEARCH_CORPUS.md open
+ * question 11).
+ */
+const REACH_DELTA = -15; // picks before consensus that count as a "reach"
+const VALUE_DELTA = 15; // picks past consensus that count as a "value steal"
+const MIN_SAMPLE = 3; // resolved picks needed before scoring a tier
+const HIGH_AVG_DELTA = 5; // avg value-over-consensus for the "high" tier
+const HIGH_MAX_REACHES = 1; // max reaches allowed in the "high" tier
+const LOW_MIN_REACHES = 3; // reach count that forces the "low" tier
+const LOW_AVG_DELTA = -10; // avg delta that forces the "low" tier
+
 export type PickQuality = {
   pick_no: number;
   player_id: string;
@@ -94,7 +120,7 @@ export function analyzeOpponentPickQuality(args: {
       resolved.length > 0
         ? resolved.reduce((s, e) => s + e.delta, 0) / resolved.length
         : null;
-    const reach_count = resolved.filter((e) => e.delta <= -15).length;
+    const reach_count = resolved.filter((e) => e.delta <= REACH_DELTA).length;
 
     let biggest_reach: PickQuality | null = null;
     let biggest_value: PickQuality | null = null;
@@ -114,9 +140,11 @@ export function analyzeOpponentPickQuality(args: {
     //   unknown: resolved < 3 (sample too small)
     let sophistication_tier: OpponentPickQuality["sophistication_tier"] =
       "unknown";
-    if (resolved.length >= 3 && avg_delta != null) {
-      if (avg_delta >= 5 && reach_count <= 1) sophistication_tier = "high";
-      else if (reach_count >= 3 || avg_delta <= -10) sophistication_tier = "low";
+    if (resolved.length >= MIN_SAMPLE && avg_delta != null) {
+      if (avg_delta >= HIGH_AVG_DELTA && reach_count <= HIGH_MAX_REACHES)
+        sophistication_tier = "high";
+      else if (reach_count >= LOW_MIN_REACHES || avg_delta <= LOW_AVG_DELTA)
+        sophistication_tier = "low";
       else sophistication_tier = "mid";
     }
 
@@ -139,14 +167,14 @@ export function analyzeOpponentPickQuality(args: {
         `Drafting tier: insufficient picks (${resolved.length}) to score sophistication.`,
       );
     }
-    if (biggest_reach && biggest_reach.delta != null && biggest_reach.delta <= -15) {
+    if (biggest_reach && biggest_reach.delta != null && biggest_reach.delta <= REACH_DELTA) {
       const meta = playerNameLookup(biggest_reach.player_id);
       const name = meta?.name ?? biggest_reach.player_id;
       signals.push(
         `Biggest reach: ${name} at pick ${biggest_reach.pick_no} (consensus rank ${biggest_reach.overall_rank}, ${Math.abs(biggest_reach.delta)} picks early).`,
       );
     }
-    if (biggest_value && biggest_value.delta != null && biggest_value.delta >= 15) {
+    if (biggest_value && biggest_value.delta != null && biggest_value.delta >= VALUE_DELTA) {
       const meta = playerNameLookup(biggest_value.player_id);
       const name = meta?.name ?? biggest_value.player_id;
       signals.push(
