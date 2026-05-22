@@ -275,5 +275,7 @@ export function archetypeLabel(archetype: PlayArchetype): string {
       return "Bridge QB";
     case "qb_hoard":
       return "QB Hoard";
+    case "lane_path":
+      return "Build";
   }
 }
