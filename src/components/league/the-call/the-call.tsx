@@ -8,24 +8,23 @@
  * accents activate when the user has flipped Sloan mode (CIs and
  * provenance surface inline, same data).
  *
- * Critical constraint: this component reads canonical data only. No
- * EV math, no survival math, no lane definitions are recomputed
- * here. The component is a presentational shell over:
+ * Strategic Lanes (the 3-lane grid) was retired 2026-05-21 in favor
+ * of plays-as-cornerstone (Principle 12). The Call is now a single-
+ * pick verdict: a standing-call hero + best-value alternatives
+ * (StandingCall), with the strategic frame living in the Plays panel.
+ *
+ * The component is a presentational shell over:
  *
  *   decision.recommendation                (standing call)
  *   decision.feel_weird_disclaimer         (counterintuitive lock)
- *   decision.top_candidates                (lane primaries + alts)
- *   decision.quadrant_candidates           (hero scatter dots)
+ *   decision.quadrant_candidates           (standing call + alts)
+ *   decision.plays_this_enables            (plays this pick enables)
  *   decision.why                           (landscape rationale)
  *   decision.next_picks_plan               (forward look)
  *   decision.scarcity_callout              (skip-cost line)
  *   decision.counter_view                  (dissenting frame)
- *   decision.window_frame                  (build context)
+ *   decision.trade_up_consideration        (or make a trade)
  *   decision.opponent_between_picks        (gap analysis)
- *
- * Computed once per render via canonical helpers:
- *   computeWhatIfReadout(...)  per-candidate EV delta vs the lean
- *   laneDefinitionsForFormat() format-aware lane labels
  *
  * If the data model ripples through the engine, this component
  * automatically reflects it. No parallel implementations live here.
@@ -33,22 +32,15 @@
 
 import { useState } from "react";
 import type { Decision } from "@/lib/strategy/decision-synthesis/types";
-import { StrategicLanes } from "./strategic-lanes";
+import { StandingCall } from "./standing-call";
 import { PlaysEnabledCallout } from "../plays-enabled-callout";
 
 export type TheCallProps = {
   decision: Decision;
-  leagueType: "dynasty" | "keeper" | "redraft" | "unknown";
-  maxKeepers: number | null;
   leagueId: string;
 };
 
-export function TheCall({
-  decision,
-  leagueType,
-  maxKeepers,
-  leagueId,
-}: TheCallProps) {
+export function TheCall({ decision, leagueId }: TheCallProps) {
   return (
     <section
       className="mb-6 overflow-hidden rounded-lg border-2 border-accent/60"
@@ -71,12 +63,7 @@ export function TheCall({
         />
       )}
 
-      <StrategicLanes
-        decision={decision}
-        leagueType={leagueType}
-        maxKeepers={maxKeepers}
-        leagueId={leagueId}
-      />
+      <StandingCall decision={decision} leagueId={leagueId} />
 
       {decision.plays_this_enables.length > 0 && (
         <PlaysEnabledCallout

@@ -2126,12 +2126,7 @@ export default async function LeagueHubPage({
                   active-draft hub. */}
               {draftActive && decision && (
                 <div className="mb-8">
-                  <TheCall
-                    decision={decision}
-                    leagueType={leagueSnapshot?.league_type ?? "unknown"}
-                    maxKeepers={leagueSnapshot?.max_keepers ?? null}
-                    leagueId={leagueId}
-                  />
+                  <TheCall decision={decision} leagueId={leagueId} />
                 </div>
               )}
 
