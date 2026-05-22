@@ -53,6 +53,20 @@ const RULES: Rule[] = [
       "Don't filter by team!=null",
     ],
   },
+  // 2026-05-21 live-data check (FantasyCalc 1QB-PPR vs non-TEP Sleeper
+  // ADP) proved FantasyCalc does NOT inflate TE in standard scoring:
+  // top-24 TEs sit at a mean -11.2 rank displacement (market drafts
+  // them HIGHER than FC ranks them). A standard-league TE down-
+  // multiplier would push recommendations further from the market.
+  // If "too many TEs" recurs, it's a scoring tiebreaker in
+  // decision-synthesis, not the value scale. Per INVARIANTS.md.
+  {
+    name: "no standard-league TE down-multiplier",
+    why: "FantasyCalc does not inflate TE in non-TEP (data verdict 2026-05-21). A TE_STANDARD_MULTIPLIER < 1 makes TE recommendations worse, not better.",
+    pattern: /TE_STANDARD_MULTIPLIER/,
+    scan: { dir: join(SRC, "lib", "players"), ext: [".ts"] },
+    allowFilePrefixes: [EVALS],
+  },
   // QB starter math is the most-bugged pattern: SF / 2QB leagues have
   // their second QB slot in starter_slots.superflex, NOT in
   // starter_slots.hard.QB. Reading hard.QB without adding superflex,
