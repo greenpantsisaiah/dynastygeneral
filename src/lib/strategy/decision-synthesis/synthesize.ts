@@ -138,11 +138,11 @@ function adpGapModifier(
   return { adjustment, note: null };
 }
 
-// push_path must not reach for an archetype piece that will clearly
-// survive. Matches the adpGapModifier "reaching" boundary (gap <= -8):
-// a player going 8+ picks past the current pick is a reach, and an
-// archetype is advanced later at value, never as a reach now.
-const PUSH_PATH_REACH_LIMIT = -8;
+// A rule must not reach for a player who will clearly survive. Matches
+// the adpGapModifier "reaching" boundary (gap <= -8): a player going 8+
+// picks past the current pick is a reach. Archetype pushes and future
+// stashes are both advanced later at value, never as a reach now.
+const REACH_LIMIT = -8;
 
 // Saturation modifier reads from canonical roster-fit. Does NOT
 // re-derive realistic-max math; that lives in roster-fit.ts.
@@ -1200,7 +1200,7 @@ function buildCandidates(
       if (me.position_counts[pos] >= (reqs[pos] ?? 0)) continue;
       if (
         matching.adp != null &&
-        currentPickNo - matching.adp <= PUSH_PATH_REACH_LIMIT
+        currentPickNo - matching.adp <= REACH_LIMIT
       ) {
         continue;
       }
@@ -1275,6 +1275,14 @@ function buildCandidates(
       .filter((p) => {
         const pos = normalizePos(p.position);
         if (!pos || pos === "K" || pos === "DST") return false;
+        // A stash is the lowest-priority pick; never reach for one. A
+        // player going well past the current pick is there later, so
+        // don't let a reach become the call (Emmett Johnson -7.5 EV
+        // bug 2026-05-22, same class as the push_path reach). Rookies
+        // with no ADP are kept (their ADP is unreliable, not a reach).
+        if (p.adp != null && currentPickNo - p.adp <= REACH_LIMIT) {
+          return false;
+        }
         if (p.is_rookie) return true;
         return p.age != null && p.age <= 23;
       })
@@ -1282,14 +1290,13 @@ function buildCandidates(
     for (let i = 0; i < stashPool.length; i++) {
       const p = stashPool[i];
       const pos = normalizePos(p.position)!;
-      const ageFrame = p.is_rookie
-        ? "incoming rookie"
-        : `age ${p.age}`;
+      const ageFrame = p.is_rookie ? "incoming rookie" : `age ${p.age}`;
+      const adpGap = adpGapModifier(p.adp, currentPickNo);
       push({
         player: p,
         position: pos,
         rule: "future_stash",
-        score: 50 - i * 2,
+        score: 50 - i * 2 + adpGap.adjustment,
         primary_reason: `Every starter slot is filled; surfacing future upside instead. ${p.name} (${ageFrame}, KTC #${p.search_rank}) is the top young/rookie stash on the board. Bench depth that can become a starter or trade asset.`,
       });
     }

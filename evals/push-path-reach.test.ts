@@ -233,6 +233,55 @@ function run() {
     );
   }
 
+  console.log("\n── 2. All starters met: future_stash can't crown a reach ──");
+  {
+    // All quotas over-met -> every position saturated -> future_stash
+    // fires for young players. A young, high-value RB going 50 picks
+    // past ADP must NOT become the call as a stash; you stash later.
+    const snap = makeSnapshot({
+      myCounts: { QB: 3, RB: 4, WR: 5, TE: 2 },
+      hard: { QB: 1, RB: 2, WR: 2, TE: 1 },
+      flex: 1,
+      superflex: 1,
+      currentPickNo: 100,
+      nextPickNo: 110,
+    });
+    const youngReach = makePlayer({
+      name: "Young Reach RB",
+      position: "RB",
+      age: 22,
+      adp: 150, // 50 picks past the current pick = a reach
+      search_rank: 60,
+    });
+    const valueWr = makePlayer({
+      name: "Value WR",
+      position: "WR",
+      age: 26,
+      adp: 80, // available below consensus
+      search_rank: 70,
+    });
+    const decision = synthesizeDecision({
+      snap,
+      available: [youngReach, valueWr],
+      ranked: [],
+      windows: emptyWindows(),
+      picks_until_me: 0,
+    });
+    check(
+      "young reach is NOT the standing call",
+      decision?.recommendation.name !== "Young Reach RB",
+      `actual: ${decision?.recommendation.name}`,
+    );
+    check(
+      "future_stash did not crown the reach",
+      !(
+        decision?.recommendation.rule === "future_stash" &&
+        decision?.recommendation.name === "Young Reach RB"
+      ),
+      `rule: ${decision?.recommendation.rule}`,
+    );
+  }
+
   console.log(`\n${passed} passed · ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
