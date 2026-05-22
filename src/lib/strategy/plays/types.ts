@@ -27,8 +27,7 @@ export type PlayArchetype =
   | "qb_wr_stack"
   | "anchor_handcuff"
   | "bridge_qb"
-  | "qb_hoard"
-  | "lane_path";
+  | "qb_hoard";
 
 /**
  * Graduated urgency for a play or a partner. Derived from survival

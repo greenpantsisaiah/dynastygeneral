@@ -115,6 +115,7 @@ import {
   analyzeTeamIdentity,
   type TeamIdentity,
 } from "@/lib/strategy/team-identity";
+import { RosterLaneIdentity } from "@/components/league/roster-lane-identity";
 import { LaneCohortDistribution } from "@/components/league/lane-cohort-distribution";
 import { PostureBanner } from "@/components/league/posture-banner";
 import { FuturePickCabinet } from "@/components/league/future-pick-cabinet";
@@ -135,7 +136,6 @@ import { detectTradeOpportunities } from "@/lib/strategy/trade-opportunities/det
 import {
   suggestPlaysFromRoster,
   detectRosterShapePlays,
-  detectLanePlays,
   type OwnedRosterPlayer,
 } from "@/lib/strategy/plays/detect";
 import type { Play } from "@/lib/strategy/plays/types";
@@ -1052,6 +1052,7 @@ export default async function LeagueHubPage({
   let draftPathProjection: DraftPathProjection | null = null;
   let tradeOpportunities: TradeOpportunity[] = [];
   let suggestedPlays: Play[] = [];
+  let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
@@ -1471,13 +1472,6 @@ export default async function LeagueHubPage({
             playerValueMap: lrValueMap,
             snap: leagueSnapshot,
           });
-          // Fold build identity into the plays cornerstone: every build
-          // the roster FITS or PARTLY FITS becomes a committable play,
-          // CLOSE builds carrying the identity-move targets + funding.
-          suggestedPlays = [
-            ...suggestedPlays,
-            ...detectLanePlays(rosterLaneMemberships, rosterLaneMoves),
-          ];
         }
       } catch (err) {
         console.error("[hub:roster-lane-identity]", err);
@@ -1510,6 +1504,7 @@ export default async function LeagueHubPage({
         lastVisitEvBankDelta = delta.ev_bank_delta;
         lastVisitPositionCountDeltas = delta.position_count_deltas;
         lastVisitLeagueRankDelta = delta.league_rank_delta;
+        priorLaneStates = prior?.lane_states ?? {};
         const disruption = detectPlanDisruption({
           prior,
           snap: leagueSnapshot,
@@ -2442,6 +2437,13 @@ export default async function LeagueHubPage({
                           capital={rosterPosture.future_capital}
                         />
                       )}
+                    {rosterLaneMemberships.length > 0 && (
+                      <RosterLaneIdentity
+                        memberships={rosterLaneMemberships}
+                        moves={rosterLaneMoves}
+                        priorStates={priorLaneStates}
+                      />
+                    )}
                     {rosterLaneMemberships.length > 0 && (
                       <LaneCohortDistribution
                         memberships={rosterLaneMemberships}

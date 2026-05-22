@@ -28,10 +28,6 @@ import {
 } from "./urgency";
 import { canEmitPlay, playFormatGates } from "./catalog";
 import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
-import type {
-  LaneMembership,
-  IdentityMove,
-} from "@/lib/strategy/lane-identity";
 
 const STARTING_QB_KTC_RANK_CAP = 24;
 const ELITE_RB_KTC_RANK_CAP = 12;
@@ -488,8 +484,8 @@ function detectQbHoard(args: {
 
 /**
  * Detect plays that emerge from the user's whole roster shape rather
- * than a single trigger pick. Today: QB Hoard. Future: multi-handcuff
- * lottery. Lane-path plays come from detectLanePlays (separate input).
+ * than a single trigger pick. Today: QB Hoard. Future: archetype-path
+ * plays from lane membership, multi-handcuff lottery, future stock.
  */
 export function detectRosterShapePlays(args: {
   snap: LeagueSnapshot;
@@ -499,88 +495,6 @@ export function detectRosterShapePlays(args: {
   const plays: Play[] = [];
   const hoard = detectQbHoard(args);
   if (hoard) plays.push(hoard);
-  return plays;
-}
-
-// Pure-posture horizon lanes are a stance, not a play. The archetype
-// and composite lanes (RB Bellcow, WR Stable, Future Stock, ...) are
-// the paths a user actively builds, so only those become plays.
-const LANE_PLAY_EXCLUDE: ReadonlySet<string> = new Set([
-  "win_now_floor",
-  "balanced",
-]);
-
-function laneFollowThrough(
-  m: LaneMembership,
-  move: IdentityMove | undefined,
-): string {
-  if (m.state !== "close") {
-    return `Keep adding pieces that fit ${m.label}.`;
-  }
-  const parts: string[] = [m.gap?.description ?? `Close the gap to ${m.label}.`];
-  if (move && move.targets.length > 0) {
-    const t = move.targets
-      .slice(0, 3)
-      .map(
-        (x) => `${x.name} (${x.owner_name ?? "FA"}, val ${Math.round(x.value)})`,
-      )
-      .join("; ");
-    parts.push(`Targets: ${t}.`);
-  }
-  if (move && move.funding.length > 0) {
-    parts.push(
-      `Package: ${move.funding.slice(0, 3).map((x) => x.name).join(", ")}.`,
-    );
-  }
-  return parts.join(" ");
-}
-
-/**
- * Fold roster build identity (aggregateRosterIdentity → LaneMembership)
- * into committable plays. A build you FIT or PARTLY FIT is a path you
- * are running; the plays panel is the cornerstone for those paths
- * (founder direction 2026-05-21). CLOSE-build plays carry the named
- * trade targets + funding from the identity move so the richness of
- * the retired build-fit chips is preserved.
- */
-export function detectLanePlays(
-  memberships: LaneMembership[],
-  moves: IdentityMove[] = [],
-): Play[] {
-  const movesByLane = new Map(moves.map((mv) => [mv.lane_id, mv]));
-  const plays: Play[] = [];
-  for (const m of memberships) {
-    if (m.state === "not_in") continue;
-    if (LANE_PLAY_EXCLUDE.has(m.lane_id)) continue;
-
-    const rawPos = (m.contributors[0]?.position ?? "RB").toUpperCase();
-    const position = (
-      ["QB", "RB", "WR", "TE", "K", "DST"].includes(rawPos) ? rawPos : "RB"
-    ) as Position;
-    const genius =
-      m.state === "close"
-        ? `One move from ${m.label}: ${m.gap?.description ?? "close the gap."}`
-        : `You fit ${m.label}. ${m.blurb}`;
-
-    plays.push({
-      archetype: "lane_path",
-      name: m.label,
-      primary_player: {
-        player_id: `lane:${m.lane_id}`,
-        name: m.label,
-        position,
-        team: null,
-      },
-      upside_thesis: m.blurb,
-      followthrough: {
-        description: laneFollowThrough(m, movesByLane.get(m.lane_id)),
-        target_candidates: [],
-        picks_window: SEASON_LONG_NO_LAPSE_ROUNDS,
-      },
-      genius_vs_average_line: genius,
-      format_gates: playFormatGates.lane_path,
-    });
-  }
   return plays;
 }
 
