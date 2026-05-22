@@ -92,7 +92,6 @@ import {
   composeDigestLine,
 } from "@/lib/last-visit/diff";
 import { TheCall } from "@/components/league/the-call/the-call";
-import { ActivePlaysPanel } from "@/components/league/active-plays-panel";
 import { LibraryTeaser } from "@/components/league/triage/library-teaser";
 import { DashboardSection } from "@/components/league/dashboard/dashboard-section";
 // LeagueEvBankLeaderboard standalone widget removed: the league
@@ -2059,39 +2058,29 @@ export default async function LeagueHubPage({
 
               {/* SECTION: The Call (active draft only). Leads the
                   active-draft hub. */}
+              {/* The Call is now one timing feed: the committed plays
+                  + suggestions are folded into its WAIT room (the old
+                  standalone Active Plays panel was retired here
+                  2026-05-21), so commitments live right under the call
+                  instead of far down the page. */}
               {draftActive && decision && (
                 <div className="mb-8">
                   <TheCall
                     decision={decision}
-                    pathProjection={draftPathProjection}
                     leagueId={leagueId}
+                    currentPickNo={leagueSnapshot?.draft.next_pick_no ?? null}
+                    suggestedPlays={suggestedPlays}
+                    picksMadeForUser={(() => {
+                      if (!leagueSnapshot || !myRoster) return [];
+                      return leagueSnapshot.draft.picks_made
+                        .filter((p) => p.roster_id === myRoster.roster_id)
+                        .map((p) => ({
+                          player_id: p.player_id,
+                          pick_no: p.pick_no,
+                        }));
+                    })()}
                   />
                 </div>
-              )}
-
-              {/* Active Plays Panel. Reads localStorage; the REMEMBER
-                  + STAY DISCIPLINED verbs of the plays system. Surfaces
-                  the user's committed multi-pick plays plus follow-
-                  through deadlines. Founder direction 2026-05-20:
-                  intentional sequencing across multiple picks is what
-                  separates the shark from the mark. */}
-              {draftActive && (
-                <ActivePlaysPanel
-                  leagueId={leagueId}
-                  currentPickNo={
-                    leagueSnapshot?.draft.next_pick_no ?? null
-                  }
-                  suggestedPlays={suggestedPlays}
-                  picksMadeForUser={(() => {
-                    if (!leagueSnapshot || !myRoster) return [];
-                    return leagueSnapshot.draft.picks_made
-                      .filter((p) => p.roster_id === myRoster.roster_id)
-                      .map((p) => ({
-                        player_id: p.player_id,
-                        pick_no: p.pick_no,
-                      }));
-                  })()}
-                />
               )}
 
               {/* Position Run Watch. Renders during active draft so

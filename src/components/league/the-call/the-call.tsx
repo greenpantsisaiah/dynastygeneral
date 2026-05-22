@@ -34,20 +34,23 @@
 
 import { useState } from "react";
 import type { Decision } from "@/lib/strategy/decision-synthesis/types";
-import type { DraftPathProjection } from "@/lib/strategy/draft-paths/types";
+import type { Play } from "@/lib/strategy/plays/types";
 import { DecisionBoard } from "./decision-board";
-import { PlaysEnabledCallout } from "../plays-enabled-callout";
 
 export type TheCallProps = {
   decision: Decision;
-  pathProjection: DraftPathProjection | null;
   leagueId: string;
+  currentPickNo: number | null;
+  suggestedPlays?: Play[];
+  picksMadeForUser?: { player_id: string; pick_no: number }[];
 };
 
 export function TheCall({
   decision,
-  pathProjection,
   leagueId,
+  currentPickNo,
+  suggestedPlays = [],
+  picksMadeForUser = [],
 }: TheCallProps) {
   return (
     <section
@@ -73,17 +76,11 @@ export function TheCall({
 
       <DecisionBoard
         decision={decision}
-        pathProjection={pathProjection}
         leagueId={leagueId}
+        currentPickNo={currentPickNo}
+        suggestedPlays={suggestedPlays}
+        picksMadeForUser={picksMadeForUser}
       />
-
-      {decision.plays_this_enables.length > 0 && (
-        <PlaysEnabledCallout
-          plays={decision.plays_this_enables}
-          leagueId={leagueId}
-          currentPickNo={decision.pick_no}
-        />
-      )}
 
       {decision.trade_up_consideration && (
         <TradeUpConsiderationBlock consideration={decision.trade_up_consideration} />

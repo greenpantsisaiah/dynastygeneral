@@ -1,20 +1,23 @@
 "use client";
 
 /**
- * Decision Board. The main pick-consideration area (founder direction
- * 2026-05-21: "a main area where I'm considering my picks for various
- * reasons/angles ... all angles in one section"). The Call is a
- * one-line verdict on top; below it the same candidates are weighed
- * from four angles, in the founder's order:
+ * Decision Board. One timing-organized feed (founder direction
+ * 2026-05-21): there is no "lanes vs plays vs suggestions", they are
+ * the same surface sliced. Plays are non-exclusive TAGS on picks
+ * (win-now / future / last-before-cliff / handcuff / a committed
+ * play), and the surface is organized by URGENCY:
  *
- *   1. By Lane   win-now / balanced / future columns
- *   2. By Tier / EV   tier drops (left) + best value (right)
- *   3. By Play   which plays this pick's options serve
- *   4. By Path   the Draft Path Projector sequences
+ *   THE CALL    the one pick most worth making now (at-risk + valuable)
+ *   ALSO SOON   other picks you'd lose by waiting
+ *   WAIT        will-last value + tracked plays; auto-surfaces as
+ *               survival drops
  *
- * Strategic Lanes (the old 3-lane grid) and the standalone Tier Map +
- * Draft Path Projector are folded in here. Reads canonical Decision +
- * TierMap + DraftPathProjection data only; no new math.
+ * The engine's survival-weighting already computes "what will I lose
+ * if I wait", so THE CALL is the engine recommendation reframed. When
+ * nothing is at risk, the call becomes "take best value or trade."
+ * Display-aware only: ranking is value x scarcity; tags don't bias the
+ * engine. Replaces the old four-angle board + the standalone Active
+ * Plays panel + the Draft Path Projector (retired to pre-draft).
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -22,59 +25,46 @@ import type {
   Decision,
   DecisionQuadrantCandidate,
 } from "@/lib/strategy/decision-synthesis/types";
-import type { DraftPathProjection } from "@/lib/strategy/draft-paths/types";
-import type { PlayCommitment } from "@/lib/strategy/plays/types";
-import { CandidateBlock, computeEv } from "./candidate-bits";
-import { DraftPathProjector } from "../draft-path-projector";
-import { getActivePlayCommitments, archetypeLabel } from "@/lib/plays-storage";
+import type { Play, PlayCommitment } from "@/lib/strategy/plays/types";
+import { computeEv } from "./candidate-bits";
+import {
+  abandonPlay,
+  archetypeLabel,
+  commitPlay,
+  dismissSuggestion,
+  getDismissedSuggestions,
+  getPlayCommitments,
+  lapseStaleCommitments,
+  markPlayExecuted,
+  restoreSuggestion,
+  type DismissedSuggestion,
+} from "@/lib/plays-storage";
 
-export type DecisionBoardProps = {
-  decision: Decision;
-  pathProjection: DraftPathProjection | null;
-  leagueId: string;
-};
-
-const LANES: { id: "win-now" | "balanced" | "future"; label: string }[] = [
-  { id: "win-now", label: "Win-Now" },
-  { id: "balanced", label: "Balanced" },
-  { id: "future", label: "Future" },
-];
-
-// Positional drop-off (the "tier drops" signal) derived from the value
-// data the rest of the board trusts, not the uncalibrated variance-band
-// tier engine. Within each position's top window, a value gap that is
-// CLIFF_RATIO x the window's average gap is the visible cliff; the
-// players above it are the elite tier.
+// Survival at or above this means the player will reach your next pick:
+// no rush, he goes to WAIT. Below it, he's at risk and worth acting on.
+const NO_RUSH_SURVIVAL = 75;
 const DROPOFF_POSITIONS = ["RB", "WR", "TE", "QB"] as const;
 const DROPOFF_WINDOW = 12;
 const CLIFF_RATIO = 1.6;
 
-type Dropoff = {
-  pos: string;
-  available: number;
-  eliteCount: number | null;
-  cliffSize: number | null;
-  // Names of the players above the cliff (the at-risk tier).
-  elite: string[];
-  // The last player before the cliff, for the inline "Last POS" label.
-  lastInTierId: string | null;
+export type DecisionBoardProps = {
+  decision: Decision;
+  leagueId: string;
+  currentPickNo: number | null;
+  suggestedPlays?: Play[];
+  picksMadeForUser?: { player_id: string; pick_no: number }[];
 };
 
-function positionDropoffs(cands: DecisionQuadrantCandidate[]): Dropoff[] {
-  return DROPOFF_POSITIONS.map((pos) => {
+/* ---- cliff detection (the "last before a drop" tag) ---- */
+function lastInTierByPlayer(
+  cands: DecisionQuadrantCandidate[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const pos of DROPOFF_POSITIONS) {
     const players = cands
       .filter((c) => c.position === pos && typeof c.value === "number")
       .sort((a, b) => (b.value as number) - (a.value as number));
-    const available = players.length;
-    const none = {
-      pos,
-      available,
-      eliteCount: null,
-      cliffSize: null,
-      elite: [] as string[],
-      lastInTierId: null,
-    };
-    if (players.length < 3) return none;
+    if (players.length < 3) continue;
     const window = players.slice(0, DROPOFF_WINDOW);
     const gaps: number[] = [];
     for (let i = 1; i < window.length; i++) {
@@ -83,161 +73,206 @@ function positionDropoffs(cands: DecisionQuadrantCandidate[]): Dropoff[] {
     const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
     for (let i = 0; i < gaps.length; i++) {
       if (avgGap > 0 && gaps[i] >= CLIFF_RATIO * avgGap) {
-        return {
-          pos,
-          available,
-          eliteCount: i + 1,
-          cliffSize: Math.round(gaps[i]),
-          elite: window.slice(0, i + 1).map((c) => c.name),
-          lastInTierId: window[i].player_id,
-        };
+        out.set(window[i].player_id, `last ${pos} before -${Math.round(gaps[i])}`);
+        break;
       }
     }
-    return none;
-  });
+  }
+  return out;
 }
 
-// Short list of the at-risk names: up to 3, then "+N".
-function eliteNamesLabel(elite: string[]): string {
-  if (elite.length <= 3) return elite.join(", ");
-  return `${elite.slice(0, 3).join(", ")} +${elite.length - 3}`;
+function survivalTone(pct: number | null | undefined): string {
+  if (pct == null) return "text-muted-2";
+  if (pct >= NO_RUSH_SURVIVAL) return "text-success";
+  if (pct >= 30) return "text-warning";
+  return "text-danger";
 }
 
-function AngleHeader({ n, label, hint }: { n: number; label: string; hint?: string }) {
+function TagChips({ tags }: { tags: string[] }) {
+  if (tags.length === 0) return null;
   return (
-    <div className="flex items-baseline gap-2">
-      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
-        {n} · {label}
-      </span>
-      {hint && (
-        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
-          {hint}
+    <div className="mt-1 flex flex-wrap gap-1">
+      {tags.map((t) => (
+        <span
+          key={t}
+          className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 border border-border-soft rounded-full px-1.5 py-0.5"
+        >
+          {t}
         </span>
-      )}
+      ))}
+    </div>
+  );
+}
+
+function PickRow({
+  c,
+  pickNo,
+  tags,
+}: {
+  c: DecisionQuadrantCandidate;
+  pickNo: number;
+  tags: string[];
+}) {
+  const ev = computeEv(c, pickNo);
+  const evColor =
+    ev == null ? "text-muted-2" : ev >= 0 ? "text-success" : "text-danger";
+  const survLabel = c.availability_next_pick
+    ? c.availability_next_pick.replace("_", " ")
+    : null;
+  return (
+    <div className="rounded-md border border-border-soft bg-surface/30 px-3 py-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[13px] font-semibold text-foreground truncate">
+          {c.name}{" "}
+          <span className="font-mono text-[10px] text-muted-2">
+            {c.position}
+            {c.team ? `-${c.team}` : ""}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-baseline gap-2 font-mono">
+          {ev != null && (
+            <span className={`text-[13px] font-semibold ${evColor}`}>
+              {ev >= 0 ? "+" : ""}
+              {ev.toFixed(1)}
+            </span>
+          )}
+          {c.survival_pct != null && (
+            <span className={`text-[11px] ${survivalTone(c.survival_pct)}`}>
+              {survLabel ? `${survLabel} ` : ""}
+              {c.survival_pct}%
+            </span>
+          )}
+        </span>
+      </div>
+      <TagChips tags={tags} />
     </div>
   );
 }
 
 export function DecisionBoard({
   decision,
-  pathProjection,
   leagueId,
+  currentPickNo,
+  suggestedPlays = [],
+  picksMadeForUser = [],
 }: DecisionBoardProps) {
   const pickNo = decision.pick_no;
   const standingCallId = decision.recommendation.player_id;
+  const cands = decision.quadrant_candidates;
 
-  const [activePlays, setActivePlays] = useState<PlayCommitment[]>([]);
+  const [commitments, setCommitments] = useState<PlayCommitment[]>([]);
+  const [dismissed, setDismissed] = useState<DismissedSuggestion[]>([]);
+
   useEffect(() => {
-    setActivePlays(getActivePlayCommitments(leagueId));
-  }, [leagueId]);
+    if (currentPickNo != null) {
+      lapseStaleCommitments({ leagueId, currentPickNo });
+    }
+    const userPicksById = new Map<string, number>();
+    for (const p of picksMadeForUser) userPicksById.set(p.player_id, p.pick_no);
+    for (const c of getPlayCommitments(leagueId)) {
+      if (c.status !== "active") continue;
+      for (const target of c.followthrough_targets) {
+        const at = userPicksById.get(target.player_id);
+        if (at != null) {
+          markPlayExecuted({
+            leagueId,
+            commitmentId: c.commitment_id,
+            executedWith: target,
+            executedAtPickNo: at,
+          });
+          break;
+        }
+      }
+    }
+    setCommitments(getPlayCommitments(leagueId));
+    setDismissed(getDismissedSuggestions(leagueId));
+  }, [leagueId, currentPickNo, picksMadeForUser]);
+
+  const activePlays = commitments.filter((c) => c.status === "active");
 
   const advancesByPlayer = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const c of activePlays) {
       for (const t of c.followthrough_targets) {
-        const existing = m.get(t.player_id);
-        if (existing) existing.push(c.play_name);
+        const arr = m.get(t.player_id);
+        if (arr) arr.push(c.play_name);
         else m.set(t.player_id, [c.play_name]);
       }
     }
     return m;
   }, [activePlays]);
 
-  const cands = decision.quadrant_candidates;
-  const withEv = cands.map((c) => ({ c, ev: computeEv(c, pickNo) }));
-  const ranked = withEv
-    .filter((x) => x.ev != null)
-    .sort((a, b) => (b.ev as number) - (a.ev as number));
-  const bestEv = ranked[0] ?? null;
-  const isBestEv = bestEv != null && bestEv.c.player_id === standingCallId;
-  const callEv = computeEv(
-    cands.find((c) => c.player_id === standingCallId) ?? decision.recommendation as unknown as DecisionQuadrantCandidate,
-    pickNo,
-  );
+  const cliffByPlayer = useMemo(() => lastInTierByPlayer(cands), [cands]);
+
+  function tagsFor(c: DecisionQuadrantCandidate): string[] {
+    const out: string[] = [];
+    if (c.timeline_lane === "win-now") out.push("win-now");
+    else if (c.timeline_lane === "future") out.push("future");
+    const cliff = cliffByPlayer.get(c.player_id);
+    if (cliff) out.push(cliff);
+    for (const p of advancesByPlayer.get(c.player_id) ?? []) out.push(p);
+    for (const play of decision.plays_this_enables) {
+      if (
+        play.followthrough.target_candidates.some(
+          (t) => t.player_id === c.player_id,
+        )
+      ) {
+        out.push(play.name);
+      }
+    }
+    return Array.from(new Set(out));
+  }
+
+  // Partition by timing. THE CALL is the engine recommendation; the
+  // rest split into act-soon (at risk) and wait (will last).
+  const callCand =
+    cands.find((c) => c.player_id === standingCallId) ?? null;
+  const callSurvival = callCand?.survival_pct ?? null;
+  const callAtRisk =
+    callSurvival != null && callSurvival < NO_RUSH_SURVIVAL;
+  const callEv = callCand ? computeEv(callCand, pickNo) : null;
   const callEvColor =
     callEv == null ? "text-muted-2" : callEv >= 0 ? "text-success" : "text-danger";
 
-  const byLane = new Map<string, DecisionQuadrantCandidate[]>();
-  for (const c of cands) {
-    const list = byLane.get(c.timeline_lane);
-    if (list) list.push(c);
-    else byLane.set(c.timeline_lane, [c]);
-  }
-  for (const list of byLane.values()) {
-    list.sort((a, b) => (computeEv(b, pickNo) ?? -999) - (computeEv(a, pickNo) ?? -999));
-  }
+  const others = cands.filter((c) => c.player_id !== standingCallId);
+  const atRisk = others
+    .filter((c) => c.survival_pct != null && c.survival_pct < NO_RUSH_SURVIVAL)
+    .sort((a, b) => (computeEv(b, pickNo) ?? -999) - (computeEv(a, pickNo) ?? -999))
+    .slice(0, 3);
+  const willLast = others
+    .filter((c) => c.survival_pct == null || c.survival_pct >= NO_RUSH_SURVIVAL)
+    .sort((a, b) => (b.value ?? -999) - (a.value ?? -999))
+    .slice(0, 5);
 
-  // Best available: the actual best players left, sorted by raw
-  // dynasty value (BPA order). Survival is called out per row so the
-  // user can weigh "take the slightly lower-value player now because
-  // the better one survives to my next pick" (founder direction
-  // 2026-05-21). EV/discount still shows per row via CandidateBlock.
-  const bestAvailable = [...cands]
-    .filter((c) => typeof c.value === "number")
-    .sort((a, b) => (b.value as number) - (a.value as number))
-    .slice(0, 8);
+  // For the calm-call framing, name the best value that will keep.
+  const topWait = willLast[0] ?? null;
 
-  const dropoffs = positionDropoffs(cands);
-  const cliffNoteByPlayer = new Map<string, string>();
-  for (const d of dropoffs) {
-    if (d.lastInTierId && d.cliffSize != null) {
-      cliffNoteByPlayer.set(d.lastInTierId, `Last ${d.pos} before -${d.cliffSize}`);
-    }
-  }
+  // Suggestions you could track (exclude already committed + dismissed).
+  const committedKeys = new Set(
+    activePlays.map((c) => `${c.archetype}:${c.primary_player.player_id}`),
+  );
+  const dismissedKeys = new Set(dismissed.map((d) => d.key));
+  const openSuggestions = suggestedPlays.filter((p) => {
+    const key = `${p.archetype}:${p.primary_player.player_id}`;
+    return !committedKeys.has(key) && !dismissedKeys.has(key);
+  });
 
-  // By Play: committed plays a board candidate advances, plus the
-  // plays this pick enables, each with the on-board candidates serving
-  // them.
-  const playRows: {
-    key: string;
-    label: string;
-    archetype: string;
-    kind: "committed" | "enables";
-    servers: DecisionQuadrantCandidate[];
-  }[] = [];
-  for (const pc of activePlays) {
-    const servers = cands.filter((c) =>
-      pc.followthrough_targets.some((t) => t.player_id === c.player_id),
-    );
-    if (servers.length > 0) {
-      playRows.push({
-        key: `c:${pc.commitment_id}`,
-        label: pc.play_name,
-        archetype: archetypeLabel(pc.archetype),
-        kind: "committed",
-        servers,
-      });
-    }
-  }
-  for (const p of decision.plays_this_enables) {
-    playRows.push({
-      key: `e:${p.archetype}:${p.primary_player.player_id}`,
-      label: p.name,
-      archetype: archetypeLabel(p.archetype),
-      kind: "enables",
-      servers: cands.filter((c) =>
-        p.followthrough.target_candidates.some((t) => t.player_id === c.player_id),
-      ),
-    });
+  function refresh() {
+    setCommitments(getPlayCommitments(leagueId));
+    setDismissed(getDismissedSuggestions(leagueId));
   }
 
   return (
     <div className="px-5 py-5 space-y-6">
-      {/* Verdict (one line) */}
+      {/* THE CALL */}
       <div className="rounded-md border border-accent/60 bg-accent/5 px-4 py-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
               The Call
             </span>
-            <span className="text-[16px] font-semibold text-foreground">
-              {decision.recommendation.name}
-            </span>
-            <span className="font-mono text-[10px] text-muted-2">
-              {decision.recommendation.position}
-              {decision.recommendation.team
-                ? `-${decision.recommendation.team}`
-                : ""}
+            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+              {callAtRisk ? "act before they're gone" : "nothing's at risk"}
             </span>
           </div>
           {callEv != null && (
@@ -249,178 +284,194 @@ export function DecisionBoard({
             </span>
           )}
         </div>
-        <div className="mt-1 text-[11px] leading-snug">
-          {isBestEv ? (
-            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-success border border-success/60 rounded-full px-1.5 py-0.5">
-              Best EV available
+        <div className="mt-1 flex flex-wrap items-baseline gap-2">
+          <span className="text-[16px] font-semibold text-foreground">
+            {decision.recommendation.name}
+          </span>
+          <span className="font-mono text-[10px] text-muted-2">
+            {decision.recommendation.position}
+            {decision.recommendation.team
+              ? `-${decision.recommendation.team}`
+              : ""}
+          </span>
+          {callCand?.survival_pct != null && (
+            <span className={`font-mono text-[11px] ${survivalTone(callSurvival)}`}>
+              {callCand.availability_next_pick
+                ? `${callCand.availability_next_pick.replace("_", " ")} `
+                : ""}
+              {callCand.survival_pct}%
             </span>
-          ) : bestEv && bestEv.ev != null ? (
-            <span className="text-warning">
-              Raw-EV leader: {bestEv.c.name} ({bestEv.ev >= 0 ? "+" : ""}
-              {bestEv.ev.toFixed(1)}). The call weighs survival + fit; see
-              By Tier / EV below.
-            </span>
-          ) : null}
+          )}
         </div>
-        <p className="mt-1 text-[12px] leading-snug text-muted">
+        {callCand && <TagChips tags={tagsFor(callCand)} />}
+        <p className="mt-2 text-[12px] leading-snug text-muted">
           {decision.recommendation.primary_reason}
         </p>
+        {callAtRisk && topWait ? (
+          <p className="mt-1 text-[11px] leading-snug text-warning">
+            {topWait.name} (higher value) will likely keep ({topWait.survival_pct}%);
+            grab {decision.recommendation.name} now.
+          </p>
+        ) : !callAtRisk ? (
+          <p className="mt-1 text-[11px] leading-snug text-warning">
+            Nothing's about to be gone. Take {decision.recommendation.name} for
+            value, or trade down; you won't lose your targets by waiting.
+          </p>
+        ) : null}
       </div>
 
-      {/* 1 · By Lane */}
-      <div>
-        <AngleHeader n={1} label="By lane" hint="win-now / balanced / future" />
-        <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {LANES.map((lane) => {
-            const inLane = (byLane.get(lane.id) ?? []).slice(0, 3);
-            return (
-              <div
-                key={lane.id}
-                className="rounded-md border border-border-soft bg-surface/30 px-3 py-3"
-              >
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-                  {lane.label}
-                </div>
-                {inLane.length === 0 ? (
-                  <p className="mt-2 text-[11px] text-muted-2">
-                    No {lane.label.toLowerCase()} candidate in the top pool.
-                  </p>
-                ) : (
-                  <div className="mt-1 space-y-3">
-                    {inLane.map((c) => (
-                      <CandidateBlock
-                        key={c.player_id}
-                        candidate={c}
-                        currentPickNo={pickNo}
-                        isStandingCall={c.player_id === standingCallId}
-                        advancesPlays={advancesByPlayer.get(c.player_id) ?? []}
-                        cliffNote={cliffNoteByPlayer.get(c.player_id)}
-                        compact
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      {/* ALSO SOON */}
+      {atRisk.length > 0 && (
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
+            Also soon
+          </div>
+          <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
+            Other picks you'd lose by waiting.
+          </p>
+          <div className="mt-2 space-y-2">
+            {atRisk.map((c) => (
+              <PickRow key={c.player_id} c={c} pickNo={pickNo} tags={tagsFor(c)} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 2 · By Tier / EV */}
+      {/* WAIT */}
       <div>
-        <AngleHeader n={2} label="By tier / EV" hint="tier drops · best available" />
-        <div className="mt-2 grid gap-3 lg:grid-cols-2">
-          <div className="rounded-md border border-border-soft bg-surface/30 px-3 py-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-              Positional drop-off
+        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-2">
+          Wait
+        </div>
+        <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
+          No rush; these reach your next pick. They surface above as their
+          survival drops.
+        </p>
+
+        {willLast.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {willLast.map((c) => (
+              <PickRow key={c.player_id} c={c} pickNo={pickNo} tags={tagsFor(c)} />
+            ))}
+          </div>
+        )}
+
+        {/* Tracked plays (committed) */}
+        {activePlays.length > 0 && (
+          <div className="mt-3">
+            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+              Plays you're running
             </div>
-            <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
-              Where each position's value cliff is. Few before a steep
-              cliff = grab now; deep = you can wait.
-            </p>
-            <ul className="mt-2 space-y-2">
-              {dropoffs.map((d) => (
-                <li key={d.pos} className="text-[12px] leading-snug">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-mono text-[11px] font-semibold text-foreground">
-                      {d.pos}
-                    </span>
-                    <span className="text-right">
-                      {d.eliteCount != null ? (
-                        <span className="text-warning font-semibold">
-                          {d.eliteCount} before a -{d.cliffSize} cliff
-                        </span>
-                      ) : (
-                        <span className="text-muted">deep, no near cliff</span>
-                      )}
-                      <span className="font-mono text-[10px] text-muted-2">
-                        {" "}
-                        · {d.available} left
+            <ul className="mt-1 space-y-2">
+              {activePlays.map((c) => (
+                <li
+                  key={c.commitment_id}
+                  className="rounded-md border border-border-soft bg-surface/30 px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="flex flex-wrap items-baseline gap-2">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
+                        {archetypeLabel(c.archetype)}
+                      </span>
+                      <span className="text-[13px] font-semibold text-foreground">
+                        {c.play_name}
                       </span>
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        abandonPlay({ leagueId, commitmentId: c.commitment_id });
+                        refresh();
+                      }}
+                      className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
+                    >
+                      Abandon
+                    </button>
                   </div>
-                  {d.elite.length > 0 && (
-                    <div className="mt-0.5 text-[11px] text-foreground">
-                      {eliteNamesLabel(d.elite)}
-                    </div>
+                  {c.followthrough_targets.length > 0 && (
+                    <p className="mt-1 text-[11px] leading-snug text-muted">
+                      {c.followthrough_targets.map((t) => t.name).join(", ")} ·
+                      no rush, surfaces above when at risk
+                    </p>
                   )}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="rounded-md border border-border-soft bg-surface/30 px-3 py-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-              Best available
+        )}
+
+        {/* Plays you could run (suggestions) */}
+        {openSuggestions.length > 0 && (
+          <div className="mt-3">
+            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+              Plays you could run
             </div>
-            <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
-              Best players left by value. Survival is each one's chance
-              to reach your next pick: dip to a lower-value player when
-              the better one will still be there.
-            </p>
-            {bestAvailable.length === 0 ? (
-              <p className="mt-2 text-[11px] text-muted-2">
-                No valued candidates in the pool.
-              </p>
-            ) : (
-              <div className="mt-1 space-y-3">
-                {bestAvailable.map((c) => (
-                  <CandidateBlock
-                    key={c.player_id}
-                    candidate={c}
-                    currentPickNo={pickNo}
-                    isStandingCall={c.player_id === standingCallId}
-                    advancesPlays={advancesByPlayer.get(c.player_id) ?? []}
-                    cliffNote={cliffNoteByPlayer.get(c.player_id)}
-                    compact
-                  />
-                ))}
-              </div>
-            )}
+            <ul className="mt-1 space-y-2">
+              {openSuggestions.map((p) => (
+                <li
+                  key={`${p.archetype}-${p.primary_player.player_id}`}
+                  className="rounded-md border border-border-soft bg-surface/30 px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="flex flex-wrap items-baseline gap-2">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
+                        {archetypeLabel(p.archetype)}
+                      </span>
+                      <span className="text-[13px] font-semibold text-foreground">
+                        {p.name}
+                      </span>
+                    </span>
+                    <span className="flex items-baseline gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          commitPlay({
+                            leagueId,
+                            play: p,
+                            committedAtPickNo: currentPickNo ?? 0,
+                          });
+                          refresh();
+                        }}
+                        className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent hover:text-foreground transition-colors"
+                      >
+                        Track
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          dismissSuggestion({ leagueId, play: p });
+                          refresh();
+                        }}
+                        className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
+                      >
+                        Dismiss
+                      </button>
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-snug text-muted">
+                    {p.genius_vs_average_line}
+                  </p>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
+        )}
+
+        {dismissed.length > 0 && (
+          <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+            {dismissed.length} dismissed ·{" "}
+            <button
+              type="button"
+              onClick={() => {
+                for (const d of dismissed) restoreSuggestion({ leagueId, key: d.key });
+                refresh();
+              }}
+              className="underline decoration-dotted hover:text-accent"
+            >
+              restore all
+            </button>
+          </p>
+        )}
       </div>
-
-      {/* 3 · By Play */}
-      {playRows.length > 0 && (
-        <div>
-          <AngleHeader n={3} label="By play" hint="which options serve a plan" />
-          <ul className="mt-2 space-y-2">
-            {playRows.map((row) => (
-              <li
-                key={row.key}
-                className="rounded-md border border-border-soft bg-surface/30 px-3 py-2"
-              >
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
-                    {row.archetype}
-                  </span>
-                  <span className="text-[13px] font-semibold text-foreground">
-                    {row.label}
-                  </span>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
-                    {row.kind === "committed" ? "committed" : "this pick enables"}
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] leading-snug text-muted">
-                  {row.servers.length > 0
-                    ? `On the board now: ${row.servers.map((c) => c.name).join(", ")}`
-                    : "No board candidate serves this yet; it opens on a later pick."}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* 4 · By Path */}
-      {pathProjection && pathProjection.paths.length > 0 && (
-        <div>
-          <AngleHeader n={4} label="By path" hint="multi-pick sequences" />
-          <div className="mt-2">
-            <DraftPathProjector projection={pathProjection} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
