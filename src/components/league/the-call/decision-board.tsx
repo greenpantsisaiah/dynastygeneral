@@ -54,29 +54,53 @@ type Dropoff = {
   available: number;
   eliteCount: number | null;
   cliffSize: number | null;
+  // Names of the players above the cliff (the at-risk tier).
+  elite: string[];
+  // The last player before the cliff, for the inline "Last POS" label.
+  lastInTierId: string | null;
 };
 
 function positionDropoffs(cands: DecisionQuadrantCandidate[]): Dropoff[] {
   return DROPOFF_POSITIONS.map((pos) => {
-    const vals = cands
+    const players = cands
       .filter((c) => c.position === pos && typeof c.value === "number")
-      .map((c) => c.value as number)
-      .sort((a, b) => b - a);
-    const available = vals.length;
-    if (vals.length < 3) {
-      return { pos, available, eliteCount: null, cliffSize: null };
-    }
-    const window = vals.slice(0, DROPOFF_WINDOW);
+      .sort((a, b) => (b.value as number) - (a.value as number));
+    const available = players.length;
+    const none = {
+      pos,
+      available,
+      eliteCount: null,
+      cliffSize: null,
+      elite: [] as string[],
+      lastInTierId: null,
+    };
+    if (players.length < 3) return none;
+    const window = players.slice(0, DROPOFF_WINDOW);
     const gaps: number[] = [];
-    for (let i = 1; i < window.length; i++) gaps.push(window[i - 1] - window[i]);
+    for (let i = 1; i < window.length; i++) {
+      gaps.push((window[i - 1].value as number) - (window[i].value as number));
+    }
     const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
     for (let i = 0; i < gaps.length; i++) {
       if (avgGap > 0 && gaps[i] >= CLIFF_RATIO * avgGap) {
-        return { pos, available, eliteCount: i + 1, cliffSize: Math.round(gaps[i]) };
+        return {
+          pos,
+          available,
+          eliteCount: i + 1,
+          cliffSize: Math.round(gaps[i]),
+          elite: window.slice(0, i + 1).map((c) => c.name),
+          lastInTierId: window[i].player_id,
+        };
       }
     }
-    return { pos, available, eliteCount: null, cliffSize: null };
+    return none;
   });
+}
+
+// Short list of the at-risk names: up to 3, then "+N".
+function eliteNamesLabel(elite: string[]): string {
+  if (elite.length <= 3) return elite.join(", ");
+  return `${elite.slice(0, 3).join(", ")} +${elite.length - 3}`;
 }
 
 function AngleHeader({ n, label, hint }: { n: number; label: string; hint?: string }) {
@@ -154,6 +178,12 @@ export function DecisionBoard({
     .slice(0, 8);
 
   const dropoffs = positionDropoffs(cands);
+  const cliffNoteByPlayer = new Map<string, string>();
+  for (const d of dropoffs) {
+    if (d.lastInTierId && d.cliffSize != null) {
+      cliffNoteByPlayer.set(d.lastInTierId, `Last ${d.pos} before -${d.cliffSize}`);
+    }
+  }
 
   // By Play: committed plays a board candidate advances, plus the
   // plays this pick enables, each with the on-board candidates serving
@@ -264,6 +294,7 @@ export function DecisionBoard({
                         currentPickNo={pickNo}
                         isStandingCall={c.player_id === standingCallId}
                         advancesPlays={advancesByPlayer.get(c.player_id) ?? []}
+                        cliffNote={cliffNoteByPlayer.get(c.player_id)}
                         compact
                       />
                     ))}
@@ -287,31 +318,31 @@ export function DecisionBoard({
               Where each position's value cliff is. Few before a steep
               cliff = grab now; deep = you can wait.
             </p>
-            <ul className="mt-2 space-y-1.5">
+            <ul className="mt-2 space-y-2">
               {dropoffs.map((d) => (
-                <li
-                  key={d.pos}
-                  className="flex items-baseline justify-between gap-2 text-[12px]"
-                >
-                  <span className="font-mono text-[11px] font-semibold text-foreground">
-                    {d.pos}
-                  </span>
-                  {d.eliteCount != null ? (
-                    <span className="text-foreground">
-                      <span className="text-warning font-semibold">
-                        {d.eliteCount} before a -{d.cliffSize} cliff
-                      </span>{" "}
+                <li key={d.pos} className="text-[12px] leading-snug">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-mono text-[11px] font-semibold text-foreground">
+                      {d.pos}
+                    </span>
+                    <span className="text-right">
+                      {d.eliteCount != null ? (
+                        <span className="text-warning font-semibold">
+                          {d.eliteCount} before a -{d.cliffSize} cliff
+                        </span>
+                      ) : (
+                        <span className="text-muted">deep, no near cliff</span>
+                      )}
                       <span className="font-mono text-[10px] text-muted-2">
+                        {" "}
                         · {d.available} left
                       </span>
                     </span>
-                  ) : (
-                    <span className="text-muted">
-                      deep, no near cliff{" "}
-                      <span className="font-mono text-[10px] text-muted-2">
-                        · {d.available} left
-                      </span>
-                    </span>
+                  </div>
+                  {d.elite.length > 0 && (
+                    <div className="mt-0.5 text-[11px] text-foreground">
+                      {eliteNamesLabel(d.elite)}
+                    </div>
                   )}
                 </li>
               ))}
@@ -339,6 +370,7 @@ export function DecisionBoard({
                     currentPickNo={pickNo}
                     isStandingCall={c.player_id === standingCallId}
                     advancesPlays={advancesByPlayer.get(c.player_id) ?? []}
+                    cliffNote={cliffNoteByPlayer.get(c.player_id)}
                     compact
                   />
                 ))}

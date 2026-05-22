@@ -38,12 +38,15 @@ export function CandidateBlock({
   currentPickNo,
   isStandingCall,
   advancesPlays = [],
+  cliffNote,
   compact = false,
 }: {
   candidate: DecisionQuadrantCandidate;
   currentPickNo: number;
   isStandingCall: boolean;
   advancesPlays?: string[];
+  /** "Last RB before -15" when this is the last player in its tier. */
+  cliffNote?: string;
   compact?: boolean;
 }) {
   const ev = computeEv(candidate, currentPickNo);
@@ -81,8 +84,16 @@ export function CandidateBlock({
         )}
       </div>
 
-      {advancesPlays.length > 0 && (
+      {(advancesPlays.length > 0 || cliffNote) && (
         <div className="mt-1 flex flex-wrap gap-1">
+          {cliffNote && (
+            <span
+              className="font-mono text-[9px] uppercase tracking-[0.14em] text-warning border border-warning/50 rounded-full px-1.5 py-0.5"
+              title="Last player in this position's tier before a value cliff. Grab now or accept the drop."
+            >
+              {cliffNote}
+            </span>
+          )}
           {advancesPlays.map((playName) => (
             <span
               key={playName}
