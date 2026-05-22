@@ -37,7 +37,9 @@ const NO_RUSH_SURVIVAL = 75;
 const DROPOFF_POSITIONS = ["RB", "WR", "TE", "QB"] as const;
 const DROPOFF_WINDOW = 12;
 const CLIFF_RATIO = 1.6;
-const COL = "grid grid-cols-[minmax(0,1fr)_3.5rem_7rem_minmax(0,1.4fr)] items-baseline gap-3";
+// Player column is capped (not 1fr) so EV sits right after the name
+// instead of across a wide gap; the tags column absorbs the slack.
+const COL = "grid grid-cols-[minmax(0,15rem)_4rem_9rem_minmax(0,1fr)] items-baseline gap-3";
 const EMPTY = "-";
 
 type SortKey = "value" | "ev" | "survival";
@@ -87,16 +89,34 @@ function evTone(ev: number | null): string {
   return ev == null ? "text-muted-2" : ev >= 0 ? "text-success" : "text-danger";
 }
 
-function Chip({ text, tone }: { text: string; tone?: "muted" | "warn" }) {
+type Tone = "muted" | "warn" | "accent";
+
+function Chip({ text, tone = "muted" }: { text: string; tone?: Tone }) {
   const cls =
     tone === "warn"
       ? "border-warning/50 text-warning"
-      : "border-border-soft text-muted-2";
+      : tone === "accent"
+        ? "border-accent/60 text-accent"
+        : "border-border-soft text-muted-2";
   return (
     <span
-      className={`font-mono text-[8px] uppercase tracking-[0.12em] border rounded-full px-1 py-0.5 ${cls}`}
+      className={`font-mono text-[9px] uppercase tracking-[0.12em] border rounded-full px-1.5 py-0.5 ${cls}`}
     >
       {text}
+    </span>
+  );
+}
+
+// 538-style inline magnitude bar for survival.
+function SurvBar({ pct }: { pct: number }) {
+  const tone =
+    pct >= NO_RUSH_SURVIVAL ? "bg-success" : pct >= 30 ? "bg-warning" : "bg-danger";
+  return (
+    <span className="relative inline-block h-1.5 w-8 shrink-0 rounded-full bg-border-soft/60 align-middle">
+      <span
+        className={`absolute left-0 top-0 h-full rounded-full ${tone}`}
+        style={{ width: `${Math.max(4, Math.min(100, pct))}%` }}
+      />
     </span>
   );
 }
@@ -158,29 +178,33 @@ export function DecisionBoard({
 
   const cliffByPlayer = useMemo(() => lastInTierByPlayer(cands), [cands]);
 
-  function tagsFor(c: DecisionQuadrantCandidate): { text: string; warn: boolean }[] {
-    const out: { text: string; warn: boolean }[] = [];
+  function tagsFor(c: DecisionQuadrantCandidate): { text: string; tone: Tone }[] {
+    const out: { text: string; tone: Tone }[] = [];
+    // Committed-play tags lead in accent so tracking a play visibly
+    // marks the players it advances.
+    for (const p of advancesByPlayer.get(c.player_id) ?? [])
+      out.push({ text: p, tone: "accent" });
     if (c.survival_pct != null && c.survival_pct < NO_RUSH_SURVIVAL) {
-      out.push({ text: "soon", warn: true });
+      out.push({ text: "soon", tone: "warn" });
     }
     const cliff = cliffByPlayer.get(c.player_id);
-    if (cliff) out.push({ text: cliff, warn: true });
-    if (c.timeline_lane === "win-now") out.push({ text: "win-now", warn: false });
-    else if (c.timeline_lane === "future") out.push({ text: "future", warn: false });
-    for (const p of advancesByPlayer.get(c.player_id) ?? [])
-      out.push({ text: p, warn: false });
+    if (cliff) out.push({ text: cliff, tone: "warn" });
+    if (c.timeline_lane === "win-now") out.push({ text: "win-now", tone: "muted" });
+    else if (c.timeline_lane === "future")
+      out.push({ text: "future", tone: "muted" });
     for (const play of decision.plays_this_enables) {
       if (
         play.followthrough.target_candidates.some(
           (t) => t.player_id === c.player_id,
         )
       ) {
-        out.push({ text: play.name, warn: false });
+        out.push({ text: play.name, tone: "muted" });
       }
     }
     const seen = new Set<string>();
     return out.filter((t) => (seen.has(t.text) ? false : (seen.add(t.text), true)));
   }
+  const isTracked = (id: string) => advancesByPlayer.has(id);
 
   const callCand = cands.find((c) => c.player_id === standingCallId) ?? null;
   const callSurvival = callCand?.survival_pct ?? null;
@@ -270,7 +294,7 @@ export function DecisionBoard({
         {callCand && tagsFor(callCand).length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {tagsFor(callCand).map((t) => (
-              <Chip key={t.text} text={t.text} tone={t.warn ? "warn" : "muted"} />
+              <Chip key={t.text} text={t.text} tone={t.tone} />
             ))}
           </div>
         )}
@@ -309,7 +333,7 @@ export function DecisionBoard({
           </div>
           <div className="rounded-md border border-border-soft overflow-hidden">
             <div
-              className={`${COL} bg-surface/50 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2`}
+              className={`${COL} bg-surface/50 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2`}
             >
               <span>Player</span>
               <span className="text-right">EV</span>
@@ -318,44 +342,46 @@ export function DecisionBoard({
             </div>
             {rows.map((c) => {
               const ev = computeEv(c, pickNo);
-              const survLabel = c.availability_next_pick
-                ? c.availability_next_pick.replace("_", " ")
-                : null;
               return (
                 <div
                   key={c.player_id}
-                  className={`${COL} px-3 py-1.5 border-t border-border-soft/50`}
+                  className={`${COL} px-3 py-2 border-t border-border-soft/50 ${
+                    isTracked(c.player_id) ? "bg-accent/5" : ""
+                  }`}
                 >
                   <span className="truncate">
-                    <span className="text-[13px] font-semibold text-foreground">
+                    <span className="text-[15px] font-semibold text-foreground">
                       {c.name}
                     </span>{" "}
-                    <span className="font-mono text-[9px] uppercase text-muted-2">
+                    <span className="font-mono text-[10px] uppercase text-muted-2">
                       {c.position}
                       {c.team ? `-${c.team}` : ""}
                     </span>
                   </span>
                   <span
-                    className={`text-right font-mono text-[12px] font-semibold ${evTone(ev)}`}
+                    className={`text-right font-mono text-[14px] font-semibold ${evTone(ev)}`}
                   >
                     {ev != null ? `${ev >= 0 ? "+" : ""}${ev.toFixed(1)}` : EMPTY}
                   </span>
-                  <span
-                    className={`text-right font-mono text-[11px] ${survivalTone(c.survival_pct)}`}
-                  >
-                    {c.survival_pct != null
-                      ? `${survLabel ? survLabel + " " : ""}${c.survival_pct}%`
-                      : EMPTY}
-                  </span>
+                  {c.survival_pct != null ? (
+                    <span className="flex items-center justify-end gap-1.5">
+                      <SurvBar pct={c.survival_pct} />
+                      <span
+                        className={`font-mono text-[13px] ${survivalTone(c.survival_pct)}`}
+                      >
+                        {c.survival_pct}%
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-right font-mono text-[13px] text-muted-2">
+                      {EMPTY}
+                    </span>
+                  )}
                   <span className="flex flex-wrap items-baseline gap-1">
                     {tagsFor(c)
                       .slice(0, 3)
                       .map((t) => (
-                        <Chip
-                          key={t.text}
-                          text={t.text}
-                          tone={t.warn ? "warn" : "muted"}
-                        />
+                        <Chip key={t.text} text={t.text} tone={t.tone} />
                       ))}
                   </span>
                 </div>
@@ -372,36 +398,48 @@ export function DecisionBoard({
             Plays
           </span>
           <div className="mt-1 space-y-1.5">
-            {activePlays.map((c) => (
-              <div
-                key={c.commitment_id}
-                className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border-soft bg-surface/30 px-3 py-1.5"
-              >
-                <span className="flex flex-wrap items-baseline gap-2">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
-                    {archetypeLabel(c.archetype)}
-                  </span>
-                  <span className="text-[12px] font-semibold text-foreground">
-                    {c.play_name}
-                  </span>
-                  {c.followthrough_targets.length > 0 && (
-                    <span className="text-[11px] text-muted">
-                      {c.followthrough_targets.map((t) => t.name).join(", ")}
-                    </span>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    abandonPlay({ leagueId, commitmentId: c.commitment_id });
-                    refresh();
-                  }}
-                  className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
+            {activePlays.map((c) => {
+              const onBoard = c.followthrough_targets.filter((t) =>
+                cands.some((cc) => cc.player_id === t.player_id),
+              );
+              return (
+                <div
+                  key={c.commitment_id}
+                  className="rounded-md border border-border-soft bg-surface/30 px-3 py-2"
                 >
-                  Abandon
-                </button>
-              </div>
-            ))}
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="flex flex-wrap items-baseline gap-2">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
+                        {archetypeLabel(c.archetype)}
+                      </span>
+                      <span className="text-[13px] font-semibold text-foreground">
+                        {c.play_name}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        abandonPlay({ leagueId, commitmentId: c.commitment_id });
+                        refresh();
+                      }}
+                      className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
+                    >
+                      Abandon
+                    </button>
+                  </div>
+                  {onBoard.length > 0 ? (
+                    <p className="mt-0.5 text-[11px] text-accent">
+                      Tagged on the board: {onBoard.map((t) => t.name).join(", ")}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-[11px] text-muted-2">
+                      No target on the board yet; it surfaces in the table when one
+                      is available.
+                    </p>
+                  )}
+                </div>
+              );
+            })}
             {openSuggestions.map((p) => (
               <div
                 key={`${p.archetype}-${p.primary_player.player_id}`}
@@ -411,7 +449,7 @@ export function DecisionBoard({
                   <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
                     {archetypeLabel(p.archetype)}
                   </span>
-                  <span className="text-[12px] font-semibold text-foreground">
+                  <span className="text-[13px] font-semibold text-foreground">
                     {p.name}
                   </span>
                 </span>
