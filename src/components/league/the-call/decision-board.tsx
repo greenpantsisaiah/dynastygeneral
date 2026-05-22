@@ -104,6 +104,11 @@ function TagChips({ tags }: { tags: string[] }) {
   );
 }
 
+// Compact pick card sized for a multi-column grid: name + EV on the
+// first line, position + survival on the second, up to two tags. The
+// color of EV (green/red) and survival (green/amber/red) carry the
+// at-a-glance read so the words ("coin flip", "likely here") are
+// dropped here and kept only on THE CALL hero.
 function PickRow({
   c,
   pickNo,
@@ -116,35 +121,42 @@ function PickRow({
   const ev = computeEv(c, pickNo);
   const evColor =
     ev == null ? "text-muted-2" : ev >= 0 ? "text-success" : "text-danger";
-  const survLabel = c.availability_next_pick
-    ? c.availability_next_pick.replace("_", " ")
-    : null;
   return (
-    <div className="rounded-md border border-border-soft bg-surface/30 px-3 py-2">
+    <div className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[13px] font-semibold text-foreground truncate">
-          {c.name}{" "}
-          <span className="font-mono text-[10px] text-muted-2">
-            {c.position}
-            {c.team ? `-${c.team}` : ""}
+        <span className="text-[12px] font-semibold text-foreground truncate">
+          {c.name}
+        </span>
+        {ev != null && (
+          <span
+            className={`shrink-0 font-mono text-[12px] font-semibold ${evColor}`}
+          >
+            {ev >= 0 ? "+" : ""}
+            {ev.toFixed(1)}
           </span>
-        </span>
-        <span className="flex shrink-0 items-baseline gap-2 font-mono">
-          {ev != null && (
-            <span className={`text-[13px] font-semibold ${evColor}`}>
-              {ev >= 0 ? "+" : ""}
-              {ev.toFixed(1)}
-            </span>
-          )}
-          {c.survival_pct != null && (
-            <span className={`text-[11px] ${survivalTone(c.survival_pct)}`}>
-              {survLabel ? `${survLabel} ` : ""}
-              {c.survival_pct}%
-            </span>
-          )}
-        </span>
+        )}
       </div>
-      <TagChips tags={tags} />
+      <div className="mt-0.5 flex items-baseline justify-between gap-2 font-mono text-[10px]">
+        <span className="text-muted-2 truncate">
+          {c.position}
+          {c.team ? `-${c.team}` : ""}
+        </span>
+        {c.survival_pct != null && (
+          <span className={survivalTone(c.survival_pct)}>{c.survival_pct}%</span>
+        )}
+      </div>
+      {tags.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {tags.slice(0, 2).map((t) => (
+            <span
+              key={t}
+              className="font-mono text-[8px] uppercase tracking-[0.12em] text-muted-2 border border-border-soft rounded-full px-1 py-0.5"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -263,7 +275,7 @@ export function DecisionBoard({
   }
 
   return (
-    <div className="px-5 py-5 space-y-6">
+    <div className="px-5 py-4 space-y-5">
       {/* THE CALL */}
       <div className="rounded-md border border-accent/60 bg-accent/5 px-4 py-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -329,7 +341,7 @@ export function DecisionBoard({
           <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
             Other picks you'd lose by waiting.
           </p>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {atRisk.map((c) => (
               <PickRow key={c.player_id} c={c} pickNo={pickNo} tags={tagsFor(c)} />
             ))}
@@ -348,7 +360,7 @@ export function DecisionBoard({
         </p>
 
         {willLast.length > 0 && (
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {willLast.map((c) => (
               <PickRow key={c.player_id} c={c} pickNo={pickNo} tags={tagsFor(c)} />
             ))}
@@ -361,11 +373,11 @@ export function DecisionBoard({
             <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
               Plays you're running
             </div>
-            <ul className="mt-1 space-y-2">
+            <ul className="mt-1 grid gap-2 sm:grid-cols-2">
               {activePlays.map((c) => (
                 <li
                   key={c.commitment_id}
-                  className="rounded-md border border-border-soft bg-surface/30 px-3 py-2"
+                  className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-1.5"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="flex flex-wrap items-baseline gap-2">
@@ -405,11 +417,11 @@ export function DecisionBoard({
             <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
               Plays you could run
             </div>
-            <ul className="mt-1 space-y-2">
+            <ul className="mt-1 grid gap-2 sm:grid-cols-2">
               {openSuggestions.map((p) => (
                 <li
                   key={`${p.archetype}-${p.primary_player.player_id}`}
-                  className="rounded-md border border-border-soft bg-surface/30 px-3 py-2"
+                  className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-1.5"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="flex flex-wrap items-baseline gap-2">
@@ -447,7 +459,7 @@ export function DecisionBoard({
                       </button>
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] leading-snug text-muted">
+                  <p className="mt-1 text-[11px] leading-snug text-muted line-clamp-2">
                     {p.genius_vs_average_line}
                   </p>
                 </li>
