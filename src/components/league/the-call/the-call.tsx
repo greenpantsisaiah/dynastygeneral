@@ -59,23 +59,9 @@ export function TheCall({
     >
       <Bridge decision={decision} />
 
-      {decision.feel_weird_disclaimer && (
-        <DisclaimerBand text={decision.feel_weird_disclaimer} />
-      )}
-
-      {decision.opponent_between_picks?.primary_opponent && (
-        <OpponentGapLine
-          ownerName={
-            decision.opponent_between_picks.primary_opponent.owner_name
-          }
-          totalDemand={
-            decision.opponent_between_picks.total_demand_by_position
-          }
-        />
-      )}
-
       <DecisionBoard
         decision={decision}
+        disclaimer={decision.feel_weird_disclaimer}
         leagueId={leagueId}
         currentPickNo={currentPickNo}
         suggestedPlays={suggestedPlays}
@@ -114,9 +100,6 @@ function Bridge({ decision }: { decision: Decision }) {
     <header className="border-b border-border-soft px-5 py-3">
       <div className="flex flex-wrap items-baseline gap-3">
         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          The Call
-        </span>
-        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
           Pick {decision.pick_label}
         </span>
         {decision.picks_until_me === 0 ? (
@@ -134,45 +117,11 @@ function Bridge({ decision }: { decision: Decision }) {
   );
 }
 
-function DisclaimerBand({ text }: { text: string }) {
-  // Disclaimer copy already begins "Counterintuitive lock." so no
-  // band label is needed (and the prior "Hear me out" header was
-  // Voice C drift that we explicitly rejected). The accent border
-  // and background carry the visual emphasis.
-  return (
-    <div className="border-b border-warning/40 bg-warning/5 px-5 py-3">
-      <p className="text-[12px] leading-snug text-foreground">{text}</p>
-    </div>
-  );
-}
-
-
-function OpponentGapLine({
-  ownerName,
-  totalDemand,
-}: {
-  ownerName: string | null;
-  totalDemand: Record<string, number>;
-}) {
-  // Identify the position with the highest demand from the gap as
-  // the most likely target. Per CANONICAL_SOURCES.md the demand
-  // values come from analyzeOpponentsInGap; we read them as-is.
-  const sortedPositions = Object.entries(totalDemand)
-    .filter(([pos]) => ["QB", "RB", "WR", "TE"].includes(pos))
-    .sort((a, b) => b[1] - a[1]);
-  const topPos = sortedPositions[0]?.[0] ?? null;
-  return (
-    <div className="border-b border-border-soft px-5 py-3 bg-surface/40">
-      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-        Between picks
-      </div>
-      <p className="mt-1 text-xs leading-snug text-foreground">
-        {ownerName ?? "Next picker"} owns the gap.
-        {topPos ? ` Likely targets ${topPos} first.` : ""}
-      </p>
-    </div>
-  );
-}
+// "Counterintuitive lock" disclaimer + the "Between picks" opponent-gap
+// line were retired from the top of The Call 2026-05-22. The disclaimer
+// is now folded into the call hero (it duplicated the hero's reasoning);
+// the gap line ("X owns the gap, likely targets Y") was a low-value
+// constant that didn't earn its spot.
 
 // Decision Quadrant moved to ./decision-quadrant.tsx; parked for the
 // /pick deep-dive route. Founder feedback 2026-05-08: the chart "tells

@@ -49,6 +49,13 @@ const CLIFF_RATIO = 1.6;
 
 export type DecisionBoardProps = {
   decision: Decision;
+  /**
+   * The counterintuitive-lock disclaimer (feel_weird_disclaimer),
+   * folded into the call hero instead of a separate top band: when
+   * present it is the call's reasoning line (warning-toned), since it
+   * duplicates the per-pick reason for weird picks.
+   */
+  disclaimer?: string | null;
   leagueId: string;
   currentPickNo: number | null;
   suggestedPlays?: Play[];
@@ -169,6 +176,7 @@ function PickRow({
 
 export function DecisionBoard({
   decision,
+  disclaimer,
   leagueId,
   currentPickNo,
   suggestedPlays = [],
@@ -325,9 +333,15 @@ export function DecisionBoard({
           )}
         </div>
         {callCand && <TagChips tags={tagsFor(callCand)} />}
-        <p className="mt-2 text-[12px] leading-snug text-muted">
-          {decision.recommendation.primary_reason}
-        </p>
+        {disclaimer ? (
+          <p className="mt-2 text-[12px] leading-snug text-warning">
+            {disclaimer}
+          </p>
+        ) : (
+          <p className="mt-2 text-[12px] leading-snug text-muted">
+            {decision.recommendation.primary_reason}
+          </p>
+        )}
         {callAtRisk && topWait ? (
           <p className="mt-1 text-[11px] leading-snug text-warning">
             {topWait.name} (higher value) will likely keep ({topWait.survival_pct}%);
