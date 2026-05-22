@@ -10,8 +10,10 @@
  *
  * Strategic Lanes (the 3-lane grid) was retired 2026-05-21 in favor
  * of plays-as-cornerstone (Principle 12). The Call is now a single-
- * pick verdict: a standing-call hero + best-value alternatives
- * (StandingCall), with the strategic frame living in the Plays panel.
+ * pick verdict on top, then the DecisionBoard: the same candidates
+ * weighed from four angles (by lane, by tier/EV, by play, by path),
+ * folding in the Tier Map + Draft Path Projector. The roster-wide
+ * strategic frame still lives in the Plays panel.
  *
  * The component is a presentational shell over:
  *
@@ -32,15 +34,24 @@
 
 import { useState } from "react";
 import type { Decision } from "@/lib/strategy/decision-synthesis/types";
-import { StandingCall } from "./standing-call";
+import type { DraftPathProjection } from "@/lib/strategy/draft-paths/types";
+import type { TierMap as TierMapData } from "@/lib/engine/evaluation/tier-map";
+import { DecisionBoard } from "./decision-board";
 import { PlaysEnabledCallout } from "../plays-enabled-callout";
 
 export type TheCallProps = {
   decision: Decision;
+  tierMap: TierMapData | null;
+  pathProjection: DraftPathProjection | null;
   leagueId: string;
 };
 
-export function TheCall({ decision, leagueId }: TheCallProps) {
+export function TheCall({
+  decision,
+  tierMap,
+  pathProjection,
+  leagueId,
+}: TheCallProps) {
   return (
     <section
       className="mb-6 overflow-hidden rounded-lg border-2 border-accent/60"
@@ -63,7 +74,12 @@ export function TheCall({ decision, leagueId }: TheCallProps) {
         />
       )}
 
-      <StandingCall decision={decision} leagueId={leagueId} />
+      <DecisionBoard
+        decision={decision}
+        tierMap={tierMap}
+        pathProjection={pathProjection}
+        leagueId={leagueId}
+      />
 
       {decision.plays_this_enables.length > 0 && (
         <PlaysEnabledCallout

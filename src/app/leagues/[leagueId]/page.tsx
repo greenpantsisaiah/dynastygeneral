@@ -160,7 +160,6 @@ import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
-import { TierMap } from "@/components/league/tier-map";
 import { buildTierMap, type TierMap as TierMapData } from "@/lib/engine/evaluation/tier-map";
 import type {
   PlayerSignalsRow,
@@ -2126,7 +2125,12 @@ export default async function LeagueHubPage({
                   active-draft hub. */}
               {draftActive && decision && (
                 <div className="mb-8">
-                  <TheCall decision={decision} leagueId={leagueId} />
+                  <TheCall
+                    decision={decision}
+                    tierMap={tierMap}
+                    pathProjection={draftPathProjection}
+                    leagueId={leagueId}
+                  />
                 </div>
               )}
 
@@ -2191,15 +2195,14 @@ export default async function LeagueHubPage({
                   />
                 )}
 
-              {/* Draft Path Projector. Phase D 2026-05-19. The killer
-                  pre-draft + active-draft surface. 3-5 ranked
-                  positional sequences side-by-side with per-slot
-                  candidates + survival probabilities. Renders only
-                  when paths are available + draft is pre-draft or
-                  active (no value post-draft). */}
+              {/* Draft Path Projector (pre-draft only). During an
+                  active draft this is folded into the Decision Board's
+                  "By path" angle inside The Call (2026-05-21), so the
+                  standalone render is now scoped to pre-draft, where
+                  there is no Decision Board yet. */}
               {draftPathProjection &&
                 draftPathProjection.paths.length > 0 &&
-                (draftState?.status === "pre_draft" || draftActive) && (
+                draftState?.status === "pre_draft" && (
                   <DraftPathProjector projection={draftPathProjection} />
                 )}
 
