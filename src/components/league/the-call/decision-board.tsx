@@ -104,11 +104,10 @@ function TagChips({ tags }: { tags: string[] }) {
   );
 }
 
-// Compact pick card sized for a multi-column grid: name + EV on the
-// first line, position + survival on the second, up to two tags. The
-// color of EV (green/red) and survival (green/amber/red) carry the
-// at-a-glance read so the words ("coin flip", "likely here") are
-// dropped here and kept only on THE CALL hero.
+// Compact pick card for a multi-column grid. Hierarchy: the NAME is
+// the anchor (largest), then a labeled data line so neither number is
+// guess-the-metric ("EV +1.0" and the survival word + pct, e.g.
+// "likely here 86%"). Colors still carry the at-a-glance read.
 function PickRow({
   c,
   pickNo,
@@ -121,28 +120,35 @@ function PickRow({
   const ev = computeEv(c, pickNo);
   const evColor =
     ev == null ? "text-muted-2" : ev >= 0 ? "text-success" : "text-danger";
+  const survLabel = c.availability_next_pick
+    ? c.availability_next_pick.replace("_", " ")
+    : null;
   return (
-    <div className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-1.5">
+    <div className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-2">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[12px] font-semibold text-foreground truncate">
+        <span className="text-[14px] font-semibold leading-tight text-foreground truncate">
           {c.name}
         </span>
-        {ev != null && (
-          <span
-            className={`shrink-0 font-mono text-[12px] font-semibold ${evColor}`}
-          >
-            {ev >= 0 ? "+" : ""}
-            {ev.toFixed(1)}
-          </span>
-        )}
-      </div>
-      <div className="mt-0.5 flex items-baseline justify-between gap-2 font-mono text-[10px]">
-        <span className="text-muted-2 truncate">
+        <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-2">
           {c.position}
           {c.team ? `-${c.team}` : ""}
         </span>
+      </div>
+      <div className="mt-1 flex items-baseline justify-between gap-2 font-mono text-[10px]">
+        {ev != null ? (
+          <span className={evColor}>
+            <span className="text-muted-2">EV </span>
+            {ev >= 0 ? "+" : ""}
+            {ev.toFixed(1)}
+          </span>
+        ) : (
+          <span />
+        )}
         {c.survival_pct != null && (
-          <span className={survivalTone(c.survival_pct)}>{c.survival_pct}%</span>
+          <span className={survivalTone(c.survival_pct)}>
+            {survLabel ? `${survLabel} ` : ""}
+            {c.survival_pct}%
+          </span>
         )}
       </div>
       {tags.length > 0 && (
@@ -288,11 +294,14 @@ export function DecisionBoard({
             </span>
           </div>
           {callEv != null && (
-            <span
-              className={`shrink-0 font-mono text-[20px] font-semibold ${callEvColor} leading-none`}
-            >
-              {callEv >= 0 ? "+" : ""}
-              {callEv.toFixed(1)}
+            <span className="shrink-0 text-right leading-none">
+              <span className="block font-mono text-[8px] uppercase tracking-[0.16em] text-muted-2">
+                EV
+              </span>
+              <span className={`font-mono text-[20px] font-semibold ${callEvColor}`}>
+                {callEv >= 0 ? "+" : ""}
+                {callEv.toFixed(1)}
+              </span>
             </span>
           )}
         </div>
