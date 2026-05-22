@@ -500,6 +500,7 @@ function run() {
     });
     const hoard = fires.find((p) => p.archetype === "qb_hoard");
     check("QB Hoard fires in 1QB with 3 QBs", hoard != null);
+    check("QB Hoard is auto-active (conditions met)", hoard?.auto_active === true);
     check(
       "QB Hoard anchors on the top-value QB",
       hoard?.primary_player.player_id === a.id,
@@ -649,6 +650,7 @@ function run() {
     );
     const bellcow = plays.find((p) => p.name === "RB Bellcow");
     check("IN build becomes a play", bellcow != null);
+    check("IN build is auto-active", bellcow?.auto_active === true);
     check(
       "Lane play uses lane_path archetype",
       bellcow?.archetype === "lane_path",
@@ -666,6 +668,10 @@ function run() {
     check(
       "CLOSE build names funding in follow-through",
       stable?.followthrough.description.includes("Spare RB") ?? false,
+    );
+    check(
+      "CLOSE build is NOT auto-active (one move away)",
+      !stable?.auto_active,
     );
   }
 

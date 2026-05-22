@@ -112,6 +112,11 @@ export function ActivePlaysPanel({
     const key = `${p.archetype}:${p.primary_player.player_id}`;
     return !committedKeys.has(key) && !dismissedKeys.has(key);
   });
+  // Auto-active: the roster already meets the play's conditions, so it
+  // is running whether or not the user commits. Surfaced distinctly
+  // from proposed suggestions (one move away).
+  const autoActiveSuggestions = openSuggestions.filter((p) => p.auto_active);
+  const proposedSuggestions = openSuggestions.filter((p) => !p.auto_active);
 
   function handleDismiss(play: Play) {
     dismissSuggestion({ leagueId, play });
@@ -145,7 +150,11 @@ export function ActivePlaysPanel({
           </p>
         </div>
         <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
-          {active.length} active · {openSuggestions.length} suggested
+          {active.length} committed
+          {autoActiveSuggestions.length > 0
+            ? ` · ${autoActiveSuggestions.length} active`
+            : ""}
+          {` · ${proposedSuggestions.length} suggested`}
           {historic.length > 0 ? ` · ${historic.length} closed` : ""}
         </span>
       </div>
@@ -176,13 +185,37 @@ export function ActivePlaysPanel({
         </div>
       )}
 
-      {openSuggestions.length > 0 && (
+      {autoActiveSuggestions.length > 0 && (
+        <div className="mt-4">
+          <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-success">
+            Active now · conditions met
+          </div>
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-2">
+            You are already running these. Commit to lock one into pick
+            + trade discipline, or dismiss if you are not pursuing it.
+          </p>
+          <ul className="mt-1 space-y-2">
+            {autoActiveSuggestions.map((p) => (
+              <SuggestionRow
+                key={`${p.archetype}-${p.primary_player.player_id}`}
+                play={p}
+                leagueId={leagueId}
+                currentPickNo={currentPickNo}
+                onCommit={() => setCommitments(getPlayCommitments(leagueId))}
+                onDismiss={() => handleDismiss(p)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {proposedSuggestions.length > 0 && (
         <div className="mt-4">
           <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
             Plays the engine sees you could commit to
           </div>
           <ul className="mt-1 space-y-2">
-            {openSuggestions.map((p) => (
+            {proposedSuggestions.map((p) => (
               <SuggestionRow
                 key={`${p.archetype}-${p.primary_player.player_id}`}
                 play={p}

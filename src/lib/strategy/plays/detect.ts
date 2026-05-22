@@ -483,6 +483,7 @@ function detectQbHoard(args: {
     genius_vs_average_line:
       "Genius if you flip a surplus QB when a contender's starter goes down. Bench rot otherwise.",
     format_gates: playFormatGates.qb_hoard,
+    auto_active: true,
   };
 }
 
@@ -579,6 +580,9 @@ export function detectLanePlays(
       },
       genius_vs_average_line: genius,
       format_gates: playFormatGates.lane_path,
+      // A build the roster FITS is already running; PARTLY-FIT builds
+      // are one move away, so they read as suggestions, not active.
+      auto_active: m.state === "in",
     });
   }
   return plays;
