@@ -83,7 +83,11 @@ import { LastVisitWriter } from "@/components/system/last-visit-writer";
 import { LastVisitDigest } from "@/components/league/last-visit-digest";
 import { CompanionCheckIn } from "@/components/league/companion-check-in";
 import { classifyBeats } from "@/lib/strategy/companion/classify";
-import type { Beat, BeatStage } from "@/lib/strategy/companion/types";
+import type {
+  Beat,
+  BeatStage,
+  AnticipationInput,
+} from "@/lib/strategy/companion/types";
 import type {
   WhatIfReadout,
   WhatIfEvEntry,
@@ -1574,10 +1578,32 @@ export default async function LeagueHubPage({
             companionChosenId = latest.player_id;
           }
         }
+        // Anticipation: the standing call's survival to the user's next
+        // pick, grounded in the decision's canonical survival_pct. Fires
+        // only when survival is uncertain (the classifier gates >= 75%).
+        let companionAnticipation: AnticipationInput | null = null;
+        const leadCandidate = decision?.top_candidates?.[0];
+        const nextUserSlot = leagueSnapshot.draft.my_pick_schedule?.[0];
+        if (
+          draftActive &&
+          leadCandidate &&
+          leadCandidate.survival_pct != null &&
+          nextUserSlot
+        ) {
+          companionAnticipation = {
+            subject_label: leadCandidate.name,
+            position: leadCandidate.position,
+            survival_pct: leadCandidate.survival_pct,
+            to_pick_no: nextUserSlot.pick_no,
+            to_pick_label: nextUserSlot.pick_label,
+            ev_if_chosen: null,
+          };
+        }
         companionBeats = classifyBeats({
           stage: companionStage,
           whatIf: companionWhatIf,
           chosenId: companionChosenId,
+          anticipation: companionAnticipation,
           evBank: leagueEvBank,
           draftProgress: {
             picks_made: leagueSnapshot.draft.picks_made.length,
