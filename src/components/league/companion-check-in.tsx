@@ -19,6 +19,7 @@
 import type { Beat, BeatKind, BeatTone } from "@/lib/strategy/companion/types";
 import { rankBeats } from "@/lib/strategy/companion/priority";
 import { PlayUrgencyChip } from "./plays-shared";
+import { seedCoachWithBeat } from "./coach-chat";
 
 const KIND_LABEL: Record<BeatKind, string> = {
   vindication: "Called it",
@@ -43,6 +44,40 @@ const TONE_EYEBROW: Record<BeatTone, string> = {
   challenge: "text-foreground",
   neutral: "text-muted-2",
 };
+
+/**
+ * Hand a beat to Coach (the PULL half). Reuses the existing coach:seed
+ * mechanism, attaching the beat's grounded provenance so Coach engages
+ * the exact decision. An explicit override wins when the hub provides one.
+ */
+function talkThrough(beat: Beat, override?: (b: Beat) => void): void {
+  if (override) {
+    override(beat);
+    return;
+  }
+  const v = beat.source.values ?? {};
+  const chosen = typeof v.chosen === "string" ? v.chosen : undefined;
+  const alternative =
+    typeof v.alternative === "string" ? v.alternative : undefined;
+  const evDelta = typeof v.ev_delta === "number" ? v.ev_delta : undefined;
+  const thesis = typeof v.thesis === "string" ? v.thesis : undefined;
+  const prompt =
+    chosen && alternative
+      ? `Talk me through ${chosen} over ${alternative}. Lay out the case both ways and give me your honest read for my window.`
+      : `Talk me through this: ${beat.headline}`;
+  seedCoachWithBeat(prompt, {
+    kind: beat.kind,
+    headline: beat.headline,
+    body: beat.body,
+    source_signal: beat.source.signal,
+    source_detail: beat.source.detail,
+    chosen,
+    alternative,
+    ev_delta: evDelta,
+    thesis,
+    bet_id: beat.bet_id,
+  });
+}
 
 export type CompanionCheckInProps = {
   beats: Beat[];
@@ -104,10 +139,10 @@ function LeadBeat({
         <p className="mt-1 text-[13px] leading-snug text-muted">{beat.body}</p>
       )}
       <div className="mt-2 flex items-center gap-3">
-        {beat.prompts_handoff && onTalkItThrough && (
+        {beat.prompts_handoff && (
           <button
             type="button"
-            onClick={() => onTalkItThrough(beat)}
+            onClick={() => talkThrough(beat, onTalkItThrough)}
             className="rounded-sm border border-border-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-foreground"
           >
             Talk it through

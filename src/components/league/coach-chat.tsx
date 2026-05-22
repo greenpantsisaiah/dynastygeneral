@@ -144,6 +144,9 @@ export function CoachChat({
   // "I just got failed... lost my long question." Question text is
   // the user's WORK; never lose it.
   const [draft, setDraft] = useState("");
+  const [pendingBeat, setPendingBeat] = useState<CompanionBeatSeed | null>(
+    null,
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [capHit, setCapHit] = useState<{
@@ -235,9 +238,12 @@ export function CoachChat({
   useEffect(() => {
     if (variant !== "panel") return;
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ prompt?: string }>).detail;
+      const detail = (
+        e as CustomEvent<{ prompt?: string; companion_beat?: CompanionBeatSeed }>
+      ).detail;
       if (!detail?.prompt) return;
       setDraft(detail.prompt);
+      setPendingBeat(detail.companion_beat ?? null);
       // Scroll into the input and focus it
       requestAnimationFrame(() => {
         textareaRef.current?.focus();
@@ -273,6 +279,7 @@ export function CoachChat({
         setDraft(message);
       };
       setDraft("");
+      setPendingBeat(null);
       setPending(true);
       try {
         const url = new URL(
@@ -299,6 +306,7 @@ export function CoachChat({
                 (t) => t.name,
               ),
             })),
+            companion_beat: pendingBeat ?? undefined,
           }),
         });
         const reason = await readPaywallReason(res);
@@ -356,7 +364,7 @@ export function CoachChat({
         setPending(false);
       }
     },
-    [history, leagueId, pending, username],
+    [history, leagueId, pending, pendingBeat, username],
   );
 
   async function clearChat() {
@@ -674,6 +682,41 @@ export function seedCoachPrompt(prompt: string): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent("coach:seed", { detail: { prompt } }),
+  );
+}
+
+/**
+ * A companion beat handed to Coach for the debate handoff (Principle
+ * 13). Mirrors the route's companion_beat schema so Coach grounds on
+ * the same provenance the companion surfaced.
+ */
+export type CompanionBeatSeed = {
+  kind: string;
+  headline: string;
+  body?: string;
+  source_signal: string;
+  source_detail: string;
+  chosen?: string;
+  alternative?: string;
+  ev_delta?: number;
+  thesis?: string;
+  bet_id?: string;
+};
+
+/**
+ * Seed the coach input with a prompt AND attach a companion beat to the
+ * next request, so Coach engages the exact decision the user clicked
+ * "talk it through" on.
+ */
+export function seedCoachWithBeat(
+  prompt: string,
+  beat: CompanionBeatSeed,
+): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("coach:seed", {
+      detail: { prompt, companion_beat: beat },
+    }),
   );
 }
 
