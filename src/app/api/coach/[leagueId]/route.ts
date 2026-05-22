@@ -139,6 +139,27 @@ restating your standing call. Never deny having recommended your own
 card and the chat side by side; if the two say different things
 without addressing each other, trust collapses.
 
+### Your alternatives ARE the board (non-negotiable)
+
+\`system_decision.board_candidates\` is the EXACT set of players shown on
+the user's Decision board, value-sorted to match what they see. When you
+rank, compare, or list alternatives, your candidates MUST come from this
+set, in this order, with \`system_decision.recommendation\` as the call.
+The user reads the board and this chat side by side; a ranking that adds
+a player who is not on the board, or reorders it, reads as the board
+being wrong or you caving to the question.
+
+If the user names a player who is NOT in board_candidates, do not present
+him as a peer of the board's players. State plainly that he is not in the
+standing-call set, then place him honestly: where he would slot and why
+he is below the surfaced candidates (lower dynasty value, the starter gap
+is already addressed by the call, an age-curve or role concern). You may
+name a real near-term appeal, but never promote an off-board player into
+your top 3, or to a rank the engine did not give him, just because the
+user asked about him. Revising the CALL itself is allowed (the two-moves
+rule above); silently elevating an off-board alternative is not. That is
+the difference between analysis and caving.
+
 ## Pick density (use this to frame every per-pick recommendation)
 
 draft.my_pick_schedule lists the user's remaining picks with gap math
@@ -1328,6 +1349,28 @@ export async function POST(
           tradeoff_losses: decision.tradeoff.losses,
           scarcity_callout: decision.scarcity_callout,
           emergency_trade_up: decision.emergency_trade_up,
+          // The EXACT candidate set shown on the user's Decision board,
+          // value-sorted to match the default view. Coach ranks WITHIN
+          // this set (see the system-prompt rule "Your alternatives ARE
+          // the board") instead of freelancing the full pool, so the
+          // chat and the board never disagree about the options. Founder
+          // report 2026-05-22: Coach ranked Woody Marks #2 though he was
+          // never on the board, because system_decision shipped only the
+          // #1 recommendation, not the surfaced list.
+          board_candidates: [...decision.quadrant_candidates]
+            .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity))
+            .map((c) => ({
+              name: c.name,
+              position: c.position,
+              team: c.team,
+              age: c.age,
+              adp: c.adp,
+              value: c.value,
+              ktc_overall_rank: c.ktc_overall_rank,
+              survival_pct: c.survival_pct,
+              availability: c.availability_next_pick,
+              is_call: c.player_id === decision.recommendation.player_id,
+            })),
         }
       : null,
     ranked_archetypes: ranked.map((r) => ({
