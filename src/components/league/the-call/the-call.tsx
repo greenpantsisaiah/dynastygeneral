@@ -35,20 +35,17 @@
 import { useState } from "react";
 import type { Decision } from "@/lib/strategy/decision-synthesis/types";
 import type { DraftPathProjection } from "@/lib/strategy/draft-paths/types";
-import type { TierMap as TierMapData } from "@/lib/engine/evaluation/tier-map";
 import { DecisionBoard } from "./decision-board";
 import { PlaysEnabledCallout } from "../plays-enabled-callout";
 
 export type TheCallProps = {
   decision: Decision;
-  tierMap: TierMapData | null;
   pathProjection: DraftPathProjection | null;
   leagueId: string;
 };
 
 export function TheCall({
   decision,
-  tierMap,
   pathProjection,
   leagueId,
 }: TheCallProps) {
@@ -76,7 +73,6 @@ export function TheCall({
 
       <DecisionBoard
         decision={decision}
-        tierMap={tierMap}
         pathProjection={pathProjection}
         leagueId={leagueId}
       />

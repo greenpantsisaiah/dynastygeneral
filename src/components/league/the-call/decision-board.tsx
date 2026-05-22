@@ -23,16 +23,13 @@ import type {
   DecisionQuadrantCandidate,
 } from "@/lib/strategy/decision-synthesis/types";
 import type { DraftPathProjection } from "@/lib/strategy/draft-paths/types";
-import type { TierMap as TierMapData } from "@/lib/engine/evaluation/tier-map";
 import type { PlayCommitment } from "@/lib/strategy/plays/types";
 import { CandidateBlock, computeEv } from "./candidate-bits";
-import { TierMap } from "../tier-map";
 import { DraftPathProjector } from "../draft-path-projector";
 import { getActivePlayCommitments, archetypeLabel } from "@/lib/plays-storage";
 
 export type DecisionBoardProps = {
   decision: Decision;
-  tierMap: TierMapData | null;
   pathProjection: DraftPathProjection | null;
   leagueId: string;
 };
@@ -42,6 +39,45 @@ const LANES: { id: "win-now" | "balanced" | "future"; label: string }[] = [
   { id: "balanced", label: "Balanced" },
   { id: "future", label: "Future" },
 ];
+
+// Positional drop-off (the "tier drops" signal) derived from the value
+// data the rest of the board trusts, not the uncalibrated variance-band
+// tier engine. Within each position's top window, a value gap that is
+// CLIFF_RATIO x the window's average gap is the visible cliff; the
+// players above it are the elite tier.
+const DROPOFF_POSITIONS = ["RB", "WR", "TE", "QB"] as const;
+const DROPOFF_WINDOW = 12;
+const CLIFF_RATIO = 1.6;
+
+type Dropoff = {
+  pos: string;
+  available: number;
+  eliteCount: number | null;
+  cliffSize: number | null;
+};
+
+function positionDropoffs(cands: DecisionQuadrantCandidate[]): Dropoff[] {
+  return DROPOFF_POSITIONS.map((pos) => {
+    const vals = cands
+      .filter((c) => c.position === pos && typeof c.value === "number")
+      .map((c) => c.value as number)
+      .sort((a, b) => b - a);
+    const available = vals.length;
+    if (vals.length < 3) {
+      return { pos, available, eliteCount: null, cliffSize: null };
+    }
+    const window = vals.slice(0, DROPOFF_WINDOW);
+    const gaps: number[] = [];
+    for (let i = 1; i < window.length; i++) gaps.push(window[i - 1] - window[i]);
+    const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+    for (let i = 0; i < gaps.length; i++) {
+      if (avgGap > 0 && gaps[i] >= CLIFF_RATIO * avgGap) {
+        return { pos, available, eliteCount: i + 1, cliffSize: Math.round(gaps[i]) };
+      }
+    }
+    return { pos, available, eliteCount: null, cliffSize: null };
+  });
+}
 
 function AngleHeader({ n, label, hint }: { n: number; label: string; hint?: string }) {
   return (
@@ -60,7 +96,6 @@ function AngleHeader({ n, label, hint }: { n: number; label: string; hint?: stri
 
 export function DecisionBoard({
   decision,
-  tierMap,
   pathProjection,
   leagueId,
 }: DecisionBoardProps) {
@@ -117,6 +152,8 @@ export function DecisionBoard({
     .filter((c) => typeof c.value === "number")
     .sort((a, b) => (b.value as number) - (a.value as number))
     .slice(0, 8);
+
+  const dropoffs = positionDropoffs(cands);
 
   // By Play: committed plays a board candidate advances, plus the
   // plays this pick enables, each with the on-board candidates serving
@@ -242,14 +279,43 @@ export function DecisionBoard({
       <div>
         <AngleHeader n={2} label="By tier / EV" hint="tier drops · best available" />
         <div className="mt-2 grid gap-3 lg:grid-cols-2">
-          <div className="rounded-md border border-border-soft bg-surface/30 px-1 py-1">
-            {tierMap ? (
-              <TierMap data={tierMap} />
-            ) : (
-              <p className="px-3 py-3 text-[11px] text-muted-2">
-                Tier map unavailable for this pool.
-              </p>
-            )}
+          <div className="rounded-md border border-border-soft bg-surface/30 px-3 py-3">
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
+              Positional drop-off
+            </div>
+            <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
+              Where each position's value cliff is. Few before a steep
+              cliff = grab now; deep = you can wait.
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {dropoffs.map((d) => (
+                <li
+                  key={d.pos}
+                  className="flex items-baseline justify-between gap-2 text-[12px]"
+                >
+                  <span className="font-mono text-[11px] font-semibold text-foreground">
+                    {d.pos}
+                  </span>
+                  {d.eliteCount != null ? (
+                    <span className="text-foreground">
+                      <span className="text-warning font-semibold">
+                        {d.eliteCount} before a -{d.cliffSize} cliff
+                      </span>{" "}
+                      <span className="font-mono text-[10px] text-muted-2">
+                        · {d.available} left
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-muted">
+                      deep, no near cliff{" "}
+                      <span className="font-mono text-[10px] text-muted-2">
+                        · {d.available} left
+                      </span>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
           <div className="rounded-md border border-border-soft bg-surface/30 px-3 py-3">
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
