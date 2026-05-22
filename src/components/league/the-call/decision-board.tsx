@@ -108,7 +108,15 @@ export function DecisionBoard({
     list.sort((a, b) => (computeEv(b, pickNo) ?? -999) - (computeEv(a, pickNo) ?? -999));
   }
 
-  const bestValue = ranked.slice(0, 6);
+  // Best available: the actual best players left, sorted by raw
+  // dynasty value (BPA order). Survival is called out per row so the
+  // user can weigh "take the slightly lower-value player now because
+  // the better one survives to my next pick" (founder direction
+  // 2026-05-21). EV/discount still shows per row via CandidateBlock.
+  const bestAvailable = [...cands]
+    .filter((c) => typeof c.value === "number")
+    .sort((a, b) => (b.value as number) - (a.value as number))
+    .slice(0, 8);
 
   // By Play: committed plays a board candidate advances, plus the
   // plays this pick enables, each with the on-board candidates serving
@@ -232,7 +240,7 @@ export function DecisionBoard({
 
       {/* 2 · By Tier / EV */}
       <div>
-        <AngleHeader n={2} label="By tier / EV" hint="tier drops · best value" />
+        <AngleHeader n={2} label="By tier / EV" hint="tier drops · best available" />
         <div className="mt-2 grid gap-3 lg:grid-cols-2">
           <div className="rounded-md border border-border-soft bg-surface/30 px-1 py-1">
             {tierMap ? (
@@ -245,19 +253,26 @@ export function DecisionBoard({
           </div>
           <div className="rounded-md border border-border-soft bg-surface/30 px-3 py-3">
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-              Best value on the board
+              Best available
             </div>
-            {bestValue.length === 0 ? (
-              <p className="mt-2 text-[11px] text-muted-2">No EV-ranked candidates.</p>
+            <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
+              Best players left by value. Survival is each one's chance
+              to reach your next pick: dip to a lower-value player when
+              the better one will still be there.
+            </p>
+            {bestAvailable.length === 0 ? (
+              <p className="mt-2 text-[11px] text-muted-2">
+                No valued candidates in the pool.
+              </p>
             ) : (
               <div className="mt-1 space-y-3">
-                {bestValue.map((x) => (
+                {bestAvailable.map((c) => (
                   <CandidateBlock
-                    key={x.c.player_id}
-                    candidate={x.c}
+                    key={c.player_id}
+                    candidate={c}
                     currentPickNo={pickNo}
-                    isStandingCall={x.c.player_id === standingCallId}
-                    advancesPlays={advancesByPlayer.get(x.c.player_id) ?? []}
+                    isStandingCall={c.player_id === standingCallId}
+                    advancesPlays={advancesByPlayer.get(c.player_id) ?? []}
                     compact
                   />
                 ))}
