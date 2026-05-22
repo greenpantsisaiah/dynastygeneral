@@ -950,6 +950,49 @@ cite the grounded signal by name, respect honest-first, and never
 fabricate a reaction. The companion surfaces the beat; Coach is
 where the user talks it through.
 
+### Companion <-> Plays/Call integration (planned, post the-call overhaul; locked 2026-05-22)
+
+Status: the companion (Principle 13) shipped to prod (PR #2). A parallel
+the-call / plays overhaul (unified Decision Board, retired Strategic
+Lanes, auto-active plays, the "push_path can't crown a met-position
+reach" fix) is in progress on the `feat/companion` branch and is NOT yet
+on main. The founder asked to wire the companion to react to it AFTER
+the-call completes. Do not integrate a moving target.
+
+PRESERVATION RULE (critical). `feat/companion` was branched before the
+companion code existed. It does NOT contain the companion feature
+(`src/lib/strategy/companion/`, `src/lib/companion/ledger.ts`,
+`companion-check-in.tsx`, migration 0015, the `companion_beat` Coach
+handoff, `seedCoachWithBeat`) or the shipping protocol in AGENTS.md.
+Shipping `feat/companion` to main as-is REVERTS the companion from
+production. The two MUST be integrated: merge the the-call changes ONTO
+current main (which has the companion), keeping both. Never ship the-call
+over the companion. The conflicting files are page.tsx, route.ts,
+coach-chat.tsx; the streams edit different regions (companion: the
+last-visit block, the LastVisitDigest render, `companion_beat`,
+`seedCoachWithBeat`; the-call: the TheCall component, decision-board,
+synthesize). Keep both regions.
+
+Wire AFTER the-call completes:
+1. Merge the-call / plays onto main, preserving the companion.
+2. Re-point the debate beat at the new Decision Board's standing call.
+   The the-call refactor changed standing-call selection (push_path no
+   longer crowns a met-position reach), so the companion's whatIf
+   reconstruction (today from the last-visit cookie's standing_call_id)
+   must align with the new decision's standing call.
+3. New grounded companion beats reacting to plays:
+   - play_advanced (win): the latest pick is a follow-through target of
+     an active / committed / auto-active play. Names the play and the
+     next partner's survival.
+   - play_broken (challenge): the latest pick or a trade undercuts an
+     active play (sends or skips a piece). Names the breach and EV cost.
+     Mirrors The Call's `Breaks` badge.
+   - play_activated (win): a play flips to auto_active (e.g., QB Hoard).
+   Consume the canonical plays state (`derivePlayState` and the
+   Activates / Advances / Breaks resolver The Call now carries). Do NOT
+   re-derive play state in the companion; the engine derives, the
+   companion reads. Same `format_rules` gates as the plays themselves.
+
 ## Visualization map (538-editor pass, locked 2026-05-08 PM)
 
 Founder direction: "If you were an editor/designer for fivethirtyeight
