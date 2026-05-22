@@ -217,6 +217,68 @@ partner in a tracked / committed play), `Breaks: WR Stable (-4 EV)`
 (undermines an active play). Badges are the bridge from the moment
 (the pick) to the future (the plays panel).
 
+### 13. Companionship is the emotional ROI loop (NEW principle, locked 2026-05-21)
+
+ADDED 2026-05-21. Per founder direction: in long multi-day
+dynasty drafts and across the season, the user comes back "kind
+of hoping for some thoughts," the way you would banter with a
+friend who asked "how is it going." Fantasy is a solo sport, like
+poker. The companionship a poker rail provides is not praise. It
+is honest shared stakes plus memory plus presence. "Bad beat"
+lands because the rail watched you get your money in good. "You
+were out of position there" lands because the rail respects you
+enough to say it. "Folded, just like we called it" lands because
+there was a real call.
+
+The companion is the existing intelligence analyst gaining three
+capabilities, NOT a new gushy persona:
+1. Memory of what it expected (the expectation ledger).
+2. Reaction to what actually happened (the reconciliation pass).
+3. Something waiting when the user checks in (the push check-in
+   surface).
+
+The loop is Nir Eyal's Hooked cycle, run honestly:
+- Trigger (internal): boredom, the solo-hobby loneliness. The
+  user checks in.
+- Action: one glance at the check-in surface.
+- Variable reward: the grounded beat waiting. The variability is
+  the SPORT'S (football is genuinely unpredictable), never a
+  manufactured slot machine.
+- Investment: the user co-authors expectations, reacts to beats,
+  names bets. Each investment loads the next trigger and
+  personalizes the next reward. Over a season the ledger compounds
+  into a shared history.
+
+Eyal's Manipulation Matrix is the ethics test: the founder would
+use it (yes, it is the origin) and it materially improves the
+user's experience of a solo hobby (yes). That is the Facilitator
+quadrant. The one rule that keeps it there: every beat traces to a
+real computed signal. Same discipline as Principle 0 (the
+MIT-grade statistical floor) and the no-hardcoded-numbers
+invariant, applied to emotion. No fabricated drama, no manufactured
+urgency, no engagement bait.
+
+Honest-first calibration. The companion commiserates only when it
+was genuinely a bad beat (the user was ahead in expectation and
+lost to variance), and critiques only when there was a real EV gap
+the user could have captured. Always-commiserate is the rejected
+arm-candy. Always-critique is exhausting. The classifier earns
+trust by getting that call right, and it can, because it holds the
+expectation at decision time.
+
+Surface: a PUSH check-in (something waiting when you arrive) at the
+top of the hub, distinct from Coach (PULL). It hands off to Coach
+for any beat the user wants to talk through. See the "Companion
+panel" section below for the canonical data shape and beat catalog.
+
+Voice: scoped "we" exception. The companion may use "we" inside
+grounded shared-stakes beats ("we called it," "we were a 78%
+favorite at kickoff"). This is a deliberate, bounded carve-out from
+BRAND_VOICE hard rule 4, valid ONLY in companion beats that carry a
+real source provenance, never in general product chrome. The "we"
+is the analyst-plus-general rail; it earns the word only when there
+was a real shared call.
+
 ## Voice (locked)
 
 ### Voice A: default brand
@@ -237,7 +299,7 @@ even in marketing.
 1. **No em dashes anywhere.** Enforced by PreToolUse hook + check:em-dashes script. Enforced in markdown, code, copy, every voice.
 2. **No hedging openers.** "It depends" / "There are several factors" / "Honestly" / "Look" / "Buckle up." When uncertain, name the specific uncertainty (a range, a probability, a missing fact).
 3. **Numbers always have units and reachable provenance.**
-4. **No second-person plural "we" for the model.** System is "the engine" / "Dynasty General." "We" is the user + founder.
+4. **No second-person plural "we" for the model.** System is "the engine" / "Dynasty General." "We" is the user + founder. Scoped exception: the Companion register (Principle 13) may use "we" inside grounded beats; see BRAND_VOICE.md.
 5. **No exclamation points in product chrome.** Decisive, not enthusiastic.
 6. **Headlines lead with the number.** "+12.3 EV pts banked" before "You are doing well."
 7. **Acknowledge the unknown by name.** Specific uncertainty beats generic "uncertain at this stage."
@@ -503,6 +565,7 @@ selection lives in the hub render and uses
 | 2026-05-15 | "Bring up the parked items"; audit was stale | Audit refresh sweep: confirmed LastVisitDigest, plan-disruption ack, EV percentile chip, comparator narrative all shipped; Sloan-mode toggle moved to retired bucket; genuinely-open work ranked by leverage |
 | 2026-05-15 | "I can't even locate EV on the page" | Hoisted EvBankSection to lead DraftProgressPanel, directly after the headline. Position diagnostic + rest now follow as supporting cast |
 | 2026-05-20 | "Your active plays" finally nails lanes; "next 4 picks" is data-blind; no harmony with broader strategies | Plays-as-cornerstone spec amendment (Principle 12). Per-partner survival math via canonical `survivalPctFor`. In-season lifecycle (QB Flip Window, Handcuff Watch, 2027 1st Sniping, Buy-the-Dip, Multi-Handcuff Lottery). Declarative format gates per play type. Strategic Lanes retired in favor of Plays. Best Value collapsed into standing call (badge or transparency line). Candidate badges (`Activates` / `Advances` / `Breaks`) replace The Call's lanes mini-section. Coach gets `active_plays` context + hard rule. New states: `auto_active`, `dismissed` (forgiven). No noise cap. |
+| 2026-05-21 | "I come back to the page hoping for thoughts, like bantering with a friend; fantasy is a solo sport like poker; deliver companionship (bad beat / out-of-position / called-it) without being slimy, across pre-draft, dynasty draft, in-season, and fast redraft" | Companion / emotional-ROI loop (Principle 13). Grounded beat taxonomy (vindication, bad beat, critique, debate, anticipation, callback, milestone) via a deterministic classifier over existing canonicals plus an expectation ledger. Push check-in surface at the top of the hub + Coach handoff for the debate. Scoped 'we' brand exception. Honest-first calibration (commiserate only when genuinely ahead; critique only on a real EV gap). Anti-slime guarantees locked as invariants. Stage-adaptive cadence. |
 
 ## Strategic Lanes (RETIRED 2026-05-20, see Plays panel below)
 
@@ -735,6 +798,157 @@ the play; otherwise the alternative is named below."
 
 This is the active-play strip's full surface. It lives inside The
 Call, not as a separate strip, and only renders on breach.
+
+## Companion panel (the emotional ROI loop, locked 2026-05-21)
+
+The companion is the check-in surface that delivers Principle 13.
+It is a PUSH surface (something waiting when you arrive), distinct
+from Coach (PULL: you ask, it answers). It sits at the top of the
+hub in the LastVisitDigest position and hands off to Coach for any
+beat the user wants to talk through.
+
+### Beat model
+
+```ts
+type BeatKind =
+  | "vindication"   // a logged prediction resolved true
+  | "bad_beat"      // high-prob good outcome flipped on variance,
+                    //   process clean (the user was ahead)
+  | "critique"      // a real EV gap left by a process error
+  | "debate"        // user took a contrarian choice vs the call
+  | "anticipation"  // a live variance window before it resolves
+  | "callback"      // a named past bet reached a checkpoint
+  | "milestone";    // draft midpoint / week close / season close
+
+type BeatTone = "win" | "commiserate" | "challenge" | "neutral";
+
+type BeatStage =
+  | "pre_draft" | "dynasty_draft" | "in_season" | "fast_draft";
+
+interface BeatSource {        // the anti-slime provenance
+  signal: string;             // canonical that produced it
+  detail: string;             // human-readable provenance line
+  values?: Record<string, number | string | null>;
+}
+
+interface Beat {
+  kind: BeatKind;
+  tone: BeatTone;
+  stage: BeatStage;
+  headline: string;           // Voice A, scoped 'we' allowed
+  body?: string;              // optional 1-2 more sentences
+  source: BeatSource;         // REQUIRED. no source, no beat.
+  bet_id?: string;            // links to an ExpectationRecord
+  prompts_handoff?: boolean;  // invites a Coach debate
+  urgency?: "act_now" | "this_round" | "no_rush";
+}
+```
+
+### Beat taxonomy (one vocabulary, all four stages)
+
+| Beat | Poker analog | Grounded in | Tone |
+|---|---|---|---|
+| vindication | "Folded, just like we called it" | a resolved ExpectationRecord (confirmed) | win |
+| bad_beat | "You were ahead, damn" | ExpectationRecord ahead at decision, flipped on variance | commiserate |
+| critique | "You overcommitted, out of position" | a real EV gap left (computeWhatIfReadout / bench delta) | challenge |
+| debate | "Talk me through that line" | computeWhatIfReadout EV delta vs the call | challenge |
+| anticipation | "Here is what we are watching" | survivalPctFor + plays urgency before a slot | neutral |
+| callback | the running story | a named bet reaching a checkpoint | win / neutral |
+| milestone | "Good session" | analyzeLeagueEvBank rank + draft progress | win |
+
+### Grounding contract (anti-slime)
+
+Every beat carries a `source` with the canonical signal that
+produced it. The classifier (`classifyBeats`) is deterministic;
+beats are phrased in Voice A by template (`phraseBeat`), not by the
+LLM. The LLM (Coach) enters only on the debate handoff (pull). A
+beat with no grounded delta does not fire. Enforced like the
+no-hardcoded-numbers invariant. See CANONICAL_SOURCES.md
+"Companion beat classification."
+
+### The expectation ledger
+
+Companion memory lives in the `expectations` table (migration 0015)
+as `ExpectationRecord` rows: what was expected (metric, value, CI),
+the road not taken (alternative_label + alternative_value), the
+user's logged thesis, the resolution condition, the horizon
+(next_pick / this_week / this_season), and the resolution
+(resolved_value + outcome). The ledger is loaded at decision
+moments (a pick taken over the standing call, a lineup set, a
+pregame win probability) and reconciled when new data lands (the
+next picks, a game result, an injury). Reconciliation is
+`reconcileExpectations`.
+
+### Honest-first reconciliation rules
+
+- confirmed -> vindication (win). Expected good, resolved good.
+- variance_loss -> bad_beat (commiserate). The user was ahead in
+  expectation (high win prob / positive EV at decision time) and
+  the outcome flipped. Process was clean.
+- process_error -> critique (challenge). The user chose the
+  lower-EV option and a real, capturable gap was left.
+- Counterfactual attribution ("Brenton's injury cost you the win")
+  fires ONLY when the event actually flips the result, via the
+  computeWhatIfReadout counterfactual pattern. Never commiserate on
+  a loss the user was never favored to win; never attribute a loss
+  to an event that did not change the outcome.
+
+### Beat priority (what surfaces first)
+
+`rankBeats` orders by tone-weight x magnitude x recency, mirroring
+`urgentPartnerOf` in plays/urgency.ts. The check-in leads with the
+single most resonant grounded beat; the rest collapse below.
+
+### Card chrome
+
+- Tone-colored rail (win = success, commiserate = warning,
+  challenge = neutral-strong, neutral = neutral)
+- Headline (Voice A, scoped 'we', leads with the number)
+- Optional one to two sentence body
+- Provenance on tap (the source.detail + values), per Principle 0
+- Urgency chip when the beat carries one (reuses plays vocab)
+- "Talk it through" handoff to Coach on debate / critique beats
+  (seeds the Coach thread with the bet_id + thesis)
+- A react affordance on debate beats ("my window is now") that
+  writes the user's thesis back to the ExpectationRecord (the
+  investment phase)
+
+### Stage adaptation
+
+- Pre-draft: shared-prep + ledger-loading beats. Low emotional
+  stakes; the job is to co-author the plan ("if the board breaks
+  chalk you are WR at 1.05; if a QB run starts, we pivot") so later
+  vindication / bad-beat beats are personal. Continuity from prior
+  drafts where available.
+- Dynasty draft (multi-day): the gap between picks is the window.
+  since-you-left digest with a point of view (not a changelog); the
+  contrarian-pick debate (the Mike Evans beat) the moment the user
+  takes a fringe candidate over the call; anticipation beats
+  between picks; snipe commiseration (reuse detectPlanDisruption).
+- In-season: pregame anticipation; post-game reconciliation (the
+  vindication / bad_beat / critique trio); the weekly lineup debate
+  (the in-season twin of "who do I pick"); the injury-moment
+  companion; season-arc callbacks to draft bets; light rivalry
+  framing against named opponents.
+- Fast redraft (2 min/pick): terse-during reaction chips (one line,
+  no paragraphs) accumulated into a rapid-fire reaction log; the
+  real companionship is the rich post-hoc debrief after the speed
+  draft.
+
+### Format gates
+
+Beats respect `format_rules` the same way plays do (no QB-flip beat
+in a non-1QB starter league; no TE-premium beat in a non-TEP
+league) and never claim absence of data that exists in context.
+
+### Coach handoff contract
+
+Coach context ships `active_beats` + `recent_resolved_beats` + the
+open bet (thesis + alternative + EV delta). System prompt rule:
+when the user opens a debate the companion surfaced, engage it,
+cite the grounded signal by name, respect honest-first, and never
+fabricate a reaction. The companion surfaces the beat; Coach is
+where the user talks it through.
 
 ## Visualization map (538-editor pass, locked 2026-05-08 PM)
 

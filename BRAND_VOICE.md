@@ -85,6 +85,15 @@ These are non-negotiable across both registers.
    "the engine" or "Dynasty General." "We" is reserved for the user
    and the founder writing about the company.
 
+   **Scoped exception (locked 2026-05-21): the Companion register.**
+   Inside a grounded companion beat (Principle 13, the emotional ROI
+   loop), the analyst MAY use "we" for shared stakes ("we called it,"
+   "we were a 78% favorite at kickoff"). It is bounded to beats that
+   carry a real `source` provenance and never extends to general
+   product chrome, Coach replies outside a beat, marketing, or error
+   copy. The "we" is the analyst-plus-general rail; it earns the word
+   only when there was a real shared call.
+
 5. **No exclamation points in product chrome.** The voice is
    decisive, not enthusiastic.
 
