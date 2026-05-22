@@ -81,6 +81,17 @@ import { InflectionPanel } from "@/components/league/inflection-panel";
 import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
 import { LastVisitWriter } from "@/components/system/last-visit-writer";
 import { LastVisitDigest } from "@/components/league/last-visit-digest";
+import { CompanionCheckIn } from "@/components/league/companion-check-in";
+import { classifyBeats } from "@/lib/strategy/companion/classify";
+import type {
+  Beat,
+  BeatStage,
+  AnticipationInput,
+} from "@/lib/strategy/companion/types";
+import type {
+  WhatIfReadout,
+  WhatIfEvEntry,
+} from "@/lib/strategy/decision-synthesis/whatif";
 import { EvBankPercentileChip } from "@/components/league/ev-bank-percentile-chip";
 import {
   buildPlanPlayerIds,
@@ -1032,6 +1043,7 @@ export default async function LeagueHubPage({
   let lastVisitStandingCallChanged = false;
   let lastVisitEvBankDelta: number | null = null;
   let lastVisitHasSnipes = false;
+  let companionBeats: Beat[] = [];
   let lastVisitPositionCountDeltas: Partial<Record<string, number>> = {};
   let lastVisitLeagueRankDelta: number | null = null;
   let rosterPosture: RosterPosture | null = null;
@@ -1500,6 +1512,100 @@ export default async function LeagueHubPage({
         });
         lastVisitDisruptionAck = disruption.acknowledgment;
         lastVisitHasSnipes = disruption.snipes.length > 0;
+
+        // Companion check-in beats (Principle 13). Grounded reactions to
+        // what changed since the last visit. The debate beat fires when
+        // the user took a pick that diverged from the call they last saw;
+        // its whatIf is reconstructed with the same per-pick EV math the
+        // EV bank uses (value/100 * (pick_no - ADP)). The milestone beat
+        // comes from the league EV-bank rank. Snipe commiseration stays
+        // in LastVisitDigest above to avoid double-rendering.
+        const companionStage: BeatStage = draftActive
+          ? "dynasty_draft"
+          : draftState?.status === "complete"
+            ? "in_season"
+            : "pre_draft";
+        let companionWhatIf: WhatIfReadout | null = null;
+        let companionChosenId: string | null = null;
+        if (prior?.standing_call_id) {
+          const priorTotal = prior.total_picks_made ?? 0;
+          const latest = leagueSnapshot.draft.picks_made
+            .filter(
+              (p) =>
+                p.roster_id === leagueSnapshot.my_roster_id &&
+                p.pick_no > priorTotal,
+            )
+            .sort((a, b) => b.pick_no - a.pick_no)[0];
+          if (latest && latest.player_id !== prior.standing_call_id) {
+            const mkEntry = (id: string, isCall: boolean): WhatIfEvEntry => {
+              const value = lrValueMap.get(id)?.value;
+              const adp = getAdp(id);
+              const ev =
+                typeof value === "number" && typeof adp === "number"
+                  ? Math.round((value / 100) * (latest.pick_no - adp) * 100) /
+                    100
+                  : null;
+              const info = playerNameLookup(id);
+              return {
+                player_id: id,
+                player_name: info?.name ?? id,
+                position: info?.position ?? null,
+                ev_if_chosen: ev,
+                delta_vs_standing_call: 0,
+                survival_pct: null,
+                is_standing_call: isCall,
+                narrative: "",
+              };
+            };
+            const callEntry = mkEntry(prior.standing_call_id, true);
+            const chosenEntry = mkEntry(latest.player_id, false);
+            chosenEntry.delta_vs_standing_call =
+              chosenEntry.ev_if_chosen != null && callEntry.ev_if_chosen != null
+                ? Math.round(
+                    (chosenEntry.ev_if_chosen - callEntry.ev_if_chosen) * 100,
+                  ) / 100
+                : null;
+            companionWhatIf = {
+              standing_call_id: prior.standing_call_id,
+              standing_call_ev: callEntry.ev_if_chosen,
+              entries: [callEntry, chosenEntry],
+            };
+            companionChosenId = latest.player_id;
+          }
+        }
+        // Anticipation: the standing call's survival to the user's next
+        // pick, grounded in the decision's canonical survival_pct. Fires
+        // only when survival is uncertain (the classifier gates >= 75%).
+        let companionAnticipation: AnticipationInput | null = null;
+        const leadCandidate = decision?.top_candidates?.[0];
+        const nextUserSlot = leagueSnapshot.draft.my_pick_schedule?.[0];
+        if (
+          draftActive &&
+          leadCandidate &&
+          leadCandidate.survival_pct != null &&
+          nextUserSlot
+        ) {
+          companionAnticipation = {
+            subject_label: leadCandidate.name,
+            position: leadCandidate.position,
+            survival_pct: leadCandidate.survival_pct,
+            to_pick_no: nextUserSlot.pick_no,
+            to_pick_label: nextUserSlot.pick_label,
+            ev_if_chosen: null,
+          };
+        }
+        companionBeats = classifyBeats({
+          stage: companionStage,
+          whatIf: companionWhatIf,
+          chosenId: companionChosenId,
+          anticipation: companionAnticipation,
+          evBank: leagueEvBank,
+          draftProgress: {
+            picks_made: leagueSnapshot.draft.picks_made.length,
+            total_picks:
+              leagueSnapshot.total_teams * (leagueSnapshot.draft.rounds ?? 0),
+          },
+        });
       } catch (err) {
         console.error("[hub:last-visit-digest]", err);
       }
@@ -1619,6 +1725,8 @@ export default async function LeagueHubPage({
             digestLine={lastVisitDigestLine}
             disruptionAcknowledgment={lastVisitDisruptionAck}
           />
+
+          <CompanionCheckIn beats={companionBeats} />
 
           {rosterPosture && <PostureBanner posture={rosterPosture} />}
 

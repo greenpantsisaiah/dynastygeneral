@@ -148,6 +148,33 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: per-play-type if/else format checks scattered across emission code. One matrix, one gate.
 - **Bug class avoided**: 2026-05-20 founder report "The platform has been over-prioritizing TEs in my no-TEP league." Two-pronged fix: (1) gate TE-Premium Double-Up play at emission via `requires_te_premium: true` matrix entry; (2) fix non-TEP TE EV overweighting in scoring (tracked separately via `dynasty-bug-investigator`).
 
+### Companion beat classification (the emotional ROI loop)
+
+- **Canonical**: `classifyBeats(args)` in `src/lib/strategy/companion/classify.ts`
+- **Returns**: `Beat[]` (grounded emotional reactions; see `companion/types.ts` for `Beat` / `BeatKind` / `BeatTone`)
+- **Inputs**: snapshot plus the existing canonical readouts (`computeWhatIfReadout`, `detectPlanDisruption`, survival via `survivalPctFor`, `analyzeLeagueEvBank`) and resolved `ExpectationRecord[]` from the ledger. The classifier is a thin grounded adapter over existing canonicals; it does NOT re-derive any number.
+- **Anti-pattern**: emitting a beat with no `source` provenance, or computing a reaction from anything other than an existing canonical. A beat is a phrasing of a grounded delta, never a new derivation. Lint candidate: every `Beat` must carry a non-empty `source.signal`.
+- **Bug class avoided**: the slime quadrant. 2026-05-21 founder direction: companionship must deliver Eyal's Hooked loop "without being slimy." Grounding every beat in a real signal is the Facilitator-quadrant guarantee, the same discipline as no-hardcoded-numbers.
+
+### Beat phrasing (Voice A, scoped 'we')
+
+- **Canonical**: `phraseBeat(beat)` in `src/lib/strategy/companion/voice.ts`
+- **Returns**: `{ headline, body? }` Voice A strings (deterministic templates; scoped 'we' allowed per BRAND_VOICE "Companion register"; no em dashes, no exclamation points, numbers carry units)
+- **Anti-pattern**: phrasing beats via the LLM (hallucination risk plus cost) or hardcoding "next N picks" windows. Beats are templated from grounded fields; the LLM enters only on the Coach debate handoff (pull).
+
+### Beat priority (what surfaces first)
+
+- **Canonical**: `rankBeats(beats)` / `topBeat(beats)` in `src/lib/strategy/companion/priority.ts`
+- **Returns**: beats ordered by `tone-weight × magnitude × recency`; mirrors `urgentPartnerOf` in `plays/urgency.ts`
+- **Anti-pattern**: rendering beats in classifier emission order. The check-in surface leads with the most resonant grounded beat.
+
+### Expectation ledger (companion memory)
+
+- **Canonical**: `ExpectationRecord` rows in the `expectations` table (migration 0015), read/write via `src/lib/companion/ledger.ts`; reconciled by `reconcileExpectations(records, resolved)` in `src/lib/strategy/companion/classify.ts`
+- **Returns**: persisted bets (expected metric / value / CI, alternative, thesis, resolution condition, horizon, resolved / outcome) and, on reconciliation, typed beats (vindication / bad_beat / critique)
+- **Honesty rule**: `bad_beat` fires ONLY when `expected_value` showed the user ahead (high win prob / positive EV) and the outcome flipped on variance; `critique` fires ONLY when the user chose the lower-EV option and a real gap was left. The record's `expected_value` plus `alternative_value` make the distinction computable. Counterfactual attribution ("the injury cost you the win") fires only when the outcome actually flips the result (reuse the `computeWhatIfReadout` counterfactual pattern).
+- **Anti-pattern**: commiserating on a loss the user was never favored to win (sycophancy), or attributing a loss to an event that did not flip the result (false drama).
+
 ## Adding a new entry
 
 Use this template:

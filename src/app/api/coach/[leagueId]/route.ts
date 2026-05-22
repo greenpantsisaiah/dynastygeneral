@@ -76,6 +76,23 @@ const activePlaySchema = z.object({
   followthrough_target_names: z.array(z.string()),
 });
 
+// A companion beat the user clicked "talk it through" on (Principle
+// 13). Most often a debate: they took a pick that diverged from the
+// standing call. Carries the grounded provenance so Coach engages the
+// real decision instead of freelancing.
+const companionBeatSchema = z.object({
+  kind: z.string(),
+  headline: z.string(),
+  body: z.string().optional(),
+  source_signal: z.string(),
+  source_detail: z.string(),
+  chosen: z.string().optional(),
+  alternative: z.string().optional(),
+  ev_delta: z.number().optional(),
+  thesis: z.string().optional(),
+  bet_id: z.string().optional(),
+});
+
 const bodySchema = z.object({
   history: z.array(messageSchema).max(40),
   message: z.string().min(1).max(4000),
@@ -85,6 +102,7 @@ const bodySchema = z.object({
   // 2026-05-20: "help me simply remember when I'm considering a
   // trade or something if it violates my plan."
   active_plays: z.array(activePlaySchema).max(10).optional(),
+  companion_beat: companionBeatSchema.optional(),
 });
 
 // Coach voice extension. Layered onto SYSTEM_PROMPT so the existing
@@ -592,6 +610,27 @@ without acknowledging it. The plays system exists because the user
 asked us to enforce discipline; staying silent on a violation
 breaks the contract.
 
+## Companion debate handoff. Engage the beat the user clicked.
+
+When \`<current_state>.companion_beat\` is present, the user clicked
+"talk it through" on a beat the companion surfaced. Most often it is a
+debate: they took a pick that diverged from the standing call. Engage
+THAT decision head-on. You MUST:
+
+1. Name both players: companion_beat.chosen (what they took) and
+   companion_beat.alternative (the call they passed on).
+2. Cite the grounded signal by name (companion_beat.source_signal) and
+   the EV delta the companion already computed (companion_beat.ev_delta).
+   Do NOT invent new numbers beyond the pricing block.
+3. Lay out the case both ways, then land an HONEST read: defensible if
+   their window supports it, a mistake if it does not. No hedging.
+4. If they logged a thesis (companion_beat.thesis), respond to THAT
+   reasoning directly.
+
+Failure mode to ban: ignoring the companion_beat, restating generic
+advice, or claiming you lack the data. The beat and its provenance are
+in context; the user is asking you to talk through THIS call.
+
 ## Dynasty perception ≠ FantasyCalc value. Calibrate cross-position swaps.
 
 FantasyCalc's normalized value is the raw market number, but dynasty
@@ -806,6 +845,7 @@ export async function POST(
   }
   const { history, message } = parsed.data;
   const activePlays = parsed.data.active_plays ?? [];
+  const companionBeat = parsed.data.companion_beat ?? null;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -1254,6 +1294,7 @@ export async function POST(
     // advances it. Founder direction 2026-05-20: "help me simply
     // remember when I'm considering a trade or something if it
     // violates my plan."
+    companion_beat: companionBeat,
     active_plays: activePlays.map((p) => ({
       archetype: p.archetype,
       play_name: p.play_name,
