@@ -138,6 +138,12 @@ function adpGapModifier(
   return { adjustment, note: null };
 }
 
+// push_path must not reach for an archetype piece that will clearly
+// survive. Matches the adpGapModifier "reaching" boundary (gap <= -8):
+// a player going 8+ picks past the current pick is a reach, and an
+// archetype is advanced later at value, never as a reach now.
+const PUSH_PATH_REACH_LIMIT = -8;
+
 // Saturation modifier reads from canonical roster-fit. Does NOT
 // re-derive realistic-max math; that lives in roster-fit.ts.
 function positionSaturationModifier(
@@ -1172,6 +1178,17 @@ function buildCandidates(
   // Rule 2: Push a path the user is currently in ACQUISITION phase on.
   // Skip paths in EXECUTE (drift = 100%, already maxed) since adding
   // more of that position doesn't advance strategy, just spends pick.
+  //
+  // Two guards keep push_path from making a bad pick THE CALL
+  // (bug 2026-05-21: Mark Andrews, a starter-met TE going 40 picks past
+  // ADP at -3 EV, won the call via push_path because neither existed):
+  //   1. Never push a position whose starter need is already met. Once
+  //      the starter is filled the path is executing, not acquiring;
+  //      piling onto a met position is "take value," not a forced push.
+  //   2. Never reach for a piece that will clearly survive. push_path
+  //      is archetype advancement, not need-urgency; advance the path
+  //      later at value, not as a reach now. Mirrors the adpGapModifier
+  //      "reaching" boundary; the adjustment also penalizes the score.
   for (const r of ranked.slice(0, 3)) {
     if (r.phase === "executing") continue;
     if (!r.top_candidates || r.top_candidates.length === 0) continue;
@@ -1180,11 +1197,19 @@ function buildCandidates(
       if (!matching) continue;
       const pos = normalizePos(matching.position);
       if (!pos) continue;
+      if (me.position_counts[pos] >= (reqs[pos] ?? 0)) continue;
+      if (
+        matching.adp != null &&
+        currentPickNo - matching.adp <= PUSH_PATH_REACH_LIMIT
+      ) {
+        continue;
+      }
+      const adpGap = adpGapModifier(matching.adp, currentPickNo);
       push({
         player: matching,
         position: pos,
         rule: "push_path",
-        score: 50 + r.drift_score * 25,
+        score: 50 + r.drift_score * 25 + adpGap.adjustment,
         primary_reason: `Advances ${r.archetype.name} (${Math.round(r.drift_score * 100)}% drift, ${r.phase ?? "acquisition"} phase).`,
       });
     }
