@@ -1,23 +1,17 @@
 "use client";
 
 /**
- * Decision Board. One timing-organized feed (founder direction
- * 2026-05-21): there is no "lanes vs plays vs suggestions", they are
- * the same surface sliced. Plays are non-exclusive TAGS on picks
- * (win-now / future / last-before-cliff / handcuff / a committed
- * play), and the surface is organized by URGENCY:
+ * Decision Board. THE CALL on top, then supportive PERSPECTIVES.
  *
- *   THE CALL    the one pick most worth making now (at-risk + valuable)
- *   ALSO SOON   other picks you'd lose by waiting
- *   WAIT        will-last value + tracked plays; auto-surfaces as
- *               survival drops
- *
- * The engine's survival-weighting already computes "what will I lose
- * if I wait", so THE CALL is the engine recommendation reframed. When
- * nothing is at risk, the call becomes "take best value or trade."
- * Display-aware only: ranking is value x scarcity; tags don't bias the
- * engine. Replaces the old four-angle board + the standalone Active
- * Plays panel + the Draft Path Projector (retired to pre-draft).
+ * Founder model (2026-05-22): a pick is seen through many non-exclusive
+ * perspectives, not three horizon lanes. Win-now / future are just two
+ * perspectives among several (best value, going-soon/scarcity, tier
+ * cliffs, win-now, future, plays). Each perspective surfaces its top
+ * 2-3 picks as the same consistent cards; the loud ones (relevant /
+ * urgent now) sit expanded, the quiet ones collapse to a header you can
+ * open, so nothing is lost. Loudness is stage-aware: value + scarcity
+ * yell early (everyone fights for the best players), combos / plays /
+ * cliffs yell later. Display-aware only.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -40,21 +34,17 @@ import {
   type DismissedSuggestion,
 } from "@/lib/plays-storage";
 
-// Survival at or above this means the player will reach your next pick:
-// no rush, he goes to WAIT. Below it, he's at risk and worth acting on.
 const NO_RUSH_SURVIVAL = 75;
+const TOP_AT_A_GLANCE = 3;
+const LOUD_THRESHOLD = 40;
+const EARLY_ROUND_MAX = 6;
+const ASSUMED_TEAMS = 12;
 const DROPOFF_POSITIONS = ["RB", "WR", "TE", "QB"] as const;
 const DROPOFF_WINDOW = 12;
 const CLIFF_RATIO = 1.6;
 
 export type DecisionBoardProps = {
   decision: Decision;
-  /**
-   * The counterintuitive-lock disclaimer (feel_weird_disclaimer),
-   * folded into the call hero instead of a separate top band: when
-   * present it is the call's reasoning line (warning-toned), since it
-   * duplicates the per-pick reason for weird picks.
-   */
   disclaimer?: string | null;
   leagueId: string;
   currentPickNo: number | null;
@@ -62,7 +52,6 @@ export type DecisionBoardProps = {
   picksMadeForUser?: { player_id: string; pick_no: number }[];
 };
 
-/* ---- cliff detection (the "last before a drop" tag) ---- */
 function lastInTierByPlayer(
   cands: DecisionQuadrantCandidate[],
 ): Map<string, string> {
@@ -95,26 +84,6 @@ function survivalTone(pct: number | null | undefined): string {
   return "text-danger";
 }
 
-function TagChips({ tags }: { tags: string[] }) {
-  if (tags.length === 0) return null;
-  return (
-    <div className="mt-1 flex flex-wrap gap-1">
-      {tags.map((t) => (
-        <span
-          key={t}
-          className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 border border-border-soft rounded-full px-1.5 py-0.5"
-        >
-          {t}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-// Compact pick card for a multi-column grid. Hierarchy: the NAME is
-// the anchor (largest), then a labeled data line so neither number is
-// guess-the-metric ("EV +1.0" and the survival word + pct, e.g.
-// "likely here 86%"). Colors still carry the at-a-glance read.
 function PickRow({
   c,
   pickNo,
@@ -188,6 +157,8 @@ export function DecisionBoard({
 
   const [commitments, setCommitments] = useState<PlayCommitment[]>([]);
   const [dismissed, setDismissed] = useState<DismissedSuggestion[]>([]);
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (currentPickNo != null) {
@@ -249,31 +220,80 @@ export function DecisionBoard({
     return Array.from(new Set(out));
   }
 
-  // Partition by timing. THE CALL is the engine recommendation; the
-  // rest split into act-soon (at risk) and wait (will last).
-  const callCand =
-    cands.find((c) => c.player_id === standingCallId) ?? null;
+  const callCand = cands.find((c) => c.player_id === standingCallId) ?? null;
   const callSurvival = callCand?.survival_pct ?? null;
-  const callAtRisk =
-    callSurvival != null && callSurvival < NO_RUSH_SURVIVAL;
+  const callAtRisk = callSurvival != null && callSurvival < NO_RUSH_SURVIVAL;
   const callEv = callCand ? computeEv(callCand, pickNo) : null;
   const callEvColor =
     callEv == null ? "text-muted-2" : callEv >= 0 ? "text-success" : "text-danger";
 
-  const others = cands.filter((c) => c.player_id !== standingCallId);
-  const atRisk = others
-    .filter((c) => c.survival_pct != null && c.survival_pct < NO_RUSH_SURVIVAL)
-    .sort((a, b) => (computeEv(b, pickNo) ?? -999) - (computeEv(a, pickNo) ?? -999))
-    .slice(0, 3);
-  const willLast = others
-    .filter((c) => c.survival_pct == null || c.survival_pct >= NO_RUSH_SURVIVAL)
-    .sort((a, b) => (b.value ?? -999) - (a.value ?? -999))
-    .slice(0, 5);
+  const round = Math.max(1, Math.ceil(pickNo / ASSUMED_TEAMS));
+  const early = round <= EARLY_ROUND_MAX;
+  const ev = (c: DecisionQuadrantCandidate) => computeEv(c, pickNo) ?? -999;
+  const notCall = (c: DecisionQuadrantCandidate) => c.player_id !== standingCallId;
 
-  // For the calm-call framing, name the best value that will keep.
-  const topWait = willLast[0] ?? null;
+  // Perspectives, each a lens with its own relevant picks. Loudness is
+  // stage-aware (value/scarcity early, plays/cliffs late). A pick can
+  // appear under several.
+  const byValue = [...cands]
+    .filter((c) => typeof c.value === "number" && notCall(c))
+    .sort((a, b) => (b.value as number) - (a.value as number));
+  const goingSoon = cands
+    .filter(
+      (c) =>
+        notCall(c) && c.survival_pct != null && c.survival_pct < NO_RUSH_SURVIVAL,
+    )
+    .sort((a, b) => ev(b) - ev(a));
+  const cliffPicks = byValue.filter((c) => cliffByPlayer.has(c.player_id));
+  const winNow = cands
+    .filter((c) => notCall(c) && c.timeline_lane === "win-now")
+    .sort((a, b) => (b.value ?? -999) - (a.value ?? -999));
+  const future = cands
+    .filter((c) => notCall(c) && c.timeline_lane === "future")
+    .sort((a, b) => (b.value ?? -999) - (a.value ?? -999));
 
-  // Suggestions you could track (exclude already committed + dismissed).
+  const playerPerspectives = [
+    {
+      id: "value",
+      label: "Best value",
+      hint: "value vs cost",
+      loudness: early ? 100 : 62,
+      picks: byValue,
+    },
+    {
+      id: "soon",
+      label: "Going soon",
+      hint: "you'd lose by waiting",
+      loudness: goingSoon.length > 0 ? 55 + goingSoon.length * 8 : 0,
+      picks: goingSoon,
+    },
+    {
+      id: "cliffs",
+      label: "Tier cliffs",
+      hint: "last before a drop",
+      loudness: cliffPicks.length > 0 ? 45 + cliffPicks.length * 10 : 0,
+      picks: cliffPicks,
+    },
+    {
+      id: "winnow",
+      label: "Win-now",
+      hint: "contend now",
+      loudness: 32,
+      picks: winNow,
+    },
+    {
+      id: "future",
+      label: "Future",
+      hint: "build forward",
+      loudness: 32,
+      picks: future,
+    },
+  ]
+    .filter((p) => p.picks.length > 0)
+    .sort((a, b) => b.loudness - a.loudness);
+
+  // Plays perspective (committed + suggestions). Louder later, when the
+  // combos and handcuffs that earlier picks opened start to matter.
   const committedKeys = new Set(
     activePlays.map((c) => `${c.archetype}:${c.primary_player.player_id}`),
   );
@@ -282,10 +302,29 @@ export function DecisionBoard({
     const key = `${p.archetype}:${p.primary_player.player_id}`;
     return !committedKeys.has(key) && !dismissedKeys.has(key);
   });
+  const playsLoudness =
+    activePlays.length * 22 + openSuggestions.length * 6 + (early ? 0 : 28);
+  const playsHasContent = activePlays.length > 0 || openSuggestions.length > 0;
 
   function refresh() {
     setCommitments(getPlayCommitments(leagueId));
     setDismissed(getDismissedSuggestions(leagueId));
+  }
+  function toggleOpen(id: string) {
+    setOpened((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll(id: string) {
+    setShowAll((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   return (
@@ -334,179 +373,241 @@ export function DecisionBoard({
         </div>
         {callCand && <TagChips tags={tagsFor(callCand)} />}
         {disclaimer ? (
-          <p className="mt-2 text-[12px] leading-snug text-warning">
-            {disclaimer}
-          </p>
+          <p className="mt-2 text-[12px] leading-snug text-warning">{disclaimer}</p>
         ) : (
           <p className="mt-2 text-[12px] leading-snug text-muted">
             {decision.recommendation.primary_reason}
           </p>
         )}
-        {callAtRisk && topWait ? (
-          <p className="mt-1 text-[11px] leading-snug text-warning">
-            {topWait.name} (higher value) will likely keep ({topWait.survival_pct}%);
-            grab {decision.recommendation.name} now.
-          </p>
-        ) : !callAtRisk ? (
+        {!callAtRisk && (
           <p className="mt-1 text-[11px] leading-snug text-warning">
             Nothing's about to be gone. Take {decision.recommendation.name} for
             value, or trade down; you won't lose your targets by waiting.
           </p>
-        ) : null}
+        )}
       </div>
 
-      {/* ALSO SOON */}
-      {atRisk.length > 0 && (
-        <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
-            Also soon
-          </div>
-          <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
-            Other picks you'd lose by waiting.
-          </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {atRisk.map((c) => (
-              <PickRow key={c.player_id} c={c} pickNo={pickNo} tags={tagsFor(c)} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* WAIT */}
-      <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-2">
-          Wait
-        </div>
-        <p className="mt-0.5 text-[10px] leading-snug text-muted-2">
-          No rush; these reach your next pick. They surface above as their
-          survival drops.
-        </p>
-
-        {willLast.length > 0 && (
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {willLast.map((c) => (
-              <PickRow key={c.player_id} c={c} pickNo={pickNo} tags={tagsFor(c)} />
-            ))}
-          </div>
-        )}
-
-        {/* Tracked plays (committed) */}
-        {activePlays.length > 0 && (
-          <div className="mt-3">
-            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
-              Plays you're running
-            </div>
-            <ul className="mt-1 grid gap-2 sm:grid-cols-2">
-              {activePlays.map((c) => (
-                <li
-                  key={c.commitment_id}
-                  className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-1.5"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="flex flex-wrap items-baseline gap-2">
-                      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
-                        {archetypeLabel(c.archetype)}
-                      </span>
-                      <span className="text-[13px] font-semibold text-foreground">
-                        {c.play_name}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        abandonPlay({ leagueId, commitmentId: c.commitment_id });
-                        refresh();
-                      }}
-                      className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
-                    >
-                      Abandon
-                    </button>
-                  </div>
-                  {c.followthrough_targets.length > 0 && (
-                    <p className="mt-1 text-[11px] leading-snug text-muted">
-                      {c.followthrough_targets.map((t) => t.name).join(", ")} ·
-                      no rush, surfaces above when at risk
-                    </p>
-                  )}
-                </li>
+      {/* Supportive perspectives */}
+      {playerPerspectives.map((p) => {
+        const isLoud = p.loudness >= LOUD_THRESHOLD;
+        const isOpen = isLoud || opened.has(p.id);
+        const isFull = showAll.has(p.id);
+        const shown = isFull ? p.picks : p.picks.slice(0, TOP_AT_A_GLANCE);
+        return (
+          <PerspectiveSection
+            key={p.id}
+            label={p.label}
+            hint={p.hint}
+            count={p.picks.length}
+            isOpen={isOpen}
+            quiet={!isLoud}
+            onToggle={() => toggleOpen(p.id)}
+          >
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {shown.map((c) => (
+                <PickRow key={c.player_id} c={c} pickNo={pickNo} tags={tagsFor(c)} />
               ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Plays you could run (suggestions) */}
-        {openSuggestions.length > 0 && (
-          <div className="mt-3">
-            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
-              Plays you could run
             </div>
-            <ul className="mt-1 grid gap-2 sm:grid-cols-2">
-              {openSuggestions.map((p) => (
-                <li
-                  key={`${p.archetype}-${p.primary_player.player_id}`}
-                  className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-1.5"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="flex flex-wrap items-baseline gap-2">
-                      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
-                        {archetypeLabel(p.archetype)}
+            {p.picks.length > TOP_AT_A_GLANCE && (
+              <button
+                type="button"
+                onClick={() => toggleAll(p.id)}
+                className="mt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2 hover:text-accent transition-colors"
+              >
+                {isFull
+                  ? "Show fewer"
+                  : `Show all ${p.picks.length}`}
+              </button>
+            )}
+          </PerspectiveSection>
+        );
+      })}
+
+      {/* Plays perspective */}
+      {playsHasContent && (
+        <PerspectiveSection
+          label="Plays"
+          hint="combos earlier picks opened"
+          count={activePlays.length + openSuggestions.length}
+          isOpen={playsLoudness >= LOUD_THRESHOLD || opened.has("plays")}
+          quiet={playsLoudness < LOUD_THRESHOLD}
+          onToggle={() => toggleOpen("plays")}
+        >
+          {activePlays.length > 0 && (
+            <div className="mt-2">
+              <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+                Running
+              </div>
+              <ul className="mt-1 grid gap-2 sm:grid-cols-2">
+                {activePlays.map((c) => (
+                  <li
+                    key={c.commitment_id}
+                    className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-1.5"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="flex flex-wrap items-baseline gap-2">
+                        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
+                          {archetypeLabel(c.archetype)}
+                        </span>
+                        <span className="text-[13px] font-semibold text-foreground">
+                          {c.play_name}
+                        </span>
                       </span>
-                      <span className="text-[13px] font-semibold text-foreground">
-                        {p.name}
-                      </span>
-                    </span>
-                    <span className="flex items-baseline gap-3">
                       <button
                         type="button"
                         onClick={() => {
-                          commitPlay({
-                            leagueId,
-                            play: p,
-                            committedAtPickNo: currentPickNo ?? 0,
-                          });
-                          refresh();
-                        }}
-                        className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent hover:text-foreground transition-colors"
-                      >
-                        Track
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          dismissSuggestion({ leagueId, play: p });
+                          abandonPlay({ leagueId, commitmentId: c.commitment_id });
                           refresh();
                         }}
                         className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
                       >
-                        Dismiss
+                        Abandon
                       </button>
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] leading-snug text-muted line-clamp-2">
-                    {p.genius_vs_average_line}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+                    </div>
+                    {c.followthrough_targets.length > 0 && (
+                      <p className="mt-1 text-[11px] leading-snug text-muted">
+                        {c.followthrough_targets.map((t) => t.name).join(", ")} ·
+                        surfaces above when at risk
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {openSuggestions.length > 0 && (
+            <div className="mt-2">
+              <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+                Could run
+              </div>
+              <ul className="mt-1 grid gap-2 sm:grid-cols-2">
+                {openSuggestions.map((p) => (
+                  <li
+                    key={`${p.archetype}-${p.primary_player.player_id}`}
+                    className="rounded-md border border-border-soft bg-surface/30 px-2.5 py-1.5"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="flex flex-wrap items-baseline gap-2">
+                        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
+                          {archetypeLabel(p.archetype)}
+                        </span>
+                        <span className="text-[13px] font-semibold text-foreground">
+                          {p.name}
+                        </span>
+                      </span>
+                      <span className="flex items-baseline gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            commitPlay({
+                              leagueId,
+                              play: p,
+                              committedAtPickNo: currentPickNo ?? 0,
+                            });
+                            refresh();
+                          }}
+                          className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent hover:text-foreground transition-colors"
+                        >
+                          Track
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            dismissSuggestion({ leagueId, play: p });
+                            refresh();
+                          }}
+                          className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-snug text-muted line-clamp-2">
+                      {p.genius_vs_average_line}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {dismissed.length > 0 && (
+            <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+              {dismissed.length} dismissed ·{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  for (const d of dismissed) restoreSuggestion({ leagueId, key: d.key });
+                  refresh();
+                }}
+                className="underline decoration-dotted hover:text-accent"
+              >
+                restore all
+              </button>
+            </p>
+          )}
+        </PerspectiveSection>
+      )}
+    </div>
+  );
+}
 
-        {dismissed.length > 0 && (
-          <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
-            {dismissed.length} dismissed ·{" "}
-            <button
-              type="button"
-              onClick={() => {
-                for (const d of dismissed) restoreSuggestion({ leagueId, key: d.key });
-                refresh();
-              }}
-              className="underline decoration-dotted hover:text-accent"
-            >
-              restore all
-            </button>
-          </p>
+function TagChips({ tags }: { tags: string[] }) {
+  if (tags.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      {tags.map((t) => (
+        <span
+          key={t}
+          className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 border border-border-soft rounded-full px-1.5 py-0.5"
+        >
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// A perspective: a header (label + count) and its picks. Loud ones
+// render open; quiet ones collapse to a clickable header so the
+// perspective is never lost, just recessed.
+function PerspectiveSection({
+  label,
+  hint,
+  count,
+  isOpen,
+  quiet,
+  onToggle,
+  children,
+}: {
+  label: string;
+  hint: string;
+  count: number;
+  isOpen: boolean;
+  quiet: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={quiet ? onToggle : undefined}
+        className={`flex items-baseline gap-2 ${quiet ? "cursor-pointer" : "cursor-default"}`}
+        aria-expanded={isOpen}
+      >
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
+          {label}
+        </span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+          {hint} · {count}
+        </span>
+        {quiet && (
+          <span className="font-mono text-[9px] text-muted-2">
+            {isOpen ? "−" : "+"}
+          </span>
         )}
-      </div>
+      </button>
+      {isOpen && children}
     </div>
   );
 }
