@@ -31,8 +31,10 @@ import type {
   LeagueScoring,
   Position,
 } from "../archetypes/schema";
-
-const FANTASY_POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
+import {
+  FANTASY_POSITIONS,
+  normalizePosition,
+} from "../archetypes/schema";
 
 export type RosterSnapshot = {
   roster_id: number;
@@ -368,13 +370,6 @@ function emptyPositionRanks(): Record<Position, number[]> {
 
 function asNumber(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
-}
-
-function normalizePosition(raw: string | null | undefined): Position | null {
-  if (!raw) return null;
-  const u = raw.toUpperCase();
-  if (u === "DEF") return "DST";
-  return FANTASY_POSITIONS.includes(u as Position) ? (u as Position) : null;
 }
 
 export async function buildLeagueSnapshot(args: {

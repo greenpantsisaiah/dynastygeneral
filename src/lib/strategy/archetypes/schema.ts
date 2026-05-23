@@ -16,6 +16,34 @@
 
 export type Position = "QB" | "RB" | "WR" | "TE" | "K" | "DST";
 
+/** All fantasy-relevant positions. The runtime companion to Position. */
+export const FANTASY_POSITIONS: Position[] = [
+  "QB",
+  "RB",
+  "WR",
+  "TE",
+  "K",
+  "DST",
+];
+
+/**
+ * Canonical player-position normalizer. Uppercases, merges DEF -> DST
+ * (Sleeper uses both labels across eras for the same team-defense
+ * position), and returns the Position union or null for anything that
+ * is not a fantasy-relevant position (IDP positions, junk). Registered
+ * in CANONICAL_SOURCES.md. Resolving position without this merge is a
+ * recurring drift class: code checking `=== "DST"` silently misses
+ * `DEF` and vice versa.
+ */
+export function normalizePosition(
+  raw: string | null | undefined,
+): Position | null {
+  if (!raw) return null;
+  const u = raw.toUpperCase();
+  if (u === "DEF") return "DST";
+  return FANTASY_POSITIONS.includes(u as Position) ? (u as Position) : null;
+}
+
 export type LeagueFormat = "1qb" | "superflex" | "2qb";
 
 export type LeagueScoring = "PPR" | "half-PPR" | "standard" | "TE-premium";

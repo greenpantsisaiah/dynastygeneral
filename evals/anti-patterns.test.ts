@@ -100,6 +100,24 @@ const RULES: Rule[] = [
       join(SRC, "lib", "sleeper", "roster-identity.ts"),
     ],
   },
+  // Player position must normalize through normalizePosition, which
+  // merges DEF -> DST. An inline `position.toUpperCase() === "DEF"`
+  // normalizer is the duplicate shape that drifts (code checking
+  // "DST" silently misses "DEF"). The canonical lives in
+  // archetypes/schema.ts. Slot-parsing (`p === "DEF"` over
+  // roster_positions) and FantasyCalc cross-ref matching are distinct
+  // concerns and use the bare string, so this bans only the
+  // `.toUpperCase() === "DEF"` normalizer shape.
+  {
+    name: "no inline DEF->DST position normalizer (use normalizePosition)",
+    why: "Player-position normalization must go through normalizePosition (archetypes/schema.ts), which merges DEF -> DST. Inline `.toUpperCase() === \"DEF\"` re-introduces the DST/DEF drift class. Per CANONICAL_SOURCES.md.",
+    pattern: /\.toUpperCase\(\)\s*===\s*["']DEF["']/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "strategy", "archetypes", "schema.ts"),
+    ],
+  },
   // QB starter math is the most-bugged pattern: SF / 2QB leagues have
   // their second QB slot in starter_slots.superflex, NOT in
   // starter_slots.hard.QB. Reading hard.QB without adding superflex,

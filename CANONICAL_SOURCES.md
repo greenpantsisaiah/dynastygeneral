@@ -22,6 +22,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: building a `Map<\`${round}:${original_owner}\`, current_owner>` lookup inline in any other file. Lint rule "no inline traded_picks override-map construction" enforces this.
 - **Bug class avoided**: 2026-05-06 "Decision title says 2 ahead but banner says 11 ahead." Three independent implementations drifted; we patched two and the third stayed wrong.
 
+### Player position normalization (DEF = DST)
+
+- **Canonical**: `normalizePosition(raw)` in `src/lib/strategy/archetypes/schema.ts` (with `FANTASY_POSITIONS`, the runtime companion to the `Position` type)
+- **Returns**: `Position | null` (uppercases, merges `DEF` -> `DST`, returns the Position union or null for non-fantasy positions like IDP / junk)
+- **Consumers**: snapshot `is_me` depth annotation + every player-position read that feeds counts/depth (`snapshot.ts`, `leagues/[leagueId]/page.tsx`, `api/coach/[leagueId]/route.ts`, `contender-outlook/forecast.ts`, `scout/score.ts`).
+- **Distinct (NOT this canonical)**: slot-parsing over `league.roster_positions` (`p === "DEF"` mapping a DEF slot to the DST counter, in `snapshot.ts` / `scout/score.ts` / `llm-contract.ts`) and FantasyCalc-vs-Sleeper cross-ref matching (`players/integrity.ts`) legitimately use the bare string; they are not player-position normalization. `contender-outlook/forecast.ts` also keeps a local 4-position `FANTASY_POSITIONS` (`["QB","RB","WR","TE"]`, the rookie mix) which is a different list, not this one.
+- **Anti-pattern**: an inline `position.toUpperCase() === "DEF"` normalizer, or a hand-rolled `normPos` closure that maps DEF -> DST. Lint rule "no inline DEF->DST position normalizer (use normalizePosition)" bans the `.toUpperCase() === "DEF"` shape outside `schema.ts`.
+- **Bug class avoided**: 2026-05-23 architecture audit found 4 near-identical DEF -> DST normalizers (two byte-identical `normPos` closures in the hub and Coach route, plus `forecast.toPosition` and a scout inline). Code checking `=== "DST"` without the merge silently misses `DEF` and vice versa.
+
 ### Roster identity (is this my roster, co-owner-aware)
 
 - **Canonical**: `isRosterOwnedBy(roster, sleeperUserId)` in `src/lib/sleeper/roster-identity.ts`

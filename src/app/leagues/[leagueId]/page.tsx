@@ -208,6 +208,7 @@ import type {
   RankedArchetype,
   Position,
 } from "@/lib/strategy/archetypes/schema";
+import { normalizePosition } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
   params: Promise<{ leagueId: string }>;
@@ -725,20 +726,11 @@ export default async function LeagueHubPage({
             for (const id of r.player_ids ?? []) depthIds.add(id);
           }
           const depthPlayers = await resolvePlayers([...depthIds]);
-          const normPos = (p: string | null | undefined) => {
-            const u = (p ?? "").toUpperCase();
-            if (u === "QB") return "QB" as const;
-            if (u === "RB") return "RB" as const;
-            if (u === "WR") return "WR" as const;
-            if (u === "TE") return "TE" as const;
-            if (u === "K") return "K" as const;
-            if (u === "DST" || u === "DEF") return "DST" as const;
-            return null;
-          };
           annotateStartableDepth({
             snap: leagueSnapshot,
             valueOf: (id) => playerValuesByIdJson[id] ?? null,
-            positionOf: (id) => normPos(depthPlayers.get(id)?.position),
+            positionOf: (id) =>
+              normalizePosition(depthPlayers.get(id)?.position),
           });
         } catch (err) {
           console.error("[hub:startable-depth]", err);

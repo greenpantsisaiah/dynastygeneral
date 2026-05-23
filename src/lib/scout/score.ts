@@ -39,6 +39,7 @@ import type {
   SleeperLeagueUser,
 } from "@/lib/sleeper/schemas";
 import { buildLeagueSnapshot, getMyRoster } from "@/lib/strategy/league-state/snapshot";
+import { normalizePosition } from "@/lib/strategy/archetypes/schema";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forecast";
@@ -425,11 +426,7 @@ export async function scoreTeamForLeague(args: {
   for (const id of playerIds) {
     const p = playerMap.get(id);
     if (!p) continue;
-    const pos = p.position
-      ? p.position.toUpperCase() === "DEF"
-        ? "DST"
-        : p.position.toUpperCase()
-      : null;
+    const pos = normalizePosition(p.position);
     if (pos && positionCounts[pos] != null) positionCounts[pos]++;
     if (typeof p.age === "number") ages.push(p.age);
     const searchRank =
