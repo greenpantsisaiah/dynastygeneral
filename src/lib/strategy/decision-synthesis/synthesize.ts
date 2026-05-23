@@ -2406,6 +2406,11 @@ function buildLeaguePositionContext(
  * starter requirement is a real run threat. Founder 2026-05-22.
  */
 const AGAINST_GRAIN_MIN_LEAN = 0.75;
+// Don't render a league-average comparison until the league has drafted
+// enough that per-position averages are stable. Below this, the averages
+// are noise (founder 2026-05-22: "we cannot display this until you have
+// enough to average").
+const AGAINST_GRAIN_MIN_ROUNDS = 3;
 
 function buildAgainstGrainRead(
   snap: LeagueSnapshot,
@@ -2413,6 +2418,9 @@ function buildAgainstGrainRead(
 ): Decision["build_vs_league"] {
   const me = snap.rosters.find((r) => r.is_me);
   if (!me) return null;
+  const teams = snap.rosters.length || 1;
+  const picksMade = snap.draft?.picks_made?.length ?? 0;
+  if (picksMade < teams * AGAINST_GRAIN_MIN_ROUNDS) return null;
   const reqs = effectiveStarterReqs(snap);
   let best:
     | { pos: Position; yc: number; avg: number; over: boolean; req: number; score: number }
