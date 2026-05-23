@@ -92,7 +92,6 @@ import type {
   WhatIfReadout,
   WhatIfEvEntry,
 } from "@/lib/strategy/decision-synthesis/whatif";
-import { EvBankPercentileChip } from "@/components/league/ev-bank-percentile-chip";
 import {
   buildPlanPlayerIds,
   detectPlanDisruption,
@@ -1728,25 +1727,29 @@ export default async function LeagueHubPage({
 
           {rosterPosture && <PostureBanner posture={rosterPosture} />}
 
-          {(draftState?.status === "pre_draft" || draftActive) &&
-            upcomingDraft && (
-              <DraftPositionBanner
-                summary={upcomingDraft}
-                ownerNameByRosterId={
-                  new Map(
-                    leagueSnapshot?.rosters.map((r) => [
-                      r.roster_id,
-                      r.owner_name ?? `roster #${r.roster_id}`,
-                    ]) ?? [],
-                  )
-                }
-              />
-            )}
-
-          <EvBankPercentileChip
-            leagueBank={leagueEvBank}
-            total_ev={draftProgress?.ev_bank?.total_ev ?? null}
-          />
+          {/* Pre-draft only: the Draft Position banner is the intended
+              lead hero before the clock starts (no Call yet). Once the
+              draft is live it moves into "How you're doing", where slot
+              schedule + traded picks read as reference, not the headline
+              the user scrolls past every refresh (founder, 2026-05-23).
+              The EV bank at-a-glance read lives in the companion
+              "Checkpoint" beat above; the standalone EvBankPercentileChip
+              was the duplicate and is retired (one EV bank glance, not
+              two). The deep per-pick EV bank stays in "How you're
+              doing". */}
+          {draftState?.status === "pre_draft" && upcomingDraft && (
+            <DraftPositionBanner
+              summary={upcomingDraft}
+              ownerNameByRosterId={
+                new Map(
+                  leagueSnapshot?.rosters.map((r) => [
+                    r.roster_id,
+                    r.owner_name ?? `roster #${r.roster_id}`,
+                  ]) ?? [],
+                )
+              }
+            />
+          )}
 
           {isViewingOther && savedSleeperUsername && (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/60 bg-warning/10 px-4 py-3 text-sm">
@@ -2398,6 +2401,24 @@ export default async function LeagueHubPage({
                       positionCountDeltas={lastVisitPositionCountDeltas}
                       leagueRankDelta={lastVisitLeagueRankDelta}
                       leagueName={league?.name ?? null}
+                    />
+                  )}
+                  {/* Draft Position lives here during an active draft:
+                      slot schedule + traded picks are reference the user
+                      consults occasionally, not the headline they scroll
+                      past every refresh (founder, 2026-05-23). Pre-draft
+                      keeps it as the lead hero at the top of the hub. */}
+                  {draftActive && upcomingDraft && (
+                    <DraftPositionBanner
+                      summary={upcomingDraft}
+                      ownerNameByRosterId={
+                        new Map(
+                          leagueSnapshot?.rosters.map((r) => [
+                            r.roster_id,
+                            r.owner_name ?? `roster #${r.roster_id}`,
+                          ]) ?? [],
+                        )
+                      }
                     />
                   )}
                 </DashboardSection>

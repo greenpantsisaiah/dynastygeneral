@@ -418,9 +418,11 @@ selection lives in the hub render and uses
   rendering (`LastVisitDigest` at the top of the hub)
 - Plan-disruption acknowledgment (rendered inside `LastVisitDigest`
   when a planned target was sniped between visits)
-- EV bank percentile chip at the top of the hub
-  (`EvBankPercentileChip`); the at-a-glance "where do I rank" read
-  Principle 8 calls for, above the fold
+- EV bank at-a-glance "where do I rank" read (Principle 8) lives in
+  the companion "Checkpoint" milestone beat at the top of the hub
+  ("EV bank +10.8, 1st of 12", percentile in provenance). The
+  standalone `EvBankPercentileChip` that previously carried this read
+  was RETIRED 2026-05-23 as a duplicate (see Retired section)
 - Stage-adaptation function (`selectSurfaceLayout`)
 - Comparator team narrative rendered inline in Team Identity panel
   (`team-identity-panel.tsx`)
@@ -485,6 +487,18 @@ selection lives in the hub render and uses
   surfaces consume the same canonical labeler
 
 ### Retired (was listed; intentionally removed)
+- **`EvBankPercentileChip` (standalone top-of-hub chip).** Retired
+  2026-05-23. The companion "Checkpoint" milestone beat (Principle
+  13, shipped 2026-05-21) leads the hub with the same EV bank
+  rank-of-N read ("EV bank +10.8, 1st of 12", percentile carried in
+  provenance), and it fires under the identical condition the chip
+  did (`my_rank != null && ranked_count >= 2`). Two surfaces stating
+  "EV bank +10.8, 1 of 12" within one screen was the duplicate the
+  founder flagged. The at-a-glance read survives in the companion
+  beat; the deep per-pick EV bank survives in
+  `DraftProgressPanel.EvBankSection`. The component file was deleted.
+  Do not re-add a standalone EV bank chip at the top without first
+  resolving the overlap with the companion checkpoint beat.
 - **Sloan-mode register switch.** Retired 2026-05-12 in favor of
   always-on Sloan density. The toggle + cookie + register switch
   on The Call + Coach register fork were deleted. Any future
@@ -566,6 +580,7 @@ selection lives in the hub render and uses
 | 2026-05-15 | "I can't even locate EV on the page" | Hoisted EvBankSection to lead DraftProgressPanel, directly after the headline. Position diagnostic + rest now follow as supporting cast |
 | 2026-05-20 | "Your active plays" finally nails lanes; "next 4 picks" is data-blind; no harmony with broader strategies | Plays-as-cornerstone spec amendment (Principle 12). Per-partner survival math via canonical `survivalPctFor`. In-season lifecycle (QB Flip Window, Handcuff Watch, 2027 1st Sniping, Buy-the-Dip, Multi-Handcuff Lottery). Declarative format gates per play type. Strategic Lanes retired in favor of Plays. Best Value collapsed into standing call (badge or transparency line). Candidate badges (`Activates` / `Advances` / `Breaks`) replace The Call's lanes mini-section. Coach gets `active_plays` context + hard rule. New states: `auto_active`, `dismissed` (forgiven). No noise cap. |
 | 2026-05-21 | "I come back to the page hoping for thoughts, like bantering with a friend; fantasy is a solo sport like poker; deliver companionship (bad beat / out-of-position / called-it) without being slimy, across pre-draft, dynasty draft, in-season, and fast redraft" | Companion / emotional-ROI loop (Principle 13). Grounded beat taxonomy (vindication, bad beat, critique, debate, anticipation, callback, milestone) via a deterministic classifier over existing canonicals plus an expectation ledger. Push check-in surface at the top of the hub + Coach handoff for the debate. Scoped 'we' brand exception. Honest-first calibration (commiserate only when genuinely ahead; critique only on a real EV gap). Anti-slime guarantees locked as invariants. Stage-adaptive cadence. |
+| 2026-05-23 | "Draft Position section I continuously scroll past, put it much further down in one of the sections; two EV bank things should be merged" | During an active draft the `DraftPositionBanner` moved from the top of the hub into the "How you're doing" section, below `DraftProgressPanel` (slot schedule + traded picks read as reference, not the headline). Pre-draft keeps it as the lead hero (intended pre-draft surface; "How you're doing" does not render then). EV bank merge: the standalone `EvBankPercentileChip` was retired because the companion "Checkpoint" beat already states the same EV bank rank-of-N at the top; deep per-pick EV bank stays in `DraftProgressPanel`. |
 
 ## Strategic Lanes (RETIRED 2026-05-20, see Plays panel below)
 
