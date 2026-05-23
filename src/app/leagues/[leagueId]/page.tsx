@@ -83,15 +83,13 @@ import { LastVisitWriter } from "@/components/system/last-visit-writer";
 import { LastVisitDigest } from "@/components/league/last-visit-digest";
 import { CompanionCheckIn } from "@/components/league/companion-check-in";
 import { classifyBeats } from "@/lib/strategy/companion/classify";
+import { reconstructPickDebate } from "@/lib/strategy/companion/debate";
 import type {
   Beat,
   BeatStage,
   AnticipationInput,
 } from "@/lib/strategy/companion/types";
-import type {
-  WhatIfReadout,
-  WhatIfEvEntry,
-} from "@/lib/strategy/decision-synthesis/whatif";
+import type { WhatIfReadout } from "@/lib/strategy/decision-synthesis/whatif";
 import {
   buildPlanPlayerIds,
   detectPlanDisruption,
@@ -1499,54 +1497,50 @@ export default async function LeagueHubPage({
           : draftState?.status === "complete"
             ? "in_season"
             : "pre_draft";
-        let companionWhatIf: WhatIfReadout | null = null;
-        let companionChosenId: string | null = null;
-        if (prior?.standing_call_id) {
-          const priorTotal = prior.total_picks_made ?? 0;
-          const latest = leagueSnapshot.draft.picks_made
-            .filter(
-              (p) =>
-                p.roster_id === leagueSnapshot.my_roster_id &&
-                p.pick_no > priorTotal,
-            )
-            .sort((a, b) => b.pick_no - a.pick_no)[0];
-          if (latest && latest.player_id !== prior.standing_call_id) {
-            const mkEntry = (id: string, isCall: boolean): WhatIfEvEntry => {
-              const value = lrValueMap.get(id)?.value;
-              const adp = getAdp(id);
-              const ev =
-                typeof value === "number" && typeof adp === "number"
-                  ? Math.round((value / 100) * (latest.pick_no - adp) * 100) /
-                    100
-                  : null;
-              const info = playerNameLookup(id);
-              return {
-                player_id: id,
-                player_name: info?.name ?? id,
-                position: info?.position ?? null,
-                ev_if_chosen: ev,
-                delta_vs_standing_call: 0,
-                survival_pct: null,
-                is_standing_call: isCall,
-                narrative: "",
-              };
-            };
-            const callEntry = mkEntry(prior.standing_call_id, true);
-            const chosenEntry = mkEntry(latest.player_id, false);
-            chosenEntry.delta_vs_standing_call =
-              chosenEntry.ev_if_chosen != null && callEntry.ev_if_chosen != null
-                ? Math.round(
-                    (chosenEntry.ev_if_chosen - callEntry.ev_if_chosen) * 100,
-                  ) / 100
-                : null;
-            companionWhatIf = {
-              standing_call_id: prior.standing_call_id,
-              standing_call_ev: callEntry.ev_if_chosen,
-              entries: [callEntry, chosenEntry],
-            };
-            companionChosenId = latest.player_id;
+        // Pool-aware name resolver. A real divergence is
+        // available-vs-available, so a rostered-only lookup (playersMap)
+        // leaves a raw player id in the copy + Coach seed (the "13320"
+        // leak, 2026-05-23). Resolve through the available pool and the
+        // decision candidates too; unresolved ids suppress the beat.
+        const availableById = new Map(
+          availablePlayers.map((p) => [p.id, p]),
+        );
+        const companionResolveName = (
+          id: string,
+        ): { name: string; position: string | null } | null => {
+          const info = playerNameLookup(id);
+          if (info && info.name !== id) return info;
+          const ap = availableById.get(id);
+          if (ap?.name) return { name: ap.name, position: ap.position ?? null };
+          const cand = decision?.top_candidates.find(
+            (c) => c.player_id === id,
+          );
+          if (cand?.name)
+            return { name: cand.name, position: cand.position ?? null };
+          return null;
+        };
+        // Current decision candidates corroborate that the cookie call is
+        // still a real alternative (re-points the beat at the new Decision
+        // Board; filters stale / pre-refactor calls the user never faced).
+        const currentCandidateIds = new Set<string>();
+        if (decision) {
+          currentCandidateIds.add(decision.recommendation.player_id);
+          for (const c of decision.top_candidates) {
+            currentCandidateIds.add(c.player_id);
           }
         }
+        const debate = reconstructPickDebate({
+          priorStandingCallId: prior?.standing_call_id ?? null,
+          priorTotalPicksMade: prior?.total_picks_made ?? 0,
+          myRosterId: leagueSnapshot.my_roster_id,
+          picksMade: leagueSnapshot.draft.picks_made,
+          currentCandidateIds,
+          resolveName: companionResolveName,
+          resolveValue: (id) => lrValueMap.get(id)?.value,
+          resolveAdp: getAdp,
+        });
+        const companionWhatIf: WhatIfReadout | null = debate?.whatIf ?? null;
+        const companionChosenId: string | null = debate?.chosenId ?? null;
         // Anticipation: the standing call's survival to the user's next
         // pick, grounded in the decision's canonical survival_pct. Fires
         // only when survival is uncertain (the classifier gates >= 75%).
@@ -1580,11 +1574,13 @@ export default async function LeagueHubPage({
             )
             .sort((a, b) => b.pick_no - a.pick_no)[0];
           if (recentPick) {
-            const info = playerNameLookup(recentPick.player_id);
-            companionLatestPick = {
-              player_id: recentPick.player_id,
-              name: info?.name ?? recentPick.player_id,
-            };
+            const info = companionResolveName(recentPick.player_id);
+            if (info) {
+              companionLatestPick = {
+                player_id: recentPick.player_id,
+                name: info.name,
+              };
+            }
           }
         }
         companionBeats = classifyBeats({

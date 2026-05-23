@@ -44,8 +44,38 @@ function confidenceSummary(
     (s) => s.direction === "data_missing",
   ).length;
   const total = signals.length;
+  const live_signal_count = validated_count + partial_count + weak_count;
+
+  // Honest framing: a card whose signals are mostly blind is leaning on
+  // the position base rate, not on evidence. Surface that so a 64/36 split
+  // built from one live signal does not read as an evidence-backed call.
+  let evidence_basis: "prior_driven" | "mixed" | "evidence_backed";
+  let calibration_note: string | null;
+  if (data_missing_count === 0) {
+    evidence_basis = "evidence_backed";
+    calibration_note = null;
+  } else if (live_signal_count <= 1) {
+    evidence_basis = "prior_driven";
+    calibration_note =
+      live_signal_count === 0
+        ? `No live signals yet: ${data_missing_count} of ${total} data missing. This is the position base rate, not a read on this player.`
+        : `Mostly prior-driven: ${live_signal_count} of ${total} signals live. Base-rate lean, not yet evidence-backed.`;
+  } else {
+    evidence_basis = "mixed";
+    calibration_note = `Partial read: ${live_signal_count} of ${total} signals live, ${data_missing_count} still missing.`;
+  }
+
   const text = `${validated_count} of ${total} signals validated, ${partial_count} partial, ${weak_count} weak, ${data_missing_count} data missing.`;
-  return { validated_count, partial_count, weak_count, data_missing_count, text };
+  return {
+    validated_count,
+    partial_count,
+    weak_count,
+    data_missing_count,
+    live_signal_count,
+    evidence_basis,
+    calibration_note,
+    text,
+  };
 }
 
 function composeHeadline(
