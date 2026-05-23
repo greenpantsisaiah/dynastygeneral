@@ -101,6 +101,21 @@ export function InflectionPanel({ items }: { items: InflectionContext[] }) {
                 you'd be betting against: {offLabel} ({offPct}%).
               </div>
 
+              {/* Honest framing: when the split rests on the prior more
+                  than on live signals, say so plainly so the percentages
+                  don't read as evidence-backed. */}
+              {r.confidence_summary.calibration_note ? (
+                <div
+                  className={`mt-2 rounded-sm border px-2 py-1 text-[11px] leading-snug ${
+                    r.confidence_summary.evidence_basis === "prior_driven"
+                      ? "border-warning/40 bg-warning/10 text-warning"
+                      : "border-border-soft bg-surface-2 text-muted"
+                  }`}
+                >
+                  {r.confidence_summary.calibration_note}
+                </div>
+              ) : null}
+
               {/* Scorecard */}
               <div className="mt-3">
                 <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
@@ -108,8 +123,15 @@ export function InflectionPanel({ items }: { items: InflectionContext[] }) {
                 </div>
                 <ul className="mt-1 space-y-1">
                   {r.signals.map((s, i) => {
-                    let arrow: string;
-                    let arrowColor: string;
+                    // A missing-data row has no verdict for THIS player, so
+                    // the badge IS the status. Showing the intrinsic trust
+                    // tier ([VALIDATED] / [PARTIAL]) next to "data missing"
+                    // reads as a self-contradiction; collapse to one
+                    // [data missing] badge and drop the redundant arrow.
+                    // Live rows keep their tier badge + direction arrow.
+                    const isMissing = s.direction === "data_missing";
+                    let arrow: string | null;
+                    let arrowColor = "";
                     if (s.direction === "story_a") {
                       arrow = "→ A";
                       arrowColor = "text-success";
@@ -120,8 +142,7 @@ export function InflectionPanel({ items }: { items: InflectionContext[] }) {
                       arrow = "neutral";
                       arrowColor = "text-muted-2";
                     } else {
-                      arrow = "data missing";
-                      arrowColor = "text-muted-2";
+                      arrow = null;
                     }
                     const confidenceColor =
                       s.confidence === "validated"
@@ -130,14 +151,28 @@ export function InflectionPanel({ items }: { items: InflectionContext[] }) {
                           ? "text-muted"
                           : "text-muted-2";
                     return (
-                      <li key={i} className="text-xs leading-snug">
-                        <span className={`font-mono text-[9px] uppercase tracking-[0.16em] ${confidenceColor}`}>
-                          [{s.confidence}]
+                      <li
+                        key={i}
+                        className={`text-xs leading-snug ${isMissing ? "opacity-70" : ""}`}
+                      >
+                        <span
+                          className={`font-mono text-[9px] uppercase tracking-[0.16em] ${
+                            isMissing ? "text-muted-2" : confidenceColor
+                          }`}
+                        >
+                          [{isMissing ? "data missing" : s.confidence}]
                         </span>{" "}
-                        <span className="font-medium text-foreground">{s.name}</span>{" "}
-                        <span className={`font-mono text-[9px] uppercase tracking-[0.16em] ${arrowColor}`}>
-                          {arrow}
-                        </span>
+                        <span className="font-medium text-foreground">{s.name}</span>
+                        {arrow ? (
+                          <>
+                            {" "}
+                            <span
+                              className={`font-mono text-[9px] uppercase tracking-[0.16em] ${arrowColor}`}
+                            >
+                              {arrow}
+                            </span>
+                          </>
+                        ) : null}
                         {s.observation ? (
                           <span className="text-muted">: {s.observation}</span>
                         ) : null}
