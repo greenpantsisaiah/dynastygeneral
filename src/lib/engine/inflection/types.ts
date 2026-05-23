@@ -94,6 +94,19 @@ export type InflectionResolution = {
     partial_count: number;
     weak_count: number;
     data_missing_count: number;
+    // Count of signals that actually point somewhere for this player
+    // (validated + partial + weak, i.e. NOT data_missing).
+    live_signal_count: number;
+    // How much the bifurcation rests on live signals vs the position
+    // base rate. "prior_driven" when 0-1 signals are live (the split is
+    // essentially the prior); "evidence_backed" when nothing is missing;
+    // "mixed" in between. Drives the honest-framing caveat in the UI so a
+    // mostly-blind card does not read as a confident, evidence-backed call.
+    evidence_basis: "prior_driven" | "mixed" | "evidence_backed";
+    // Voice A caveat shown when the read leans on the prior more than on
+    // live signals. Null when evidence_backed (the scorecard speaks for
+    // itself). Carries its own counts so the surface never hardcodes them.
+    calibration_note: string | null;
     // Plain-English summary: "5 of 7 signals validated; 1 data missing."
     text: string;
   };
