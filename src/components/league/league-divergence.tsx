@@ -56,7 +56,7 @@ export function LeagueDivergence({
   byFuture.forEach((t, idx) => futureRankById.set(t.roster_id, idx + 1));
 
   return (
-    <section className="rounded-lg border border-border-soft bg-surface px-5 py-5">
+    <section className="rounded-lg border border-border-soft bg-surface px-4 py-5 sm:px-5">
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
           League standings · win-now + future
@@ -81,18 +81,18 @@ export function LeagueDivergence({
           return (
             <div
               key={t.roster_id}
-              className={`grid grid-cols-[28px_140px_72px_1fr_72px_1fr] items-center gap-2 rounded-sm px-2 py-1.5 ${
+              className={`grid items-center gap-x-2 gap-y-1 rounded-sm px-2 py-1.5 grid-cols-[auto_1fr] [grid-template-areas:'rank_owner'_'nowlbl_nowbar'_'futlbl_futbar'] sm:gap-2 sm:grid-cols-[28px_140px_72px_1fr_72px_1fr] sm:[grid-template-areas:'rank_owner_nowlbl_nowbar_futlbl_futbar'] ${
                 t.is_me ? "bg-accent/5" : ""
               }`}
             >
               <div
-                className={`font-mono text-[11px] uppercase tracking-[0.14em] ${
+                className={`[grid-area:rank] font-mono text-[11px] uppercase tracking-[0.14em] ${
                   rank === 1 ? "text-accent" : "text-muted-2"
                 }`}
               >
                 {ordinal(rank)}
               </div>
-              <div className="flex flex-col gap-0.5 min-w-0">
+              <div className="[grid-area:owner] flex flex-col gap-0.5 min-w-0">
                 <div
                   className={`truncate text-sm ${
                     t.is_me ? "font-semibold text-accent" : "text-foreground"
@@ -103,7 +103,7 @@ export function LeagueDivergence({
                 </div>
                 <TierBadge tone={tier.tone} label={tier.label} />
               </div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              <div className="[grid-area:nowlbl] font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
                 Now {t.win_now}
               </div>
               <ScoreBar
@@ -113,8 +113,9 @@ export function LeagueDivergence({
                 range={scoreRange}
                 isMe={t.is_me}
                 tone="now"
+                className="[grid-area:nowbar]"
               />
-              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+              <div className="[grid-area:futlbl] font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
                 Future {t.future} · {ordinal(futureRank)}
               </div>
               <ScoreBar
@@ -124,6 +125,7 @@ export function LeagueDivergence({
                 range={scoreRange}
                 isMe={t.is_me}
                 tone="future"
+                className="[grid-area:futbar]"
               />
             </div>
           );
@@ -162,6 +164,7 @@ function ScoreBar({
   range,
   isMe,
   tone,
+  className,
 }: {
   value: number;
   min: number;
@@ -169,12 +172,13 @@ function ScoreBar({
   range: number;
   isMe: boolean;
   tone: "now" | "future";
+  className?: string;
 }) {
   // Bar fill maps absolute score onto the league range. Best-in-league
   // pegs at 100% width; worst pegs near 0%.
   const pct = Math.max(2, Math.min(100, ((value - min) / range) * 100));
   return (
-    <div className="relative h-4 rounded-sm bg-surface-2">
+    <div className={`relative h-4 rounded-sm bg-surface-2 ${className ?? ""}`}>
       <div
         className={`absolute left-0 top-0 h-full rounded-sm ${
           isMe
