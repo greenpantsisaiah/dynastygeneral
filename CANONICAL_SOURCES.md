@@ -90,6 +90,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Canonical**: `startupPickValue(round, slot, format)` (and `SUPERFLEX_PICK_MULTIPLIER`) in the pricing layer
 - **Use**: every place a pick number needs a market value (Coach pricing block, trade routes, decision/trade endpoint)
 
+### Per-pick EV (EV-bank delta math)
+
+- **Canonical**: `perPickEv(value, pickNo, adp)` in `src/lib/strategy/ev-bank/formula.ts` (with the shared `round2`)
+- **Returns**: `number` (RAW, unrounded) = `(value / 100) * (pickNo - adp)`. The ADP-noise envelope passes a shifted adp (`adp + shift`); there is no separate shifted function.
+- **Rounding rule**: `perPickEv` does NOT round. Callers round where they currently do: the EV bank rounds the summed total (`analyze.ts`, `league.ts`) while per-candidate surfaces round each value (`whatif.ts`, `candidate-bits.tsx`, `companion/debate.ts`). One formula, caller-owned rounding, so the two rounding regimes stay exact.
+- **Consumers**: `ev-bank/analyze.ts`, `ev-bank/league.ts`, `decision-synthesis/whatif.ts`, `the-call/candidate-bits.tsx`, `companion/debate.ts`.
+- **Anti-pattern**: writing `(value / 100) * (pick - adp)` inline, or re-defining a local `round2`. Lint rule "no inline per-pick EV formula (use perPickEv canonical)" bans the `/ 100) * (` signature outside `formula.ts`.
+- **Bug class avoided**: 2026-05-23 architecture audit found 5 independent copies of the formula and 5 of `round2`; the hub's inline copy had drifted enough to warrant a comment admitting it duplicated the EV bank. A calibration change to the EV math would have had to be made in five places. Note `aar/page.tsx` `adp_delta = pick_no - adp` (the signed ADP distance) and `companion/classify.ts` `expected_value / 100` (a stored-value normalization) are DISTINCT metrics, not this formula.
+
 ### Roster-fit math (position room health, starter need scoring)
 
 - **Canonical**: `src/lib/engine/roster-fit.ts` (`buildPositionRoomHealth`, `flexShareForPosition`, `getRealisticStarterMax`, etc.)

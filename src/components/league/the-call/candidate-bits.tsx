@@ -9,6 +9,7 @@
  */
 
 import type { DecisionQuadrantCandidate } from "@/lib/strategy/decision-synthesis/types";
+import { perPickEv, round2 } from "@/lib/strategy/ev-bank/formula";
 
 export const ADP_NOISE_PICKS = 3;
 
@@ -17,7 +18,7 @@ export function computeEv(
   currentPickNo: number,
 ): number | null {
   if (typeof c.value !== "number" || typeof c.adp !== "number") return null;
-  return round2((c.value / 100) * (currentPickNo - c.adp));
+  return round2(perPickEv(c.value, currentPickNo, c.adp));
 }
 
 export function computeEvShifted(
@@ -26,11 +27,7 @@ export function computeEvShifted(
   shift: number,
 ): number | null {
   if (typeof c.value !== "number" || typeof c.adp !== "number") return null;
-  return round2((c.value / 100) * (currentPickNo - (c.adp + shift)));
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  return round2(perPickEv(c.value, currentPickNo, c.adp + shift));
 }
 
 export function CandidateBlock({

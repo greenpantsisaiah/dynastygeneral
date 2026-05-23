@@ -32,6 +32,7 @@ import type {
   WhatIfReadout,
   WhatIfEvEntry,
 } from "../decision-synthesis/whatif";
+import { perPickEv, round2 } from "../ev-bank/formula";
 
 /**
  * The user's pick must follow the render within this many picks for the
@@ -104,7 +105,7 @@ export function reconstructPickDebate(args: {
     const value = resolveValue(id);
     const adp = resolveAdp(id);
     if (typeof value !== "number" || typeof adp !== "number") return null;
-    return round2((value / 100) * (firstPick.pick_no - adp));
+    return round2(perPickEv(value, firstPick.pick_no, adp));
   };
 
   const callEntry: WhatIfEvEntry = {
@@ -140,8 +141,4 @@ export function reconstructPickDebate(args: {
     },
     chosenId: firstPick.player_id,
   };
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }

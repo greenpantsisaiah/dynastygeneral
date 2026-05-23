@@ -67,6 +67,22 @@ const RULES: Rule[] = [
     scan: { dir: join(SRC, "lib", "players"), ext: [".ts"] },
     allowFilePrefixes: [EVALS],
   },
+  // Per-pick EV is (value / 100) * (pick_no - adp), the EV-bank math.
+  // It was duplicated across 5 files (ev-bank/analyze + league, what-if,
+  // candidate cards, companion debate) with 5 copies of round2. One
+  // canonical (perPickEv in ev-bank/formula.ts) so a calibration change
+  // ripples to every EV surface. The signature `/ 100) * (` is the
+  // duplicate to ban; only formula.ts may spell it out.
+  {
+    name: "no inline per-pick EV formula (use perPickEv canonical)",
+    why: "The EV-bank formula (value/100) * (pick - adp) must live in one place (perPickEv, ev-bank/formula.ts) so a calibration change ripples everywhere. Per CANONICAL_SOURCES.md.",
+    pattern: /\/\s*100\)\s*\*\s*\(/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "strategy", "ev-bank", "formula.ts"),
+    ],
+  },
   // QB starter math is the most-bugged pattern: SF / 2QB leagues have
   // their second QB slot in starter_slots.superflex, NOT in
   // starter_slots.hard.QB. Reading hard.QB without adding superflex,
