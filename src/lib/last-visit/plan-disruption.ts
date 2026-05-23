@@ -3,11 +3,13 @@
  * through_plan_disruption: when a player who was in the user's prior
  * plan (standing call, top_candidates, next-picks-plan targets) gets
  * drafted by another team between visits, the redesigned hub
- * surfaces a brief Voice A acknowledgment before the new standing
- * call refreshes silently.
+ * surfaces a brief Voice A acknowledgment. The recalculation is
+ * already done at render time (the standing call below has already
+ * shifted); the copy says so in completed tense rather than implying
+ * a background job the user must wait on and refresh to see finish.
  *
- * "Judkins gone, two picks before yours. Recalibrating the next-pick
- * math."
+ * "joeboch took Quinshon Judkins, two picks before yours. The call
+ * below already accounts for it."
  *
  * Implementation: extends the last-visit fingerprint with a
  * plan_player_ids[] array, then on next render compares against
@@ -146,15 +148,15 @@ function composeAcknowledgment(
         ? `, ${picksBefore} pick${picksBefore === 1 ? "" : "s"} before yours`
         : "";
     if (s.drafted_by_owner) {
-      return `${s.drafted_by_owner} took ${s.player_name}${beforePart}. Recalibrating the next-pick math.`;
+      return `${s.drafted_by_owner} took ${s.player_name}${beforePart}. The call below already accounts for it.`;
     }
-    return `${s.player_name} gone${beforePart}. Recalibrating the next-pick math.`;
+    return `${s.player_name} gone${beforePart}. The call below already accounts for it.`;
   }
   // Multiple snipes: aggregate. Don't list more than 3 names; cap at
   // "and N more" when needed.
   const names = ordered.slice(0, 3).map((s) => s.player_name).join(", ");
   const more = ordered.length > 3 ? `, and ${ordered.length - 3} more` : "";
-  return `Multiple plan players gone since you were last here: ${names}${more}. Recalibrating.`;
+  return `Multiple plan players gone since you were last here: ${names}${more}. The call below already accounts for it.`;
 }
 
 /**

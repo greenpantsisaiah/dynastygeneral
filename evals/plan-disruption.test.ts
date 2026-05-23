@@ -176,7 +176,16 @@ function run() {
     check("acknowledgment names the player", ack.includes("Judkins"), `ack: ${ack}`);
     check("acknowledgment names the drafter", ack.includes("joeboch"), `ack: ${ack}`);
     check("acknowledgment says picks before yours", ack.includes("before yours"), `ack: ${ack}`);
-    check("acknowledgment says recalibrating", ack.toLowerCase().includes("recalibrating"), `ack: ${ack}`);
+    // The copy must read as completed work (the page is already current),
+    // never as a pending background job the user has to wait out and
+    // refresh. Founder report 2026-05-23: "Recalibrating" made me think
+    // I had to wait a few minutes then refresh.
+    check(
+      "acknowledgment reads as already-done, not pending",
+      ack.toLowerCase().includes("already") &&
+        !ack.toLowerCase().includes("recalibrating"),
+      `ack: ${ack}`,
+    );
     check("no em dash in acknowledgment", !ack.includes(EM_DASH_CHAR));
     check("no 'dammit' (Voice C affect rejected)", !ack.toLowerCase().includes("dammit"));
   }

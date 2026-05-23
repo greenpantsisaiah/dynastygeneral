@@ -166,7 +166,7 @@ function run() {
         pick_no: 42,
       },
     ],
-    acknowledgment: "Bigsby gone, two picks before yours. Recalibrating the next-pick math.",
+    acknowledgment: "Bigsby gone, two picks before yours. The call below already accounts for it.",
   };
   const snipes = classifySnipeBeats(pd, "dynasty_draft");
   check("snipe produces a commiserate beat", snipes.length === 1 && snipes[0].tone === "commiserate");
