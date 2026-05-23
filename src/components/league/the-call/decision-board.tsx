@@ -206,6 +206,47 @@ export function DecisionBoard({
   }
   const isTracked = (id: string) => advancesByPlayer.has(id);
 
+  // Grounded per-row micro-commentary. Picks the most salient true note
+  // for a player from runtime signals (league scarcity, EV gap,
+  // survival, age). No fabricated claims (founder 2026-05-22: bring back
+  // the analyst one-liner, but only if it is data-true).
+  const leagueCtx = decision.league_position_context;
+  const topValueByPos = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of [...cands].sort((a, b) => (b.value ?? -999) - (a.value ?? -999))) {
+      if (c.position && !m.has(c.position)) m.set(c.position, c.player_id);
+    }
+    return m;
+  }, [cands]);
+
+  function microNote(c: DecisionQuadrantCandidate): string | null {
+    const pos = c.position;
+    const ev = computeEv(c, pickNo);
+    const ctx = pos ? leagueCtx?.[pos] : null;
+    const gap = c.adp != null ? Math.round(pickNo - c.adp) : null;
+    // Trade leverage: the best asset at a position many teams are short
+    // on (the founder's "QB leverage because the league loaded WRs").
+    if (
+      ctx &&
+      pos &&
+      topValueByPos.get(pos) === c.player_id &&
+      ctx.teams_light >= Math.ceil(ctx.total_teams / 2) &&
+      (c.value ?? 0) >= 10
+    ) {
+      return `${pos} runs thin league-wide (${ctx.teams_light}/${ctx.total_teams} teams under starter need); a surplus ${pos} is trade leverage.`;
+    }
+    if (ev != null && ev >= 3 && gap != null && gap >= 8) {
+      return `Steal: fell ${gap} picks past ADP for +${ev.toFixed(1)} EV.`;
+    }
+    if (ev != null && ev <= -3 && c.survival_pct != null && c.survival_pct >= 80) {
+      return `No need to reach; keeps at ${c.survival_pct}% to your next pick.`;
+    }
+    if (c.timeline_lane === "future" && c.age != null && c.age <= 23) {
+      return `Young stash, age ${c.age}; upside off your bench, not a starter yet.`;
+    }
+    return null;
+  }
+
   const callCand = cands.find((c) => c.player_id === standingCallId) ?? null;
   const callSurvival = callCand?.survival_pct ?? null;
   const callAtRisk = callSurvival != null && callSurvival < NO_RUSH_SURVIVAL;
@@ -342,48 +383,56 @@ export function DecisionBoard({
             </div>
             {rows.map((c) => {
               const ev = computeEv(c, pickNo);
+              const note = microNote(c);
               return (
                 <div
                   key={c.player_id}
-                  className={`${COL} px-3 py-2 border-t border-border-soft/50 ${
+                  className={`px-3 py-2 border-t border-border-soft/50 ${
                     isTracked(c.player_id) ? "bg-accent/5" : ""
                   }`}
                 >
-                  <span className="truncate">
-                    <span className="text-[15px] font-semibold text-foreground">
-                      {c.name}
-                    </span>{" "}
-                    <span className="font-mono text-[10px] uppercase text-muted-2">
-                      {c.position}
-                      {c.team ? `-${c.team}` : ""}
-                    </span>
-                  </span>
-                  <span
-                    className={`text-right font-mono text-[14px] font-semibold ${evTone(ev)}`}
-                  >
-                    {ev != null ? `${ev >= 0 ? "+" : ""}${ev.toFixed(1)}` : EMPTY}
-                  </span>
-                  {c.survival_pct != null ? (
-                    <span className="flex items-center justify-end gap-1.5">
-                      <SurvBar pct={c.survival_pct} />
-                      <span
-                        className={`font-mono text-[13px] ${survivalTone(c.survival_pct)}`}
-                      >
-                        {c.survival_pct}%
+                  <div className={COL}>
+                    <span className="truncate">
+                      <span className="text-[15px] font-semibold text-foreground">
+                        {c.name}
+                      </span>{" "}
+                      <span className="font-mono text-[10px] uppercase text-muted-2">
+                        {c.position}
+                        {c.team ? `-${c.team}` : ""}
                       </span>
                     </span>
-                  ) : (
-                    <span className="text-right font-mono text-[13px] text-muted-2">
-                      {EMPTY}
+                    <span
+                      className={`text-right font-mono text-[14px] font-semibold ${evTone(ev)}`}
+                    >
+                      {ev != null ? `${ev >= 0 ? "+" : ""}${ev.toFixed(1)}` : EMPTY}
                     </span>
+                    {c.survival_pct != null ? (
+                      <span className="flex items-center justify-end gap-1.5">
+                        <SurvBar pct={c.survival_pct} />
+                        <span
+                          className={`font-mono text-[13px] ${survivalTone(c.survival_pct)}`}
+                        >
+                          {c.survival_pct}%
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-right font-mono text-[13px] text-muted-2">
+                        {EMPTY}
+                      </span>
+                    )}
+                    <span className="flex flex-wrap items-baseline gap-1">
+                      {tagsFor(c)
+                        .slice(0, 3)
+                        .map((t) => (
+                          <Chip key={t.text} text={t.text} tone={t.tone} />
+                        ))}
+                    </span>
+                  </div>
+                  {note && (
+                    <p className="mt-1 text-[11px] leading-snug text-muted-2">
+                      {note}
+                    </p>
                   )}
-                  <span className="flex flex-wrap items-baseline gap-1">
-                    {tagsFor(c)
-                      .slice(0, 3)
-                      .map((t) => (
-                        <Chip key={t.text} text={t.text} tone={t.tone} />
-                      ))}
-                  </span>
                 </div>
               );
             })}

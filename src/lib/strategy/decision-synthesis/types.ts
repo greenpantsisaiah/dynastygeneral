@@ -318,6 +318,22 @@ export type Decision = {
   // PLUS additional viable candidates so the user can see the full
   // landscape of options pulling in different directions.
   quadrant_candidates: DecisionQuadrantCandidate[];
+  /**
+   * Per-position league context for grounded micro-notes on the board:
+   * how many teams sit below their starter requirement (demand) and
+   * whether the league has over-rostered the position. Powers the
+   * board's "trade leverage" one-liners (founder 2026-05-22). Keyed by
+   * position (QB/RB/WR/TE).
+   */
+  league_position_context: Record<
+    string,
+    {
+      teams_light: number;
+      total_teams: number;
+      avg_per_team: number;
+      over_rostered: boolean;
+    }
+  >;
   // Supporting evidence. 2-4 bullets.
   why: string[];
   // Kept on the type so the coach context can still cite gains/losses.

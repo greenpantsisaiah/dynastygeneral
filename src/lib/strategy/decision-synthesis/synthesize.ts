@@ -2346,6 +2346,7 @@ export function synthesizeDecision(args: {
     },
     top_candidates,
     quadrant_candidates,
+    league_position_context: buildLeaguePositionContext(snap),
     why,
     tradeoff,
     opponent_between_picks: gapAnalysis.opponents.length > 0 ? gapAnalysis : null,
@@ -2357,6 +2358,40 @@ export function synthesizeDecision(args: {
     trade_up_consideration: tradeUpConsideration,
     plays_this_enables,
   };
+}
+
+/**
+ * Per-position league context for grounded board micro-notes. For each
+ * skill position: how many teams sit below their starter requirement
+ * (the demand signal) and whether the league has over-rostered it. A
+ * position many teams are light at makes a surplus asset there real
+ * trade leverage (founder example 2026-05-22: "Penix is QB leverage
+ * because the league overprioritized WRs").
+ */
+function buildLeaguePositionContext(
+  snap: LeagueSnapshot,
+): Decision["league_position_context"] {
+  const reqs = effectiveStarterReqs(snap);
+  const out: Decision["league_position_context"] = {};
+  const teams = snap.rosters.length || 1;
+  for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
+    const req = reqs[pos] ?? 0;
+    let light = 0;
+    let total = 0;
+    for (const r of snap.rosters) {
+      const cnt = r.position_counts?.[pos] ?? 0;
+      total += cnt;
+      if (req > 0 && cnt < req) light += 1;
+    }
+    const avg = total / teams;
+    out[pos] = {
+      teams_light: light,
+      total_teams: teams,
+      avg_per_team: Math.round(avg * 10) / 10,
+      over_rostered: req > 0 && avg >= req * 1.6,
+    };
+  }
+  return out;
 }
 
 /**
