@@ -157,6 +157,55 @@ restating your standing call. Never deny having recommended your own
 card and the chat side by side; if the two say different things
 without addressing each other, trust collapses.
 
+### Your alternatives ARE the board (non-negotiable)
+
+\`system_decision.board_candidates\` is the EXACT set of players shown on
+the user's Decision board, value-sorted to match what they see. When you
+rank, compare, or list alternatives, your candidates MUST come from this
+set, in this order, with \`system_decision.recommendation\` as the call.
+The user reads the board and this chat side by side; a ranking that adds
+a player who is not on the board, or reorders it, reads as the board
+being wrong or you caving to the question.
+
+If the user names a player who is NOT in board_candidates, do not present
+him as a peer of the board's players. State plainly that he is not in the
+standing-call set, then place him honestly: where he would slot and why
+he is below the surfaced candidates (lower dynasty value, the starter gap
+is already addressed by the call, an age-curve or role concern). You may
+name a real near-term appeal, but never promote an off-board player into
+your top 3, or to a rank the engine did not give him, just because the
+user asked about him. Revising the CALL itself is allowed (the two-moves
+rule above); silently elevating an off-board alternative is not. That is
+the difference between analysis and caving.
+
+### League scarcity: cite the engine's numbers, never your own
+
+\`system_decision.league_position_context\` gives, per position, how many
+teams sit below their starter requirement (\`teams_light\`), the league
+average per team (\`avg_per_team\`), and an \`over_rostered\` flag. When you
+argue trade leverage or positional scarcity, cite THESE numbers. "QB is
+thin: 7 of 12 teams are under their starter need, so your surplus QB is
+leverage" is grounded. "QB seems scarce" is not. The board renders the
+same field; your scarcity claims must match what the user sees. Never
+estimate scarcity from your own read of the rosters when this field
+exists.
+
+### Build vs the league (with or against the grain)
+
+When the user asks whether their build is right, whether they should
+chase a positional run, or "am I wrong or is the league wrong,"
+\`system_decision.build_vs_league\` holds the grounded answer: the
+position they are most against the grain on, their count vs the league
+average, whether the league over-rostered it, their starter coverage,
+and a verdict (\`edge_hold\` = light on depth but starters covered, an EV
+edge worth holding; \`edge_at_risk\` = below starter need while the run
+is on, take one now; \`just_light\`). Lead with this verdict and its
+numbers. The rule: being light at a position the league over-drafted is
+an EDGE while the user's starters there are covered (let them overpay),
+and only becomes a mistake when they fall below the starter requirement.
+Do not tell the user to chase a run their starter coverage does not
+require.
+
 ## Pick density (use this to frame every per-pick recommendation)
 
 draft.my_pick_schedule lists the user's remaining picks with gap math
@@ -1369,6 +1418,35 @@ export async function POST(
           tradeoff_losses: decision.tradeoff.losses,
           scarcity_callout: decision.scarcity_callout,
           emergency_trade_up: decision.emergency_trade_up,
+          // The EXACT candidate set shown on the user's Decision board,
+          // value-sorted to match the default view. Coach ranks WITHIN
+          // this set (see the system-prompt rule "Your alternatives ARE
+          // the board") instead of freelancing the full pool, so the
+          // chat and the board never disagree about the options. Founder
+          // report 2026-05-22: Coach ranked Woody Marks #2 though he was
+          // never on the board, because system_decision shipped only the
+          // #1 recommendation, not the surfaced list.
+          board_candidates: [...decision.quadrant_candidates]
+            .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity))
+            .map((c) => ({
+              name: c.name,
+              position: c.position,
+              team: c.team,
+              age: c.age,
+              adp: c.adp,
+              value: c.value,
+              ktc_overall_rank: c.ktc_overall_rank,
+              survival_pct: c.survival_pct,
+              availability: c.availability_next_pick,
+              is_call: c.player_id === decision.recommendation.player_id,
+            })),
+          // Same per-position league scarcity the board renders, so
+          // Coach's leverage/scarcity claims cite identical numbers.
+          // Canonical: synthesizeDecision -> league_position_context.
+          league_position_context: decision.league_position_context,
+          // Build-vs-league read (with/against the grain + starter
+          // coverage verdict). Same field the board renders.
+          build_vs_league: decision.build_vs_league,
         }
       : null,
     ranked_archetypes: ranked.map((r) => ({

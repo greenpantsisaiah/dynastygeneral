@@ -70,6 +70,14 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Use**: every endpoint where the LLM might reason about format (Coach, decision/trade, briefings) must ship this block alongside `starter_slots`
 - **Anti-pattern**: relying on the LLM to infer format from raw counts. The system prompt rule "Respect league format" references these field names; missing them = LLM falls back to inference and hallucinates.
 
+### League position scarcity (per-position demand across rosters)
+
+- **Canonical**: `buildLeaguePositionContext(snap)` in `src/lib/strategy/decision-synthesis/synthesize.ts`, surfaced as `decision.league_position_context`
+- **Returns**: `Record<Position, { teams_light, total_teams, avg_per_team, over_rostered }>` (teams_light = count of rosters below their starter requirement at that position)
+- **Use**: the board's "trade leverage" micro-note AND the Coach leverage/scarcity claims must both read these numbers. One scarcity computation, two surfaces, identical numbers.
+- **Anti-pattern**: estimating "QB is scarce" from a separate read of the rosters in any surface, or letting the Coach LLM infer scarcity from raw counts. Cite `teams_light` / `over_rostered`.
+- **Bug class avoided**: 2026-05-22 founder wanted the "Penix is QB trade leverage because the league overprioritized WRs" note grounded, not flavor.
+
 ### LLM trade-pricing block
 
 - **Canonical**: pricing block constructed in `src/app/api/coach/[leagueId]/route.ts` (Coach) and `src/lib/engine/context.ts` (decision endpoints)
@@ -117,7 +125,7 @@ The bug class this prevents: two parallel implementations of the same concept, d
   - `fill_starter`: `60 + adpGapModifier(top.adp, currentPickNo).adjustment`
   - `position_steal`: `85 - positionRank * 5` then capped on saturation
   - `earned_value`: `45 - i * 1.5 - sat.penalty + adpGap.adjustment`
-  - `push_path`: `50 + r.drift_score * 25`
+  - `push_path`: `50 + r.drift_score * 25 + adpGapModifier(matching.adp, currentPickNo).adjustment`, gated so it never fires for a position whose starter need is already met (`me.position_counts[pos] >= reqs[pos]` = executing, take value not a forced push) and never for a reach (`currentPickNo - adp <= PUSH_PATH_REACH_LIMIT`, the adpGapModifier reaching boundary). Bug class avoided: 2026-05-21 Mark Andrews (starter-met TE, ~40-pick reach, -3 EV) won THE CALL via a flat push_path score when all quotas were met and fill_starter could not fire. Locked by `evals/push-path-reach.test.ts`.
   - `future_stash`: `50 - i * 2`
 - **Anti-pattern**: `score: <literal>` with no per-candidate term. If a new rule's score doesn't naturally differentiate, the rule needs another signal, not a flat number with stable-sort fallback.
 - **Bug class avoided**: 2026-05-08 Warren-vs-Judkins incident. Both candidates fired `fill_starter_urgent` at flat 100; stable sort picked Judkins (RB iterates before TE) over Warren despite Warren being ADP-extreme + lower survival + higher value in TE-premium SF. Coach correctly re-derived Warren when prompted, proving the data was present but ignored at scoring time. Locked by `evals/fill-starter-urgent.test.ts`.

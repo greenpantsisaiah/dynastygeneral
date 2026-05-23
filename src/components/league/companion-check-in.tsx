@@ -17,9 +17,32 @@
  */
 
 import type { Beat, BeatKind, BeatTone } from "@/lib/strategy/companion/types";
+import type { Urgency } from "@/lib/strategy/plays/types";
 import { rankBeats } from "@/lib/strategy/companion/priority";
-import { PlayUrgencyChip } from "./plays-shared";
+import { urgencyLabel } from "@/lib/strategy/plays/urgency";
 import { seedCoachWithBeat } from "./coach-chat";
+
+/**
+ * Self-contained urgency chip. Inlined (not imported from the plays UI)
+ * so the companion does not break when the plays/Call surfaces churn. The
+ * label still comes from the canonical `urgencyLabel`.
+ */
+function UrgencyChip({ urgency }: { urgency?: Urgency }) {
+  if (!urgency) return null;
+  const tone =
+    urgency === "act_now"
+      ? "border-danger/50 text-danger"
+      : urgency === "this_round"
+        ? "border-warning/50 text-warning"
+        : "border-border-soft text-muted-2";
+  return (
+    <span
+      className={`rounded-sm border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] ${tone}`}
+    >
+      {urgencyLabel(urgency)}
+    </span>
+  );
+}
 
 const KIND_LABEL: Record<BeatKind, string> = {
   vindication: "Called it",
@@ -130,7 +153,7 @@ function LeadBeat({
         >
           {KIND_LABEL[beat.kind]}
         </div>
-        {beat.urgency ? <PlayUrgencyChip urgency={beat.urgency} /> : null}
+        {beat.urgency ? <UrgencyChip urgency={beat.urgency} /> : null}
       </div>
       <p className="mt-1 text-sm font-medium leading-snug text-foreground">
         {beat.headline}

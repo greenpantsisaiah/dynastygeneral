@@ -19,6 +19,7 @@ import type {
   RankedArchetype,
 } from "../archetypes/schema";
 import { getMyRoster, type LeagueSnapshot } from "../league-state/snapshot";
+import { getHardStarterReqs } from "@/lib/engine/roster-fit";
 import { scoreFit } from "./fit";
 import { enrichArchetypeLikelihoods } from "./likelihood";
 import { detectOpenings } from "./opportunity";
@@ -69,8 +70,7 @@ function primaryPositionForArchetype(a: Archetype): Position | null {
 // enough players at the path's primary position that taking another
 // doesn't advance the strategy. Threshold: starter_need + 1. One
 // backup beyond starter need is enough unless the strategy explicitly
-// hoards (and even then, diminishing returns). For superflex QB:
-// starter_need = hard.QB + superflex (usually 2), so saturation at 3.
+// hoards (and even then, diminishing returns).
 function isPositionSaturated(
   archetype: Archetype,
   snap: LeagueSnapshot,
@@ -79,14 +79,9 @@ function isPositionSaturated(
   if (!pos) return false;
   const me = getMyRoster(snap);
   if (!me) return false;
-  const hard = snap.starter_slots.hard;
-  const baseNeed = hard[pos];
+  const baseNeed = getHardStarterReqs(snap)[pos];
   if (baseNeed <= 0) return false;
-  // QB in superflex gets the superflex slot rolled in, since SF is
-  // commonly filled by QB in dynasty.
-  const need =
-    pos === "QB" ? baseNeed + snap.starter_slots.superflex : baseNeed;
-  return me.position_counts[pos] >= need + 1;
+  return me.position_counts[pos] >= baseNeed + 1;
 }
 
 function derivePhase(

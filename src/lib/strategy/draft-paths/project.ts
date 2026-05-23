@@ -424,7 +424,7 @@ function listAnchors(
 const ARCHETYPES: Archetype[] = [
   {
     id: "bpa",
-    label: "Best Player Available",
+    label: "Value-first",
     why: () =>
       "Take the highest-value player on the board at every slot. Position-agnostic. Best when the field is unpredictable.",
     build: (n) => Array(n).fill("any"),

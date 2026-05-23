@@ -8,24 +8,25 @@
  * accents activate when the user has flipped Sloan mode (CIs and
  * provenance surface inline, same data).
  *
- * Critical constraint: this component reads canonical data only. No
- * EV math, no survival math, no lane definitions are recomputed
- * here. The component is a presentational shell over:
+ * Strategic Lanes (the 3-lane grid) was retired 2026-05-21 in favor
+ * of plays-as-cornerstone (Principle 12). The Call is now a single-
+ * pick verdict on top, then the DecisionBoard: the same candidates
+ * weighed from four angles (by lane, by tier/EV, by play, by path),
+ * folding in the Tier Map + Draft Path Projector. The roster-wide
+ * strategic frame still lives in the Plays panel.
+ *
+ * The component is a presentational shell over:
  *
  *   decision.recommendation                (standing call)
  *   decision.feel_weird_disclaimer         (counterintuitive lock)
- *   decision.top_candidates                (lane primaries + alts)
- *   decision.quadrant_candidates           (hero scatter dots)
+ *   decision.quadrant_candidates           (standing call + alts)
+ *   decision.plays_this_enables            (plays this pick enables)
  *   decision.why                           (landscape rationale)
  *   decision.next_picks_plan               (forward look)
  *   decision.scarcity_callout              (skip-cost line)
  *   decision.counter_view                  (dissenting frame)
- *   decision.window_frame                  (build context)
+ *   decision.trade_up_consideration        (or make a trade)
  *   decision.opponent_between_picks        (gap analysis)
- *
- * Computed once per render via canonical helpers:
- *   computeWhatIfReadout(...)  per-candidate EV delta vs the lean
- *   laneDefinitionsForFormat() format-aware lane labels
  *
  * If the data model ripples through the engine, this component
  * automatically reflects it. No parallel implementations live here.
@@ -33,21 +34,23 @@
 
 import { useState } from "react";
 import type { Decision } from "@/lib/strategy/decision-synthesis/types";
-import { StrategicLanes } from "./strategic-lanes";
-import { PlaysEnabledCallout } from "../plays-enabled-callout";
+import type { Play } from "@/lib/strategy/plays/types";
+import { DecisionBoard } from "./decision-board";
 
 export type TheCallProps = {
   decision: Decision;
-  leagueType: "dynasty" | "keeper" | "redraft" | "unknown";
-  maxKeepers: number | null;
   leagueId: string;
+  currentPickNo: number | null;
+  suggestedPlays?: Play[];
+  picksMadeForUser?: { player_id: string; pick_no: number }[];
 };
 
 export function TheCall({
   decision,
-  leagueType,
-  maxKeepers,
   leagueId,
+  currentPickNo,
+  suggestedPlays = [],
+  picksMadeForUser = [],
 }: TheCallProps) {
   return (
     <section
@@ -56,35 +59,14 @@ export function TheCall({
     >
       <Bridge decision={decision} />
 
-      {decision.feel_weird_disclaimer && (
-        <DisclaimerBand text={decision.feel_weird_disclaimer} />
-      )}
-
-      {decision.opponent_between_picks?.primary_opponent && (
-        <OpponentGapLine
-          ownerName={
-            decision.opponent_between_picks.primary_opponent.owner_name
-          }
-          totalDemand={
-            decision.opponent_between_picks.total_demand_by_position
-          }
-        />
-      )}
-
-      <StrategicLanes
+      <DecisionBoard
         decision={decision}
-        leagueType={leagueType}
-        maxKeepers={maxKeepers}
+        disclaimer={decision.feel_weird_disclaimer}
         leagueId={leagueId}
+        currentPickNo={currentPickNo}
+        suggestedPlays={suggestedPlays}
+        picksMadeForUser={picksMadeForUser}
       />
-
-      {decision.plays_this_enables.length > 0 && (
-        <PlaysEnabledCallout
-          plays={decision.plays_this_enables}
-          leagueId={leagueId}
-          currentPickNo={decision.pick_no}
-        />
-      )}
 
       {decision.trade_up_consideration && (
         <TradeUpConsiderationBlock consideration={decision.trade_up_consideration} />
@@ -118,9 +100,6 @@ function Bridge({ decision }: { decision: Decision }) {
     <header className="border-b border-border-soft px-5 py-3">
       <div className="flex flex-wrap items-baseline gap-3">
         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          The Call
-        </span>
-        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
           Pick {decision.pick_label}
         </span>
         {decision.picks_until_me === 0 ? (
@@ -138,45 +117,11 @@ function Bridge({ decision }: { decision: Decision }) {
   );
 }
 
-function DisclaimerBand({ text }: { text: string }) {
-  // Disclaimer copy already begins "Counterintuitive lock." so no
-  // band label is needed (and the prior "Hear me out" header was
-  // Voice C drift that we explicitly rejected). The accent border
-  // and background carry the visual emphasis.
-  return (
-    <div className="border-b border-warning/40 bg-warning/5 px-5 py-3">
-      <p className="text-[12px] leading-snug text-foreground">{text}</p>
-    </div>
-  );
-}
-
-
-function OpponentGapLine({
-  ownerName,
-  totalDemand,
-}: {
-  ownerName: string | null;
-  totalDemand: Record<string, number>;
-}) {
-  // Identify the position with the highest demand from the gap as
-  // the most likely target. Per CANONICAL_SOURCES.md the demand
-  // values come from analyzeOpponentsInGap; we read them as-is.
-  const sortedPositions = Object.entries(totalDemand)
-    .filter(([pos]) => ["QB", "RB", "WR", "TE"].includes(pos))
-    .sort((a, b) => b[1] - a[1]);
-  const topPos = sortedPositions[0]?.[0] ?? null;
-  return (
-    <div className="border-b border-border-soft px-5 py-3 bg-surface/40">
-      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-        Between picks
-      </div>
-      <p className="mt-1 text-xs leading-snug text-foreground">
-        {ownerName ?? "Next picker"} owns the gap.
-        {topPos ? ` Likely targets ${topPos} first.` : ""}
-      </p>
-    </div>
-  );
-}
+// "Counterintuitive lock" disclaimer + the "Between picks" opponent-gap
+// line were retired from the top of The Call 2026-05-22. The disclaimer
+// is now folded into the call hero (it duplicated the hero's reasoning);
+// the gap line ("X owns the gap, likely targets Y") was a low-value
+// constant that didn't earn its spot.
 
 // Decision Quadrant moved to ./decision-quadrant.tsx; parked for the
 // /pick deep-dive route. Founder feedback 2026-05-08: the chart "tells

@@ -24,6 +24,7 @@ import {
   type PlayerAdp,
 } from "@/lib/players/projections";
 import { pickNoForSlot } from "@/lib/sleeper/snake";
+import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
 import type {
   LeagueFormat,
   LeagueScoring,
@@ -247,36 +248,28 @@ function buildMyPickSchedule(
   const reversalRound = draftState.reversal_round;
   const draftType = draftState.type;
   const nextPickNo = draftState.next_pick_no;
-
-  // roster_id → original draft slot
-  const rosterToSlot = new Map<number, number>();
-  for (const [slotStr, rid] of Object.entries(
-    draftState.slot_to_roster_id,
-  )) {
-    rosterToSlot.set(rid, Number(slotStr));
-  }
-
-  // Trade overrides keyed by (round, original_owner_roster_id) for
-  // THIS season only. Future-season traded picks are handled elsewhere.
-  const ownerOverride = new Map<string, number>();
-  for (const tp of draftState.traded_picks) {
-    if (tp.season !== season) continue;
-    ownerOverride.set(`${tp.round}:${tp.original_owner}`, tp.current_owner);
-  }
+  const pickResolutionDraft = {
+    type: draftType,
+    reversal_round: reversalRound,
+    slot_to_roster_id: draftState.slot_to_roster_id,
+    traded_picks: draftState.traded_picks,
+  };
 
   const picks: PickScheduleEntry[] = [];
   for (let round = 1; round <= rounds; round++) {
-    for (let rosterId = 1; rosterId <= totalTeams; rosterId++) {
-      const originalSlot = rosterToSlot.get(rosterId);
-      if (originalSlot == null) continue;
-      const overrideKey = `${round}:${rosterId}`;
-      const currentOwner = ownerOverride.get(overrideKey) ?? rosterId;
-      if (currentOwner !== myRosterId) continue;
-      const pickNo = pickNoForSlot(originalSlot, round, totalTeams, {
+    for (let slot = 1; slot <= totalTeams; slot++) {
+      const pickNo = pickNoForSlot(slot, round, totalTeams, {
         type: draftType,
         reversalRound,
       });
       if (pickNo < nextPickNo) continue;
+      const currentOwner = rosterAtPickNo({
+        pickNo,
+        totalTeams,
+        season,
+        draft: pickResolutionDraft,
+      });
+      if (currentOwner !== myRosterId) continue;
       picks.push({
         pick_no: pickNo,
         round,

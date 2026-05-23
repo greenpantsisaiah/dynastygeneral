@@ -19,6 +19,7 @@
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { Position } from "@/lib/strategy/archetypes/schema";
+import { getRealisticStarterMax } from "@/lib/engine/roster-fit";
 
 const SCORING_POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
 const CONFIDENCE_FLOOR = 0.85;
@@ -342,7 +343,14 @@ export function buildUserFeatureVector(args: {
   // Starter density = mean value of the user's projected starters
   // (top-N at each position by format) / 100. Drives "top-heavy
   // contender" vs "deep but capped" reads.
-  const reqs = effectiveStartersFor(snap);
+  const reqs: Record<Position, number> = {
+    QB: getRealisticStarterMax(snap, "QB"),
+    RB: getRealisticStarterMax(snap, "RB"),
+    WR: getRealisticStarterMax(snap, "WR"),
+    TE: getRealisticStarterMax(snap, "TE"),
+    K: 0,
+    DST: 0,
+  };
   let starterValueSum = 0;
   let starterCount = 0;
   for (const pos of SCORING_POSITIONS) {
@@ -447,32 +455,4 @@ function clamp01(n: number): number {
 
 function round3(n: number): number {
   return Math.round(n * 1000) / 1000;
-}
-
-// Local effectiveStartersFor avoids a circular import. Mirrors the
-// canonical helper for the keys we need (QB / RB / WR / TE only;
-// starter density doesn't need K / DST). If the league has 0 hard
-// at a position we still allow flex/superflex to populate via flex
-// share, mimicking the canonical behavior for top-N.
-function effectiveStartersFor(snap: LeagueSnapshot): Record<Position, number> {
-  const reqs: Record<Position, number> = {
-    QB: snap.starter_slots.hard.QB ?? 0,
-    RB: snap.starter_slots.hard.RB ?? 0,
-    WR: snap.starter_slots.hard.WR ?? 0,
-    TE: snap.starter_slots.hard.TE ?? 0,
-    K: 0,
-    DST: 0,
-  };
-  // Add superflex to QB demand.
-  reqs.QB += snap.starter_slots.superflex ?? 0;
-  // Distribute flex across RB / WR / TE proportionally so
-  // starter density picks up flex starters too.
-  const flexCount = snap.starter_slots.flex ?? 0;
-  if (flexCount > 0) {
-    const flexShare = flexCount / 3;
-    reqs.RB += Math.round(flexShare);
-    reqs.WR += Math.round(flexShare);
-    reqs.TE += Math.round(flexCount - 2 * Math.round(flexShare));
-  }
-  return reqs;
 }

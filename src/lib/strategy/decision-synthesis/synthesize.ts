@@ -138,6 +138,12 @@ function adpGapModifier(
   return { adjustment, note: null };
 }
 
+// A rule must not reach for a player who will clearly survive. Matches
+// the adpGapModifier "reaching" boundary (gap <= -8): a player going 8+
+// picks past the current pick is a reach. Archetype pushes and future
+// stashes are both advanced later at value, never as a reach now.
+const REACH_LIMIT = -8;
+
 // Saturation modifier reads from canonical roster-fit. Does NOT
 // re-derive realistic-max math; that lives in roster-fit.ts.
 function positionSaturationModifier(
@@ -1172,6 +1178,17 @@ function buildCandidates(
   // Rule 2: Push a path the user is currently in ACQUISITION phase on.
   // Skip paths in EXECUTE (drift = 100%, already maxed) since adding
   // more of that position doesn't advance strategy, just spends pick.
+  //
+  // Two guards keep push_path from making a bad pick THE CALL
+  // (bug 2026-05-21: Mark Andrews, a starter-met TE going 40 picks past
+  // ADP at -3 EV, won the call via push_path because neither existed):
+  //   1. Never push a position whose starter need is already met. Once
+  //      the starter is filled the path is executing, not acquiring;
+  //      piling onto a met position is "take value," not a forced push.
+  //   2. Never reach for a piece that will clearly survive. push_path
+  //      is archetype advancement, not need-urgency; advance the path
+  //      later at value, not as a reach now. Mirrors the adpGapModifier
+  //      "reaching" boundary; the adjustment also penalizes the score.
   for (const r of ranked.slice(0, 3)) {
     if (r.phase === "executing") continue;
     if (!r.top_candidates || r.top_candidates.length === 0) continue;
@@ -1180,11 +1197,19 @@ function buildCandidates(
       if (!matching) continue;
       const pos = normalizePos(matching.position);
       if (!pos) continue;
+      if (me.position_counts[pos] >= (reqs[pos] ?? 0)) continue;
+      if (
+        matching.adp != null &&
+        currentPickNo - matching.adp <= REACH_LIMIT
+      ) {
+        continue;
+      }
+      const adpGap = adpGapModifier(matching.adp, currentPickNo);
       push({
         player: matching,
         position: pos,
         rule: "push_path",
-        score: 50 + r.drift_score * 25,
+        score: 50 + r.drift_score * 25 + adpGap.adjustment,
         primary_reason: `Advances ${r.archetype.name} (${Math.round(r.drift_score * 100)}% drift, ${r.phase ?? "acquisition"} phase).`,
       });
     }
@@ -1250,6 +1275,14 @@ function buildCandidates(
       .filter((p) => {
         const pos = normalizePos(p.position);
         if (!pos || pos === "K" || pos === "DST") return false;
+        // A stash is the lowest-priority pick; never reach for one. A
+        // player going well past the current pick is there later, so
+        // don't let a reach become the call (Emmett Johnson -7.5 EV
+        // bug 2026-05-22, same class as the push_path reach). Rookies
+        // with no ADP are kept (their ADP is unreliable, not a reach).
+        if (p.adp != null && currentPickNo - p.adp <= REACH_LIMIT) {
+          return false;
+        }
         if (p.is_rookie) return true;
         return p.age != null && p.age <= 23;
       })
@@ -1257,14 +1290,13 @@ function buildCandidates(
     for (let i = 0; i < stashPool.length; i++) {
       const p = stashPool[i];
       const pos = normalizePos(p.position)!;
-      const ageFrame = p.is_rookie
-        ? "incoming rookie"
-        : `age ${p.age}`;
+      const ageFrame = p.is_rookie ? "incoming rookie" : `age ${p.age}`;
+      const adpGap = adpGapModifier(p.adp, currentPickNo);
       push({
         player: p,
         position: pos,
         rule: "future_stash",
-        score: 50 - i * 2,
+        score: 50 - i * 2 + adpGap.adjustment,
         primary_reason: `Every starter slot is filled; surfacing future upside instead. ${p.name} (${ageFrame}, KTC #${p.search_rank}) is the top young/rookie stash on the board. Bench depth that can become a starter or trade asset.`,
       });
     }
@@ -2301,6 +2333,8 @@ export function synthesizeDecision(args: {
     survival: buildSurvivalResolver(snap, available),
   });
 
+  const leaguePositionContext = buildLeaguePositionContext(snap);
+
   return {
     pick_label: current.pick_label,
     pick_no: current.pick_no,
@@ -2314,6 +2348,8 @@ export function synthesizeDecision(args: {
     },
     top_candidates,
     quadrant_candidates,
+    league_position_context: leaguePositionContext,
+    build_vs_league: buildAgainstGrainRead(snap, leaguePositionContext),
     why,
     tradeoff,
     opponent_between_picks: gapAnalysis.opponents.length > 0 ? gapAnalysis : null,
@@ -2324,6 +2360,150 @@ export function synthesizeDecision(args: {
     feel_weird_disclaimer,
     trade_up_consideration: tradeUpConsideration,
     plays_this_enables,
+  };
+}
+
+/**
+ * Per-position league context for grounded board micro-notes. For each
+ * skill position: how many teams sit below their starter requirement
+ * (the demand signal) and whether the league has over-rostered it. A
+ * position many teams are light at makes a surplus asset there real
+ * trade leverage (founder example 2026-05-22: "Penix is QB leverage
+ * because the league overprioritized WRs").
+ */
+function buildLeaguePositionContext(
+  snap: LeagueSnapshot,
+): Decision["league_position_context"] {
+  const reqs = effectiveStarterReqs(snap);
+  const out: Decision["league_position_context"] = {};
+  const teams = snap.rosters.length || 1;
+  for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
+    const req = reqs[pos] ?? 0;
+    let light = 0;
+    let total = 0;
+    for (const r of snap.rosters) {
+      const cnt = r.position_counts?.[pos] ?? 0;
+      total += cnt;
+      if (req > 0 && cnt < req) light += 1;
+    }
+    const avg = total / teams;
+    out[pos] = {
+      teams_light: light,
+      total_teams: teams,
+      avg_per_team: Math.round(avg * 10) / 10,
+      over_rostered: req > 0 && avg >= req * 1.6,
+    };
+  }
+  return out;
+}
+
+/**
+ * Build-vs-league read. Finds the position where the user is most
+ * AGAINST the grain (lighter than the league, weighted toward positions
+ * the league has over-rostered) and judges whether that is an edge or a
+ * squeeze. The verdict turns on starter coverage: light on depth at an
+ * over-rostered position is an EV edge (let them overpay); below the
+ * starter requirement is a real run threat. Founder 2026-05-22.
+ */
+const AGAINST_GRAIN_MIN_LEAN = 0.75;
+// Don't render a league-average comparison until the league has drafted
+// enough that per-position averages are stable. Below this, the averages
+// are noise (founder 2026-05-22: "we cannot display this until you have
+// enough to average").
+const AGAINST_GRAIN_MIN_ROUNDS = 3;
+
+/**
+ * Position-specific roster-depth target for the build-vs-league read.
+ * Research (2026-05-22, sourced) verdict: dynasty genuinely wants MORE
+ * WR depth than other positions, but NOT because WRs bust more (per PFF
+ * hit rates RBs bust more). The grounded reasons: WRs hold value far
+ * longer (Dynasty Edge EPA age-curve study, WR prime ~26-32 vs RB
+ * 25-27), WR is the most week-to-week predictable position (4for4,
+ * Subvertadown), and you start the most WR, so WR depth is both
+ * necessary and the most reliable depth on the board (RotoViz dynasty
+ * flex skews ~4 RB / 7 WR). So a WR-light build is a true EDGE only with
+ * a depth buffer beyond bare starters; bare WR coverage in a WR-hoarding
+ * league is a squeeze. RB stays format-driven (RB hits more per slot and
+ * ages out fast; deep RB stockpiling is the weaker play).
+ *
+ * This is a COVERAGE THRESHOLD, not a value-scale multiplier (cf. the
+ * banned TE_STANDARD_MULTIPLIER): it never changes a player's value, it
+ * only sets how much depth counts as "covered" for the build read.
+ */
+function coverageBarFor(pos: Position, starterNeed: number): number {
+  if (starterNeed <= 0) return 0;
+  if (pos === "WR") return starterNeed + Math.max(1, Math.ceil(starterNeed / 2));
+  return starterNeed;
+}
+
+function buildAgainstGrainRead(
+  snap: LeagueSnapshot,
+  lpc: Decision["league_position_context"],
+): Decision["build_vs_league"] {
+  const me = snap.rosters.find((r) => r.is_me);
+  if (!me) return null;
+  const teams = snap.rosters.length || 1;
+  const picksMade = snap.draft?.picks_made?.length ?? 0;
+  if (picksMade < teams * AGAINST_GRAIN_MIN_ROUNDS) return null;
+  const reqs = effectiveStarterReqs(snap);
+  let best:
+    | { pos: Position; yc: number; avg: number; over: boolean; req: number; score: number }
+    | null = null;
+  for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
+    const ctx = lpc[pos];
+    if (!ctx) continue;
+    const yc = me.position_counts?.[pos] ?? 0;
+    const lean = yc - ctx.avg_per_team; // negative = lighter than the league
+    if (lean > -AGAINST_GRAIN_MIN_LEAN) continue;
+    const score = -lean * (ctx.over_rostered ? 2 : 1);
+    if (!best || score > best.score) {
+      best = {
+        pos,
+        yc,
+        avg: ctx.avg_per_team,
+        over: ctx.over_rostered,
+        req: reqs[pos] ?? 0,
+        score,
+      };
+    }
+  }
+  if (!best) return null;
+  const bar = coverageBarFor(best.pos, best.req);
+  const covered = bar <= 0 || best.yc >= bar;
+  const avgTxt = best.avg.toFixed(1);
+  // WR carries the grounded depth rationale; other positions use plain
+  // starter coverage. See coverageBarFor for the research grounding.
+  const depthWhy =
+    best.pos === "WR"
+      ? "you start the most WR and they hold value longest, so WR depth is the most reliable depth on the board"
+      : "it covers your starters";
+  let verdict: "edge_hold" | "edge_at_risk" | "just_light";
+  let headline: string;
+  let detail: string;
+  if (best.over && covered) {
+    verdict = "edge_hold";
+    headline = `Against the grain at ${best.pos}, and it is working.`;
+    detail = `The league averages ${avgTxt} ${best.pos} per team; you have ${best.yc}. They over-rostered ${best.pos}, so taking one here is a reach, and the engine has steered you to the value the field left behind. Your ${best.pos} depth holds (${best.yc}, target ~${bar}: ${depthWhy}). Hold and let them overpay; flip only if you fall below ${bar}.`;
+  } else if (best.over && !covered) {
+    verdict = "edge_at_risk";
+    headline = `Time to take a ${best.pos} before they are gone.`;
+    detail = `You have ${best.yc} ${best.pos}; a ${best.pos}-heavy dynasty wants ~${bar} (${depthWhy}), and the league is hoarding the position (avg ${avgTxt} per team). The against-the-grain edge is spent here: grab a startable ${best.pos} before the pool thins.`;
+  } else {
+    verdict = "just_light";
+    headline = `Lighter at ${best.pos} than the league.`;
+    detail = `You have ${best.yc} ${best.pos}; the league averages ${avgTxt} per team (target ~${bar}). No clear market edge either way; weigh a ${best.pos} when real value shows.`;
+  }
+  return {
+    position: best.pos,
+    your_count: best.yc,
+    league_avg: Math.round(best.avg * 10) / 10,
+    league_over_rostered: best.over,
+    starter_req: best.req,
+    coverage_target: bar,
+    starters_covered: covered,
+    verdict,
+    headline,
+    detail,
   };
 }
 
