@@ -328,6 +328,7 @@ function run() {
     "build_vs_league",
     "format_rules",
     "pricing",
+    "posture",
   ];
   console.log("\n── coach mirrors the canonical engine outputs ──");
   {
@@ -348,6 +349,39 @@ function run() {
       console.log(`  ✗ coach context missing canonical field(s): ${missing.join(", ")}`);
       console.log(
         "    why: Coach must consume the engine's canonical outputs, not re-derive. Mirror every user-visible decision field. Per INVARIANTS.md.",
+      );
+    }
+  }
+
+  // Posture rule must have a backing payload field. Before 2026-05-23
+  // the system prompt said "Read posture BEFORE every recommendation"
+  // and "Never claim absence of posture data when posture is present"
+  // while the payload never set a posture key, so the rule fired with
+  // nothing to bind on (the "rule fires but no data" hallucination
+  // class from INVARIANTS.md). If the prompt references posture, the
+  // payload MUST emit it.
+  console.log("\n── coach posture prompt rule has backing data ──");
+  {
+    let coachContent = "";
+    try {
+      coachContent = readFileSync(COACH_ROUTE, "utf-8");
+    } catch {
+      coachContent = "";
+    }
+    const promptReferencesPosture = coachContent.includes(
+      "posture` BEFORE every recommendation",
+    );
+    const payloadEmitsPosture = coachContent.includes("posture: coachPosture");
+    if (!promptReferencesPosture || payloadEmitsPosture) {
+      passed++;
+      console.log("  ✓ coach posture prompt rule has a backing payload field");
+    } else {
+      failed++;
+      console.log(
+        "  ✗ coach prompt references posture but the payload never emits it",
+      );
+      console.log(
+        "    why: a prompt rule that binds on a field the payload omits forces the LLM to read absent data. Populate posture in contextPayload. Per INVARIANTS.md.",
       );
     }
   }

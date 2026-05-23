@@ -6,8 +6,11 @@
  *   - career_carries / career_targets: not yet plumbed from outcome data
  *   - prev_season usage: not yet plumbed (would require last-season
  *     historical_outcomes join at context-build time)
- *   - draft_pick_overall: Sleeper player metadata has it but we don't
- *     yet thread it through HumanPlayer
+ *   - draft_pick_overall: NOT in the Sleeper players blob. Verified
+ *     2026-05-23 against api.sleeper.app/v1/players/nfl: metadata
+ *     carries only channel_id / genius_id / rookie_year, no NFL draft
+ *     position. Filling this needs an external draft-capital source
+ *     (the Phase 3 acquisition track), not a HumanPlayer thread-through.
  *   - compounding_news_count: only present for RBs we extracted
  *
  * The architecture is right; the data plumbing fills in over v2.

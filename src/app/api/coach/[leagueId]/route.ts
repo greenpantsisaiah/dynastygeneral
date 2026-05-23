@@ -53,6 +53,8 @@ import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich
 import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
 import { annotateStartableDepth } from "@/lib/engine/roster-fit";
 import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
+import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
+import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import { readProfileServer } from "@/lib/lab/profile-storage";
@@ -566,10 +568,10 @@ Specifically:
   got the better end, AFFIRM IT and recommend looking for the next
   one. The user feels left on the sideline when the engine treats
   every trade as suspicious.
-- Use \`opponents[i].posture\` and trade_signature ("pick_flipper" /
-  "pick_seller" / "pick_hoarder") to identify the most-likely trade
-  partner BY NAME. A pick_flipper across the room is a known
-  willing partner.
+- Use \`opponents[i].trade_history.signature\` ("pick_flipper" /
+  "pick_seller" / "pick_hoarder" / "pick_quiet") to identify the
+  most-likely trade partner BY NAME. A pick_flipper across the room is
+  a known willing partner.
 - BACK-TO-BACK PICKS (consecutive pick_no in my_pick_schedule) are a
   special asset. When the user owns picks 7.5 + 7.6, recommend
   pair strategies: lock a target + its natural backup at the same
@@ -1324,7 +1326,67 @@ export async function POST(
     Object.entries(opContext.pricing.player_values).map(([id, v]) => [id, v]),
   );
 
+  // Roster posture. The hub renders this as the PostureBanner; Coach
+  // must read the SAME computed posture, not infer it. The system
+  // prompt's "Read posture BEFORE every recommendation" block binds on
+  // this field; before this wiring the field was never populated, so the
+  // rule fired with nothing to bind on (the "rule fires but no data"
+  // hallucination class from INVARIANTS.md). Mirror the hub's exact
+  // derivation: value-rank from the league-wide value map (with the
+  // pricing-map fallback the hub uses), champion history, and the
+  // active-startup suppression (rounds > 6 mid-draft is degenerate).
+  let coachPosture: ReturnType<typeof classifyRosterPosture> | null = null;
+  if (me) {
+    const totalsByRoster = new Map<number, number>();
+    for (const r of snapshot.rosters) {
+      let sum = 0;
+      for (const id of r.player_ids ?? []) {
+        const v = playerValueMap.get(id);
+        if (v && typeof v.value === "number") sum += v.value;
+      }
+      totalsByRoster.set(r.roster_id, sum);
+    }
+    const rankedByValue = [...totalsByRoster.entries()].sort(
+      (a, b) => b[1] - a[1],
+    );
+    const myIdx = rankedByValue.findIndex(([rid]) => rid === me.roster_id);
+    const valueRank = myIdx >= 0 ? myIdx + 1 : null;
+
+    let coachChampionHistory: Awaited<
+      ReturnType<typeof readChampionHistory>
+    > | null = null;
+    if (sleeperUser?.user_id) {
+      try {
+        coachChampionHistory = await readChampionHistory({
+          leagueId,
+          userOwnerId: sleeperUser.user_id,
+        });
+      } catch (err) {
+        console.error("[coach:champion-history]", err);
+      }
+    }
+
+    const draftActive =
+      snapshot.draft.status === "drafting" ||
+      snapshot.draft.status === "paused";
+    const isStartupDraft = (snapshot.draft.rounds ?? 0) > 6;
+    const inActiveStartup = draftActive && isStartupDraft;
+    if (!inActiveStartup) {
+      coachPosture = classifyRosterPosture({
+        snap: snapshot,
+        myRosterId: me.roster_id,
+        myCurrentValueRank: valueRank,
+        totalTeams: snapshot.total_teams,
+        championHistory: coachChampionHistory,
+      });
+    }
+  }
+
   const contextPayload = {
+    // Roster posture, mirroring the hub PostureBanner. Null during an
+    // active startup draft (suppressed; the prompt tells Coach to treat
+    // the user as a draft executor in that window).
+    posture: coachPosture,
     league: {
       name: league.name,
       season: league.season,
