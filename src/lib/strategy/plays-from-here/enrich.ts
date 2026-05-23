@@ -18,6 +18,7 @@ import type {
   PlayFromHere,
   ResolvedPlayFromHere,
 } from "./types";
+import { getHardStarterReqs } from "@/lib/engine/roster-fit";
 
 const POSITION_LABEL: Record<Position, string> = {
   QB: "QB",
@@ -29,14 +30,14 @@ const POSITION_LABEL: Record<Position, string> = {
 };
 
 function starterNeeds(snap: LeagueSnapshot): Record<Position, number> {
-  const hard = snap.starter_slots.hard;
-  const total = hard.QB + hard.RB + hard.WR + hard.TE + hard.K + hard.DST;
+  const reqs = getHardStarterReqs(snap);
+  const total = reqs.QB + reqs.RB + reqs.WR + reqs.TE + reqs.K + reqs.DST;
   if (total === 0) {
     const isSuperflex =
       snap.format === "superflex" || snap.format === "2qb";
     return { QB: isSuperflex ? 2 : 1, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
   }
-  return { ...hard };
+  return reqs;
 }
 
 type NeedKind =

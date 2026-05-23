@@ -31,6 +31,7 @@ import type {
 import type { RankedArchetype } from "../archetypes/schema";
 import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
 import type { AvailablePlayer } from "@/lib/players/available";
+import { getHardStarterReqs } from "@/lib/engine/roster-fit";
 
 const SCORING_POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
 
@@ -378,15 +379,13 @@ function scorePositions(
 }
 
 function startersRequired(snap: LeagueSnapshot): Record<Position, number> {
-  // Read parsed hard slots from snapshot. Matches Sleeper's roster UI
-  // convention (FLEX is a separate need, not rolled into WR).
-  const hard = snap.starter_slots.hard;
-  const total = hard.QB + hard.RB + hard.WR + hard.TE + hard.K + hard.DST;
+  const reqs = getHardStarterReqs(snap);
+  const total = reqs.QB + reqs.RB + reqs.WR + reqs.TE + reqs.K + reqs.DST;
   if (total === 0) {
     const qb = snap.format === "superflex" || snap.format === "2qb" ? 2 : 1;
     return { QB: qb, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
   }
-  return { ...hard };
+  return reqs;
 }
 
 function confidenceFromScore(score: number): {

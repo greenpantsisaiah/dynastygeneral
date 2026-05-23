@@ -37,6 +37,7 @@ import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { startupPickValue } from "@/lib/players/future-picks";
 import { rerankByConsensus } from "@/lib/players/rerank";
 import type { PathCompetition } from "@/lib/strategy/same-path-threats/build";
+import { getHardStarterReqs } from "@/lib/engine/roster-fit";
 import { AskCoachButton } from "./ask-coach-button";
 
 const PICKS_PER_FORK = 4; // up to 4 candidates surfaced; variable per fork
@@ -149,19 +150,14 @@ type Fork =
   | BargainHuntFork;
 
 function starterNeeds(snap: LeagueSnapshot): Record<Position, number> {
-  // Use HARD slots only for the fill-starter-hole threshold. Flex and
-  // superflex slots are strategic needs (fill them how you want) rather
-  // than position-specific holes, so we don't roll them in here.
-  // Rationale: the user's league has 2 WR hard + 3 FLEX; Sleeper shows
-  // WR 2/2 not 2/3. Matching that convention avoids phantom holes.
-  const hard = snap.starter_slots.hard;
-  const total = hard.QB + hard.RB + hard.WR + hard.TE + hard.K + hard.DST;
+  const reqs = getHardStarterReqs(snap);
+  const total = reqs.QB + reqs.RB + reqs.WR + reqs.TE + reqs.K + reqs.DST;
   if (total === 0) {
     // Fallback only for unparseable roster_positions. Conventional defaults.
     const isSuperflex = snap.format === "superflex" || snap.format === "2qb";
     return { QB: isSuperflex ? 2 : 1, RB: 2, WR: 3, TE: 1, K: 0, DST: 0 };
   }
-  return { ...hard };
+  return reqs;
 }
 
 function inferPrimaryPosition(r: RankedArchetype): Position | null {
