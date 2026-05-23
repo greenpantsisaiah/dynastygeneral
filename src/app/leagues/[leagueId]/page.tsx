@@ -171,6 +171,7 @@ import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
 import { resolvePlayers } from "@/lib/players/cache";
+import { annotateStartableDepth } from "@/lib/engine/roster-fit";
 import { getSeasonStats } from "@/lib/players/season-stats";
 import { getProjections } from "@/lib/players/projections";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
@@ -710,6 +711,40 @@ export default async function LeagueHubPage({
         }
       } catch (err) {
         console.error("[hub:player-values]", err);
+      }
+
+      // Annotate the snapshot with value-calibrated startable / stable
+      // depth so the Decision card (saturation + fill gates), SWOT, and
+      // team identity judge depth by STARTABLE quality, not raw bodies.
+      // Founder 2026-05-16: "strategy advice over-weights total RB/WR
+      // counts instead of startable quality and stable depth." Mutates
+      // the shared snapshot object in place; resolvePlayers is cached so
+      // the later allRosterIds resolve hits the same cache.
+      if (valueMap && valueMap.size > 0) {
+        try {
+          const depthIds = new Set<string>();
+          for (const r of leagueSnapshot.rosters) {
+            for (const id of r.player_ids ?? []) depthIds.add(id);
+          }
+          const depthPlayers = await resolvePlayers([...depthIds]);
+          const normPos = (p: string | null | undefined) => {
+            const u = (p ?? "").toUpperCase();
+            if (u === "QB") return "QB" as const;
+            if (u === "RB") return "RB" as const;
+            if (u === "WR") return "WR" as const;
+            if (u === "TE") return "TE" as const;
+            if (u === "K") return "K" as const;
+            if (u === "DST" || u === "DEF") return "DST" as const;
+            return null;
+          };
+          annotateStartableDepth({
+            snap: leagueSnapshot,
+            valueOf: (id) => playerValuesByIdJson[id] ?? null,
+            positionOf: (id) => normPos(depthPlayers.get(id)?.position),
+          });
+        } catch (err) {
+          console.error("[hub:startable-depth]", err);
+        }
       }
 
       // Ranking sanity check. Validates engine `available` ordering

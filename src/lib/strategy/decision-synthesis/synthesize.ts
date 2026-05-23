@@ -144,8 +144,27 @@ function adpGapModifier(
 // stashes are both advanced later at value, never as a reach now.
 const REACH_LIMIT = -8;
 
+// Startable-quality count for a roster at a position. Reads the
+// value-calibrated startable_counts annotated onto the snapshot (hub /
+// Coach), falling back to raw body count when unannotated. The fix for
+// "strategy advice over-weights total RB/WR counts" (founder
+// 2026-05-16): "do I have enough at X?" must mean enough STARTABLE
+// bodies, not enough bodies of any quality.
+function startableHaveFor(
+  roster: {
+    position_counts: Record<Position, number>;
+    startable_counts?: Record<Position, number>;
+  },
+  pos: Position,
+): number {
+  return roster.startable_counts?.[pos] ?? roster.position_counts[pos] ?? 0;
+}
+
 // Saturation modifier reads from canonical roster-fit. Does NOT
-// re-derive realistic-max math; that lives in roster-fit.ts.
+// re-derive realistic-max math; that lives in roster-fit.ts. The room
+// classification + surplus are already startable-calibrated inside
+// buildPositionRoomHealth, so the penalty no longer fires on a stack of
+// replacement-level bodies.
 function positionSaturationModifier(
   snap: LeagueSnapshot,
   pos: Position,
@@ -154,7 +173,7 @@ function positionSaturationModifier(
   if (health.surplus_after_one_more <= 0) {
     return { penalty: 0, note: null };
   }
-  const have = health.current_count;
+  const have = health.startable_count;
   const realisticMax = health.realistic_starters;
   if (health.surplus_after_one_more >= 2) {
     return {
@@ -1067,7 +1086,9 @@ function buildCandidates(
   const reqs = effectiveStarterReqs(snap);
   for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
     if (reqs[pos] <= 0) continue;
-    if (me.position_counts[pos] >= reqs[pos]) continue;
+    // "Hole filled?" means filled with STARTABLE bodies. A roster with
+    // 4 replacement-level WRs and a 2-WR requirement still has a hole.
+    if (startableHaveFor(me, pos) >= reqs[pos]) continue;
     const fillCandidates = topAtPos(available, pos, 5);
     if (fillCandidates.length === 0) continue;
     // Pick the top-by-position candidate weighted by survival. Window-
@@ -1096,7 +1117,10 @@ function buildCandidates(
       gap: gapAnalysis,
     });
     const availability = availabilityFromPct(survivalPct);
-    const have = me.position_counts[pos];
+    // Startable count, so "1/2 on starters" stays coherent with the
+    // gate above firing (raw bodies could read "4/2" while we push to
+    // fill the hole, which contradicts itself).
+    const have = startableHaveFor(me, pos);
     const need = reqs[pos];
     const adp = top.adp;
     // Two gaps with different semantics. gapToNext (adp vs next user
@@ -1197,7 +1221,8 @@ function buildCandidates(
       if (!matching) continue;
       const pos = normalizePos(matching.position);
       if (!pos) continue;
-      if (me.position_counts[pos] >= (reqs[pos] ?? 0)) continue;
+      // Starter need is "met" only when met with startable bodies.
+      if (startableHaveFor(me, pos) >= (reqs[pos] ?? 0)) continue;
       if (
         matching.adp != null &&
         currentPickNo - matching.adp <= REACH_LIMIT
@@ -1749,8 +1774,8 @@ function buildCounterView(
     : ["RB", "WR", "QB", "TE"];
   for (const pos of candidates) {
     if (pos === winnerPos) continue;
-    const have = me.position_counts[pos] ?? 0;
-    if (have >= reqs[pos]) continue; // already at starter floor; not a cliff
+    const have = startableHaveFor(me, pos);
+    if (have >= reqs[pos]) continue; // already at startable starter floor; not a cliff
     // Use the same availability classifier as the rest of the engine
     // so the cliff narrative matches the survival badges. Endangered =
     // probably_gone OR coin_flip; both are at-risk before next pick.

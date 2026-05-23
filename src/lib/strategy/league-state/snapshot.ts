@@ -47,6 +47,17 @@ export type RosterSnapshot = {
   // a proxy for dynasty value; refining to a true dynasty rank is a
   // future quality lift.
   position_ranks: Record<Position, number[]>;
+  // Value-calibrated depth, populated by annotateStartableDepth
+  // (roster-fit.ts) at the entry points that have a FantasyCalc value
+  // map + position lookup (hub, Coach). Counts the roster's players who
+  // are good enough to START somewhere in the league (startable) and the
+  // tier one deep beyond that (stable_depth). The fix for "six low-value
+  // WRs read as deep at WR" (founder 2026-05-16): depth is startable
+  // QUALITY, not headcount. Optional: surfaces that build a snapshot
+  // without a value map leave these unset and consumers fall back to
+  // position_counts.
+  startable_counts?: Record<Position, number>;
+  stable_depth_counts?: Record<Position, number>;
   player_ids: string[];
   // Whole-roster mean age across all players with known age. Use for
   // longevity / future signals. NOT for win-now signals; see

@@ -115,13 +115,30 @@ export function computeSwot(
   const isPpr =
     snap.scoring.includes("PPR") || snap.scoring.includes("half-PPR");
 
-  // Pre-compute per-position rank tables.
+  // Depth is startable QUALITY, not headcount (founder 2026-05-16:
+  // strategy "over-weights total RB/WR counts instead of startable
+  // quality"). The statistician count-ranks, surplus/deficit
+  // opportunities, and dominator threats below read the value-calibrated
+  // startable count annotated onto the snapshot (annotateStartableDepth),
+  // falling back to raw bodies when unannotated. The coach "bench depth"
+  // reads stay body-based: injury insurance is about warm bodies, a
+  // different question (SWOT voices can disagree on the same roster).
+  const startableByRoster = new Map<number, Record<string, number>>();
+  for (const r of snap.rosters) {
+    startableByRoster.set(r.roster_id, r.startable_counts ?? r.position_counts);
+  }
+  const cnt = (t: LeagueOutlookTeam, pos: Position): number =>
+    startableByRoster.get(t.roster_id)?.[pos] ?? t.position_counts[pos] ?? 0;
+  const bodyOf = (t: LeagueOutlookTeam, pos: Position): number =>
+    t.position_counts[pos] ?? 0;
+
+  // Pre-compute per-position rank tables on STARTABLE counts.
   const posRank: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
   const posMed: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
   const posMax: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
   for (const pos of SKILL) {
-    const counts = outlook.teams.map((t) => t.position_counts[pos] ?? 0);
-    posRank[pos] = rankOf(outlook.teams, me, (t) => t.position_counts[pos] ?? 0);
+    const counts = outlook.teams.map((t) => cnt(t, pos));
+    posRank[pos] = rankOf(outlook.teams, me, (t) => cnt(t, pos));
     posMed[pos] = median(counts);
     posMax[pos] = Math.max(...counts);
   }
@@ -147,16 +164,18 @@ export function computeSwot(
   // Statistician: top-3 ranks at any position (rank-based, not threshold).
   for (const pos of SKILL) {
     const r = posRank[pos];
-    const myCount = me.position_counts[pos] ?? 0;
+    const myCount = cnt(me, pos);
+    const myBody = bodyOf(me, pos);
     if (r <= 3) {
       const tePremiumNote =
         pos === "TE" && isTePremium
           ? " TE-premium scoring multiplies the asset value."
           : "";
+      const bodyNote = myBody > myCount ? `, ${myBody} rostered` : "";
       strengths.push({
         voice: "statistician",
-        headline: `${ord(r)} of ${totalTeams} in ${POSITION_LABEL[pos]} count (${myCount} on roster)`,
-        evidence: `League median ${posMed[pos].toFixed(1)} ${POSITION_LABEL[pos]}s; max ${posMax[pos]}.${tePremiumNote}`,
+        headline: `${ord(r)} of ${totalTeams} in startable ${POSITION_LABEL[pos]} (${myCount} startable${bodyNote})`,
+        evidence: `League median ${posMed[pos].toFixed(1)} startable ${POSITION_LABEL[pos]}s; max ${posMax[pos]}.${tePremiumNote}`,
         play:
           r === 1
             ? `You set the ${POSITION_LABEL[pos]} market in this league. Trade surplus to a thin team for what you lack; you have the leverage.`
@@ -214,20 +233,25 @@ export function computeSwot(
   // Statistician: bottom-3 ranks at any position.
   for (const pos of SKILL) {
     const r = posRank[pos];
-    const myCount = me.position_counts[pos] ?? 0;
+    const myCount = cnt(me, pos);
+    const myBody = bodyOf(me, pos);
     if (r >= totalTeams - 2) {
       const fromBottom = totalTeams - r + 1;
       const teamsAboveMe = outlook.teams.filter(
-        (t) => (t.position_counts[pos] ?? 0) > myCount,
+        (t) => cnt(t, pos) > myCount,
       ).length;
       const flexNote =
         pos === "WR" && isPpr
           ? " PPR scoring rewards WR depth heavily; this is a flex-EV gap."
           : "";
+      const bodyNote =
+        myBody > myCount
+          ? ` You have ${myBody} rostered but only ${myCount} clear the startable bar.`
+          : "";
       weaknesses.push({
         voice: "statistician",
-        headline: `${ord(r)} of ${totalTeams} in ${POSITION_LABEL[pos]} count (${myCount} on roster, ${ord(fromBottom)} from bottom)`,
-        evidence: `${teamsAboveMe} of ${totalTeams - 1} other teams have more ${POSITION_LABEL[pos]}s than you; league median ${posMed[pos].toFixed(1)}, max ${posMax[pos]}.${flexNote}`,
+        headline: `${ord(r)} of ${totalTeams} in startable ${POSITION_LABEL[pos]} (${myCount} startable, ${ord(fromBottom)} from bottom)`,
+        evidence: `${teamsAboveMe} of ${totalTeams - 1} other teams have more startable ${POSITION_LABEL[pos]}s than you; league median ${posMed[pos].toFixed(1)}, max ${posMax[pos]}.${flexNote}${bodyNote}`,
         play:
           pos === "WR"
             ? `Target WR in your next picks; package elsewhere for a proven WR before week 4. Don't paper over with bench fillers.`
@@ -289,11 +313,9 @@ export function computeSwot(
 
   // Statistician: cross-reference your surplus + others' deficit per position.
   for (const pos of SKILL) {
-    const myCount = me.position_counts[pos] ?? 0;
+    const myCount = cnt(me, pos);
     if (myCount < posMed[pos] + 1) continue;
-    const thinTeams = others.filter(
-      (t) => (t.position_counts[pos] ?? 0) <= 1,
-    );
+    const thinTeams = others.filter((t) => cnt(t, pos) <= 1);
     if (thinTeams.length === 0) continue;
     const names = thinTeams
       .slice(0, 3)
@@ -303,8 +325,8 @@ export function computeSwot(
       pos === "TE" && isTePremium ? " in TE-premium scoring" : "";
     opportunities.push({
       voice: "statistician",
-      headline: `${thinTeams.length} team${thinTeams.length === 1 ? "" : "s"} thin at ${POSITION_LABEL[pos]}${tePremiumNote}`,
-      evidence: `${names}${thinTeams.length > 3 ? ` (+${thinTeams.length - 3} more)` : ""} have 0-1 ${POSITION_LABEL[pos]}s; you have ${myCount}.`,
+      headline: `${thinTeams.length} team${thinTeams.length === 1 ? "" : "s"} thin at startable ${POSITION_LABEL[pos]}${tePremiumNote}`,
+      evidence: `${names}${thinTeams.length > 3 ? ` (+${thinTeams.length - 3} more)` : ""} have 0-1 startable ${POSITION_LABEL[pos]}s; you have ${myCount}.`,
       play: `Trade your ${POSITION_LABEL[pos]} surplus for what you lack. ${thinTeams.length} potential partner${thinTeams.length === 1 ? "" : "s"}; their urgency drops every week. Move early.`,
       weight: 70 + thinTeams.length * 5 + (myCount - posMed[pos]) * 4,
     });
@@ -372,8 +394,8 @@ export function computeSwot(
     const rival = rivals[0].t;
     const rivalAdvantages: Position[] = [];
     for (const pos of SKILL) {
-      const my = me.position_counts[pos] ?? 0;
-      const rv = rival.position_counts[pos] ?? 0;
+      const my = cnt(me, pos);
+      const rv = cnt(rival, pos);
       if (rv >= my + 2) rivalAdvantages.push(pos);
     }
     const advantageNote =
@@ -393,14 +415,14 @@ export function computeSwot(
   for (const pos of SKILL) {
     if (posRank[pos] <= Math.ceil(totalTeams / 2)) continue;
     const dominator = others
-      .map((t) => ({ t, count: t.position_counts[pos] ?? 0 }))
+      .map((t) => ({ t, count: cnt(t, pos) }))
       .sort((a, b) => b.count - a.count)[0];
     if (!dominator) continue;
-    const myCount = me.position_counts[pos] ?? 0;
+    const myCount = cnt(me, pos);
     if (dominator.count < myCount + 2) continue;
     threats.push({
       voice: "coach",
-      headline: `${dominator.t.owner_name ?? "Rival"} dominates ${POSITION_LABEL[pos]} (${dominator.count} on roster vs your ${myCount})`,
+      headline: `${dominator.t.owner_name ?? "Rival"} dominates startable ${POSITION_LABEL[pos]} (${dominator.count} startable vs your ${myCount})`,
       evidence: `Their ${POSITION_LABEL[pos]} surplus reduces your in-season trade leverage; they don't need yours and won't pay premium.`,
       play: `Don't depend on trading FOR ${POSITION_LABEL[pos]} from this team. Solve via draft + waiver. Or target a ${POSITION_LABEL[pos]}-thin team for a deal before this roster recalibrates.`,
       weight: 55 + (dominator.count - myCount) * 5,
@@ -444,11 +466,11 @@ export function computeSwot(
       if (strengths.length >= 3) break;
       if (strengths.some((s) => s.headline.includes(POSITION_LABEL[pos]))) continue;
       const r = posRank[pos];
-      const myCount = me.position_counts[pos] ?? 0;
+      const myCount = cnt(me, pos);
       strengths.push({
         voice: "statistician",
         headline: `Best position: ${POSITION_LABEL[pos]} (${ord(r)} of ${totalTeams})`,
-        evidence: `Your strongest relative position. ${myCount} on roster vs league median ${posMed[pos].toFixed(1)}.`,
+        evidence: `Your strongest relative position. ${myCount} startable vs league median ${posMed[pos].toFixed(1)}.`,
         play: `Even if not top-3, this is your most defensible asset class. Don't trade ${POSITION_LABEL[pos]} away to fill weaker spots.`,
         weight: 40 - r,
       });
@@ -473,11 +495,11 @@ export function computeSwot(
       if (weaknesses.length >= 3) break;
       if (weaknesses.some((w) => w.headline.includes(POSITION_LABEL[pos]))) continue;
       const r = posRank[pos];
-      const myCount = me.position_counts[pos] ?? 0;
+      const myCount = cnt(me, pos);
       weaknesses.push({
         voice: "statistician",
         headline: `Weakest position: ${POSITION_LABEL[pos]} (${ord(r)} of ${totalTeams})`,
-        evidence: `Your thinnest relative position. ${myCount} on roster vs league median ${posMed[pos].toFixed(1)}, max ${posMax[pos]}.`,
+        evidence: `Your thinnest relative position. ${myCount} startable vs league median ${posMed[pos].toFixed(1)}, max ${posMax[pos]}.`,
         play: `Even if not bottom-3, this is your most fragile asset class. Address via draft or trade before week 4.`,
         weight: 40 - (totalTeams - r),
       });
@@ -508,10 +530,10 @@ export function computeSwot(
   if (opportunities.length < 3) {
     for (const pos of SKILL) {
       if (opportunities.length >= 3) break;
-      const myCount = me.position_counts[pos] ?? 0;
+      const myCount = cnt(me, pos);
       if (myCount < posMed[pos]) continue;
       const thinTeams = others.filter(
-        (t) => (t.position_counts[pos] ?? 0) <= 2 && (t.position_counts[pos] ?? 0) < myCount,
+        (t) => cnt(t, pos) <= 2 && cnt(t, pos) < myCount,
       );
       if (thinTeams.length === 0) continue;
       if (opportunities.some((o) => o.headline.includes(POSITION_LABEL[pos]))) continue;

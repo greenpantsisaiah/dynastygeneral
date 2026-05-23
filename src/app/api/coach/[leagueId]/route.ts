@@ -36,7 +36,10 @@ import {
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
 import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
-import { buildOpponentReadout } from "@/lib/strategy/opponents/observe";
+import {
+  buildOpponentReadout,
+  orderOpponentRosters,
+} from "@/lib/strategy/opponents/observe";
 import { buildOpponentTradeHistory } from "@/lib/strategy/opponents/trade-history";
 import {
   groupNotesByOpponent,
@@ -48,6 +51,7 @@ import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
 import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
+import { annotateStartableDepth } from "@/lib/engine/roster-fit";
 import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
@@ -1011,6 +1015,38 @@ export async function POST(
       globalProfile: judgmentProfileEarly,
     });
 
+  // Annotate the snapshot with value-calibrated startable / stable depth
+  // BEFORE the Decision card synthesizes, so Coach's call mirrors the hub
+  // board (which is depth-aware). Founder 2026-05-16: depth is startable
+  // quality, not raw RB/WR headcount. resolvePlayers is cache-backed.
+  if (coachPlayerValues && Object.keys(coachPlayerValues).length > 0) {
+    try {
+      const cpv = coachPlayerValues;
+      const depthIds = new Set<string>();
+      for (const r of snapshot.rosters) {
+        for (const id of r.player_ids ?? []) depthIds.add(id);
+      }
+      const depthPlayers = await resolvePlayers([...depthIds]);
+      const normPos = (p: string | null | undefined) => {
+        const u = (p ?? "").toUpperCase();
+        if (u === "QB") return "QB" as const;
+        if (u === "RB") return "RB" as const;
+        if (u === "WR") return "WR" as const;
+        if (u === "TE") return "TE" as const;
+        if (u === "K") return "K" as const;
+        if (u === "DST" || u === "DEF") return "DST" as const;
+        return null;
+      };
+      annotateStartableDepth({
+        snap: snapshot,
+        valueOf: (id) => cpv[id] ?? null,
+        positionOf: (id) => normPos(depthPlayers.get(id)?.position),
+      });
+    } catch (err) {
+      console.error("[coach:startable-depth]", err);
+    }
+  }
+
   // request if synthesis errors; coach can still reason from context.
   let decision: Awaited<ReturnType<typeof synthesizeDecision>> | null = null;
   try {
@@ -1464,15 +1500,28 @@ export async function POST(
     // surplus / deficit patterns. The model uses this to answer
     // "who has a need that lines up with what I have?" without
     // re-deriving roster shape from picks alone.
-    opponents: opponents.teams.map((t) => {
-      const r = snapshot.rosters.find((x) => x.roster_id === t.roster_id);
+    // Every non-me roster is a real, named opponent. buildOpponentReadout
+    // only CHARACTERIZES opponents that fire a signal (>=3 picks or an
+    // active trade angle) and DROPS the rest from `teams`. The named
+    // roster + trade history + notes exist for every roster, so emit one
+    // opponent entry per roster (characterized first via
+    // orderOpponentRosters), attaching the observation / angle layer only
+    // when present. Bug 2026-05-16 (Elite 10 / "Mike Ekans"): Coach said
+    // it did not have an opponent whose named roster was fully in context,
+    // because opponents[] was built from the dropped readout list instead
+    // of from every roster.
+    opponents: orderOpponentRosters(
+      snapshot.rosters,
+      opponents.teams.map((x) => x.roster_id),
+    ).map((r) => {
+      const t = opponents.teams.find((x) => x.roster_id === r.roster_id);
       // Pick-trade history derived from snapshot.draft.traded_picks
       // (no extra Sleeper call). Surfaces counterparty psychology
       // (pick flipper / hoarder / seller / quiet) so Coach can read
       // behavioral patterns instead of just current roster state.
       // The joeboch fingerprint from the 2026-05-08 izzydabomb session.
       const tradeHistory = buildOpponentTradeHistory({
-        rosterId: t.roster_id,
+        rosterId: r.roster_id,
         tradedPicks: snapshot.draft.traded_picks,
         currentSeason: snapshot.season,
       });
@@ -1480,7 +1529,7 @@ export async function POST(
       // Coach treats these as named-pressure ammunition per the
       // existing system-prompt rule "USE the opponent's own words."
       // Limited to 5 most-recent per opponent to bound prompt size.
-      const notes = (opponentNotesByRoster.get(t.roster_id) ?? [])
+      const notes = (opponentNotesByRoster.get(r.roster_id) ?? [])
         .slice(0, 5)
         .map((n) => ({
           kind: n.kind,
@@ -1490,11 +1539,10 @@ export async function POST(
       // Named roster with KTC values for THIS opponent. Sorted by
       // value descending so Coach reads their headline assets first
       // when scanning a long room. Wired 2026-05-14 after founder
-      // report: "looks like coach doesn't know the rosters." Without
-      // this, Coach could read "Saquonatraitor has 8 WRs and 2 TEs"
-      // but not WHICH WRs and TEs, making specific trade-target
-      // conversations impossible.
-      const namedRoster = (opponentRostersByRosterId.get(t.roster_id) ?? [])
+      // report: "looks like coach doesn't know the rosters." Built for
+      // EVERY roster (opponentRostersByRosterId above), so it is present
+      // even for opponents the readout dropped.
+      const namedRoster = (opponentRostersByRosterId.get(r.roster_id) ?? [])
         .map((p) => {
           const v = playerValueMap.get(p.player_id);
           return {
@@ -1508,13 +1556,17 @@ export async function POST(
           };
         })
         .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+      const picksCount =
+        t?.picks_count ??
+        snapshot.draft.picks_made.filter((p) => p.roster_id === r.roster_id)
+          .length;
       return {
-        owner: t.owner_name,
-        roster_id: t.roster_id,
-        picks: t.picks_count,
-        position_counts: r?.position_counts ?? null,
-        patterns: t.observations.map((o) => o.pattern_name),
-        trade_angles: t.trade_angles.map((a) => ({
+        owner: r.owner_name ?? t?.owner_name ?? `Roster ${r.roster_id}`,
+        roster_id: r.roster_id,
+        picks: picksCount,
+        position_counts: r.position_counts ?? null,
+        patterns: (t?.observations ?? []).map((o) => o.pattern_name),
+        trade_angles: (t?.trade_angles ?? []).map((a) => ({
           stance: a.stance,
           headline: a.headline,
         })),
