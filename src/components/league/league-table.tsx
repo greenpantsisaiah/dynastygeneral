@@ -132,7 +132,12 @@ export function LeagueTable({ outlook }: { outlook: LeagueOutlook }) {
   }
 
   return (
-    <section className="rounded-lg border border-border-soft bg-surface px-5 py-5">
+    // Desktop-only: this dense sortable table duplicates the standings
+    // that LeagueDivergence renders directly above it, which reflows
+    // cleanly on phones. On mobile we show the divergence list (visual,
+    // tier-labeled) and reserve this many-column sortable view for the
+    // width it needs. See REDESIGN_INTENTIONS "The league" section.
+    <section className="hidden rounded-lg border border-border-soft bg-surface px-5 py-5 sm:block">
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
         League standings · all 12 teams
       </div>
