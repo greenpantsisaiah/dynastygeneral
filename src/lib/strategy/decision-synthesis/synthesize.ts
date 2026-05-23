@@ -2412,6 +2412,30 @@ const AGAINST_GRAIN_MIN_LEAN = 0.75;
 // enough to average").
 const AGAINST_GRAIN_MIN_ROUNDS = 3;
 
+/**
+ * Position-specific roster-depth target for the build-vs-league read.
+ * Research (2026-05-22, sourced) verdict: dynasty genuinely wants MORE
+ * WR depth than other positions, but NOT because WRs bust more (per PFF
+ * hit rates RBs bust more). The grounded reasons: WRs hold value far
+ * longer (Dynasty Edge EPA age-curve study, WR prime ~26-32 vs RB
+ * 25-27), WR is the most week-to-week predictable position (4for4,
+ * Subvertadown), and you start the most WR, so WR depth is both
+ * necessary and the most reliable depth on the board (RotoViz dynasty
+ * flex skews ~4 RB / 7 WR). So a WR-light build is a true EDGE only with
+ * a depth buffer beyond bare starters; bare WR coverage in a WR-hoarding
+ * league is a squeeze. RB stays format-driven (RB hits more per slot and
+ * ages out fast; deep RB stockpiling is the weaker play).
+ *
+ * This is a COVERAGE THRESHOLD, not a value-scale multiplier (cf. the
+ * banned TE_STANDARD_MULTIPLIER): it never changes a player's value, it
+ * only sets how much depth counts as "covered" for the build read.
+ */
+function coverageBarFor(pos: Position, starterNeed: number): number {
+  if (starterNeed <= 0) return 0;
+  if (pos === "WR") return starterNeed + Math.max(1, Math.ceil(starterNeed / 2));
+  return starterNeed;
+}
+
 function buildAgainstGrainRead(
   snap: LeagueSnapshot,
   lpc: Decision["league_position_context"],
@@ -2444,23 +2468,30 @@ function buildAgainstGrainRead(
     }
   }
   if (!best) return null;
-  const covered = best.req <= 0 || best.yc >= best.req;
+  const bar = coverageBarFor(best.pos, best.req);
+  const covered = bar <= 0 || best.yc >= bar;
   const avgTxt = best.avg.toFixed(1);
+  // WR carries the grounded depth rationale; other positions use plain
+  // starter coverage. See coverageBarFor for the research grounding.
+  const depthWhy =
+    best.pos === "WR"
+      ? "you start the most WR and they hold value longest, so WR depth is the most reliable depth on the board"
+      : "it covers your starters";
   let verdict: "edge_hold" | "edge_at_risk" | "just_light";
   let headline: string;
   let detail: string;
   if (best.over && covered) {
     verdict = "edge_hold";
     headline = `Against the grain at ${best.pos}, and it is working.`;
-    detail = `The league averages ${avgTxt} ${best.pos} per team; you have ${best.yc}. They over-rostered ${best.pos}, so taking one here is a reach, and the engine has steered you to the value the field left behind. Your ${best.pos} starters are covered (${best.yc}/${best.req}). Hold and let them overpay; flip to ${best.pos} only if you fall below ${best.req} startable.`;
+    detail = `The league averages ${avgTxt} ${best.pos} per team; you have ${best.yc}. They over-rostered ${best.pos}, so taking one here is a reach, and the engine has steered you to the value the field left behind. Your ${best.pos} depth holds (${best.yc}, target ~${bar}: ${depthWhy}). Hold and let them overpay; flip only if you fall below ${bar}.`;
   } else if (best.over && !covered) {
     verdict = "edge_at_risk";
-    headline = `Short at ${best.pos} while the run is on.`;
-    detail = `You have ${best.yc} ${best.pos} for ${best.req} starter slots while the league hoards the position (avg ${avgTxt} per team). The against-the-grain edge is spent here; take a startable ${best.pos} before the pool thins.`;
+    headline = `Time to take a ${best.pos} before they are gone.`;
+    detail = `You have ${best.yc} ${best.pos}; a ${best.pos}-heavy dynasty wants ~${bar} (${depthWhy}), and the league is hoarding the position (avg ${avgTxt} per team). The against-the-grain edge is spent here: grab a startable ${best.pos} before the pool thins.`;
   } else {
     verdict = "just_light";
     headline = `Lighter at ${best.pos} than the league.`;
-    detail = `You have ${best.yc} ${best.pos}; the league averages ${avgTxt} per team. No clear market edge either way; weigh a ${best.pos} when real value shows.`;
+    detail = `You have ${best.yc} ${best.pos}; the league averages ${avgTxt} per team (target ~${bar}). No clear market edge either way; weigh a ${best.pos} when real value shows.`;
   }
   return {
     position: best.pos,
@@ -2468,6 +2499,7 @@ function buildAgainstGrainRead(
     league_avg: Math.round(best.avg * 10) / 10,
     league_over_rostered: best.over,
     starter_req: best.req,
+    coverage_target: bar,
     starters_covered: covered,
     verdict,
     headline,

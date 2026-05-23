@@ -349,6 +349,11 @@ export type Decision = {
     league_avg: number;
     league_over_rostered: boolean;
     starter_req: number;
+    // Depth target the build is judged against. For WR this is starter
+    // need plus a research-grounded buffer (dynasty wants WR depth); for
+    // other positions it equals starter_req. `starters_covered` is true
+    // when your_count meets this target.
+    coverage_target: number;
     starters_covered: boolean;
     verdict: "edge_hold" | "edge_at_risk" | "just_light";
     headline: string;
