@@ -163,6 +163,227 @@ export function getStarterDemand(
 }
 
 /**
+ * Value-calibrated depth at one position for one roster.
+ *   body     - raw rostered count (the old position_counts number)
+ *   startable - players good enough to START somewhere in THIS league
+ *   stable    - startable plus one tier of real bench insurance
+ */
+export type PositionDepth = {
+  body: number;
+  startable: number;
+  stable: number;
+};
+
+export type RosterPositionDepth = Record<Position, PositionDepth>;
+
+const DEPTH_VALUE_POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
+const ALL_POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
+
+function emptyDepth(): RosterPositionDepth {
+  return {
+    QB: { body: 0, startable: 0, stable: 0 },
+    RB: { body: 0, startable: 0, stable: 0 },
+    WR: { body: 0, startable: 0, stable: 0 },
+    TE: { body: 0, startable: 0, stable: 0 },
+    K: { body: 0, startable: 0, stable: 0 },
+    DST: { body: 0, startable: 0, stable: 0 },
+  };
+}
+
+/**
+ * Value-calibrated startable / stable-depth counts per roster, per
+ * position. The fix for "strategy advice over-weights total RB/WR
+ * counts instead of startable quality and stable depth" (founder
+ * 2026-05-16): depth is QUALITY, not headcount. Six replacement-level
+ * WRs are not "deep at WR."
+ *
+ * A position's STARTABLE TIER is the top (total_teams x realistic
+ * starters at the position) players leaguewide by value: the jobs that
+ * actually start somewhere in this league. STABLE DEPTH extends one
+ * starter deeper (x (realistic + 1)): bench insurance above
+ * replacement. A roster's startable / stable count is how many of its
+ * players land in each leaguewide tier.
+ *
+ * Rank-based, NOT an absolute KTC cutoff (per INVARIANTS "rank-based,
+ * not absolute thresholds" + the no-hardcoded-number invariant). The
+ * only constants are structural: starters x teams, and +1 for depth.
+ *
+ * K / DST carry no value scale (kicker careers run long; DST is a team
+ * unit), so their startable == stable == body.
+ *
+ * When no value is known for a position's players leaguewide (e.g., the
+ * snapshot was built without a value map), that position's startable
+ * tier is empty and callers should fall back to the body count. The
+ * `annotateStartableDepth` applier handles that fallback at the field
+ * level.
+ */
+export function buildPositionDepth(args: {
+  snap: LeagueSnapshot;
+  valueOf: (playerId: string) => number | null;
+  positionOf: (playerId: string) => Position | null;
+}): Map<number, RosterPositionDepth> {
+  const { snap, valueOf, positionOf } = args;
+  const teams = snap.total_teams;
+
+  // Leaguewide value list per position, tagged with the owning roster.
+  const byPos: Record<Position, Array<{ roster_id: number; value: number }>> = {
+    QB: [],
+    RB: [],
+    WR: [],
+    TE: [],
+    K: [],
+    DST: [],
+  };
+  const bodyByRoster = new Map<number, Record<Position, number>>();
+  for (const r of snap.rosters) {
+    const body: Record<Position, number> = {
+      QB: 0,
+      RB: 0,
+      WR: 0,
+      TE: 0,
+      K: 0,
+      DST: 0,
+    };
+    for (const id of r.player_ids ?? []) {
+      const pos = positionOf(id);
+      if (!pos) continue;
+      body[pos] += 1;
+      if (DEPTH_VALUE_POSITIONS.includes(pos)) {
+        const v = valueOf(id);
+        if (typeof v === "number" && Number.isFinite(v)) {
+          byPos[pos].push({ roster_id: r.roster_id, value: v });
+        }
+      }
+    }
+    bodyByRoster.set(r.roster_id, body);
+  }
+
+  // Tier membership tallies per position (roster_id -> count in tier).
+  const startableTally: Record<Position, Map<number, number>> = {
+    QB: new Map(),
+    RB: new Map(),
+    WR: new Map(),
+    TE: new Map(),
+    K: new Map(),
+    DST: new Map(),
+  };
+  const stableTally: Record<Position, Map<number, number>> = {
+    QB: new Map(),
+    RB: new Map(),
+    WR: new Map(),
+    TE: new Map(),
+    K: new Map(),
+    DST: new Map(),
+  };
+  const tally = (m: Map<number, number>, rid: number) =>
+    m.set(rid, (m.get(rid) ?? 0) + 1);
+  for (const pos of DEPTH_VALUE_POSITIONS) {
+    const realistic = getRealisticStarterMax(snap, pos);
+    const startableSlots = Math.max(0, Math.round(teams * realistic));
+    const stableSlots = Math.max(0, Math.round(teams * (realistic + 1)));
+    const sorted = byPos[pos].slice().sort((a, b) => b.value - a.value);
+    sorted.slice(0, startableSlots).forEach((e) => tally(startableTally[pos], e.roster_id));
+    sorted.slice(0, stableSlots).forEach((e) => tally(stableTally[pos], e.roster_id));
+  }
+
+  const out = new Map<number, RosterPositionDepth>();
+  for (const r of snap.rosters) {
+    const body = bodyByRoster.get(r.roster_id) ?? {
+      QB: 0,
+      RB: 0,
+      WR: 0,
+      TE: 0,
+      K: 0,
+      DST: 0,
+    };
+    const depth = emptyDepth();
+    for (const pos of ALL_POSITIONS) {
+      const b = body[pos] ?? 0;
+      if (pos === "K" || pos === "DST") {
+        depth[pos] = { body: b, startable: b, stable: b };
+      } else {
+        depth[pos] = {
+          body: b,
+          startable: startableTally[pos].get(r.roster_id) ?? 0,
+          stable: stableTally[pos].get(r.roster_id) ?? 0,
+        };
+      }
+    }
+    out.set(r.roster_id, depth);
+  }
+  return out;
+}
+
+/**
+ * Annotate a snapshot's rosters in place with value-calibrated
+ * startable_counts + stable_depth_counts (from buildPositionDepth).
+ * Called at the entry points that have a value map + position lookup
+ * (hub, Coach) so every downstream consumer reads the same numbers off
+ * the snapshot instead of re-deriving. Per-position fallback: if a
+ * position's startable tier is empty (no leaguewide values), that
+ * position keeps its body count so a missing value map degrades to the
+ * old behavior rather than zeroing the roster out.
+ */
+export function annotateStartableDepth(args: {
+  snap: LeagueSnapshot;
+  valueOf: (playerId: string) => number | null;
+  positionOf: (playerId: string) => Position | null;
+}): void {
+  const { snap } = args;
+  const depthByRoster = buildPositionDepth(args);
+  // Does ANY roster have ANY startable signal? If the value map was
+  // empty, every startable count is 0 and we should not clobber the
+  // body-count behavior; leave the fields unset.
+  let hasSignal = false;
+  for (const depth of depthByRoster.values()) {
+    for (const pos of DEPTH_VALUE_POSITIONS) {
+      if (depth[pos].startable > 0) {
+        hasSignal = true;
+        break;
+      }
+    }
+    if (hasSignal) break;
+  }
+  // No startable signal anywhere means the snapshot was built without a
+  // value map. Leave the fields unset so consumers fall back to raw body
+  // counts (the old behavior) rather than reading every roster as zero.
+  if (!hasSignal) return;
+  for (const r of snap.rosters) {
+    const depth = depthByRoster.get(r.roster_id);
+    if (!depth) continue;
+    const startable: Record<Position, number> = {
+      QB: 0,
+      RB: 0,
+      WR: 0,
+      TE: 0,
+      K: 0,
+      DST: 0,
+    };
+    const stable: Record<Position, number> = {
+      QB: 0,
+      RB: 0,
+      WR: 0,
+      TE: 0,
+      K: 0,
+      DST: 0,
+    };
+    // Trust the per-position startable / stable counts. A position with
+    // bodies but zero startable is a roster whose players at that
+    // position genuinely don't clear the leaguewide tier (the exact case
+    // we want surfaced: scrubs are not depth). FantasyCalc prices every
+    // dynasty-relevant player, so an unpriced body is correctly
+    // replacement-level, not a missed starter. K / DST already equal body
+    // inside buildPositionDepth.
+    for (const pos of ALL_POSITIONS) {
+      startable[pos] = depth[pos].startable;
+      stable[pos] = depth[pos].stable;
+    }
+    r.startable_counts = startable;
+    r.stable_depth_counts = stable;
+  }
+}
+
+/**
  * Room-health classification per position. Consolidates "thin /
  * adequate / saturated / locked" framing into one place. SWOT uses
  * this for briefing copy; Decision card uses surplus_after_one_more +
@@ -177,11 +398,19 @@ export function getStarterDemand(
  */
 export type RoomHealth = {
   position: Position;
+  /** Raw rostered count (bodies). For display. */
   current_count: number;
+  /**
+   * Value-calibrated count of startable-quality bodies (from
+   * startable_counts when the snapshot was annotated, else equals
+   * current_count). The room classification + surplus are computed on
+   * THIS so six replacement-level WRs do not read as a saturated room.
+   */
+  startable_count: number;
   hard_starters: number;
   upper_bound_starters: number;
   realistic_starters: number;
-  /** Surplus after adding ONE MORE of this position. Drives saturation penalty. */
+  /** Surplus after adding ONE MORE of this position. Drives saturation penalty. Quality-calibrated. */
   surplus_after_one_more: number;
   room: "thin" | "adequate" | "saturated" | "locked";
 };
@@ -191,21 +420,27 @@ export function buildPositionRoomHealth(
   pos: Position,
 ): RoomHealth {
   const me = snap.rosters.find((r) => r.is_me);
-  const current = me?.position_counts[pos] ?? 0;
+  const body = me?.position_counts[pos] ?? 0;
+  // Classify on STARTABLE quality, not raw bodies. Falls back to body
+  // count when the snapshot wasn't annotated with startable_counts.
+  // Bug 2026-05-16: a roster deep in replacement-level WRs read as
+  // "saturated" and the Decision card penalized adding a real starter.
+  const startable = me?.startable_counts?.[pos] ?? body;
   const hard = getHardStarterReqs(snap)[pos];
   const upper = getUpperBoundStarterMax(snap, pos);
   const realistic = getRealisticStarterMax(snap, pos);
-  const surplusAfterOne = current + 1 - realistic;
+  const surplusAfterOne = startable + 1 - realistic;
 
   let room: RoomHealth["room"];
-  if (current >= upper + 1) room = "locked";
-  else if (current > realistic) room = "saturated";
-  else if (current < hard) room = "thin";
+  if (startable >= upper + 1) room = "locked";
+  else if (startable > realistic) room = "saturated";
+  else if (startable < hard) room = "thin";
   else room = "adequate";
 
   return {
     position: pos,
-    current_count: current,
+    current_count: body,
+    startable_count: startable,
     hard_starters: hard,
     upper_bound_starters: upper,
     realistic_starters: realistic,

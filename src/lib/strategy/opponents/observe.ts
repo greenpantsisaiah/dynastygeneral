@@ -68,6 +68,39 @@ export type OpponentReadout = {
   league: LeagueAggregate;
 };
 
+/**
+ * Every non-me roster is a real, named opponent the user can trade
+ * with. `buildOpponentReadout` only CHARACTERIZES opponents that fire a
+ * signal (>=3 picks, or an active trade angle) and drops the rest from
+ * `teams`. Any surface that needs the FULL opponent list (Coach trade
+ * help, not just the interesting reads) must enumerate every roster and
+ * attach the characterization when present.
+ *
+ * Returns the non-me rosters ordered characterized-first (they carry
+ * observations / trade angles), then the rest, so signal-bearing
+ * opponents stay prominent while no one is dropped.
+ *
+ * Bug 2026-05-16 (Elite 10 / "Mike Ekans"): Coach reported it did not
+ * have an opponent whose named roster was fully present in context,
+ * because `opponents[]` was built from `readout.teams` (the dropped
+ * list) instead of from every roster.
+ */
+export function orderOpponentRosters<
+  R extends { roster_id: number; is_me?: boolean },
+>(rosters: R[], characterizedRosterIds: number[]): R[] {
+  const meIds = new Set(
+    rosters.filter((r) => r.is_me).map((r) => r.roster_id),
+  );
+  const charSet = new Set(characterizedRosterIds);
+  const characterized = characterizedRosterIds
+    .map((id) => rosters.find((r) => r.roster_id === id))
+    .filter((r): r is R => r != null && !meIds.has(r.roster_id));
+  const rest = rosters.filter(
+    (r) => !meIds.has(r.roster_id) && !charSet.has(r.roster_id),
+  );
+  return [...characterized, ...rest];
+}
+
 function picksFor(snap: LeagueSnapshot, rosterId: number): DraftPickRecord[] {
   return snap.draft.picks_made
     .filter((p) => p.roster_id === rosterId)

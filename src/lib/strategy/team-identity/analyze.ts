@@ -100,6 +100,15 @@ export function analyzeTeamIdentity(args: {
     }
   }
 
+  // No archetype clears the real-signal floor (0.4, the same floor the
+  // secondary-name logic uses). The roster sits in the middle with no
+  // dominant lean. Founder request 2026-05-16: name that honestly as a
+  // "Well-Rounded" build instead of forcing an ill-fitting archetype on
+  // a balanced team. This is a fallback LABEL, not a competing archetype
+  // in the ranking (perspectives, not horizon lanes); the engine still
+  // ranks the real archetypes underneath.
+  const WELL_ROUNDED_CEILING = 0.4;
+
   let build: BuildArchetypeReadout;
   if (!top || totalPicks < MIN_PICKS_FOR_ANY_ARCHETYPE) {
     build = {
@@ -108,6 +117,15 @@ export function analyzeTeamIdentity(args: {
       primary_confidence: 0,
       description: "Build pattern still forming. More picks needed for the engine to read your direction.",
       phase: null,
+    };
+  } else if (top.total_score < WELL_ROUNDED_CEILING) {
+    build = {
+      primary_name: "Well-Rounded",
+      secondary_name: null,
+      primary_confidence: top.total_score,
+      description:
+        "Balanced across positions with no dominant lean. A flexible roster that can pivot win-now or future as the board breaks.",
+      phase: top.phase ?? null,
     };
   } else {
     // Treat the secondary as a real hybrid only when its score is

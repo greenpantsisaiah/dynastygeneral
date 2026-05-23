@@ -96,6 +96,16 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: re-defining any of these functions outside `roster-fit.ts`. Lint rule "no re-derived roster-fit functions" enforces this.
 - **Bug class avoided**: 2026-04-27 Mac Jones / Schultz misclassification.
 
+### Startable / stable depth (quality-calibrated position counts)
+
+- **Canonical**: `buildPositionDepth({ snap, valueOf, positionOf })` and the applier `annotateStartableDepth(...)` in `src/lib/engine/roster-fit.ts`
+- **Returns**: per roster, per position `{ body, startable, stable }`. `body` = raw rostered count. `startable` = players whose value places them in the leaguewide STARTABLE TIER (top `total_teams × realistic starters at the position` by value, the jobs that actually start somewhere). `stable` = the tier one starter deeper (`× (realistic + 1)`, bench insurance above replacement). `annotateStartableDepth` writes `startable_counts` + `stable_depth_counts` onto `snapshot.rosters[]`.
+- **Inputs**: snapshot, a value lookup (FantasyCalc-normalized, same map trade pricing uses), a position lookup (Sleeper players blob). Annotated at the entry points that have both: the hub (`page.tsx`) and Coach (`route.ts`).
+- **Rule**: depth is STARTABLE QUALITY, not headcount. "Do I have enough at X / am I deep at X / is the room saturated" must read `startable_counts[pos]` (with body fallback when unannotated), never raw `position_counts[pos]`. Rank-based, not an absolute KTC cutoff (the only constants are structural: starters × teams, +1 for depth). K / DST carry no value scale, so their startable == stable == body. Per-position fallback: a position with bodies but no resolved values keeps its body count rather than reading 0.
+- **Consumers**: `buildPositionRoomHealth` (room + surplus, drives the Decision card saturation penalty); the `fill_starter` / `push_path` / counter-view gates in `decision-synthesis/synthesize.ts` (via `startableHaveFor`); the SWOT statistician count-ranks + surplus/deficit opportunities + dominator threats in `swot/compute.ts` (via `cnt`). The SWOT coach "bench depth" reads intentionally stay body-based (injury insurance is about warm bodies, a different question).
+- **Anti-pattern**: reading `me.position_counts[pos] >= reqs[pos]` to decide "starter hole filled," or ranking teams by `position_counts[pos]` for a "deep / thin at X" claim. Six replacement-level WRs are not "deep at WR."
+- **Bug class avoided**: 2026-05-16 founder report: "strategy advice over-weights total RB/WR counts instead of startable quality and stable depth." A roster stacked with low-value bench bodies read as saturated / deep, suppressing real starter recommendations and producing body-count SWOT reads. Locked by `evals/startable-depth.test.ts`.
+
 ### Strategy windows + archetype lean
 
 - **Canonical**: `buildLeagueSnapshot → rankArchetypes → computeWindows`
