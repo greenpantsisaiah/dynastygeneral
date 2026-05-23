@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { getOptionalUser } from "@/lib/auth/session";
 import { RankingsLab } from "@/components/rankings/rankings-lab";
@@ -128,7 +127,6 @@ export default async function RankingsPage({ searchParams }: PageProps) {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

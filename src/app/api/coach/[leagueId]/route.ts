@@ -18,6 +18,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget, recordSpend } from "@/lib/budget";
+import { guardLlmEnforcement } from "@/lib/ops/llm-guard";
 import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
@@ -806,6 +807,9 @@ export async function POST(
   // or 402 (when beta mode is off and user is non-Pro).
   const gate = await checkProGate();
   if (!gate.ok) return gate.response;
+
+  const guard = guardLlmEnforcement();
+  if (guard) return guard;
 
   // Rate limit + daily budget check BEFORE any expensive work.
   const ip = clientIpFrom(req);

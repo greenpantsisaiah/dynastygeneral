@@ -32,8 +32,18 @@ Set in Vercel project settings AND in `.env.local` for local dev:
 | `STRIPE_PRICE_ID_DAY_PASS` | optional | Stripe one-time price ID (~$3-5) for the Day Pass: 24h unlimited usage. Surfaced inline when a user hits a cap. Without it, the Day Pass button shows but checkout errors. | `lib/stripe/client.ts` |
 | `NEXT_PUBLIC_COOKIE_BANNER_ENABLED` | optional, default off | Set to `"true"` to render the EU-style cookie consent banner at the bottom of every page. Off by default because we don't load ad trackers or third-party analytics today. Flip when EU/UK traffic appears or you wire Vercel Analytics. | `components/cookie-banner.tsx`, mounted in `app/layout.tsx` |
 | `SENTRY_DSN` | optional | Error tracking. Without it, errors only land in Vercel logs. | `lib/sentry/*` (when wired) |
+| `RESEND_API_KEY` | optional (required for alerts/email) | Powers ops alerts (`lib/ops/alert.ts`) plus feedback + AAR notifications. Without it, ops alerts log to Vercel only (no email). | `lib/ops/alert.ts`, `lib/email/*` |
+| `EMAIL_FROM` | optional, default `alerts@dynastygeneral.app` | From address for ops alerts + notification email. Must be on a verified Resend sending domain. | `lib/ops/alert.ts`, `lib/email/*` |
+| `OPS_ALERT_TO` | optional | Comma-separated recipients for ops alerts (enforcement-disabled, budget-cap-reached). Falls back to the first `ADMIN_EMAILS` entry. | `lib/ops/alert.ts` |
+| `OPS_ALERT_DEDUPE_MS` | optional, default `3600000` (1h) | Per-kind in-process email dedupe window so a sustained condition does not flood the inbox. | `lib/ops/alert.ts` |
 
-If `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are unset, rate limits and budget caps DISABLE entirely (the code logs a loud error once and returns allow-all). Vercel KV exposes Upstash-compatible REST credentials under "REST API" in the KV dashboard; copy those into the Upstash-named env vars. The auto-injected `KV_*` names are NOT what `lib/ratelimit.ts` reads.
+If `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are unset, rate limits and budget caps cannot be enforced. Behavior splits by route:
+- **LLM-touching routes fail CLOSED in real production** (Coach, Briefings, decisions/pick|trade|strategy, the scout page). They return `503` and fire an `enforcement_unconfigured` ops alert rather than serve unprotected and let one bot drain the Anthropic budget. The guard keys on `VERCEL_ENV === "production"`, so local dev and Vercel preview deploys are NOT blocked (they have no Upstash by design). The guard checks only the persistent misconfiguration case (env vars absent); a transient Upstash error still fails open so a momentary blip does not take LLM features down. Guard lives in `lib/ops/llm-guard.ts`.
+- **Non-LLM routes still allow-all** (the code logs a loud error once and returns allow-all), since they carry no cost-exhaustion risk.
+
+Vercel KV exposes Upstash-compatible REST credentials under "REST API" in the KV dashboard; copy those into the Upstash-named env vars. The auto-injected `KV_*` names are NOT what `lib/ratelimit.ts` reads.
+
+**Ops alerts.** Two critical conditions email the founder (and always log to Vercel): `enforcement_unconfigured` (Upstash missing in production) and `budget_cap_reached` (daily Anthropic cap hit). Wire `RESEND_API_KEY` + `OPS_ALERT_TO` (or `ADMIN_EMAILS`) to receive the emails; without them the conditions still log. Emails dedupe per kind per warm instance (`OPS_ALERT_DEDUPE_MS`, default 1h).
 
 If `ANTHROPIC_API_KEY` is unset, the verdict + coach return graceful stubs (`Set ANTHROPIC_API_KEY to enable verdicts`). The app still runs; LLM features just degrade.
 

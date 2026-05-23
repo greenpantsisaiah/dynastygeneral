@@ -1,0 +1,7 @@
+# Dynasty General security contact (RFC 9116).
+# Report a vulnerability to the address below. Please allow a
+# reasonable window for triage before any public disclosure.
+Contact: mailto:isaiah@nextupleader.com
+Expires: 2027-05-23T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://dynastygeneral.app/.well-known/security.txt

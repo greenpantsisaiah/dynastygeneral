@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { ComparisonTable } from "@/components/methodology/comparison-table";
 import { SpearmanChart } from "@/components/methodology/spearman-chart";
@@ -454,7 +453,6 @@ question: should I trade for Bijan Robinson?`}
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

@@ -4,6 +4,7 @@ import "./globals.css";
 import { FeedbackWidget } from "@/components/feedback/feedback-widget";
 import { WhatsNewRibbon } from "@/components/whats-new-ribbon";
 import { CookieBanner } from "@/components/cookie-banner";
+import { Footer } from "@/components/landing/footer";
 import { getOptionalUser } from "@/lib/auth/session";
 import { GoogleTagManager } from "@next/third-parties/google";
 
@@ -77,6 +78,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <Footer />
         <WhatsNewRibbon />
         <FeedbackWidget signedInEmail={user?.email ?? null} />
         {cookieBannerOn && <CookieBanner />}

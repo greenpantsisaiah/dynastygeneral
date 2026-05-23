@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 
 export const metadata = {
@@ -85,7 +84,6 @@ export default function PricingPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }
