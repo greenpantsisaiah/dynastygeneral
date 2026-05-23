@@ -2,7 +2,6 @@ import Link from "next/link";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 
 export const metadata = {
@@ -388,7 +387,6 @@ export default function ScoreboardPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

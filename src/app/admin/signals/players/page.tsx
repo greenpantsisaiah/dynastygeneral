@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { getAdminUser } from "@/lib/auth/admin";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -188,7 +187,6 @@ export default async function AdminPlayerSignalsPage({
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

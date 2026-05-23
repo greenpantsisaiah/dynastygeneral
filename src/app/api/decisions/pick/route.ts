@@ -2,6 +2,7 @@ import { z } from "zod";
 import { runPickDecision } from "@/lib/engine/decisions";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
+import { guardLlmEnforcement } from "@/lib/ops/llm-guard";
 import { checkProGate } from "@/lib/auth/paywall";
 
 // Mirror src/lib/sleeper/validate.ts. Sleeper IDs are alphanum + _ -.
@@ -30,6 +31,9 @@ export const maxDuration = 45;
 export async function POST(req: Request) {
   const gate = await checkProGate();
   if (!gate.ok) return gate.response;
+
+  const guard = guardLlmEnforcement();
+  if (guard) return guard;
 
   const rate = await checkRateLimit("decisions", clientIpFrom(req));
   if (!rate.allowed) {

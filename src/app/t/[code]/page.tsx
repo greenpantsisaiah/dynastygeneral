@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import {
   TradeIncomingResult,
@@ -167,7 +166,6 @@ export default async function SharedVerdictPage({ params }: PageProps) {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

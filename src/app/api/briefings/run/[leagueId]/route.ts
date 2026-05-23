@@ -22,6 +22,7 @@ import { buildOpponentReadout } from "@/lib/strategy/opponents/observe";
 import { generateBriefings } from "@/lib/strategy/briefings/analyst";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
+import { guardLlmEnforcement } from "@/lib/ops/llm-guard";
 import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
@@ -34,6 +35,9 @@ export async function POST(
   // briefings (read-only) but not generate new ones.
   const gate = await checkProGate();
   if (!gate.ok) return gate.response;
+
+  const guard = guardLlmEnforcement();
+  if (guard) return guard;
 
   const ip = clientIpFrom(req);
   const rate = await checkRateLimit("briefings", ip);

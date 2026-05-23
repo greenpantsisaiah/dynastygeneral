@@ -15,6 +15,8 @@
 
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { alertOps } from "@/lib/ops/alert";
+import { isRealProduction } from "@/lib/ops/runtime";
 
 type BucketName =
   | "coach"
@@ -117,6 +119,18 @@ const limiters = new Map<BucketName, Ratelimit>();
 
 let warnedMissingUpstash = false;
 
+/**
+ * True when the Upstash credentials needed to enforce rate limits AND
+ * the daily budget cap are present. The fail-closed LLM guard
+ * (lib/ops/llm-guard.ts) reads this to refuse LLM calls in production
+ * when enforcement is impossible. Checks env only; does not connect.
+ */
+export function isEnforcementConfigured(): boolean {
+  return Boolean(
+    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
+  );
+}
+
 function getRedis(): Redis | null {
   if (redis) return redis;
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -124,11 +138,20 @@ function getRedis(): Redis | null {
   if (!url || !token) {
     // Production deploys without Upstash silently lose rate limiting AND
     // budget enforcement. Make it loud once per process so misconfiguration
-    // is visible in Vercel function logs.
-    if (!warnedMissingUpstash && process.env.NODE_ENV === "production") {
+    // is visible in Vercel function logs, and fire an ops alert so the
+    // founder is notified instead of discovering it via a drained budget.
+    // LLM endpoints additionally fail closed (503) via lib/ops/llm-guard.
+    if (!warnedMissingUpstash && isRealProduction()) {
       console.error(
-        "[ratelimit] UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN missing in production. Rate limiting AND budget cap are DISABLED. Provision Upstash before serving real traffic.",
+        "[ratelimit] UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN missing in production. Rate limiting AND budget cap are DISABLED. LLM endpoints fail closed (503) until provisioned.",
       );
+      alertOps({
+        kind: "enforcement_unconfigured",
+        summary:
+          "Upstash is not configured in production. Rate limiting and the daily budget cap are disabled; LLM endpoints fail closed.",
+        detail:
+          "Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel (the Upstash-native names, not KV_*).",
+      });
       warnedMissingUpstash = true;
     }
     return null;

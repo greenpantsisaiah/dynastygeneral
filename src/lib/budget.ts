@@ -15,6 +15,7 @@
  */
 
 import { Redis } from "@upstash/redis";
+import { alertOps } from "@/lib/ops/alert";
 
 // claude-sonnet-4-6 pricing as of 2026. Update when pricing changes.
 // Dollars per 1M tokens.
@@ -98,8 +99,21 @@ export async function checkBudget(): Promise<{
         : typeof raw === "string"
           ? Number.parseFloat(raw) || 0
           : 0;
+    const allowed = spent < cap;
+    if (!allowed) {
+      // The day's LLM features are paused until UTC midnight. Could be
+      // organic load or an attack saturating the rate limits; either way
+      // the founder wants to know now, not from a confused user report.
+      // alertOps dedupes per kind, so the per-request re-check while over
+      // cap does not spam the inbox.
+      alertOps({
+        kind: "budget_cap_reached",
+        summary: `Daily Anthropic budget cap reached: $${spent.toFixed(2)} of $${cap.toFixed(2)}. LLM features are paused until UTC midnight.`,
+        values: { spent_usd: Number(spent.toFixed(2)), cap_usd: cap },
+      });
+    }
     return {
-      allowed: spent < cap,
+      allowed,
       spent_usd: spent,
       cap_usd: cap,
       enforced: true,

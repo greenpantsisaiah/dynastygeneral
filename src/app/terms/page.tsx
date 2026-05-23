@@ -1,5 +1,4 @@
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 
 export const metadata = {
   title: "Terms of Service",
@@ -193,7 +192,6 @@ export default function TermsPage() {
           </div>
         </article>
       </main>
-      <Footer />
     </>
   );
 }

@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { getAdminUser } from "@/lib/auth/admin";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -296,7 +295,6 @@ export default async function SoundboardAdminPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

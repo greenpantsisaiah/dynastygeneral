@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -171,7 +170,6 @@ export default async function MyLeaguesPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

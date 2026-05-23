@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 
 /**
@@ -109,7 +108,6 @@ export default async function ShareEvBankPage({ searchParams }: Props) {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }
