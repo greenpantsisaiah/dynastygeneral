@@ -99,6 +99,12 @@ export function classifyDebateBeat(
   const chosen = whatIf.entries.find((e) => e.player_id === chosenId);
   if (!chosen) return null;
   const call = whatIf.entries.find((e) => e.is_standing_call);
+  // Never ship a beat whose players are unresolved raw ids: no name, no
+  // provenance, and the "13320" leak (2026-05-23) reaches copy + the
+  // Coach seed. The pool-aware reconstruction guards this upstream; this
+  // is the canonical backstop for every caller.
+  if (!call || call.player_name === call.player_id) return null;
+  if (chosen.player_name === chosen.player_id) return null;
   const delta = chosen.delta_vs_standing_call;
   if (delta == null || Math.abs(delta) < DEBATE_MIN_DELTA) return null;
 

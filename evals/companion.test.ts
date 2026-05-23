@@ -24,6 +24,12 @@ import {
   reconcileExpectation,
   expectationFromPickDeviation,
 } from "../src/lib/strategy/companion/classify";
+import {
+  reconstructPickDebate,
+  COMPANION_DEBATE_FRESH_PICKS,
+  type DebatePickRef,
+  type ResolvedName,
+} from "../src/lib/strategy/companion/debate";
 import { rankBeats, topBeat, priorityScore } from "../src/lib/strategy/companion/priority";
 import { classifyPlayAdvancedBeats } from "../src/lib/strategy/companion/play-beats";
 import type {
@@ -382,6 +388,136 @@ function run() {
     "no play_advanced without a latest pick",
     classifyPlayAdvancedBeats({ commitments: [commitment], latestPick: null })
       .length === 0,
+  );
+
+  // 13. Debate reconstruction from the last-visit cookie (honest-first).
+  //     Founder report 2026-05-23: "I picked Elijah because it was the
+  //     call, then I felt chided for it" + "no idea who 13320 is."
+  const names: Record<string, ResolvedName> = {
+    sarratt: { name: "Elijah Sarratt", position: "WR" },
+    "13320": { name: "Available Guy", position: "RB" },
+    nabers: { name: "Malik Nabers", position: "WR" },
+  };
+  const resolveName = (id: string): ResolvedName | null => names[id] ?? null;
+  const resolveValue = (id: string): number | null =>
+    ({ sarratt: 16, "13320": 20, nabers: 30 })[id] ?? null;
+  const resolveAdp = (id: string): number | null =>
+    ({ sarratt: 30, "13320": 25, nabers: 8 })[id] ?? null;
+  const userPick = (player_id: string, pick_no: number): DebatePickRef => ({
+    roster_id: 7,
+    player_id,
+    pick_no,
+  });
+  const baseArgs = {
+    myRosterId: 7,
+    currentCandidateIds: new Set<string>(["13320", "sarratt"]),
+    resolveName,
+    resolveValue,
+    resolveAdp,
+  };
+
+  // Core incident: the cookie call is stale (the user picked many picks
+  // after the render). No false chide.
+  const stale = reconstructPickDebate({
+    ...baseArgs,
+    priorStandingCallId: "13320",
+    priorTotalPicksMade: 100,
+    // Sarratt taken well past the freshness window.
+    picksMade: [userPick("sarratt", 100 + COMPANION_DEBATE_FRESH_PICKS + 5)],
+  });
+  check("stale cookie call does not chide (no false debate)", stale === null);
+
+  // Fresh + corroborated + names resolve: a real divergence fires.
+  const fresh = reconstructPickDebate({
+    ...baseArgs,
+    priorStandingCallId: "13320",
+    priorTotalPicksMade: 100,
+    picksMade: [userPick("sarratt", 101)],
+  });
+  check("fresh corroborated divergence reconstructs", fresh !== null);
+  check(
+    "reconstruction resolves both names (no raw id)",
+    fresh?.whatIf.entries.every((e) => e.player_name !== e.player_id) ?? false,
+    fresh?.whatIf.entries.map((e) => e.player_name).join(" / "),
+  );
+  check("reconstruction targets the chosen pick", fresh?.chosenId === "sarratt");
+
+  // Unresolved call name suppresses (the "13320" leak guard): even fresh
+  // and corroborated, an id we cannot name does not ship.
+  const unnamed = reconstructPickDebate({
+    ...baseArgs,
+    resolveName: (id) => (id === "sarratt" ? names.sarratt : null),
+    priorStandingCallId: "13320",
+    priorTotalPicksMade: 100,
+    picksMade: [userPick("sarratt", 101)],
+  });
+  check("unresolved call name suppresses (no raw-id leak)", unnamed === null);
+
+  // Not corroborated by the current engine: a stale / pre-refactor call.
+  const uncorroborated = reconstructPickDebate({
+    ...baseArgs,
+    currentCandidateIds: new Set<string>(["sarratt"]),
+    priorStandingCallId: "13320",
+    priorTotalPicksMade: 100,
+    picksMade: [userPick("sarratt", 101)],
+  });
+  check(
+    "call absent from current candidates suppresses",
+    uncorroborated === null,
+  );
+
+  // Took the call: no debate.
+  const tookCall = reconstructPickDebate({
+    ...baseArgs,
+    priorStandingCallId: "13320",
+    priorTotalPicksMade: 100,
+    picksMade: [userPick("13320", 101)],
+  });
+  check("took the call -> no debate", tookCall === null);
+
+  // Anchors to the FIRST post-visit pick, not the most recent.
+  const twoPicks = reconstructPickDebate({
+    ...baseArgs,
+    priorStandingCallId: "13320",
+    priorTotalPicksMade: 100,
+    picksMade: [userPick("nabers", 105), userPick("sarratt", 101)],
+  });
+  check(
+    "anchors to first post-visit pick, not latest",
+    twoPicks?.chosenId === "sarratt",
+    twoPicks?.chosenId ?? "null",
+  );
+
+  // 14. Classifier backstop: an unresolved standing-call id never ships.
+  const rawIdReadout: WhatIfReadout = {
+    standing_call_id: "13320",
+    standing_call_ev: 1,
+    entries: [
+      {
+        player_id: "13320",
+        player_name: "13320", // unresolved raw id
+        position: null,
+        ev_if_chosen: 1,
+        delta_vs_standing_call: 0,
+        survival_pct: null,
+        is_standing_call: true,
+        narrative: "",
+      },
+      {
+        player_id: "sarratt",
+        player_name: "Elijah Sarratt",
+        position: "WR",
+        ev_if_chosen: 6,
+        delta_vs_standing_call: 5,
+        survival_pct: null,
+        is_standing_call: false,
+        narrative: "",
+      },
+    ],
+  };
+  check(
+    "classifier suppresses a beat with an unresolved raw-id call",
+    classifyDebateBeat(rawIdReadout, "sarratt", "dynasty_draft") === null,
   );
 
   console.log(`\n${passed} passed ${"·"} ${failed} failed`);
