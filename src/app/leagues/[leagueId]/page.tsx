@@ -2083,6 +2083,17 @@ export default async function LeagueHubPage({
                 </div>
               )}
 
+              {/* BUILD FIT. Moved here (right below The Call) 2026-05-22
+                  per founder: the roster-shape benchmark is the strategic
+                  frame for trade leverage and belongs near the decision,
+                  not buried in Your team. Renders whenever the roster has
+                  lane memberships (all stages), not just active draft. */}
+              {rosterLaneMemberships.length > 0 && (
+                <div className="mb-8">
+                  <LaneCohortDistribution memberships={rosterLaneMemberships} />
+                </div>
+              )}
+
               {/* Position Run Watch. Renders during active draft so
                   the user reads the position-run signal BEFORE making
                   their first pick. The DraftProgressPanel surfaces the
@@ -2256,11 +2267,6 @@ export default async function LeagueHubPage({
                           capital={rosterPosture.future_capital}
                         />
                       )}
-                    {rosterLaneMemberships.length > 0 && (
-                      <LaneCohortDistribution
-                        memberships={rosterLaneMemberships}
-                      />
-                    )}
                     {inflectionItems.length > 0 && (
                       <InflectionPanel items={inflectionItems} />
                     )}
