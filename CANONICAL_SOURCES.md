@@ -70,6 +70,14 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Use**: every endpoint where the LLM might reason about format (Coach, decision/trade, briefings) must ship this block alongside `starter_slots`
 - **Anti-pattern**: relying on the LLM to infer format from raw counts. The system prompt rule "Respect league format" references these field names; missing them = LLM falls back to inference and hallucinates.
 
+### League position scarcity (per-position demand across rosters)
+
+- **Canonical**: `buildLeaguePositionContext(snap)` in `src/lib/strategy/decision-synthesis/synthesize.ts`, surfaced as `decision.league_position_context`
+- **Returns**: `Record<Position, { teams_light, total_teams, avg_per_team, over_rostered }>` (teams_light = count of rosters below their starter requirement at that position)
+- **Use**: the board's "trade leverage" micro-note AND the Coach leverage/scarcity claims must both read these numbers. One scarcity computation, two surfaces, identical numbers.
+- **Anti-pattern**: estimating "QB is scarce" from a separate read of the rosters in any surface, or letting the Coach LLM infer scarcity from raw counts. Cite `teams_light` / `over_rostered`.
+- **Bug class avoided**: 2026-05-22 founder wanted the "Penix is QB trade leverage because the league overprioritized WRs" note grounded, not flavor.
+
 ### LLM trade-pricing block
 
 - **Canonical**: pricing block constructed in `src/app/api/coach/[leagueId]/route.ts` (Coach) and `src/lib/engine/context.ts` (decision endpoints)

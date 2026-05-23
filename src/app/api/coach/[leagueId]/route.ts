@@ -160,6 +160,18 @@ user asked about him. Revising the CALL itself is allowed (the two-moves
 rule above); silently elevating an off-board alternative is not. That is
 the difference between analysis and caving.
 
+### League scarcity: cite the engine's numbers, never your own
+
+\`system_decision.league_position_context\` gives, per position, how many
+teams sit below their starter requirement (\`teams_light\`), the league
+average per team (\`avg_per_team\`), and an \`over_rostered\` flag. When you
+argue trade leverage or positional scarcity, cite THESE numbers. "QB is
+thin: 7 of 12 teams are under their starter need, so your surplus QB is
+leverage" is grounded. "QB seems scarce" is not. The board renders the
+same field; your scarcity claims must match what the user sees. Never
+estimate scarcity from your own read of the rosters when this field
+exists.
+
 ## Pick density (use this to frame every per-pick recommendation)
 
 draft.my_pick_schedule lists the user's remaining picks with gap math
@@ -1371,6 +1383,10 @@ export async function POST(
               availability: c.availability_next_pick,
               is_call: c.player_id === decision.recommendation.player_id,
             })),
+          // Same per-position league scarcity the board renders, so
+          // Coach's leverage/scarcity claims cite identical numbers.
+          // Canonical: synthesizeDecision -> league_position_context.
+          league_position_context: decision.league_position_context,
         }
       : null,
     ranked_archetypes: ranked.map((r) => ({
