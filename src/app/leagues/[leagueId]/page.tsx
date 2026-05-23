@@ -978,6 +978,7 @@ export default async function LeagueHubPage({
   let lastVisitEvBankDelta: number | null = null;
   let lastVisitHasSnipes = false;
   let companionBeats: Beat[] = [];
+  let companionLatestPick: { player_id: string; name: string } | null = null;
   let lastVisitPositionCountDeltas: Partial<Record<string, number>> = {};
   let lastVisitLeagueRankDelta: number | null = null;
   let rosterPosture: RosterPosture | null = null;
@@ -1533,6 +1534,25 @@ export default async function LeagueHubPage({
             ev_if_chosen: null,
           };
         }
+        // Companion play-reaction input: the user's most recent pick since
+        // last visit (the client matches it against committed plays).
+        if (prior) {
+          const sincePrior = prior.total_picks_made ?? 0;
+          const recentPick = leagueSnapshot.draft.picks_made
+            .filter(
+              (p) =>
+                p.roster_id === leagueSnapshot.my_roster_id &&
+                p.pick_no > sincePrior,
+            )
+            .sort((a, b) => b.pick_no - a.pick_no)[0];
+          if (recentPick) {
+            const info = playerNameLookup(recentPick.player_id);
+            companionLatestPick = {
+              player_id: recentPick.player_id,
+              name: info?.name ?? recentPick.player_id,
+            };
+          }
+        }
         companionBeats = classifyBeats({
           stage: companionStage,
           whatIf: companionWhatIf,
@@ -1665,7 +1685,11 @@ export default async function LeagueHubPage({
             disruptionAcknowledgment={lastVisitDisruptionAck}
           />
 
-          <CompanionCheckIn beats={companionBeats} />
+          <CompanionCheckIn
+            beats={companionBeats}
+            leagueId={leagueId}
+            latestPick={companionLatestPick}
+          />
 
           {rosterPosture && <PostureBanner posture={rosterPosture} />}
 
