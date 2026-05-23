@@ -290,6 +290,31 @@ export function DecisionBoard({
 
   return (
     <div className="px-5 py-4 space-y-4">
+      {/* Build vs the league: are you with or against the grain, and is
+          it working? Answers the "everyone went WR crazy, am I wrong?"
+          doubt by reading league scarcity against your starter coverage. */}
+      {decision.build_vs_league && (
+        <div
+          className={`rounded-md border px-4 py-2.5 ${
+            decision.build_vs_league.verdict === "edge_at_risk"
+              ? "border-warning/50 bg-warning/5"
+              : decision.build_vs_league.verdict === "edge_hold"
+                ? "border-success/40 bg-success/5"
+                : "border-border-soft bg-surface/30"
+          }`}
+        >
+          <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-2">
+            Your build vs the league
+          </div>
+          <p className="mt-1 text-[13px] font-semibold text-foreground">
+            {decision.build_vs_league.headline}
+          </p>
+          <p className="mt-0.5 text-[11px] leading-snug text-muted">
+            {decision.build_vs_league.detail}
+          </p>
+        </div>
+      )}
+
       {/* THE CALL */}
       <div className="rounded-md border border-accent/60 bg-accent/5 px-4 py-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

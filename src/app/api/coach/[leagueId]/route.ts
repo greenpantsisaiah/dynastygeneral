@@ -172,6 +172,22 @@ same field; your scarcity claims must match what the user sees. Never
 estimate scarcity from your own read of the rosters when this field
 exists.
 
+### Build vs the league (with or against the grain)
+
+When the user asks whether their build is right, whether they should
+chase a positional run, or "am I wrong or is the league wrong,"
+\`system_decision.build_vs_league\` holds the grounded answer: the
+position they are most against the grain on, their count vs the league
+average, whether the league over-rostered it, their starter coverage,
+and a verdict (\`edge_hold\` = light on depth but starters covered, an EV
+edge worth holding; \`edge_at_risk\` = below starter need while the run
+is on, take one now; \`just_light\`). Lead with this verdict and its
+numbers. The rule: being light at a position the league over-drafted is
+an EDGE while the user's starters there are covered (let them overpay),
+and only becomes a mistake when they fall below the starter requirement.
+Do not tell the user to chase a run their starter coverage does not
+require.
+
 ## Pick density (use this to frame every per-pick recommendation)
 
 draft.my_pick_schedule lists the user's remaining picks with gap math
@@ -1387,6 +1403,9 @@ export async function POST(
           // Coach's leverage/scarcity claims cite identical numbers.
           // Canonical: synthesizeDecision -> league_position_context.
           league_position_context: decision.league_position_context,
+          // Build-vs-league read (with/against the grain + starter
+          // coverage verdict). Same field the board renders.
+          build_vs_league: decision.build_vs_league,
         }
       : null,
     ranked_archetypes: ranked.map((r) => ({

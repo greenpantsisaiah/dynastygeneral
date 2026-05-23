@@ -325,6 +325,7 @@ function run() {
     "system_decision",
     "board_candidates",
     "league_position_context",
+    "build_vs_league",
     "format_rules",
     "pricing",
   ];

@@ -334,6 +334,26 @@ export type Decision = {
       over_rostered: boolean;
     }
   >;
+  /**
+   * Build-vs-league read: is the user drafting WITH or AGAINST the
+   * league's positional behavior, and is it working? Grounded in
+   * league_position_context + the user's counts + starter reqs. Null
+   * when the user is not meaningfully against the grain anywhere.
+   * Founder 2026-05-22: "everyone went WR crazy, the platform never
+   * recommended one, am I wrong or are they?" The answer turns on
+   * whether the user's starters at the lean position are covered.
+   */
+  build_vs_league: {
+    position: string;
+    your_count: number;
+    league_avg: number;
+    league_over_rostered: boolean;
+    starter_req: number;
+    starters_covered: boolean;
+    verdict: "edge_hold" | "edge_at_risk" | "just_light";
+    headline: string;
+    detail: string;
+  } | null;
   // Supporting evidence. 2-4 bullets.
   why: string[];
   // Kept on the type so the coach context can still cite gains/losses.

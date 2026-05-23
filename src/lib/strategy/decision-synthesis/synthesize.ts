@@ -2333,6 +2333,8 @@ export function synthesizeDecision(args: {
     survival: buildSurvivalResolver(snap, available),
   });
 
+  const leaguePositionContext = buildLeaguePositionContext(snap);
+
   return {
     pick_label: current.pick_label,
     pick_no: current.pick_no,
@@ -2346,7 +2348,8 @@ export function synthesizeDecision(args: {
     },
     top_candidates,
     quadrant_candidates,
-    league_position_context: buildLeaguePositionContext(snap),
+    league_position_context: leaguePositionContext,
+    build_vs_league: buildAgainstGrainRead(snap, leaguePositionContext),
     why,
     tradeoff,
     opponent_between_picks: gapAnalysis.opponents.length > 0 ? gapAnalysis : null,
@@ -2392,6 +2395,76 @@ function buildLeaguePositionContext(
     };
   }
   return out;
+}
+
+/**
+ * Build-vs-league read. Finds the position where the user is most
+ * AGAINST the grain (lighter than the league, weighted toward positions
+ * the league has over-rostered) and judges whether that is an edge or a
+ * squeeze. The verdict turns on starter coverage: light on depth at an
+ * over-rostered position is an EV edge (let them overpay); below the
+ * starter requirement is a real run threat. Founder 2026-05-22.
+ */
+const AGAINST_GRAIN_MIN_LEAN = 0.75;
+
+function buildAgainstGrainRead(
+  snap: LeagueSnapshot,
+  lpc: Decision["league_position_context"],
+): Decision["build_vs_league"] {
+  const me = snap.rosters.find((r) => r.is_me);
+  if (!me) return null;
+  const reqs = effectiveStarterReqs(snap);
+  let best:
+    | { pos: Position; yc: number; avg: number; over: boolean; req: number; score: number }
+    | null = null;
+  for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
+    const ctx = lpc[pos];
+    if (!ctx) continue;
+    const yc = me.position_counts?.[pos] ?? 0;
+    const lean = yc - ctx.avg_per_team; // negative = lighter than the league
+    if (lean > -AGAINST_GRAIN_MIN_LEAN) continue;
+    const score = -lean * (ctx.over_rostered ? 2 : 1);
+    if (!best || score > best.score) {
+      best = {
+        pos,
+        yc,
+        avg: ctx.avg_per_team,
+        over: ctx.over_rostered,
+        req: reqs[pos] ?? 0,
+        score,
+      };
+    }
+  }
+  if (!best) return null;
+  const covered = best.req <= 0 || best.yc >= best.req;
+  const avgTxt = best.avg.toFixed(1);
+  let verdict: "edge_hold" | "edge_at_risk" | "just_light";
+  let headline: string;
+  let detail: string;
+  if (best.over && covered) {
+    verdict = "edge_hold";
+    headline = `Against the grain at ${best.pos}, and it is working.`;
+    detail = `The league averages ${avgTxt} ${best.pos} per team; you have ${best.yc}. They over-rostered ${best.pos}, so taking one here is a reach, and the engine has steered you to the value the field left behind. Your ${best.pos} starters are covered (${best.yc}/${best.req}). Hold and let them overpay; flip to ${best.pos} only if you fall below ${best.req} startable.`;
+  } else if (best.over && !covered) {
+    verdict = "edge_at_risk";
+    headline = `Short at ${best.pos} while the run is on.`;
+    detail = `You have ${best.yc} ${best.pos} for ${best.req} starter slots while the league hoards the position (avg ${avgTxt} per team). The against-the-grain edge is spent here; take a startable ${best.pos} before the pool thins.`;
+  } else {
+    verdict = "just_light";
+    headline = `Lighter at ${best.pos} than the league.`;
+    detail = `You have ${best.yc} ${best.pos}; the league averages ${avgTxt} per team. No clear market edge either way; weigh a ${best.pos} when real value shows.`;
+  }
+  return {
+    position: best.pos,
+    your_count: best.yc,
+    league_avg: Math.round(best.avg * 10) / 10,
+    league_over_rostered: best.over,
+    starter_req: best.req,
+    starters_covered: covered,
+    verdict,
+    headline,
+    detail,
+  };
 }
 
 /**
