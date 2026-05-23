@@ -193,6 +193,16 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Honesty rule**: `bad_beat` fires ONLY when `expected_value` showed the user ahead (high win prob / positive EV) and the outcome flipped on variance; `critique` fires ONLY when the user chose the lower-EV option and a real gap was left. The record's `expected_value` plus `alternative_value` make the distinction computable. Counterfactual attribution ("the injury cost you the win") fires only when the outcome actually flips the result (reuse the `computeWhatIfReadout` counterfactual pattern).
 - **Anti-pattern**: commiserating on a loss the user was never favored to win (sycophancy), or attributing a loss to an event that did not flip the result (false drama).
 
+### Debate-beat reconstruction (the "you took Y over the call X" beat)
+
+- **Canonical**: `reconstructPickDebate(args)` in `src/lib/strategy/companion/debate.ts`
+- **Returns**: `{ whatIf: WhatIfReadout; chosenId } | null` (null = no trustworthy divergence, stay silent)
+- **Inputs**: the last-visit cookie's `standing_call_id` + `total_picks_made`, the user's `roster_id`, `picks_made`, the CURRENT decision's candidate id set, and a POOL-AWARE name resolver (available pool + rostered + drafted) plus value / ADP lookups
+- **Honesty gates** (all required to fire): anchor to the user's FIRST post-visit pick (not the latest); freshness (`pick_no - total_picks_made <= COMPANION_DEBATE_FRESH_PICKS`, the cookie call is only the call the user faced when the pick followed the render closely); corroboration (the cookie call must still be a current decision candidate, re-pointing the beat at the live Decision Board); name resolution (both ids resolve, else suppress)
+- **Anti-pattern 1**: comparing the user's pick to a stale cookie `standing_call_id` without the freshness + corroboration gates. After several intervening picks (or a pre-refactor cookie) the call shifted; a "divergence" is a false chide. Honest-first: a missed debate is benign, a false chide kills trust.
+- **Anti-pattern 2**: resolving the call / chosen names through a rostered-only lookup (e.g. `playersMap` built from `allRosterIds`). A real divergence is available-vs-available, so the standing call is an undrafted player absent from a rostered-only map, and the raw id reaches copy + the Coach seed. `classifyDebateBeat` carries a backstop: a beat whose standing-call `player_name === player_id` does not ship.
+- **Bug class avoided**: 2026-05-23 founder report. "I picked Elijah because it was the call, then I felt chided for it" (stale 12h/9-pick cookie call drove a false debate beat) + "no idea who 13320 is" (the available standing call leaked its raw Sleeper id into the headline and Coach handoff). Locked by `evals/companion.test.ts`.
+
 ## Adding a new entry
 
 Use this template:
