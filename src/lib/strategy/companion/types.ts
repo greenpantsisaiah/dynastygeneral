@@ -29,6 +29,7 @@ export type BeatKind =
   | "debate" // user took a contrarian choice vs the standing call
   | "anticipation" // a live variance window before it resolves
   | "callback" // a named past bet reached a checkpoint
+  | "play_advanced" // a pick advanced one of the user's active plays
   | "milestone"; // draft midpoint / week close / season close
 
 /** Tone drives the card's color rail and the phraser's register. */

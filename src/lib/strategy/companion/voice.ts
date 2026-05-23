@@ -35,6 +35,8 @@ export function phraseBeat(draft: BeatDraft): {
       return phraseAnticipation(v);
     case "callback":
       return phraseCallback(v);
+    case "play_advanced":
+      return phrasePlayAdvanced(v);
     case "milestone":
       return phraseMilestone(v);
   }
@@ -50,6 +52,18 @@ function phraseDebate(v: Values): { headline: string; body?: string } {
   return {
     headline: `${chosen} over ${alt}${evText}.`,
     body: "A real divergence. We can lay out the case both ways. Which window are you drafting for?",
+  };
+}
+
+function phrasePlayAdvanced(v: Values): { headline: string; body?: string } {
+  const pick = str(v.pick) ?? "that pick";
+  const play = str(v.play_name) ?? "your play";
+  const next = str(v.next_target);
+  return {
+    headline: `${pick} advances ${play}.`,
+    body: next
+      ? `We're a step closer. Next piece: ${next}.`
+      : "We're a step closer. The play is coming together.",
   };
 }
 

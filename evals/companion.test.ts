@@ -25,11 +25,13 @@ import {
   expectationFromPickDeviation,
 } from "../src/lib/strategy/companion/classify";
 import { rankBeats, topBeat, priorityScore } from "../src/lib/strategy/companion/priority";
+import { classifyPlayAdvancedBeats } from "../src/lib/strategy/companion/play-beats";
 import type {
   AnticipationInput,
   Beat,
   ExpectationRecord,
 } from "../src/lib/strategy/companion/types";
+import type { PlayCommitment } from "../src/lib/strategy/plays/types";
 import type { WhatIfReadout } from "../src/lib/strategy/decision-synthesis/whatif";
 import type { PlanDisruption } from "../src/lib/last-visit/plan-disruption";
 import type { LeagueEvBankReadout } from "../src/lib/strategy/ev-bank/league";
@@ -315,6 +317,71 @@ function run() {
     "milestone does not lead when a bad beat is present",
     ranked[0]?.kind !== "milestone",
     ranked[0]?.kind,
+  );
+
+  // 12. Play-reaction beat: a pick that advances a committed play.
+  const commitment = {
+    commitment_id: "c1",
+    archetype: "qb_wr_stack",
+    play_name: "Mayfield + Bucs Stack",
+    league_id: "L",
+    primary_player: {
+      player_id: "mayfield",
+      name: "Baker Mayfield",
+      position: "QB",
+      team: "TB",
+    },
+    followthrough_targets: [
+      { player_id: "evans", name: "Mike Evans", position: "WR", team: "TB" },
+      { player_id: "irving", name: "Bucky Irving", position: "RB", team: "TB" },
+    ],
+    followthrough_description: "Take a Bucs skill player",
+    committed_at_pick_no: 12,
+    lapses_after_pick_no: 60,
+    committed_at: "2026-05-22T00:00:00Z",
+    status: "active",
+  } as unknown as PlayCommitment;
+
+  const advanced = classifyPlayAdvancedBeats({
+    commitments: [commitment],
+    latestPick: { player_id: "evans", name: "Mike Evans" },
+  });
+  check(
+    "play_advanced fires when a pick is a follow-through target",
+    advanced.length === 1 && advanced[0].kind === "play_advanced",
+  );
+  check(
+    "play_advanced names the play and the pick",
+    (advanced[0]?.headline.includes("Mike Evans") &&
+      advanced[0]?.headline.includes("Mayfield + Bucs Stack")) ?? false,
+    advanced[0]?.headline,
+  );
+  check(
+    "play_advanced names the next piece",
+    advanced[0]?.body?.includes("Bucky Irving") ?? false,
+    advanced[0]?.body,
+  );
+  check("play_advanced is a win", advanced[0]?.tone === "win");
+  check(
+    "play_advanced carries grounded source",
+    (advanced[0]?.source.signal?.length ?? 0) > 0,
+    advanced[0]?.source.signal,
+  );
+  check(
+    "play_advanced has no em dash or exclamation",
+    advanced[0] ? noEmDashOrBang(advanced[0]) : false,
+  );
+  check(
+    "no play_advanced when the pick is not a target",
+    classifyPlayAdvancedBeats({
+      commitments: [commitment],
+      latestPick: { player_id: "nabers", name: "Malik Nabers" },
+    }).length === 0,
+  );
+  check(
+    "no play_advanced without a latest pick",
+    classifyPlayAdvancedBeats({ commitments: [commitment], latestPick: null })
+      .length === 0,
   );
 
   console.log(`\n${passed} passed ${"·"} ${failed} failed`);

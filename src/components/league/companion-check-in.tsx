@@ -16,10 +16,13 @@
  * this component adds no copy of its own beyond the eyebrow labels.
  */
 
+import { useEffect, useState } from "react";
 import type { Beat, BeatKind, BeatTone } from "@/lib/strategy/companion/types";
 import type { Urgency } from "@/lib/strategy/plays/types";
 import { rankBeats } from "@/lib/strategy/companion/priority";
+import { classifyPlayAdvancedBeats } from "@/lib/strategy/companion/play-beats";
 import { urgencyLabel } from "@/lib/strategy/plays/urgency";
+import { getActivePlayCommitments } from "@/lib/plays-storage";
 import { seedCoachWithBeat } from "./coach-chat";
 
 /**
@@ -51,6 +54,7 @@ const KIND_LABEL: Record<BeatKind, string> = {
   debate: "Let's talk",
   anticipation: "Watching",
   callback: "Still tracking",
+  play_advanced: "Building it",
   milestone: "Checkpoint",
 };
 
@@ -104,6 +108,10 @@ function talkThrough(beat: Beat, override?: (b: Beat) => void): void {
 
 export type CompanionCheckInProps = {
   beats: Beat[];
+  /** For reading the user's committed plays (client-side localStorage). */
+  leagueId: string;
+  /** The user's most recent pick since last visit, for play-reaction beats. */
+  latestPick?: { player_id: string; name: string } | null;
   /**
    * Hands a beat to Coach to talk through. Wired by the hub to seed the
    * Coach thread with the beat (and its bet_id / thesis). When absent,
@@ -116,11 +124,30 @@ export type CompanionCheckInProps = {
 
 export function CompanionCheckIn({
   beats,
+  leagueId,
+  latestPick,
   onTalkItThrough,
   maxSecondary = 3,
 }: CompanionCheckInProps) {
-  if (beats.length === 0) return null;
-  const ranked = rankBeats(beats);
+  // Play-reaction beats are computed client-side because committed plays
+  // live in localStorage. They merge with the server-classified beats.
+  const [playBeats, setPlayBeats] = useState<Beat[]>([]);
+  useEffect(() => {
+    if (!latestPick) {
+      setPlayBeats([]);
+      return;
+    }
+    setPlayBeats(
+      classifyPlayAdvancedBeats({
+        commitments: getActivePlayCommitments(leagueId),
+        latestPick,
+      }),
+    );
+  }, [leagueId, latestPick?.player_id]);
+
+  const allBeats = [...beats, ...playBeats];
+  if (allBeats.length === 0) return null;
+  const ranked = rankBeats(allBeats);
   const [lead, ...rest] = ranked;
   const secondary = rest.slice(0, maxSecondary);
 
