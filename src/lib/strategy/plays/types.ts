@@ -27,7 +27,8 @@ export type PlayArchetype =
   | "qb_wr_stack"
   | "anchor_handcuff"
   | "bridge_qb"
-  | "qb_hoard";
+  | "qb_hoard"
+  | "lane_path";
 
 /**
  * Graduated urgency for a play or a partner. Derived from survival
@@ -112,6 +113,15 @@ export type Play = {
   play_urgency?: Urgency;
   /** Format requirements that gated this play's emission. */
   format_gates?: FormatGates;
+  /**
+   * True when the roster ALREADY meets the play's conditions, so it is
+   * running whether or not the user explicitly commits (e.g. QB Hoard
+   * with the QBs in hand, or a build the roster FITS). The user can
+   * still commit it (to govern pick/trade discipline) or dismiss it.
+   * Founder direction 2026-05-21: "I don't need to commit to be on one
+   * if I've met the conditions of it."
+   */
+  auto_active?: boolean;
 };
 
 /**

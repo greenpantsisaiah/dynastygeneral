@@ -11,7 +11,7 @@ import {
 } from "@/lib/sleeper";
 import { resolvePlayers, humanize, type HumanPlayer } from "@/lib/players/cache";
 import type { SleeperPlayer } from "@/lib/sleeper/schemas";
-import { slotForPickNo as snakeSlotShared } from "@/lib/sleeper/snake";
+import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
 
 /**
  * Resolved draft state for a league. The one-call answer to
@@ -104,14 +104,6 @@ function labelForPickNo(pickNo: number, teams: number): string {
   return `${round}.${within}`;
 }
 
-function rosterIdForSlot(
-  draft: SleeperDraft,
-  slot: number,
-): number | null {
-  const map = draft.slot_to_roster_id ?? {};
-  const raw = map[String(slot)];
-  return typeof raw === "number" ? raw : null;
-}
 
 export async function resolveDraftState(
   leagueId: string,
@@ -178,35 +170,22 @@ export async function resolveDraftState(
   const nextPickNo = picksMade.length + 1;
   const maxPicks = rounds > 0 ? rounds * totalTeams : Infinity;
   const inProgress = nextPickNo <= maxPicks && status !== "complete";
-
-  // Trade override map for THIS season's picks. Keyed by
-  // `round:original_owner_roster_id` → current_owner_roster_id. Lets
-  // us correctly attribute the on-the-clock owner and the user's next
-  // pick when picks have been traded away or acquired. Without this,
-  // the draft banner shows the original slot holder ("MacCheese13") for
-  // a pick the user actually owns via trade.
-  const draftSeason = league?.season ?? null;
-  const tradeOverrideMap = new Map<string, number>();
-  for (const t of tradedPicks) {
-    if (draftSeason && t.season !== draftSeason) continue;
-    tradeOverrideMap.set(`${t.round}:${t.original_owner}`, t.current_owner);
-  }
-
-  // Resolve the EFFECTIVE roster_id for a pick: original slot owner
-  // unless that pick has been traded, in which case the current owner.
-  // Capture draft in a non-null local so the closure narrows properly.
-  const draftCopy = draft;
-  function effectiveRosterIdForPickNo(pickNo: number): number | null {
-    const slotCalc = snakeSlotShared(pickNo, totalTeams, {
-      type: draftCopy.type,
-      reversalRound,
+  // Canonical trade-aware pick owner resolution. This keeps banner
+  // ownership, on-clock attribution, and downstream schedule logic on
+  // one implementation path.
+  const draftSeason = league?.season ?? draft.season;
+  const effectiveRosterIdForPickNo = (pickNo: number): number | null =>
+    rosterAtPickNo({
+      pickNo,
+      totalTeams,
+      season: draftSeason,
+      draft: {
+        type: draft.type,
+        reversal_round: reversalRound,
+        slot_to_roster_id: slotToRoster,
+        traded_picks: tradedPicks,
+      },
     });
-    const originalRoster = rosterIdForSlot(draftCopy, slotCalc.slot);
-    if (originalRoster == null) return null;
-    const round = Math.ceil(pickNo / totalTeams);
-    const overridden = tradeOverrideMap.get(`${round}:${originalRoster}`);
-    return overridden ?? originalRoster;
-  }
 
   // On the clock
   let onClockRosterId: number | null = null;

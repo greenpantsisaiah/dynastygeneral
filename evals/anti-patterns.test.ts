@@ -53,6 +53,20 @@ const RULES: Rule[] = [
       "Don't filter by team!=null",
     ],
   },
+  // 2026-05-21 live-data check (FantasyCalc 1QB-PPR vs non-TEP Sleeper
+  // ADP) proved FantasyCalc does NOT inflate TE in standard scoring:
+  // top-24 TEs sit at a mean -11.2 rank displacement (market drafts
+  // them HIGHER than FC ranks them). A standard-league TE down-
+  // multiplier would push recommendations further from the market.
+  // If "too many TEs" recurs, it's a scoring tiebreaker in
+  // decision-synthesis, not the value scale. Per INVARIANTS.md.
+  {
+    name: "no standard-league TE down-multiplier",
+    why: "FantasyCalc does not inflate TE in non-TEP (data verdict 2026-05-21). A TE_STANDARD_MULTIPLIER < 1 makes TE recommendations worse, not better.",
+    pattern: /TE_STANDARD_MULTIPLIER/,
+    scan: { dir: join(SRC, "lib", "players"), ext: [".ts"] },
+    allowFilePrefixes: [EVALS],
+  },
   // QB starter math is the most-bugged pattern: SF / 2QB leagues have
   // their second QB slot in starter_slots.superflex, NOT in
   // starter_slots.hard.QB. Reading hard.QB without adding superflex,
@@ -116,14 +130,23 @@ const RULES: Rule[] = [
       "// canonical",
     ],
   },
+  {
+    name: "no raw snap.starter_slots.hard cloning in strategy modules",
+    why: "Starter-need math in strategy modules must read canonical roster-fit helpers (getHardStarterReqs / related). Cloning snap.starter_slots.hard into local helper math reintroduces split semantics and drift.",
+    pattern: /const\s+hard\s*=\s*snap\.starter_slots\.hard\s*;/,
+    scan: { dir: join(SRC, "lib", "strategy"), ext: [".ts"] },
+    allowFilePrefixes: [EVALS],
+    allowLineSubstrings: [
+      "// canonical",
+      "// parseStarterSlots",
+    ],
+  },
   // Trade-aware pick owner resolution: 2026-05-06 bug class. Three
   // independent implementations (banner / decision-card title /
-  // gap-walker) drifted; we patched two and the third quietly stayed
-  // wrong. Canonical: rosterAtPickNo in src/lib/sleeper/pick-resolution.ts.
-  // The bootstrap in resolveDraftState (draft-state.ts) is the only
-  // accepted alternate (it produces the snapshot shape the canonical
-  // consumes). Anywhere else that loops over traded_picks or accesses
-  // tp.original_owner is reimplementing the wheel.
+  // gap-walker) drifted as patches landed out-of-sync. Canonical:
+  // rosterAtPickNo in src/lib/sleeper/pick-resolution.ts. Anywhere
+  // else that builds `${round}:${original_owner}` maps is re-
+  // implementing the wheel.
   {
     name: "no inline traded_picks override-map construction outside the canonical resolver",
     why: "Trade-aware pick attribution must go through rosterAtPickNo (src/lib/sleeper/pick-resolution.ts). The override-map signature `${round}:${original_owner}` keyed Map is the 2026-05-06 'Decision title says 2 ahead but banner says 11' bug class. Analytics readers of traded_picks (count, filter, list) are fine; only the override-map construction is forbidden.",
@@ -131,12 +154,6 @@ const RULES: Rule[] = [
     scan: { dir: SRC, ext: [".ts"] },
     allowFilePrefixes: [
       EVALS,
-      // The canonical resolver does the iteration directly without an
-      // override map, so it does not match the pattern. Bootstraps are
-      // allowed because they produce the snapshot shape downstream
-      // surfaces consume.
-      join(SRC, "lib", "sleeper", "draft-state.ts"),
-      join(SRC, "lib", "strategy", "league-state", "snapshot.ts"),
       // Future-picks portfolio builder uses a related but distinct
       // key shape (season:round:original_owner) for FUTURE-season
       // pick ownership. Different domain from active-draft pick
@@ -170,13 +187,13 @@ const RULES: Rule[] = [
   // existing thin wrapper in predict.ts (which delegates).
   {
     name: "no parallel pick-owner functions outside pick-resolution.ts",
-    why: "Functions named rosterAtPickNo / rosterAtSlot / pickOwner / ownerOfPick / effectiveRosterIdForPickNo can only be defined in pick-resolution.ts (canonical), draft-state.ts (bootstrap), or as a thin wrapper in predict.ts. Anywhere else is a duplicate implementation.",
-    pattern: /^\s*(?:export\s+)?function\s+(?:rosterAtPickNo|pickOwner|ownerOfPick|effectiveRosterIdForPickNo)\s*[(<]/,
+    why: "Functions named rosterAtPickNo / rosterAtSlot / findRosterAtSlot / pickOwner / ownerOfPick / effectiveRosterIdForPickNo can only be defined in pick-resolution.ts (canonical) or as a thin wrapper in predict.ts. Anywhere else is a duplicate implementation.",
+    pattern: /^\s*(?:export\s+)?function\s+(?:rosterAtPickNo|rosterAtSlot|findRosterAtSlot|pickOwner|ownerOfPick|effectiveRosterIdForPickNo)\s*[(<]/,
     scan: { dir: SRC, ext: [".ts"] },
     allowFilePrefixes: [
       EVALS,
       join(SRC, "lib", "sleeper", "pick-resolution.ts"),
-      join(SRC, "lib", "sleeper", "draft-state.ts"),
+      join(SRC, "lib", "strategy", "pick-approach", "predict.ts"),
     ],
     allowLineSubstrings: ["// allowed re-export", "// canonical"],
   },
@@ -296,6 +313,45 @@ function run() {
       if (hits.length > 5) console.log(`    + ${hits.length - 5} more`);
     }
   }
+  // Coach must consume the canonical engine outputs, not re-derive them
+  // (founder 2026-05-22: "the coach must use our exact architecture,
+  // always, even when we update it"). These fields are produced by the
+  // engine and shown to the user on the board; the Coach context MUST
+  // mirror each so chat and board never disagree. When you add a new
+  // user-visible decision field, add it to the Coach context AND to this
+  // list. Per INVARIANTS.md "Coach consumes canonical engine outputs".
+  const COACH_ROUTE = resolve(SRC, "app", "api", "coach", "[leagueId]", "route.ts");
+  const REQUIRED_IN_COACH = [
+    "system_decision",
+    "board_candidates",
+    "league_position_context",
+    "build_vs_league",
+    "format_rules",
+    "pricing",
+  ];
+  console.log("\n── coach mirrors the canonical engine outputs ──");
+  {
+    let coachContent = "";
+    try {
+      coachContent = readFileSync(COACH_ROUTE, "utf-8");
+    } catch {
+      coachContent = "";
+    }
+    const missing = coachContent
+      ? REQUIRED_IN_COACH.filter((f) => !coachContent.includes(f))
+      : ["(route unreadable)"];
+    if (missing.length === 0) {
+      passed++;
+      console.log("  ✓ all canonical fields present in the coach context");
+    } else {
+      failed++;
+      console.log(`  ✗ coach context missing canonical field(s): ${missing.join(", ")}`);
+      console.log(
+        "    why: Coach must consume the engine's canonical outputs, not re-derive. Mirror every user-visible decision field. Per INVARIANTS.md.",
+      );
+    }
+  }
+
   console.log(`\n${passed} passed · ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

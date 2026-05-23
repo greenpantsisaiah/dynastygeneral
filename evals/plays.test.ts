@@ -15,9 +15,14 @@
 import {
   detectPlaysEnabledBy,
   detectRosterShapePlays,
+  detectLanePlays,
   type OwnedRosterPlayer,
 } from "../src/lib/strategy/plays/detect";
 import { canEmitPlay } from "../src/lib/strategy/plays/catalog";
+import type {
+  LaneMembership,
+  IdentityMove,
+} from "../src/lib/strategy/lane-identity";
 import {
   derivePlayUrgency,
   urgencyFromSurvival,
@@ -495,6 +500,7 @@ function run() {
     });
     const hoard = fires.find((p) => p.archetype === "qb_hoard");
     check("QB Hoard fires in 1QB with 3 QBs", hoard != null);
+    check("QB Hoard is auto-active (conditions met)", hoard?.auto_active === true);
     check(
       "QB Hoard anchors on the top-value QB",
       hoard?.primary_player.player_id === a.id,
@@ -529,6 +535,143 @@ function run() {
     check(
       "QB Hoard suppressed in superflex (depth, not surplus)",
       sf.find((p) => p.archetype === "qb_hoard") == null,
+    );
+  }
+
+  console.log("\n── 11. Build identity folds into plays ──");
+  {
+    const memberships = [
+      {
+        lane_id: "rb_bellcow",
+        label: "RB Bellcow",
+        blurb: "Two bellcow RBs anchor the weekly floor.",
+        axis: "archetype",
+        state: "in",
+        aggregate_score: 180,
+        in_threshold: 150,
+        close_threshold: 100,
+        contributors: [
+          {
+            player_id: "x1",
+            name: "Bijan Robinson",
+            position: "RB",
+            contribution: 95,
+          },
+        ],
+        gap: null,
+        is_derived: false,
+      },
+      {
+        lane_id: "wr_stable",
+        label: "WR Stable",
+        blurb: "Five stable WRs spread target risk.",
+        axis: "archetype",
+        state: "close",
+        aggregate_score: 90,
+        in_threshold: 150,
+        close_threshold: 80,
+        contributors: [
+          {
+            player_id: "x2",
+            name: "Drake London",
+            position: "WR",
+            contribution: 70,
+          },
+        ],
+        gap: {
+          description: "Add one more 18%+ target-share WR.",
+          move_type: "trade_for",
+        },
+        is_derived: false,
+      },
+      {
+        lane_id: "win_now_floor",
+        label: "Win-Now Floor",
+        blurb: "Posture, not a play.",
+        axis: "horizon",
+        state: "in",
+        aggregate_score: 200,
+        in_threshold: 150,
+        close_threshold: 100,
+        contributors: [],
+        gap: null,
+        is_derived: false,
+      },
+      {
+        lane_id: "zero_rb",
+        label: "Zero-RB",
+        blurb: "Not on this path.",
+        axis: "composite",
+        state: "not_in",
+        aggregate_score: 0,
+        in_threshold: 1,
+        close_threshold: 1,
+        contributors: [],
+        gap: null,
+        is_derived: true,
+      },
+    ] as unknown as LaneMembership[];
+
+    const moves = [
+      {
+        lane_id: "wr_stable",
+        lane_label: "WR Stable",
+        move_type: "trade_for",
+        description: "Add a WR",
+        targets: [
+          {
+            player_id: "t1",
+            name: "Jaylen Waddle",
+            position: "WR",
+            age: 26,
+            value: 65,
+            archetype_score: 70,
+            owner_name: "RivalTeam",
+            roster_id: 3,
+          },
+        ],
+        funding: [
+          {
+            player_id: "f1",
+            name: "Spare RB",
+            position: "RB",
+            value: 30,
+            rationale: "surplus",
+          },
+        ],
+      },
+    ] as unknown as IdentityMove[];
+
+    const plays = detectLanePlays(memberships, moves);
+    check(
+      "Lane plays exclude win_now_floor + not_in builds",
+      plays.length === 2,
+      `count=${plays.length}`,
+    );
+    const bellcow = plays.find((p) => p.name === "RB Bellcow");
+    check("IN build becomes a play", bellcow != null);
+    check("IN build is auto-active", bellcow?.auto_active === true);
+    check(
+      "Lane play uses lane_path archetype",
+      bellcow?.archetype === "lane_path",
+    );
+    check(
+      "Lane play primary id is lane-scoped (unique per build)",
+      bellcow?.primary_player.player_id === "lane:rb_bellcow",
+    );
+    const stable = plays.find((p) => p.name === "WR Stable");
+    check(
+      "CLOSE build names trade targets in follow-through",
+      stable?.followthrough.description.includes("Jaylen Waddle") ?? false,
+      stable?.followthrough.description,
+    );
+    check(
+      "CLOSE build names funding in follow-through",
+      stable?.followthrough.description.includes("Spare RB") ?? false,
+    );
+    check(
+      "CLOSE build is NOT auto-active (one move away)",
+      !stable?.auto_active,
     );
   }
 

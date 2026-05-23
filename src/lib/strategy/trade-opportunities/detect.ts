@@ -39,6 +39,8 @@ import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { UpcomingDraftSummary } from "@/lib/strategy/pre-draft/upcoming-draft";
 import { startupPickValue } from "@/lib/players/future-picks";
+import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
+import { getHardStarterReqs } from "@/lib/engine/roster-fit";
 
 export type OpportunityKind =
   | "flat_tier_trade_down"
@@ -310,30 +312,6 @@ function tradeSignatureFor(
   return "pick_quiet";
 }
 
-function findRosterAtSlot(
-  snap: LeagueSnapshot,
-  pickNo: number,
-): number | null {
-  const totalTeams = snap.total_teams;
-  if (pickNo < 1) return null;
-  const round = Math.ceil(pickNo / totalTeams);
-  const positionInRound = ((pickNo - 1) % totalTeams) + 1;
-  const isSnake =
-    snap.draft.type !== "linear" && snap.draft.type !== "auction";
-  const slot =
-    isSnake && round % 2 === 0
-      ? totalTeams + 1 - positionInRound
-      : positionInRound;
-  const direct = snap.draft.slot_to_roster_id?.[slot];
-  if (typeof direct !== "number") return null;
-  for (const tp of snap.draft.traded_picks) {
-    if (tp.season !== snap.season) continue;
-    if (tp.round !== round) continue;
-    if (tp.original_owner !== direct) continue;
-    return tp.current_owner;
-  }
-  return direct;
-}
 
 function computeStructuralHoles(snap: LeagueSnapshot): Array<{
   position: Position;
@@ -343,14 +321,7 @@ function computeStructuralHoles(snap: LeagueSnapshot): Array<{
 }> {
   const me = snap.rosters.find((r) => r.is_me);
   if (!me) return [];
-  const isSuperflex =
-    snap.format === "superflex" || snap.format === "2qb";
-  const requirements: Record<Position, number> = {
-    QB: isSuperflex ? 2 : 1,
-    RB: 2,
-    WR: 3,
-    TE: 1,
-  };
+  const requirements = getHardStarterReqs(snap);
   const holes: Array<{
     position: Position;
     current_count: number;
@@ -383,14 +354,7 @@ function findSurplusOpponents(
   count: number;
   surplus: number;
 }> {
-  const isSuperflex =
-    snap.format === "superflex" || snap.format === "2qb";
-  const required: Record<Position, number> = {
-    QB: isSuperflex ? 2 : 1,
-    RB: 2,
-    WR: 3,
-    TE: 1,
-  };
+  const required = getHardStarterReqs(snap);
   const out: Array<{
     roster_id: number;
     owner_name: string;
@@ -493,7 +457,12 @@ export function detectTradeOpportunities(args: {
     });
     if (lastOfTier && lastOfTier.adp != null) {
       const targetPickNo = Math.max(1, Math.floor(lastOfTier.adp) - 1);
-      const partnerRosterId = findRosterAtSlot(snap, targetPickNo);
+      const partnerRosterId = rosterAtPickNo({
+        pickNo: targetPickNo,
+        totalTeams: snap.total_teams,
+        season: snap.season,
+        draft: snap.draft,
+      });
       if (partnerRosterId && partnerRosterId !== myRosterId) {
         const partner = snap.rosters.find(
           (r) => r.roster_id === partnerRosterId,
@@ -798,7 +767,12 @@ export function detectTradeOpportunities(args: {
       // Partner trades up to user's slot + sends a sweetener (later
       // pick). User receives slot 3+ behind + a later round dart.
       const targetSlotNo = slot1.pick_no + 3;
-      const partnerRosterId = findRosterAtSlot(snap, targetSlotNo);
+      const partnerRosterId = rosterAtPickNo({
+        pickNo: targetSlotNo,
+        totalTeams: snap.total_teams,
+        season: snap.season,
+        draft: snap.draft,
+      });
       const partner = partnerRosterId
         ? snap.rosters.find((r) => r.roster_id === partnerRosterId)
         : null;

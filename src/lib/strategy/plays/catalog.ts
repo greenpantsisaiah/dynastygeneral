@@ -29,6 +29,9 @@ export const playFormatGates: Record<PlayArchetype, FormatGates> = {
   // pure surplus. In superflex / 2QB, QB depth is a need, not a flip
   // asset, so the play must never surface there.
   qb_hoard: { requires_1qb_starter: true },
+  // Lane-path plays are derived from aggregateRosterIdentity, which is
+  // already format-aware per lane; no additional gate here.
+  lane_path: {},
 };
 
 /**

@@ -103,7 +103,6 @@ import {
   composeDigestLine,
 } from "@/lib/last-visit/diff";
 import { TheCall } from "@/components/league/the-call/the-call";
-import { ActivePlaysPanel } from "@/components/league/active-plays-panel";
 import { LibraryTeaser } from "@/components/league/triage/library-teaser";
 import { DashboardSection } from "@/components/league/dashboard/dashboard-section";
 // LeagueEvBankLeaderboard standalone widget removed: the league
@@ -115,7 +114,6 @@ import {
   analyzeTeamIdentity,
   type TeamIdentity,
 } from "@/lib/strategy/team-identity";
-import { RosterLaneIdentity } from "@/components/league/roster-lane-identity";
 import { LaneCohortDistribution } from "@/components/league/lane-cohort-distribution";
 import { PostureBanner } from "@/components/league/posture-banner";
 import { FuturePickCabinet } from "@/components/league/future-pick-cabinet";
@@ -136,6 +134,7 @@ import { detectTradeOpportunities } from "@/lib/strategy/trade-opportunities/det
 import {
   suggestPlaysFromRoster,
   detectRosterShapePlays,
+  detectLanePlays,
   type OwnedRosterPlayer,
 } from "@/lib/strategy/plays/detect";
 import type { Play } from "@/lib/strategy/plays/types";
@@ -171,13 +170,6 @@ import { DecisionQuadrant } from "@/components/league/decision-quadrant";
 import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
-import { TierMap } from "@/components/league/tier-map";
-import { buildTierMap, type TierMap as TierMapData } from "@/lib/engine/evaluation/tier-map";
-import type {
-  PlayerSignalsRow,
-  TeamSignalsRow,
-} from "@/lib/signals/schema";
-import { getAdminClient } from "@/lib/supabase/admin";
 import { resolvePlayers } from "@/lib/players/cache";
 import { getSeasonStats } from "@/lib/players/season-stats";
 import { getProjections } from "@/lib/players/projections";
@@ -398,7 +390,6 @@ export default async function LeagueHubPage({
   // TE / QB. Powers the Tier Map panel rendered during active drafts.
   // Built from the engine's variance-band overlap method (see
   // src/lib/engine/evaluation/tiers.ts). Best-effort; non-fatal.
-  let tierMap: TierMapData | null = null;
   // KTC overall_rank per player_id, surfaced on Top 3 cards alongside
   // ADP so users see both the Sleeper-UI signal and the dynasty-pro
   // signal. Drives the trust-hierarchy callout when the two diverge.
@@ -699,63 +690,6 @@ export default async function LeagueHubPage({
         playerValuesByIdJson = out;
         ktcOverallRanksByIdJson = ranksOut;
 
-        // Build the multi-position tier map from the engine. Loads
-        // signals tables (best-effort) so coded RB role tier / scheme
-        // tag / etc. flow into evaluate() and shape the tier breaks.
-        // Falls through to KTC-only-based tiers if the signals tables
-        // are unreachable.
-        try {
-          const admin = getAdminClient();
-          const candidateIds = availablePlayers.map((p) => p.id);
-          const [playerSignalsRes, teamSignalsRes] = await Promise.all([
-            admin
-              .from("player_signals")
-              .select("*")
-              .in("player_id", candidateIds),
-            admin.from("team_signals").select("*"),
-          ]);
-          const playerSignalsById = new Map<
-            string,
-            Partial<PlayerSignalsRow>
-          >();
-          for (const row of (playerSignalsRes.data ??
-            []) as Partial<PlayerSignalsRow>[]) {
-            if (typeof row.player_id === "string") {
-              playerSignalsById.set(row.player_id, row);
-            }
-          }
-          const teamSignalsByTeam = new Map<
-            string,
-            Partial<TeamSignalsRow>
-          >();
-          for (const row of (teamSignalsRes.data ??
-            []) as Partial<TeamSignalsRow>[]) {
-            if (typeof row.team === "string") {
-              teamSignalsByTeam.set(row.team, row);
-            }
-          }
-          tierMap = buildTierMap({
-            players: availablePlayers.map((p) => {
-              const v = valueMap?.get(p.id);
-              return {
-                player_id: p.id,
-                name: p.name,
-                team: p.team ?? null,
-                position: p.position ?? null,
-                age: p.age,
-                years_exp: p.yearsExp ?? null,
-                search_rank: p.search_rank ?? null,
-                ktc_value: v?.value ?? null,
-                adp: p.adp,
-              };
-            }),
-            playerSignalsById,
-            teamSignalsByTeam,
-          });
-        } catch (err) {
-          captureError(issues, "hub:tier-map", err);
-        }
-
         // Harmonize the available-pool ordering by the consensus
         // cascade (KTC value > ADP > heuristic dynasty_rank). Per
         // 2026-04-25 audit: previously the pool was sorted by
@@ -1052,7 +986,6 @@ export default async function LeagueHubPage({
   let draftPathProjection: DraftPathProjection | null = null;
   let tradeOpportunities: TradeOpportunity[] = [];
   let suggestedPlays: Play[] = [];
-  let priorLaneStates: Record<string, "in" | "close" | "not_in"> = {};
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
@@ -1472,6 +1405,13 @@ export default async function LeagueHubPage({
             playerValueMap: lrValueMap,
             snap: leagueSnapshot,
           });
+          // Fold build identity into the plays cornerstone: every build
+          // the roster FITS or PARTLY FITS becomes a committable play,
+          // CLOSE builds carrying the identity-move targets + funding.
+          suggestedPlays = [
+            ...suggestedPlays,
+            ...detectLanePlays(rosterLaneMemberships, rosterLaneMoves),
+          ];
         }
       } catch (err) {
         console.error("[hub:roster-lane-identity]", err);
@@ -1504,7 +1444,6 @@ export default async function LeagueHubPage({
         lastVisitEvBankDelta = delta.ev_bank_delta;
         lastVisitPositionCountDeltas = delta.position_count_deltas;
         lastVisitLeagueRankDelta = delta.league_rank_delta;
-        priorLaneStates = prior?.lane_states ?? {};
         const disruption = detectPlanDisruption({
           prior,
           snap: leagueSnapshot,
@@ -2227,40 +2166,40 @@ export default async function LeagueHubPage({
 
               {/* SECTION: The Call (active draft only). Leads the
                   active-draft hub. */}
+              {/* The Call is now one timing feed: the committed plays
+                  + suggestions are folded into its WAIT room (the old
+                  standalone Active Plays panel was retired here
+                  2026-05-21), so commitments live right under the call
+                  instead of far down the page. */}
               {draftActive && decision && (
                 <div className="mb-8">
                   <TheCall
                     decision={decision}
-                    leagueType={leagueSnapshot?.league_type ?? "unknown"}
-                    maxKeepers={leagueSnapshot?.max_keepers ?? null}
                     leagueId={leagueId}
+                    currentPickNo={leagueSnapshot?.draft.next_pick_no ?? null}
+                    suggestedPlays={suggestedPlays}
+                    picksMadeForUser={(() => {
+                      if (!leagueSnapshot || !myRoster) return [];
+                      return leagueSnapshot.draft.picks_made
+                        .filter((p) => p.roster_id === myRoster.roster_id)
+                        .map((p) => ({
+                          player_id: p.player_id,
+                          pick_no: p.pick_no,
+                        }));
+                    })()}
                   />
                 </div>
               )}
 
-              {/* Active Plays Panel. Reads localStorage; the REMEMBER
-                  + STAY DISCIPLINED verbs of the plays system. Surfaces
-                  the user's committed multi-pick plays plus follow-
-                  through deadlines. Founder direction 2026-05-20:
-                  intentional sequencing across multiple picks is what
-                  separates the shark from the mark. */}
-              {draftActive && (
-                <ActivePlaysPanel
-                  leagueId={leagueId}
-                  currentPickNo={
-                    leagueSnapshot?.draft.next_pick_no ?? null
-                  }
-                  suggestedPlays={suggestedPlays}
-                  picksMadeForUser={(() => {
-                    if (!leagueSnapshot || !myRoster) return [];
-                    return leagueSnapshot.draft.picks_made
-                      .filter((p) => p.roster_id === myRoster.roster_id)
-                      .map((p) => ({
-                        player_id: p.player_id,
-                        pick_no: p.pick_no,
-                      }));
-                  })()}
-                />
+              {/* BUILD FIT. Moved here (right below The Call) 2026-05-22
+                  per founder: the roster-shape benchmark is the strategic
+                  frame for trade leverage and belongs near the decision,
+                  not buried in Your team. Renders whenever the roster has
+                  lane memberships (all stages), not just active draft. */}
+              {rosterLaneMemberships.length > 0 && (
+                <div className="mb-8">
+                  <LaneCohortDistribution memberships={rosterLaneMemberships} />
+                </div>
               )}
 
               {/* Position Run Watch. Renders during active draft so
@@ -2299,15 +2238,14 @@ export default async function LeagueHubPage({
                   />
                 )}
 
-              {/* Draft Path Projector. Phase D 2026-05-19. The killer
-                  pre-draft + active-draft surface. 3-5 ranked
-                  positional sequences side-by-side with per-slot
-                  candidates + survival probabilities. Renders only
-                  when paths are available + draft is pre-draft or
-                  active (no value post-draft). */}
+              {/* Draft Path Projector (pre-draft only). During an
+                  active draft this is folded into the Decision Board's
+                  "By path" angle inside The Call (2026-05-21), so the
+                  standalone render is now scoped to pre-draft, where
+                  there is no Decision Board yet. */}
               {draftPathProjection &&
                 draftPathProjection.paths.length > 0 &&
-                (draftState?.status === "pre_draft" || draftActive) && (
+                draftState?.status === "pre_draft" && (
                   <DraftPathProjector projection={draftPathProjection} />
                 )}
 
@@ -2437,18 +2375,6 @@ export default async function LeagueHubPage({
                           capital={rosterPosture.future_capital}
                         />
                       )}
-                    {rosterLaneMemberships.length > 0 && (
-                      <RosterLaneIdentity
-                        memberships={rosterLaneMemberships}
-                        moves={rosterLaneMoves}
-                        priorStates={priorLaneStates}
-                      />
-                    )}
-                    {rosterLaneMemberships.length > 0 && (
-                      <LaneCohortDistribution
-                        memberships={rosterLaneMemberships}
-                      />
-                    )}
                     {inflectionItems.length > 0 && (
                       <InflectionPanel items={inflectionItems} />
                     )}
