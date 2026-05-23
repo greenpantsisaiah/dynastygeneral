@@ -12,6 +12,7 @@ import {
 import { resolvePlayers, humanize, type HumanPlayer } from "@/lib/players/cache";
 import type { SleeperPlayer } from "@/lib/sleeper/schemas";
 import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
+import { isRosterOwnedBy } from "./roster-identity";
 
 /**
  * Resolved draft state for a league. The one-call answer to
@@ -211,7 +212,7 @@ export async function resolveDraftState(
 
   // My roster
   const myRoster = mySleeperUserId
-    ? rosters.find((r) => r.owner_id === mySleeperUserId)
+    ? rosters.find((r) => isRosterOwnedBy(r, mySleeperUserId))
     : undefined;
   const myRosterId = myRoster?.roster_id ?? null;
 

@@ -22,6 +22,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: building a `Map<\`${round}:${original_owner}\`, current_owner>` lookup inline in any other file. Lint rule "no inline traded_picks override-map construction" enforces this.
 - **Bug class avoided**: 2026-05-06 "Decision title says 2 ahead but banner says 11 ahead." Three independent implementations drifted; we patched two and the third stayed wrong.
 
+### Roster identity (is this my roster, co-owner-aware)
+
+- **Canonical**: `isRosterOwnedBy(roster, sleeperUserId)` in `src/lib/sleeper/roster-identity.ts`
+- **Returns**: `boolean` (true if the user is the primary owner OR a co-owner; false for a null/absent user id, so orphan rosters never false-positive)
+- **Inputs**: a raw Sleeper roster (`{ owner_id, co_owners }`) and a sleeper user id. In leagues without co-owners this behaves identically to a plain `owner_id` match (no-op there, fix in co-owned leagues).
+- **Consumers**: the snapshot `is_me` (`snapshot.ts`), and every "find my roster" resolution (`leagues/[leagueId]/page.tsx`, `scout/[username]/page.tsx`, `engine/context.ts`, `sleeper/draft-state.ts`, `sleeper/history.ts`, `rankings/league-context.ts`, `posture/champion-history.ts`).
+- **Anti-pattern**: `roster.owner_id === userId` inline for identity resolution (skips `co_owners`). Lint rule "no raw owner_id identity resolution (use isRosterOwnedBy)" bans `.owner_id ===` outside the canonical.
+- **Bug class avoided**: 2026-05-23 architecture audit found 5 identity resolutions with 3 different co-owner behaviors; the snapshot's own `is_me` omitted `co_owners` despite INVARIANTS.md flagging co-ownership as a trust-breaking class (a co-owner viewing their hub got `is_me: false` on their own team, cascading wrong identity to the Decision card, Coach context, and position counts).
+
 ### User pick schedule (trade-aware, density-classified)
 
 - **Canonical**: `snap.draft.my_pick_schedule` (built by `buildMyPickSchedule` in `src/lib/strategy/league-state/snapshot.ts`)

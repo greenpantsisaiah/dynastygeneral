@@ -25,6 +25,7 @@ import {
 } from "@/lib/players/projections";
 import { pickNoForSlot } from "@/lib/sleeper/snake";
 import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
+import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 import type {
   LeagueFormat,
   LeagueScoring,
@@ -645,7 +646,7 @@ export async function buildLeagueSnapshot(args: {
       roster_id: r.roster_id,
       owner_id: r.owner_id,
       owner_name: r.owner_id ? userById.get(r.owner_id) ?? null : null,
-      is_me: !!mySleeperUserId && r.owner_id === mySleeperUserId,
+      is_me: isRosterOwnedBy(r, mySleeperUserId),
       position_counts: counts,
       position_ranks: ranks,
       player_ids: [...merged],

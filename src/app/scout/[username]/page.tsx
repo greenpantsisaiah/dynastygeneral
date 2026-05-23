@@ -44,6 +44,7 @@ import {
 } from "@/lib/scout/score";
 import { generateScoutVerdict } from "@/lib/scout/verdict";
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
+import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -199,8 +200,8 @@ export default async function ScoutPage({ params, searchParams }: PageProps) {
             () => null,
           ),
         ]);
-        const myRoster = rosters.find(
-          (r: SleeperRoster) => r.owner_id === sleeperUser.user_id,
+        const myRoster = rosters.find((r: SleeperRoster) =>
+          isRosterOwnedBy(r, sleeperUser.user_id),
         );
         if (!myRoster) return null;
         const ownerName =

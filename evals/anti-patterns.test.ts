@@ -83,6 +83,23 @@ const RULES: Rule[] = [
       join(SRC, "lib", "strategy", "ev-bank", "formula.ts"),
     ],
   },
+  // Roster identity must go through isRosterOwnedBy, which checks
+  // co_owners. Resolving "is this my roster" by owner_id alone silently
+  // mis-identifies co-owned teams, a trust-breaking bug class
+  // (INVARIANTS.md "Roster identity must be ground-truth verified").
+  // Only the canonical may compare owner_id directly. A legitimate
+  // non-identity owner_id comparison (two rosters sharing an owner)
+  // should be added to the allow-list with a justifying comment.
+  {
+    name: "no raw owner_id identity resolution (use isRosterOwnedBy)",
+    why: "Resolving roster ownership by owner_id alone skips co_owners and mis-identifies co-owned teams. Use isRosterOwnedBy (sleeper/roster-identity.ts). Per CANONICAL_SOURCES.md.",
+    pattern: /\.owner_id\s*===/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "sleeper", "roster-identity.ts"),
+    ],
+  },
   // QB starter math is the most-bugged pattern: SF / 2QB leagues have
   // their second QB slot in starter_slots.superflex, NOT in
   // starter_slots.hard.QB. Reading hard.QB without adding superflex,

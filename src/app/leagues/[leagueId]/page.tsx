@@ -25,6 +25,7 @@ import {
   type SleeperLeague,
 } from "@/lib/sleeper";
 import { resolveDraftState, type DraftStatus } from "@/lib/sleeper/draft-state";
+import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import {
   buildLeagueBriefing,
@@ -303,7 +304,7 @@ export default async function LeagueHubPage({
     sleeperUser.user_id !== savedSleeperUserId;
 
   const myRoster = sleeperUser
-    ? rosters.find((r) => r.owner_id === sleeperUser.user_id)
+    ? rosters.find((r) => isRosterOwnedBy(r, sleeperUser.user_id))
     : undefined;
   const myUser = sleeperUser
     ? users.find((u) => u.user_id === sleeperUser.user_id)

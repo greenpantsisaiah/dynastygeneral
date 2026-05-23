@@ -26,6 +26,7 @@ import {
 } from "@/lib/sleeper";
 import { createClient } from "@/lib/supabase/server";
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
+import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 
 export type RankingsLeagueOption = {
   league_id: string;
@@ -96,11 +97,8 @@ export async function loadRankingsLeagueContext(args: {
     // Map Sleeper user_id to roster_id via league users.
     const myUserSlot = users.find((u) => u.user_id === sleeperUserId);
     const myRosterId = myUserSlot
-      ? rosters.find(
-          (r) =>
-            r.owner_id === sleeperUserId ||
-            r.co_owners?.includes(sleeperUserId),
-        )?.roster_id ?? null
+      ? rosters.find((r) => isRosterOwnedBy(r, sleeperUserId))?.roster_id ??
+        null
       : null;
 
     const myPlayerIds = new Set<string>();
