@@ -15,7 +15,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { cookies } from "next/headers";
-import { z } from "zod";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget, recordSpend } from "@/lib/budget";
 import { guardLlmEnforcement } from "@/lib/ops/llm-guard";
@@ -67,52 +66,18 @@ import {
 } from "@/lib/lab/doctrine";
 import { DIAL_SPECS, isAtDefault } from "@/lib/lab/dial-types";
 import { loadEffectiveDials } from "@/lib/lab/league-doctrine";
+import { parseCoachRequest } from "@/lib/coach/request";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const messageSchema = z.object({
-  role: z.enum(["user", "assistant"]),
-  content: z.string().min(1).max(8000),
-});
-
-const activePlaySchema = z.object({
-  archetype: z.string(),
-  play_name: z.string(),
-  primary_player_name: z.string(),
-  primary_player_position: z.string(),
-  followthrough_description: z.string(),
-  followthrough_target_names: z.array(z.string()),
-});
-
-// A companion beat the user clicked "talk it through" on (Principle
-// 13). Most often a debate: they took a pick that diverged from the
-// standing call. Carries the grounded provenance so Coach engages the
-// real decision instead of freelancing.
-const companionBeatSchema = z.object({
-  kind: z.string(),
-  headline: z.string(),
-  body: z.string().optional(),
-  source_signal: z.string(),
-  source_detail: z.string(),
-  chosen: z.string().optional(),
-  alternative: z.string().optional(),
-  ev_delta: z.number().optional(),
-  thesis: z.string().optional(),
-  bet_id: z.string().optional(),
-});
-
-const bodySchema = z.object({
-  history: z.array(messageSchema).max(40),
-  message: z.string().min(1).max(4000),
-  // Active plays the user has committed to. Plumbed from client
-  // localStorage so Coach can warn when a proposed trade or pick
-  // would violate (or advance) the user's plan. Founder direction
-  // 2026-05-20: "help me simply remember when I'm considering a
-  // trade or something if it violates my plan."
-  active_plays: z.array(activePlaySchema).max(10).optional(),
-  companion_beat: companionBeatSchema.optional(),
-});
+// Request parsing lives in @/lib/coach/request. The user's `message`
+// is the only hard requirement; history + active_plays + companion_beat
+// are auxiliary context salvaged per-entry so one corrupt localStorage
+// row (an older-shape committed play, a stale message) can't 400 the
+// whole turn. Founder report 2026-05-24: Coach failed instantly on
+// mobile only, because a malformed stored play failed strict whole-body
+// validation while the desktop's localStorage was clean.
 
 // Coach voice extension. Layered onto SYSTEM_PROMPT so the existing
 // "no em dash, sharp dynasty coach" identity is preserved.
@@ -963,16 +928,11 @@ export async function POST(
       { status: 400 },
     );
   }
-  const parsed = bodySchema.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Check your message. One or more fields didn't validate." },
-      { status: 400 },
-    );
+  const parsed = parseCoachRequest(json);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { history, message } = parsed.data;
-  const activePlays = parsed.data.active_plays ?? [];
-  const companionBeat = parsed.data.companion_beat ?? null;
+  const { history, message, activePlays, companionBeat } = parsed.data;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -1898,11 +1858,28 @@ export async function POST(
         },
       ],
       messages,
-    });
+    },
+    // Bound the call below the 60s Vercel function limit (maxDuration).
+    // A web-search-augmented turn on a large late-draft context can run
+    // long; without this the function gets hard-killed at 60s and the
+    // client sees an opaque 504 with no body and no log. A 50s SDK
+    // timeout instead throws a catchable error so we return a clean,
+    // specific 502 the user (and the logs) can act on.
+    { timeout: 50_000 },
+    );
   } catch (err) {
-    console.error("[coach]", err);
+    // Log message + stack per the silent-catch invariant, not just a tag.
+    const e = err as { message?: string; stack?: string };
+    console.error("[coach]", e?.message, e?.stack);
+    const timedOut =
+      err instanceof Anthropic.APIConnectionTimeoutError ||
+      /timeout|timed out|aborted/i.test(e?.message ?? "");
     return NextResponse.json(
-      { error: "coach call failed" },
+      {
+        error: timedOut
+          ? "Coach took too long to answer. Try a more specific question, or resend in a moment."
+          : "Coach hit an error reaching the model. Resend in a moment.",
+      },
       { status: 502 },
     );
   }

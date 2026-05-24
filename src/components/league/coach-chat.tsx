@@ -47,6 +47,60 @@ const QUICK_PROMPTS = [
   "Is my strategy still on track? What should I be doing differently?",
 ];
 
+// Build the active_plays payload for the Coach request, dropping any
+// malformed commitment and capping the count to match the server. The
+// server already salvages auxiliary context per-entry; this is the
+// device-side half so a corrupt localStorage play never even leaves the
+// browser. Founder report 2026-05-24: a malformed committed play in
+// mobile localStorage 400'd every Coach turn while desktop was clean.
+const ACTIVE_PLAYS_MAX = 10;
+
+function buildActivePlaysPayload(leagueId: string) {
+  const raw = getActivePlayCommitments(leagueId) as unknown as Array<{
+    archetype?: unknown;
+    play_name?: unknown;
+    primary_player?: { name?: unknown; position?: unknown } | null;
+    followthrough_description?: unknown;
+    followthrough_targets?: Array<{ name?: unknown }> | null;
+  }>;
+  const out: Array<{
+    archetype: string;
+    play_name: string;
+    primary_player_name: string;
+    primary_player_position: string;
+    followthrough_description: string;
+    followthrough_target_names: string[];
+  }> = [];
+  for (const c of raw) {
+    const name = c?.primary_player?.name;
+    const position = c?.primary_player?.position;
+    if (
+      typeof c?.archetype !== "string" ||
+      typeof c?.play_name !== "string" ||
+      typeof name !== "string" ||
+      typeof position !== "string" ||
+      typeof c?.followthrough_description !== "string"
+    ) {
+      continue;
+    }
+    const targets = Array.isArray(c?.followthrough_targets)
+      ? c.followthrough_targets
+          .map((t) => t?.name)
+          .filter((n): n is string => typeof n === "string")
+      : [];
+    out.push({
+      archetype: c.archetype,
+      play_name: c.play_name,
+      primary_player_name: name,
+      primary_player_position: position,
+      followthrough_description: c.followthrough_description,
+      followthrough_target_names: targets,
+    });
+    if (out.length >= ACTIVE_PLAYS_MAX) break;
+  }
+  return out;
+}
+
 function storageKey(leagueId: string): string {
   return `dc:coach-chat:${leagueId}`;
 }
@@ -296,16 +350,7 @@ export function CoachChat({
               content: m.content,
             })),
             message,
-            active_plays: getActivePlayCommitments(leagueId).map((c) => ({
-              archetype: c.archetype,
-              play_name: c.play_name,
-              primary_player_name: c.primary_player.name,
-              primary_player_position: c.primary_player.position,
-              followthrough_description: c.followthrough_description,
-              followthrough_target_names: c.followthrough_targets.map(
-                (t) => t.name,
-              ),
-            })),
+            active_plays: buildActivePlaysPayload(leagueId),
             companion_beat: pendingBeat ?? undefined,
           }),
         });
@@ -338,9 +383,17 @@ export function CoachChat({
             restoreDraft();
             throw new Error("Too many requests. Wait a moment and try again.");
           }
+          // Surface the server's specific reason when it sent one
+          // (timeout, model error, message too long) instead of masking
+          // every failure as a generic "something went wrong."
+          const body = await res.json().catch(() => null);
           writeHistory(leagueId, history);
           restoreDraft();
-          throw new Error("Something went wrong. Refresh and try again.");
+          throw new Error(
+            typeof body?.error === "string" && body.error.trim()
+              ? body.error
+              : "Something went wrong. Refresh and try again.",
+          );
         }
         const data = (await res.json()) as { reply: string };
         const reply: ChatMessage = {
