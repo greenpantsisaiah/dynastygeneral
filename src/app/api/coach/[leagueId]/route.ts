@@ -56,6 +56,7 @@ import { annotateStartableDepth } from "@/lib/engine/roster-fit";
 import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
+import { normalizePosition } from "@/lib/strategy/archetypes/schema";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import { readProfileServer } from "@/lib/lab/profile-storage";
@@ -1070,20 +1071,10 @@ export async function POST(
         for (const id of r.player_ids ?? []) depthIds.add(id);
       }
       const depthPlayers = await resolvePlayers([...depthIds]);
-      const normPos = (p: string | null | undefined) => {
-        const u = (p ?? "").toUpperCase();
-        if (u === "QB") return "QB" as const;
-        if (u === "RB") return "RB" as const;
-        if (u === "WR") return "WR" as const;
-        if (u === "TE") return "TE" as const;
-        if (u === "K") return "K" as const;
-        if (u === "DST" || u === "DEF") return "DST" as const;
-        return null;
-      };
       annotateStartableDepth({
         snap: snapshot,
         valueOf: (id) => cpv[id] ?? null,
-        positionOf: (id) => normPos(depthPlayers.get(id)?.position),
+        positionOf: (id) => normalizePosition(depthPlayers.get(id)?.position),
       });
     } catch (err) {
       console.error("[coach:startable-depth]", err);

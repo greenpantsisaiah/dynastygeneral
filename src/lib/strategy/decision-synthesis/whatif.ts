@@ -8,23 +8,25 @@
  * a small EV delta vs the standing call, plus a one-line narrative
  * grounded in the same per-pick math as the EV bank.
  *
- * The math: for each candidate, ev_if_chosen = (value/100) * (pick_no
- * - ADP). The delta is each candidate's ev_if_chosen minus the
- * standing call's ev_if_chosen. Negative delta = the standing call
- * is the higher-EV play; positive delta = this lane is.
+ * The math: for each candidate, ev_if_chosen = perPickEv(value,
+ * pick_no, adp) (the canonical EV-bank formula). The delta is each
+ * candidate's ev_if_chosen minus the standing call's ev_if_chosen.
+ * Negative delta = the standing call is the higher-EV play; positive
+ * delta = this lane is.
  *
  * This is the SAME per-pick math the EV bank uses, so the
  * counterfactual numbers are directly comparable to the bank.
  */
 
 import type { DecisionTopCandidate } from "./types";
+import { perPickEv, round2 } from "@/lib/strategy/ev-bank/formula";
 
 export type WhatIfEvEntry = {
   player_id: string;
   player_name: string;
   position: string | null;
   // EV contribution at this pick if the user takes this candidate.
-  // = (value/100) * (pick_no - ADP). Null when value or ADP missing.
+  // = perPickEv(value, pick_no, adp). Null when value or ADP missing.
   ev_if_chosen: number | null;
   // EV delta vs the standing call. Positive = this candidate is
   // higher-EV than the lean. Null when either side's EV is null.
@@ -101,7 +103,7 @@ function computeEv(args: {
 }): number | null {
   const { value, adp, pickNo } = args;
   if (typeof value !== "number" || typeof adp !== "number") return null;
-  return round2((value / 100) * (pickNo - adp));
+  return round2(perPickEv(value, pickNo, adp));
 }
 
 function composeNarrative(args: {
@@ -132,10 +134,6 @@ function composeNarrative(args: {
     return `Higher EV (${formatSigned(delta)} vs the call).${survivalText} The market discount is bigger here.`;
   }
   return `Lower EV (${formatSigned(delta)} vs the call).${survivalText} The call is the better-priced asset.`;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 function formatSigned(n: number): string {

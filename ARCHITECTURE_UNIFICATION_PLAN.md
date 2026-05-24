@@ -272,23 +272,42 @@ decision endpoint confirming identical standing-call and strategy reads.
 
 ### Phase 2: Collapse duplicate calcs into canonicals (pure de-risking)
 
-2.1 `perPickEv(value, pickNo, adp)`: one canonical, replace the 7
-copies, register it, add the lint rule.
+2.1 DONE (commit 15a85ed). `perPickEv(value, pickNo, adp)` canonical in
+`ev-bank/formula.ts` (with shared `round2`). 5 formula copies + 5
+`round2` copies collapsed (the audit's 7-copy count predated main's
+companion-debate merge, which had already removed the hub inline copy
+and added the debate copy). Lint bans the `/ 100) * (` signature outside
+`formula.ts`. Behavior-preserving (callers keep their exact rounding
+points). Registered.
 
-2.2 `normalizePosition(raw)`: one canonical with DST = DEF merge,
-replace the 30+ inline `.toUpperCase()` sites, register, lint.
+2.2 DONE (commit de79ca7), TARGETED not blind. `normalizePosition(raw)`
+canonical promoted into `archetypes/schema.ts` (next to the `Position`
+type) with `FANTASY_POSITIONS`, merges DEF -> DST. Replaced the 4
+player-position normalizers (hub + Coach `normPos`, `forecast.toPosition`,
+scout inline). The audit's 30+ count conflated three concerns: the blind
+sweep was rejected because slot-parsing over `roster_positions` and
+FantasyCalc cross-ref matching legitimately use the bare string, and some
+`.toUpperCase()` sites handle position strings the canonical would null
+out. Lint bans the `.toUpperCase() === "DEF"` normalizer shape. Registered.
 
-2.3 One `ageEffect` canonical (decide the single shape; the rubric
-Bayesian curve is the most defensible candidate), collapse the 3-4
-divergent models, register, lint. This one needs an
-`evals/age-curve.test.ts` covering each position because it changes
-numbers; coordinate with `dynasty-assumption-auditor`.
+2.3 NOT DONE (next check point). One `ageEffect` canonical collapsing the
+3-4 divergent models. This CHANGES NUMBERS (each curve gives a 31yo RB a
+different value), so it is NOT a safe pre-release pass: it needs a founder
+decision on the canonical shape (the rubric Bayesian curve is the most
+defensible candidate) plus `dynasty-assumption-auditor` +
+`dynasty-canon-keeper` review and an `evals/age-curve.test.ts` per
+position. Deferred out of the pre-release "safe wins" set.
 
-2.4 `resolveIsMe(roster, mySleeperUserId)` with co-owners, replace the
-5 resolutions including the snapshot's own, register, lint.
+2.4 DONE (commit 298859f). `isRosterOwnedBy(roster, userId)` canonical in
+`sleeper/roster-identity.ts`, co-owner-aware. Fixed the snapshot `is_me`
+co-owner bug (a co-owner saw is_me:false on their own team) and unified 8
+resolutions. Lint bans `.owner_id ===` outside the canonical;
+`evals/roster-identity.test.ts` covers co-owner / orphan / null. No-op in
+non-co-owner leagues. Registered.
 
-Gate: build + test green; snapshot-diff check that 2.3 and 2.4 do not
-silently move standing calls in fixture leagues.
+Gate: build + test green on each (met). The age-curve work (2.3) still
+needs the snapshot-diff check that it does not silently move standing
+calls in fixture leagues.
 
 ### Phase 3: Acquire data, then wire the expertise (the big one)
 

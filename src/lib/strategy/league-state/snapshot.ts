@@ -25,13 +25,16 @@ import {
 } from "@/lib/players/projections";
 import { pickNoForSlot } from "@/lib/sleeper/snake";
 import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
+import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 import type {
   LeagueFormat,
   LeagueScoring,
   Position,
 } from "../archetypes/schema";
-
-const FANTASY_POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
+import {
+  FANTASY_POSITIONS,
+  normalizePosition,
+} from "../archetypes/schema";
 
 export type RosterSnapshot = {
   roster_id: number;
@@ -369,13 +372,6 @@ function asNumber(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
-function normalizePosition(raw: string | null | undefined): Position | null {
-  if (!raw) return null;
-  const u = raw.toUpperCase();
-  if (u === "DEF") return "DST";
-  return FANTASY_POSITIONS.includes(u as Position) ? (u as Position) : null;
-}
-
 export async function buildLeagueSnapshot(args: {
   league: SleeperLeague;
   rosters: SleeperRoster[];
@@ -645,7 +641,7 @@ export async function buildLeagueSnapshot(args: {
       roster_id: r.roster_id,
       owner_id: r.owner_id,
       owner_name: r.owner_id ? userById.get(r.owner_id) ?? null : null,
-      is_me: !!mySleeperUserId && r.owner_id === mySleeperUserId,
+      is_me: isRosterOwnedBy(r, mySleeperUserId),
       position_counts: counts,
       position_ranks: ranks,
       player_ids: [...merged],

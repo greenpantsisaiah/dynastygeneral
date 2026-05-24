@@ -18,6 +18,7 @@ import {
   type SleeperLeagueUser,
 } from "@/lib/sleeper";
 import { resolvePlayers } from "@/lib/players/cache";
+import { isRosterOwnedBy } from "./roster-identity";
 
 export type PriorSeasonSummary = {
   season: string;
@@ -97,14 +98,8 @@ async function fetchSeasonSummary(
     return null;
   }
   if (!league) return null;
-  // Find the user's roster (also handles co-ownership via co_owners
-  // when present; primary owner_id match is the common case).
-  const myRoster = rosters.find((r) => {
-    if (r.owner_id === mySleeperUserId) return true;
-    const co = (r.co_owners ?? []) as unknown as string[] | null;
-    if (Array.isArray(co) && co.includes(mySleeperUserId)) return true;
-    return false;
-  });
+  // Find the user's roster (handles co-ownership via the canonical).
+  const myRoster = rosters.find((r) => isRosterOwnedBy(r, mySleeperUserId));
   // Even if we can't find the user's roster, return a thin summary so
   // the verdict knows the league existed (orphaned ownership is real).
   const settings = (myRoster?.settings ?? {}) as Record<string, unknown>;

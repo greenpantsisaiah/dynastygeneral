@@ -9,6 +9,7 @@
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { EvBank, EvBankPickEntry } from "./types";
+import { perPickEv, round2 } from "./formula";
 
 const ADP_NOISE_PICKS = 3;
 
@@ -36,7 +37,7 @@ export function analyzeEvBank(args: {
     const adp = getAdp(p.player_id);
     let evDelta: number | null = null;
     if (value != null && adp != null) {
-      evDelta = round2((value / 100) * (p.pick_no - adp));
+      evDelta = round2(perPickEv(value, p.pick_no, adp));
     }
     return {
       pick_no: p.pick_no,
@@ -76,7 +77,7 @@ export function analyzeEvBank(args: {
   // so both directions are honestly captured.
   const adjustedSum = (shift: number): number =>
     resolved.reduce(
-      (s, e) => s + (e.value / 100) * (e.pick_no - (e.adp + shift)),
+      (s, e) => s + perPickEv(e.value, e.pick_no, e.adp + shift),
       0,
     );
   const rangeLow = resolved.length >= 2 ? round2(adjustedSum(ADP_NOISE_PICKS)) : null;
@@ -111,10 +112,6 @@ export function analyzeEvBank(args: {
     summary,
     tier,
   };
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 function formatSigned(n: number): string {

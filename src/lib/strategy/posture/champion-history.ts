@@ -19,6 +19,7 @@ import {
   getWinnersBracket,
 } from "@/lib/sleeper/client";
 import type { ChampionHistory, ChampionHistoryEntry } from "./types";
+import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 
 /** Walk at most this many prior leagues back through previous_league_id. */
 const MAX_SEASONS_BACK = 3;
@@ -97,12 +98,8 @@ export async function readChampionHistory(args: {
           (r) => r.roster_id === championRosterId,
         );
         championOwnerId = championRoster?.owner_id ?? null;
-        wasMe =
-          championOwnerId != null && championOwnerId === args.userOwnerId;
-        // Also check co_owners; a co-owned championship still counts.
-        if (!wasMe && championRoster?.co_owners) {
-          wasMe = championRoster.co_owners.includes(args.userOwnerId);
-        }
+        // Co-owned championships count; canonical handles both.
+        wasMe = isRosterOwnedBy(championRoster, args.userOwnerId);
       }
 
       seasons.push({

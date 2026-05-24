@@ -67,6 +67,57 @@ const RULES: Rule[] = [
     scan: { dir: join(SRC, "lib", "players"), ext: [".ts"] },
     allowFilePrefixes: [EVALS],
   },
+  // Per-pick EV is (value / 100) * (pick_no - adp), the EV-bank math.
+  // It was duplicated across 5 files (ev-bank/analyze + league, what-if,
+  // candidate cards, companion debate) with 5 copies of round2. One
+  // canonical (perPickEv in ev-bank/formula.ts) so a calibration change
+  // ripples to every EV surface. The signature `/ 100) * (` is the
+  // duplicate to ban; only formula.ts may spell it out.
+  {
+    name: "no inline per-pick EV formula (use perPickEv canonical)",
+    why: "The EV-bank formula (value/100) * (pick - adp) must live in one place (perPickEv, ev-bank/formula.ts) so a calibration change ripples everywhere. Per CANONICAL_SOURCES.md.",
+    pattern: /\/\s*100\)\s*\*\s*\(/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "strategy", "ev-bank", "formula.ts"),
+    ],
+  },
+  // Roster identity must go through isRosterOwnedBy, which checks
+  // co_owners. Resolving "is this my roster" by owner_id alone silently
+  // mis-identifies co-owned teams, a trust-breaking bug class
+  // (INVARIANTS.md "Roster identity must be ground-truth verified").
+  // Only the canonical may compare owner_id directly. A legitimate
+  // non-identity owner_id comparison (two rosters sharing an owner)
+  // should be added to the allow-list with a justifying comment.
+  {
+    name: "no raw owner_id identity resolution (use isRosterOwnedBy)",
+    why: "Resolving roster ownership by owner_id alone skips co_owners and mis-identifies co-owned teams. Use isRosterOwnedBy (sleeper/roster-identity.ts). Per CANONICAL_SOURCES.md.",
+    pattern: /\.owner_id\s*===/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "sleeper", "roster-identity.ts"),
+    ],
+  },
+  // Player position must normalize through normalizePosition, which
+  // merges DEF -> DST. An inline `position.toUpperCase() === "DEF"`
+  // normalizer is the duplicate shape that drifts (code checking
+  // "DST" silently misses "DEF"). The canonical lives in
+  // archetypes/schema.ts. Slot-parsing (`p === "DEF"` over
+  // roster_positions) and FantasyCalc cross-ref matching are distinct
+  // concerns and use the bare string, so this bans only the
+  // `.toUpperCase() === "DEF"` normalizer shape.
+  {
+    name: "no inline DEF->DST position normalizer (use normalizePosition)",
+    why: "Player-position normalization must go through normalizePosition (archetypes/schema.ts), which merges DEF -> DST. Inline `.toUpperCase() === \"DEF\"` re-introduces the DST/DEF drift class. Per CANONICAL_SOURCES.md.",
+    pattern: /\.toUpperCase\(\)\s*===\s*["']DEF["']/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "strategy", "archetypes", "schema.ts"),
+    ],
+  },
   // QB starter math is the most-bugged pattern: SF / 2QB leagues have
   // their second QB slot in starter_slots.superflex, NOT in
   // starter_slots.hard.QB. Reading hard.QB without adding superflex,

@@ -9,13 +9,13 @@
  * redesigned Track Record surface renders as a horizontal bar
  * chart with confidence bands.
  *
- * Same per-pick math as analyzeEvBank: ev_delta_per_pick =
- * (value / 100) * (pick_no - ADP). Range envelope from +/-3-pick
- * ADP noise. Sharp locks count negative against the bank by
- * definition; the math is honest about that.
+ * Same per-pick math as analyzeEvBank, via the canonical perPickEv.
+ * Range envelope from +/-3-pick ADP noise. Sharp locks count negative
+ * against the bank by definition; the math is honest about that.
  */
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { perPickEv, round2 } from "./formula";
 
 const ADP_NOISE_PICKS = 3;
 
@@ -82,7 +82,7 @@ export function analyzeLeagueEvBank(args: {
     }
     const sumWithShift = (shift: number): number =>
       resolved.reduce(
-        (s, e) => s + (e.value / 100) * (e.pick_no - (e.adp + shift)),
+        (s, e) => s + perPickEv(e.value, e.pick_no, e.adp + shift),
         0,
       );
     const total = round2(sumWithShift(0));
@@ -132,8 +132,4 @@ export function analyzeLeagueEvBank(args: {
     my_percentile,
     league_avg,
   };
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }

@@ -22,6 +22,24 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: building a `Map<\`${round}:${original_owner}\`, current_owner>` lookup inline in any other file. Lint rule "no inline traded_picks override-map construction" enforces this.
 - **Bug class avoided**: 2026-05-06 "Decision title says 2 ahead but banner says 11 ahead." Three independent implementations drifted; we patched two and the third stayed wrong.
 
+### Player position normalization (DEF = DST)
+
+- **Canonical**: `normalizePosition(raw)` in `src/lib/strategy/archetypes/schema.ts` (with `FANTASY_POSITIONS`, the runtime companion to the `Position` type)
+- **Returns**: `Position | null` (uppercases, merges `DEF` -> `DST`, returns the Position union or null for non-fantasy positions like IDP / junk)
+- **Consumers**: snapshot `is_me` depth annotation + every player-position read that feeds counts/depth (`snapshot.ts`, `leagues/[leagueId]/page.tsx`, `api/coach/[leagueId]/route.ts`, `contender-outlook/forecast.ts`, `scout/score.ts`).
+- **Distinct (NOT this canonical)**: slot-parsing over `league.roster_positions` (`p === "DEF"` mapping a DEF slot to the DST counter, in `snapshot.ts` / `scout/score.ts` / `llm-contract.ts`) and FantasyCalc-vs-Sleeper cross-ref matching (`players/integrity.ts`) legitimately use the bare string; they are not player-position normalization. `contender-outlook/forecast.ts` also keeps a local 4-position `FANTASY_POSITIONS` (`["QB","RB","WR","TE"]`, the rookie mix) which is a different list, not this one.
+- **Anti-pattern**: an inline `position.toUpperCase() === "DEF"` normalizer, or a hand-rolled `normPos` closure that maps DEF -> DST. Lint rule "no inline DEF->DST position normalizer (use normalizePosition)" bans the `.toUpperCase() === "DEF"` shape outside `schema.ts`.
+- **Bug class avoided**: 2026-05-23 architecture audit found 4 near-identical DEF -> DST normalizers (two byte-identical `normPos` closures in the hub and Coach route, plus `forecast.toPosition` and a scout inline). Code checking `=== "DST"` without the merge silently misses `DEF` and vice versa.
+
+### Roster identity (is this my roster, co-owner-aware)
+
+- **Canonical**: `isRosterOwnedBy(roster, sleeperUserId)` in `src/lib/sleeper/roster-identity.ts`
+- **Returns**: `boolean` (true if the user is the primary owner OR a co-owner; false for a null/absent user id, so orphan rosters never false-positive)
+- **Inputs**: a raw Sleeper roster (`{ owner_id, co_owners }`) and a sleeper user id. In leagues without co-owners this behaves identically to a plain `owner_id` match (no-op there, fix in co-owned leagues).
+- **Consumers**: the snapshot `is_me` (`snapshot.ts`), and every "find my roster" resolution (`leagues/[leagueId]/page.tsx`, `scout/[username]/page.tsx`, `engine/context.ts`, `sleeper/draft-state.ts`, `sleeper/history.ts`, `rankings/league-context.ts`, `posture/champion-history.ts`).
+- **Anti-pattern**: `roster.owner_id === userId` inline for identity resolution (skips `co_owners`). Lint rule "no raw owner_id identity resolution (use isRosterOwnedBy)" bans `.owner_id ===` outside the canonical.
+- **Bug class avoided**: 2026-05-23 architecture audit found 5 identity resolutions with 3 different co-owner behaviors; the snapshot's own `is_me` omitted `co_owners` despite INVARIANTS.md flagging co-ownership as a trust-breaking class (a co-owner viewing their hub got `is_me: false` on their own team, cascading wrong identity to the Decision card, Coach context, and position counts).
+
 ### User pick schedule (trade-aware, density-classified)
 
 - **Canonical**: `snap.draft.my_pick_schedule` (built by `buildMyPickSchedule` in `src/lib/strategy/league-state/snapshot.ts`)
@@ -89,6 +107,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 
 - **Canonical**: `startupPickValue(round, slot, format)` (and `SUPERFLEX_PICK_MULTIPLIER`) in the pricing layer
 - **Use**: every place a pick number needs a market value (Coach pricing block, trade routes, decision/trade endpoint)
+
+### Per-pick EV (EV-bank delta math)
+
+- **Canonical**: `perPickEv(value, pickNo, adp)` in `src/lib/strategy/ev-bank/formula.ts` (with the shared `round2`)
+- **Returns**: `number` (RAW, unrounded) = `(value / 100) * (pickNo - adp)`. The ADP-noise envelope passes a shifted adp (`adp + shift`); there is no separate shifted function.
+- **Rounding rule**: `perPickEv` does NOT round. Callers round where they currently do: the EV bank rounds the summed total (`analyze.ts`, `league.ts`) while per-candidate surfaces round each value (`whatif.ts`, `candidate-bits.tsx`, `companion/debate.ts`). One formula, caller-owned rounding, so the two rounding regimes stay exact.
+- **Consumers**: `ev-bank/analyze.ts`, `ev-bank/league.ts`, `decision-synthesis/whatif.ts`, `the-call/candidate-bits.tsx`, `companion/debate.ts`.
+- **Anti-pattern**: writing `(value / 100) * (pick - adp)` inline, or re-defining a local `round2`. Lint rule "no inline per-pick EV formula (use perPickEv canonical)" bans the `/ 100) * (` signature outside `formula.ts`.
+- **Bug class avoided**: 2026-05-23 architecture audit found 5 independent copies of the formula and 5 of `round2`; the hub's inline copy had drifted enough to warrant a comment admitting it duplicated the EV bank. A calibration change to the EV math would have had to be made in five places. Note `aar/page.tsx` `adp_delta = pick_no - adp` (the signed ADP distance) and `companion/classify.ts` `expected_value / 100` (a stored-value normalization) are DISTINCT metrics, not this formula.
 
 ### Roster-fit math (position room health, starter need scoring)
 

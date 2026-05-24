@@ -17,6 +17,7 @@ import {
   type HumanPlayer,
 } from "@/lib/players/cache";
 import type { SleeperPlayer } from "@/lib/sleeper/schemas";
+import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 import {
   buildLeagueProfile,
   type LeagueProfile,
@@ -150,7 +151,7 @@ export async function assembleContext(
   const userByRoster = buildUserByRosterMap(rosters, users);
 
   const myRoster = me
-    ? rosters.find((r) => r.owner_id === me.user_id) ?? null
+    ? rosters.find((r) => isRosterOwnedBy(r, me.user_id)) ?? null
     : null;
   const myUser = me ? users.find((u) => u.user_id === me.user_id) ?? null : null;
 
