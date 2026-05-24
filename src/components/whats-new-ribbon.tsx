@@ -19,24 +19,24 @@ import { useEffect, useState } from "react";
 
 type Change = { tag: string; text: string };
 
-const LATEST_VERSION = "2026-04-24";
+const LATEST_VERSION = "2026-05-24";
 
 const CHANGES: Change[] = [
   {
-    tag: "DAY PASS",
-    text: "One-shot 24h unlimited at the cap-hit moment. Bursty draft days don't need a subscription.",
+    tag: "AGING-RB SIGNALS",
+    text: "Aging-RB cards now read real prior-season workload and career mileage from carries, not \"data missing.\"",
   },
   {
-    tag: "SAME-PATH THREATS",
-    text: "Top 3 opponents chasing your archetype. Each comes with a one-click Coach intel prompt.",
+    tag: "CO-OWNER FIX",
+    text: "Co-owned teams resolve to the right roster everywhere. A co-owner no longer sees another manager's read.",
   },
   {
-    tag: "USAGE METER",
-    text: "Visible \"X of Y today\" chip in Coach + full daily breakdown on /account.",
+    tag: "COACH POSTURE",
+    text: "Coach reads your contender / rebuilder / teardown posture on every recommendation, matching the board.",
   },
   {
-    tag: "COACH HONESTY",
-    text: "Coach now sees your named roster and is rule-bound to verify before claiming \"you punted X.\"",
+    tag: "ONE EV NUMBER",
+    text: "Per-pick EV, position, and roster-identity math now run from one source each, so a tune ripples everywhere.",
   },
 ];
 
