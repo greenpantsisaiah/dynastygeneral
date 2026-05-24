@@ -24,8 +24,13 @@ export function buildInflectionsFromSnapshot(args: {
   // deferred decision pipeline) degrade gracefully.
   prevSeasonStats?: Map<string, PlayerSeasonStats>;
   prevPrevSeasonStats?: Map<string, PlayerSeasonStats>;
+  // Career carries + targets per Sleeper player_id (getCareerUsage).
+  // Feeds the RB mileage signal + the >=1500-carry cliff trigger. When
+  // absent, the mileage signal renders data_missing (graceful).
+  careerUsage?: Map<string, { carries: number; targets: number }>;
 }): InflectionContext[] {
-  const { snap, playersMap, prevSeasonStats, prevPrevSeasonStats } = args;
+  const { snap, playersMap, prevSeasonStats, prevPrevSeasonStats, careerUsage } =
+    args;
   const myRoster = snap.rosters.find((r) => r.is_me);
   if (!myRoster) return [];
 
@@ -70,6 +75,7 @@ export function buildInflectionsFromSnapshot(args: {
     );
     const prevStat = prevSeasonStats?.get(player.id);
     const prevPrevStat = prevPrevSeasonStats?.get(player.id);
+    const career = careerUsage?.get(player.id);
     const inputs = buildInflectionInputsFromHumanPlayer({
       player,
       sameTeamSamePosition,
@@ -77,10 +83,34 @@ export function buildInflectionsFromSnapshot(args: {
       prevSeasonTargets: prevStat?.targets ?? null,
       prevPrevSeasonCarries: prevPrevStat?.carries ?? null,
       prevPrevSeasonTargets: prevPrevStat?.targets ?? null,
+      careerCarries: career?.carries ?? null,
+      careerTargets: career?.targets ?? null,
     });
     if (!inputs) continue;
     const resolved = resolveInflections(inputs);
     if (resolved) out.push(resolved);
   }
   return out;
+}
+
+/**
+ * True when the user's roster holds an RB old enough for career mileage
+ * to matter (the 28+ aging cliff, plus 26-27 bellcows who can hit the
+ * secondary >=1500-carry trigger). Callers use this to gate the
+ * getCareerUsage multi-season fetch: skip it entirely when no aging RB
+ * is present, so non-RB-heavy rosters never pay the cold-start cost.
+ */
+export function rosterHasAgingRb(
+  snap: LeagueSnapshot,
+  playersMap: Map<string, SleeperPlayer>,
+): boolean {
+  const me = snap.rosters.find((r) => r.is_me);
+  if (!me) return false;
+  for (const id of me.player_ids ?? []) {
+    const sp = playersMap.get(id);
+    if (!sp) continue;
+    if ((sp.position ?? "").toUpperCase() !== "RB") continue;
+    if (typeof sp.age === "number" && sp.age >= 26) return true;
+  }
+  return false;
 }

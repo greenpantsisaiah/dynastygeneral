@@ -154,6 +154,7 @@ import {
 } from "@/lib/strategy/league-read";
 import {
   buildInflectionsFromSnapshot,
+  rosterHasAgingRb,
   type InflectionContext,
 } from "@/lib/engine/inflection";
 import {
@@ -170,7 +171,7 @@ import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
 import { resolvePlayers } from "@/lib/players/cache";
 import { annotateStartableDepth } from "@/lib/engine/roster-fit";
-import { getSeasonStats } from "@/lib/players/season-stats";
+import { getSeasonStats, getCareerUsage } from "@/lib/players/season-stats";
 import { getProjections } from "@/lib/players/projections";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
@@ -1071,11 +1072,18 @@ export default async function LeagueHubPage({
         getSeasonStats(inflPrevSeason).catch(() => new Map()),
         getSeasonStats(inflPrevPrevSeason).catch(() => new Map()),
       ]);
+      // Career mileage (RB cliff signal) only matters when the roster
+      // holds an aging RB; gate the multi-season sum on that so other
+      // rosters never pay the cold-start fetch.
+      const careerUsage = rosterHasAgingRb(leagueSnapshot, playersMap)
+        ? await getCareerUsage(leagueSnapshot.season).catch(() => undefined)
+        : undefined;
       inflectionItems = buildInflectionsFromSnapshot({
         snap: leagueSnapshot,
         playersMap,
         prevSeasonStats: inflPrevStats,
         prevPrevSeasonStats: inflPrevPrevStats,
+        careerUsage,
       });
 
       // Draft progress scorecard. "How am I doing in this draft."

@@ -7,9 +7,11 @@
  *     (2026-05-23) from the free Sleeper /stats endpoint (rush_att /
  *     rec_tgt) via `buildInflectionsFromSnapshot`, keyed by Sleeper
  *     player_id. Lights up the workload-trend signal on the hub + Coach.
- *   - career_carries / career_targets: not yet plumbed. Needs a
- *     multi-season sum of Sleeper /stats (the mileage signal + the
- *     1500-carry RB cliff trigger); the next acquisition sub-step.
+ *   - career_carries / career_targets: PLUMBED (2026-05-24) via
+ *     getCareerUsage (a bounded multi-season sum of the same Sleeper
+ *     /stats), gated on rosterHasAgingRb so only aging-RB rosters pay
+ *     the fetch. Lights up the mileage signal + the 1500-carry RB cliff
+ *     trigger. Phase 3 ingestion supersedes it with stored values.
  *   - draft_pick_overall: NOT in the Sleeper players blob. Verified
  *     2026-05-23 against api.sleeper.app/v1/players/nfl: metadata
  *     carries only channel_id / genius_id / rookie_year, no NFL draft

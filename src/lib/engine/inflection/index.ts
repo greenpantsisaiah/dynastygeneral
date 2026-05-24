@@ -39,4 +39,7 @@ export type {
 } from "./types";
 export { detectInflectionWindows } from "./detect";
 export { resolveInflectionWindow } from "./resolve";
-export { buildInflectionsFromSnapshot } from "./from-snapshot";
+export {
+  buildInflectionsFromSnapshot,
+  rosterHasAgingRb,
+} from "./from-snapshot";

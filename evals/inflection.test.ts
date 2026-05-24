@@ -224,6 +224,33 @@ function run() {
       wlWithout != null && wlWithout.direction === "data_missing",
       wlWithout?.direction ?? "none",
     );
+
+    // careerUsage threads career_carries -> the mileage signal.
+    const findMileage = (
+      ctx: ReturnType<typeof buildInflectionsFromSnapshot>,
+    ) =>
+      ctx[0]?.resolutions
+        .flatMap((r) => r.signals)
+        .find((s) => s.name === "Career mileage");
+    const withCareer = buildInflectionsFromSnapshot({
+      snap,
+      playersMap,
+      careerUsage: new Map([["4866", { carries: 1850, targets: 300 }]]),
+    });
+    const mileage = findMileage(withCareer);
+    check(
+      "careerUsage lights up the mileage signal as high-mileage story_b",
+      mileage != null &&
+        mileage.direction === "story_b" &&
+        /1850/.test(mileage.observation),
+      mileage?.observation ?? "no signal",
+    );
+    const mileageWithout = findMileage(withoutUsage);
+    check(
+      "without careerUsage, mileage is data_missing (graceful)",
+      mileageWithout != null && mileageWithout.direction === "data_missing",
+      mileageWithout?.direction ?? "none",
+    );
   }
 
   console.log(`\n${passed} passed · ${failed} failed`);

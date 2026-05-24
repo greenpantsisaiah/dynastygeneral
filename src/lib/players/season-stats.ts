@@ -144,6 +144,51 @@ export async function getSeasonStats(
 }
 
 /**
+ * Career usage totals (carries + targets) summed across a bounded
+ * window of completed seasons, keyed by Sleeper player_id. Feeds the
+ * inflection model's RB career-mileage signal and the >=1500-carry
+ * aging-cliff trigger.
+ *
+ * Window rationale: a workhorse RB accumulates ~250-300 carries/yr, so
+ * six completed seasons covers the 1500 / 2000 mileage thresholds AND
+ * the full career of any RB young enough to be near the cliff (entered
+ * the league by age 22, reaches 28 in season six). RBs older than the
+ * window already trigger the cliff on age, so the undercount is
+ * immaterial. This is a runtime stopgap; the Phase 3 ingestion
+ * (DATA_ACQUISITION_PHASE3.md) supersedes it with stored
+ * player_signals.career_carries computed from nflverse.
+ *
+ * Cost: reuses the per-season getSeasonStats cache, so each season is
+ * fetched at most once per instance per 24h. Callers should gate on
+ * roster relevance (see rosterHasAgingRb) to skip the fetch when no
+ * aging RB is present.
+ */
+export async function getCareerUsage(
+  throughSeason: string,
+  seasonsBack: number = 6,
+): Promise<Map<string, { carries: number; targets: number }>> {
+  const through = Number(throughSeason);
+  const out = new Map<string, { carries: number; targets: number }>();
+  if (!Number.isFinite(through)) return out;
+  const seasons: string[] = [];
+  for (let i = 1; i <= seasonsBack; i++) seasons.push(String(through - i));
+  const maps = await Promise.all(
+    seasons.map((s) =>
+      getSeasonStats(s).catch(() => new Map<string, PlayerSeasonStats>()),
+    ),
+  );
+  for (const m of maps) {
+    for (const [id, stat] of m) {
+      const acc = out.get(id) ?? { carries: 0, targets: 0 };
+      acc.carries += stat.carries ?? 0;
+      acc.targets += stat.targets ?? 0;
+      out.set(id, acc);
+    }
+  }
+  return out;
+}
+
+/**
  * Per-position PPG threshold for "elite tier" production. Used to
  * normalize last-season PPG to a 0-1 talent score. Top-tier producers
  * peg at 1.0; bottom-tier at 0. Reflects 2024-2025 elite-tier PPR
