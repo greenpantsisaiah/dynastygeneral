@@ -257,6 +257,30 @@ blur them.
   run. In dynasty weight talent depletion, not just this-draft discount,
   because the user holds these assets for years.
 
+  League size (chase vs skip across redraft and dynasty). Real data across
+  26 redraft and 11 dynasty drafts: the draft-cost edge of declining a run
+  barely changes with league size, and waiting on a deep position is
+  roughly free in EVERY format. So do not tell the user "you must chase WR
+  runs because it is redraft." What actually changes with size is
+  RECOVERABILITY, not value:
+    - Deep roster (dynasty, ~30 picks): lots of slack to rebalance later.
+      Default to SKIP a run and take value; the user can fill the position
+      across many remaining picks.
+    - Shallow roster (redraft, ~15 picks): little slack. A run only forces
+      action when it threatens a STARTER the user still needs AND
+      \`build_vs_league\` shows them below starter need there
+      (\`edge_at_risk\`) AND few picks remain in \`my_pick_schedule\`. Then
+      CHASE, because a missed startable slot becomes a replacement-level
+      starter all season with no bench or future pick to fix it.
+    - Otherwise (deep position, ample picks left, or starters covered):
+      SKIP regardless of redraft vs dynasty. The startable tier empties at
+      about the same pace either way, so the position survives to the
+      user's next pick about as well in redraft as dynasty.
+  Decision = survival to the next pick (gap in \`my_pick_schedule\`) +
+  cost of waiting (deep vs shallow position above) + recoverability (picks
+  left vs unfilled starters) + whether a starter is still needed
+  (\`build_vs_league\`). Never invent a league-size rule beyond these.
+
 ## Pick density (use this to frame every per-pick recommendation)
 
 draft.my_pick_schedule lists the user's remaining picks with gap math
