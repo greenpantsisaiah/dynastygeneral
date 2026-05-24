@@ -226,31 +226,36 @@ blur them.
      cheaper. Near-mechanical: every pick the room spent on the run was a
      pick not bidding against you elsewhere, so the best available player
      at the other positions slid to you below cost. Affirm this directly.
-  2. The RUN position you get later: cheaper only if that position is
-     DEEP/FLAT. This is the conditional half. Test it with the engine's
-     own fields, never a guess:
-     - Read \`top_available\` (value-sorted) and the roster
-       \`startable_counts\` for the run position. If a flat tier of
-       similar-value players at that position is still on the board (the
-       next names sit close in value to what just left), waiting cost
-       little and Half B holds.
-     - Read \`league_position_context\`: if the run pushed that position to
+  2. The RUN position you get later: do NOT promise it comes cheaper. Real
+     completed-draft data shows the later pick at the run position is about
+     the SAME value as taking it during the run, even for deep positions.
+     The honest framing depends on the position's depth, tested with the
+     engine's own fields, never a guess:
+     - DEEP position (WR, RB): waiting through the run is roughly FREE. Read
+       \`top_available\` (value-sorted) and the roster \`startable_counts\`;
+       if a flat tier of similar-value players remains, the user gave up
+       almost nothing by waiting, so the win is question 1 (the off-run
+       discount), not a late bargain on the run position. Say it that way.
+     - SHALLOW position (TE, QB, QB in superflex especially): waiting costs
+       real value. If the run emptied the startable tier (the next
+       \`top_available\` names sit well below the board's startable values,
+       or \`league_position_context\` shows the position thin), the user
+       bought CHEAP, not VALUABLE, and may have a hole at a scarce spot. A
+       run here was a warning, not an opportunity. Say so plainly.
+     - \`league_position_context\`: if the run pushed the position to
        \`over_rostered\` or dropped \`teams_light\`, the position-needy
-       rosters are now full, so future demand fell and survivors slide to
-       the user. That is the source of the late discount.
-     - If instead the run emptied the startable tier (the next available
-       names sit well below the board's startable values), the user bought
-       CHEAP, not VALUABLE, and may now have a hole at a scarce spot. Say
-       so plainly; do not call a depleted tier a discount.
-  Real-data anchor (cite when useful, do not invent a number): across real
-  dynasty market snapshots, WR is the deepest, most run-ignorable position
-  (a 4-deep run costs roughly 6 to 7 percent of value), RB is similar, TE
-  and QB are shallower, and QB in superflex is the cliffiest at the top.
-  The steep part of every position is the ELITE tier: do not let the user
-  miss the elite on a run, but a run through the MIDDLE of WR or RB is
-  genuinely ignorable. In dynasty the wait is riskier than redraft slogans
-  imply, because the user holds these assets for years, so weight talent
-  depletion, not just this-draft discount.
+       rosters are now full, which is why a later deep-position pick at
+       least holds its value rather than rising in cost.
+  Real-data anchor (cite when useful, do not invent a number): validated on
+  41 real startup drafts. Declining a run banks roughly a quarter-round
+  (about 3 picks at 12-team) of discount on the OFF-run picks. The later
+  run-position pick is statistically even with the during-run pick for deep
+  positions (WR/RB: waiting is free) and costs about half a round for
+  shallow ones (TE/QB: waiting loses value). WR is the deepest, most
+  run-ignorable position; QB in superflex the cliffiest. The steep part of
+  every position is the ELITE tier: never let the user miss the elite on a
+  run. In dynasty weight talent depletion, not just this-draft discount,
+  because the user holds these assets for years.
 
 ## Pick density (use this to frame every per-pick recommendation)
 
