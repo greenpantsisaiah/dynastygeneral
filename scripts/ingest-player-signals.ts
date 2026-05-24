@@ -60,6 +60,25 @@ function parseCsvLine(line: string): string[] {
   return out;
 }
 
+// Currently-active Sleeper player_ids. nflverse occasionally charts
+// trivial stats to a retired player's stale id (verified: Philip Rivers
+// shows 2 carries + 97% snaps in 2025 weeks 15-17, a source artifact).
+// Those ids are never on a live roster, so this gate just keeps the
+// table clean. On fetch failure it returns empty and the caller does
+// not over-filter (better to keep all than wipe on a transient error).
+async function fetchSleeperActiveIds(): Promise<Set<string>> {
+  try {
+    const res = await fetch("https://api.sleeper.app/v1/players/nfl");
+    if (!res.ok) return new Set();
+    const blob = (await res.json()) as Record<string, { active?: boolean }>;
+    const set = new Set<string>();
+    for (const [id, p] of Object.entries(blob)) if (p?.active) set.add(id);
+    return set;
+  } catch {
+    return new Set();
+  }
+}
+
 async function fetchCsv(url: string): Promise<Record<string, string>[]> {
   const res = await fetch(url, { headers: { accept: "text/csv" } });
   if (!res.ok) throw new Error(`${url} -> ${res.status}`);
@@ -142,6 +161,9 @@ async function main() {
   console.log(
     `crosswalk: ${xwalk.length} rows, ${withSleeper} with sleeper_id (gsis map ${gsisToSleeper.size}, pfr map ${pfrToSleeper.size})`,
   );
+
+  const activeIds = await fetchSleeperActiveIds();
+  console.log(`sleeper active players: ${activeIds.size}`);
 
   const rows = new Map<string, PlayerRow>();
   const get = (sleeper: string): PlayerRow => {
@@ -337,6 +359,9 @@ async function main() {
       // Skill players only: the rubric grades QB/RB/WR/TE. Drop OL/DL
       // rows that only matched via draft/combine (rubric never reads them).
       if (!SKILL.has((r.position ?? "").toUpperCase())) return false;
+      // Active players only (drops retired-player source artifacts). Skip
+      // the gate if the active fetch failed, to avoid wiping on a glitch.
+      if (activeIds.size > 0 && !activeIds.has(r.player_id)) return false;
       return (
         r.snap_share_prior_year != null ||
         r.target_share_prior_year != null ||
