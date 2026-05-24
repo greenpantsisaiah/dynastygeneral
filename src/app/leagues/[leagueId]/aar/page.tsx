@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import {
   getLeague,
@@ -228,7 +227,6 @@ export default async function AarPage({ params, searchParams }: PageProps) {
             </div>
           </section>
         </main>
-        <Footer />
       </>
     );
   }
@@ -341,7 +339,6 @@ export default async function AarPage({ params, searchParams }: PageProps) {
             </div>
           </section>
         </main>
-        <Footer />
       </>
     );
   }
@@ -664,7 +661,6 @@ export default async function AarPage({ params, searchParams }: PageProps) {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

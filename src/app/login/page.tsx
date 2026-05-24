@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { getOptionalUser } from "@/lib/auth/session";
 import { safeNextPath } from "@/lib/auth/safe-next";
@@ -72,7 +71,6 @@ export default async function LoginPage({
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

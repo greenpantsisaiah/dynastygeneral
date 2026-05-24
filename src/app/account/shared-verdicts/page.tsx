@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { getOptionalUser } from "@/lib/auth/session";
 import {
@@ -87,7 +86,6 @@ export default async function SharedVerdictsPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

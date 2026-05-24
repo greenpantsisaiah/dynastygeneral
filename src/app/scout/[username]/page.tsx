@@ -26,6 +26,7 @@ import { Ticker } from "@/components/ui/ticker";
 import { ShareButton } from "@/components/share/share-button";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/ratelimit";
 import { checkBudget } from "@/lib/budget";
+import { isLlmEnforcementDown } from "@/lib/ops/llm-guard";
 import {
   getLeaguesForUser,
   getNflState,
@@ -100,6 +101,21 @@ export default async function ScoutPage({ params, searchParams }: PageProps) {
       : undefined;
   const cleaned = decodeURIComponent(username).trim().replace(/^@/, "");
   if (!cleaned) notFound();
+
+  // Fail closed: scout calls Sonnet with a 4000-token output. If rate
+  // limiting + the budget cap cannot be enforced in production (Upstash
+  // unconfigured), refuse rather than serve unprotected and drain the
+  // Anthropic budget. Fires an ops alert. No-op in dev and preview.
+  if (isLlmEnforcementDown()) {
+    return (
+      <ScoutShell username={cleaned}>
+        <p className="mt-6 text-muted">
+          Scout is temporarily unavailable. The team has been alerted and is
+          restoring service.
+        </p>
+      </ScoutShell>
+    );
+  }
 
   // Rate limit + budget gate. Scout is a public, force-dynamic page that
   // calls Sonnet with 4000-token output. Pre-audit (cost-watcher 2026-04-22)

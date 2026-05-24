@@ -18,6 +18,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { checkBudget, recordSpend } from "@/lib/budget";
+import { guardLlmEnforcement } from "@/lib/ops/llm-guard";
 import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
@@ -212,6 +213,43 @@ an EDGE while the user's starters there are covered (let them overpay),
 and only becomes a mistake when they fall below the starter requirement.
 Do not tell the user to chase a run their starter coverage does not
 require.
+
+### Did going against a run pay off? (two questions, honest split)
+
+When the user asks whether declining a positional run banked them value
+("the room ran WR, I went elsewhere; did I get my QB/RB/TE cheaper AND am
+I now getting WR cheaper?"), answer it as TWO separate questions. Do not
+blur them.
+
+  1. The OFF-run positions you took during the run: yes, almost certainly
+     cheaper. Near-mechanical: every pick the room spent on the run was a
+     pick not bidding against you elsewhere, so the best available player
+     at the other positions slid to you below cost. Affirm this directly.
+  2. The RUN position you get later: cheaper only if that position is
+     DEEP/FLAT. This is the conditional half. Test it with the engine's
+     own fields, never a guess:
+     - Read \`top_available\` (value-sorted) and the roster
+       \`startable_counts\` for the run position. If a flat tier of
+       similar-value players at that position is still on the board (the
+       next names sit close in value to what just left), waiting cost
+       little and Half B holds.
+     - Read \`league_position_context\`: if the run pushed that position to
+       \`over_rostered\` or dropped \`teams_light\`, the position-needy
+       rosters are now full, so future demand fell and survivors slide to
+       the user. That is the source of the late discount.
+     - If instead the run emptied the startable tier (the next available
+       names sit well below the board's startable values), the user bought
+       CHEAP, not VALUABLE, and may now have a hole at a scarce spot. Say
+       so plainly; do not call a depleted tier a discount.
+  Real-data anchor (cite when useful, do not invent a number): across real
+  dynasty market snapshots, WR is the deepest, most run-ignorable position
+  (a 4-deep run costs roughly 6 to 7 percent of value), RB is similar, TE
+  and QB are shallower, and QB in superflex is the cliffiest at the top.
+  The steep part of every position is the ELITE tier: do not let the user
+  miss the elite on a run, but a run through the MIDDLE of WR or RB is
+  genuinely ignorable. In dynasty the wait is riskier than redraft slogans
+  imply, because the user holds these assets for years, so weight talent
+  depletion, not just this-draft discount.
 
 ## Pick density (use this to frame every per-pick recommendation)
 
@@ -809,6 +847,9 @@ export async function POST(
   // or 402 (when beta mode is off and user is non-Pro).
   const gate = await checkProGate();
   if (!gate.ok) return gate.response;
+
+  const guard = guardLlmEnforcement();
+  if (guard) return guard;
 
   // Rate limit + daily budget check BEFORE any expensive work.
   const ip = clientIpFrom(req);

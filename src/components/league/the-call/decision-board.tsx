@@ -37,9 +37,16 @@ const NO_RUSH_SURVIVAL = 75;
 const DROPOFF_POSITIONS = ["RB", "WR", "TE", "QB"] as const;
 const DROPOFF_WINDOW = 12;
 const CLIFF_RATIO = 1.6;
-// Player column is capped (not 1fr) so EV sits right after the name
-// instead of across a wide gap; the tags column absorbs the slack.
-const COL = "grid grid-cols-[minmax(0,15rem)_4rem_9rem_minmax(0,1fr)] items-baseline gap-3";
+// Desktop (>=sm): dense "cockpit" 4-col table. Player is capped (not 1fr)
+// so EV sits right after the name instead of across a wide gap; the tags
+// column absorbs the slack. Mobile (<sm): the same four fields stack via
+// grid-template-areas so nothing clips off-screen. Name + EV pair on the
+// first line; survival and tags each get their own full-width row. The
+// fixed 13rem of EV+Survival tracks never fit a phone, which is what
+// squeezed the name to single letters and clipped the tag pills.
+const HEADER_COLS = "grid-cols-[minmax(0,15rem)_4rem_9rem_minmax(0,1fr)]";
+const ROW =
+  "grid items-baseline gap-x-3 gap-y-1 grid-cols-[minmax(0,1fr)_auto] [grid-template-areas:'name_ev'_'sub_sub'_'tags_tags'] sm:gap-3 sm:grid-cols-[minmax(0,15rem)_4rem_9rem_minmax(0,1fr)] sm:[grid-template-areas:'name_ev_sub_tags']";
 const EMPTY = "-";
 
 type SortKey = "value" | "ev" | "survival";
@@ -100,7 +107,7 @@ function Chip({ text, tone = "muted" }: { text: string; tone?: Tone }) {
         : "border-border-soft text-muted-2";
   return (
     <span
-      className={`font-mono text-[9px] uppercase tracking-[0.12em] border rounded-full px-1.5 py-0.5 ${cls}`}
+      className={`max-w-full break-words text-center font-mono text-[9px] uppercase tracking-[0.12em] border rounded-full px-1.5 py-0.5 ${cls}`}
     >
       {text}
     </span>
@@ -289,7 +296,7 @@ export function DecisionBoard({
   );
 
   return (
-    <div className="px-5 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4 sm:px-5">
       {/* Build vs the league: are you with or against the grain, and is
           it working? Answers the "everyone went WR crazy, am I wrong?"
           doubt by reading league scarcity against your starter coverage. */}
@@ -399,7 +406,7 @@ export function DecisionBoard({
           </div>
           <div className="rounded-md border border-border-soft overflow-hidden">
             <div
-              className={`${COL} bg-surface/50 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2`}
+              className={`hidden sm:grid ${HEADER_COLS} items-baseline gap-3 bg-surface/50 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2`}
             >
               <span>Player</span>
               <span className="text-right">EV</span>
@@ -416,8 +423,8 @@ export function DecisionBoard({
                     isTracked(c.player_id) ? "bg-accent/5" : ""
                   }`}
                 >
-                  <div className={COL}>
-                    <span className="truncate">
+                  <div className={ROW}>
+                    <span className="[grid-area:name] min-w-0 truncate">
                       <span className="text-[15px] font-semibold text-foreground">
                         {c.name}
                       </span>{" "}
@@ -427,12 +434,12 @@ export function DecisionBoard({
                       </span>
                     </span>
                     <span
-                      className={`text-right font-mono text-[14px] font-semibold ${evTone(ev)}`}
+                      className={`[grid-area:ev] text-right font-mono text-[14px] font-semibold ${evTone(ev)}`}
                     >
                       {ev != null ? `${ev >= 0 ? "+" : ""}${ev.toFixed(1)}` : EMPTY}
                     </span>
                     {c.survival_pct != null ? (
-                      <span className="flex items-center justify-end gap-1.5">
+                      <span className="[grid-area:sub] flex items-center justify-start gap-1.5 sm:justify-end">
                         <SurvBar pct={c.survival_pct} />
                         <span
                           className={`font-mono text-[13px] ${survivalTone(c.survival_pct)}`}
@@ -441,11 +448,11 @@ export function DecisionBoard({
                         </span>
                       </span>
                     ) : (
-                      <span className="text-right font-mono text-[13px] text-muted-2">
+                      <span className="[grid-area:sub] text-left font-mono text-[13px] text-muted-2 sm:text-right">
                         {EMPTY}
                       </span>
                     )}
-                    <span className="flex flex-wrap items-baseline gap-1">
+                    <span className="[grid-area:tags] flex min-w-0 flex-wrap items-baseline gap-1">
                       {tagsFor(c)
                         .slice(0, 3)
                         .map((t) => (

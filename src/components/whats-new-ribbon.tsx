@@ -68,7 +68,10 @@ export function WhatsNewRibbon() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-4 sm:bottom-6 sm:justify-start sm:pl-6"
+      // Mobile: sit ABOVE the bottom-right Feedback pill (h-10 at bottom-4)
+      // so the two fixed elements stack instead of colliding. Desktop
+      // already separates them (ribbon left, feedback right).
+      className="pointer-events-none fixed inset-x-0 bottom-20 z-30 flex justify-center px-4 sm:bottom-6 sm:justify-start sm:pl-6"
       role="status"
       aria-label="What's new"
     >

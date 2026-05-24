@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Hero } from "@/components/landing/hero";
 import {
   ContrarianSection,
@@ -51,7 +50,6 @@ export default function HomePage() {
         <ProofSection />
         <ContrarianSection />
       </main>
-      <Footer />
     </>
   );
 }

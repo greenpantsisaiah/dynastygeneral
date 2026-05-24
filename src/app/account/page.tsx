@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { Footer } from "@/components/landing/footer";
 import { Ticker } from "@/components/ui/ticker";
 import { PrivacyPanel } from "@/components/account/privacy-panel";
 import { UsageDetail } from "@/components/billing/usage-meter";
@@ -223,7 +222,6 @@ export default async function AccountPage({
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }
