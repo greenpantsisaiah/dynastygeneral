@@ -345,6 +345,18 @@ on this and should not wait for it.
   continuity, or accept null). Both, plus any `player_signals` backfill,
   WRITE to production Supabase via the service-role key (the only instance
   configured) and must be founder-authorized before running.
+- DECISION-READY PLAN: `DATA_ACQUISITION_PHASE3.md` (locked 2026-05-23).
+  Grounded against live sources. The ID crosswalk (DynastyProcess
+  `db_playerids.csv`, carries `sleeper_id` + `gsis_id` + `pfr_id`) is the
+  load-bearing enabler. nflverse usage/draft/combine are GREEN (free,
+  CC-BY, direct CSV). RAS itself is RED (no free download); a
+  combine-derived athletic composite is the clean substitute. OL graded
+  quality is RED (PFF ToS); OL continuity from `snap_counts` is the free
+  build. Recommended first cut: crosswalk + stats_player + snap_counts +
+  draft_picks (the last also fills the inflection `draft_pick_overall`
+  gap). One ingestion script mirroring `ingest-historical-outcomes.ts`,
+  dry-run first. Awaiting founder authorization of prod-DB writes +
+  the RAS / OL / attribution decisions.
 
 3b. Build the `EnrichedPlayer` resolver: merge meta + value + signals +
 inflection inputs, flag missing fields explicitly (no silent null).
