@@ -30,6 +30,12 @@ const statsEntrySchema = z
         pts_std: z.number().nullable().optional(),
         gp: z.number().nullable().optional(),
         gms_active: z.number().nullable().optional(),
+        // Usage. The same free Sleeper endpoint already returns rushing
+        // carries (rush_att) and targets (rec_tgt) per player; parsing
+        // them feeds the inflection model's prior-season workload-trend
+        // signal (career-mileage stays a separate multi-season sum).
+        rush_att: z.number().nullable().optional(),
+        rec_tgt: z.number().nullable().optional(),
       })
       .nullable()
       .optional(),
@@ -44,6 +50,10 @@ export type PlayerSeasonStats = {
   pts_half_ppr: number | null;
   pts_std: number | null;
   games_played: number | null;
+  /** Rushing carries this season (Sleeper rush_att). Null when absent. */
+  carries: number | null;
+  /** Receiving targets this season (Sleeper rec_tgt). Null when absent. */
+  targets: number | null;
 };
 
 type CacheEntry = {
@@ -103,6 +113,8 @@ async function fetchSeasonStats(season: string): Promise<CacheEntry> {
       pts_half_ppr: s.pts_half_ppr ?? null,
       pts_std: s.pts_std ?? null,
       games_played: s.gp ?? s.gms_active ?? null,
+      carries: s.rush_att ?? null,
+      targets: s.rec_tgt ?? null,
     });
   }
   return { byPlayerId, fetchedAt: Date.now() };

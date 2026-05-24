@@ -57,6 +57,7 @@ import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import { normalizePosition } from "@/lib/strategy/archetypes/schema";
+import { getSeasonStats } from "@/lib/players/season-stats";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import { readProfileServer } from "@/lib/lab/profile-storage";
@@ -1148,9 +1149,21 @@ export async function POST(
       playerNameLookup,
     });
 
+    // Prior-season usage so Coach's inflection cards carry the same
+    // workload-trend signal the hub shows (free Sleeper /stats, cached
+    // 24h, keyed by Sleeper player_id). Without these the cards render
+    // data_missing for carries/targets and Coach diverges from the board.
+    const prevSeason = String(Number(snapshot.season) - 1);
+    const prevPrevSeason = String(Number(snapshot.season) - 2);
+    const [prevSeasonStats, prevPrevSeasonStats] = await Promise.all([
+      getSeasonStats(prevSeason).catch(() => new Map()),
+      getSeasonStats(prevPrevSeason).catch(() => new Map()),
+    ]);
     inflectionItems = buildInflectionsFromSnapshot({
       snap: snapshot,
       playersMap,
+      prevSeasonStats,
+      prevPrevSeasonStats,
     });
   } catch (err) {
     console.error("[coach:league-read+inflections]", err);

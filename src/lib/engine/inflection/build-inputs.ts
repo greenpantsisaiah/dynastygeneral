@@ -1,11 +1,15 @@
 /**
  * Build InflectionInputs from a HumanPlayer plus roster context.
  *
- * Phase 1 limitations (deliberately honest, surfaced as data_missing
+ * Remaining limitations (deliberately honest, surfaced as data_missing
  * in the resolver):
- *   - career_carries / career_targets: not yet plumbed from outcome data
- *   - prev_season usage: not yet plumbed (would require last-season
- *     historical_outcomes join at context-build time)
+ *   - prev_season / prev_prev_season carries + targets: PLUMBED
+ *     (2026-05-23) from the free Sleeper /stats endpoint (rush_att /
+ *     rec_tgt) via `buildInflectionsFromSnapshot`, keyed by Sleeper
+ *     player_id. Lights up the workload-trend signal on the hub + Coach.
+ *   - career_carries / career_targets: not yet plumbed. Needs a
+ *     multi-season sum of Sleeper /stats (the mileage signal + the
+ *     1500-carry RB cliff trigger); the next acquisition sub-step.
  *   - draft_pick_overall: NOT in the Sleeper players blob. Verified
  *     2026-05-23 against api.sleeper.app/v1/players/nfl: metadata
  *     carries only channel_id / genius_id / rookie_year, no NFL draft

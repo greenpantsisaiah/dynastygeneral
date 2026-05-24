@@ -17,11 +17,17 @@
  *      raise the prior_driven caveat.
  *
  * Tests the production hub path: resolveInflectionWindow with the inputs
- * the snapshot builder actually supplies (no usage data plumbed in v1).
+ * the snapshot builder supplies, AND buildInflectionsFromSnapshot's
+ * threading of prior-season usage (Sleeper /stats carries/targets) into
+ * the workload-trend signal (plumbed 2026-05-23).
  */
 
 import { resolveInflectionWindow } from "../src/lib/engine/inflection/resolve";
 import type { InflectionInputs } from "../src/lib/engine/inflection/types";
+import { buildInflectionsFromSnapshot } from "../src/lib/engine/inflection/from-snapshot";
+import type { LeagueSnapshot } from "../src/lib/strategy/league-state/snapshot";
+import type { SleeperPlayer } from "../src/lib/sleeper/schemas";
+import type { PlayerSeasonStats } from "../src/lib/players/season-stats";
 
 let passed = 0;
 let failed = 0;
@@ -152,6 +158,71 @@ function run() {
       "calibration_note is the quieter partial-read line",
       cs.calibration_note != null && /partial read/i.test(cs.calibration_note),
       cs.calibration_note ?? "null",
+    );
+  }
+
+  console.log(
+    "\n── 4. buildInflectionsFromSnapshot threads prior-season usage ──",
+  );
+  {
+    // The plumbing fix (2026-05-23): the builder must pass carries/targets
+    // from the Sleeper /stats maps into the inputs. Before this, the maps
+    // existed but the builder dropped them, so the workload-trend signal
+    // rendered data_missing for every aging-RB card (the founder's report).
+    const snap = {
+      rosters: [{ is_me: true, player_ids: ["4866"] }],
+    } as unknown as LeagueSnapshot;
+    const playersMap = new Map<string, SleeperPlayer>([
+      [
+        "4866",
+        {
+          player_id: "4866",
+          full_name: "Workload Test RB",
+          position: "RB",
+          team: "PHI",
+          age: 28,
+          years_exp: 7,
+        } as unknown as SleeperPlayer,
+      ],
+    ]);
+    const stat = (carries: number): PlayerSeasonStats => ({
+      player_id: "4866",
+      pts_ppr: null,
+      pts_half_ppr: null,
+      pts_std: null,
+      games_played: 16,
+      carries,
+      targets: 40,
+    });
+    const findWorkload = (ctx: ReturnType<typeof buildInflectionsFromSnapshot>) =>
+      ctx[0]?.resolutions
+        .flatMap((r) => r.signals)
+        .find((s) => s.name === "Workload trend");
+
+    const withUsage = buildInflectionsFromSnapshot({
+      snap,
+      playersMap,
+      prevSeasonStats: new Map([["4866", stat(240)]]),
+      prevPrevSeasonStats: new Map([["4866", stat(300)]]),
+    });
+    const wlWith = findWorkload(withUsage);
+    check(
+      "with usage maps, workload trend resolves (not data_missing)",
+      wlWith != null && wlWith.direction !== "data_missing",
+      wlWith?.observation ?? "no signal",
+    );
+    check(
+      "the carries drop is read as story_b (240 vs 300)",
+      wlWith?.direction === "story_b",
+      wlWith?.direction ?? "none",
+    );
+
+    const withoutUsage = buildInflectionsFromSnapshot({ snap, playersMap });
+    const wlWithout = findWorkload(withoutUsage);
+    check(
+      "without usage maps, workload trend is data_missing (graceful)",
+      wlWithout != null && wlWithout.direction === "data_missing",
+      wlWithout?.direction ?? "none",
     );
   }
 
