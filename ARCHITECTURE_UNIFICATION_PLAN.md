@@ -315,20 +315,36 @@ This phase has a data track that runs first and a wiring track gated on
 it. The correctness and consolidation phases (0, 1, 2, 4) do not depend
 on this and should not wait for it.
 
-3a. Data acquisition (first, per founder direction):
-- Connect the already-populated siloed data now: runtime join of
-  `historical_signal_codes.compounding_news_count` and
-  `historical_outcomes` prior-season points into the inflection input
-  builder and the `EnrichedPlayer` resolver. This is real data, free,
-  and ripples immediately.
-- Ingest nflfastR usage (carries, targets, snaps) into `player_signals`.
-  This is the named source for the founder's career-carries / prior-
-  season-usage gap (`DATA_ACQUISITION_PLAN.md` §2.2).
-- Source athletic metrics (RAS / 40-time / breakout age / dominator)
-  into `player_signals`. No acquisition entry exists yet; add one.
-- OL grades: PFF is ToS-blocked. Identify an alternative (e.g. an open
-  OL-continuity proxy from snap-count continuity in nflfastR) or accept
-  the column staying null and degrade gracefully.
+3a. Data acquisition (first, per founder direction). Investigation
+2026-05-23 (agent a29ef579) corrected the sequencing below:
+- CORRECTION: the "connect the siloed historical data" idea is illusory
+  for LIVE cards. `historical_signal_codes` (compounding_news, RB-only,
+  2022-2024) and `historical_outcomes` (points only, no carries/targets)
+  are backtest-grade history; joining them to a live 2026 roster lights
+  up almost nothing. They help BACKTESTING, not the blind aging-RB cards
+  the founder flagged. Do not spend the "free win" budget there.
+- DONE (commit 2eed1eb): prior-season carries + targets from the FREE
+  Sleeper `/stats` endpoint the app already calls (`rush_att` / `rec_tgt`,
+  keyed by Sleeper player_id, verified live). Parsed in `season-stats.ts`,
+  threaded through `buildInflectionsFromSnapshot` on hub + Coach. Lights
+  up the inflection workload-trend signal. No new dependency, no DB write.
+- NEXT (still free, autonomous-safe): `career_carries` / `career_targets`
+  via a multi-season sum of the same Sleeper `/stats` (the mileage signal
+  + the 1500-carry RB cliff trigger). Needs a dedicated career-totals
+  aggregator with a bounded season window + its own cache (the per-render
+  fetch cost is the design question), so it is its own step, not a
+  trivial extension of 3a-DONE.
+- HEAVIER (needs founder decision + prod-DB-write authorization): ingest
+  nflfastR usage (snap share, route participation, EPA) into
+  `player_signals` (`DATA_ACQUISITION_PLAN.md` §2.2; repo is all-TS, so
+  this means fetching nflverse parquet/CSV from a TS script, MIT-licensed).
+  draft_pick_overall from nflverse `draft_picks` (gsis_id, needs a
+  crosswalk to Sleeper ids).
+- DECISIONS REQUIRED: athletic metrics (RAS) have NO source entry yet
+  (open gap); OL grades are PFF-ToS-blocked (proxy via snap-count
+  continuity, or accept null). Both, plus any `player_signals` backfill,
+  WRITE to production Supabase via the service-role key (the only instance
+  configured) and must be founder-authorized before running.
 
 3b. Build the `EnrichedPlayer` resolver: merge meta + value + signals +
 inflection inputs, flag missing fields explicitly (no silent null).

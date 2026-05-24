@@ -1061,9 +1061,21 @@ export default async function LeagueHubPage({
         playerNameLookup,
       });
 
+      // Prior-season usage for the inflection workload-trend signal.
+      // getSeasonStats is 24h-cached, so prev-season is a cache hit
+      // (already fetched for the snapshot's talent score) and only the
+      // season-before adds a warm-cache lookup.
+      const inflPrevSeason = String(Number(leagueSnapshot.season) - 1);
+      const inflPrevPrevSeason = String(Number(leagueSnapshot.season) - 2);
+      const [inflPrevStats, inflPrevPrevStats] = await Promise.all([
+        getSeasonStats(inflPrevSeason).catch(() => new Map()),
+        getSeasonStats(inflPrevPrevSeason).catch(() => new Map()),
+      ]);
       inflectionItems = buildInflectionsFromSnapshot({
         snap: leagueSnapshot,
         playersMap,
+        prevSeasonStats: inflPrevStats,
+        prevPrevSeasonStats: inflPrevPrevStats,
       });
 
       // Draft progress scorecard. "How am I doing in this draft."
