@@ -47,7 +47,10 @@ import {
   readOpponentNotesForLeague,
 } from "@/lib/opponent-notes/storage";
 import { buildLeagueReadFromSnapshot } from "@/lib/strategy/league-read";
-import { buildInflectionsFromSnapshot } from "@/lib/engine/inflection";
+import {
+  buildInflectionsFromSnapshot,
+  rosterHasAgingRb,
+} from "@/lib/engine/inflection";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
@@ -57,7 +60,7 @@ import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import { normalizePosition } from "@/lib/strategy/archetypes/schema";
-import { getSeasonStats } from "@/lib/players/season-stats";
+import { getSeasonStats, getCareerUsage } from "@/lib/players/season-stats";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import { readProfileServer } from "@/lib/lab/profile-storage";
@@ -1159,11 +1162,17 @@ export async function POST(
       getSeasonStats(prevSeason).catch(() => new Map()),
       getSeasonStats(prevPrevSeason).catch(() => new Map()),
     ]);
+    // Career mileage only when an aging RB is present (gates the
+    // multi-season sum). Mirrors the hub so Coach and board agree.
+    const careerUsage = rosterHasAgingRb(snapshot, playersMap)
+      ? await getCareerUsage(snapshot.season).catch(() => undefined)
+      : undefined;
     inflectionItems = buildInflectionsFromSnapshot({
       snap: snapshot,
       playersMap,
       prevSeasonStats,
       prevPrevSeasonStats,
+      careerUsage,
     });
   } catch (err) {
     console.error("[coach:league-read+inflections]", err);
