@@ -2395,14 +2395,34 @@ export function synthesizeDecision(args: {
  * position many teams are light at makes a surplus asset there real
  * trade leverage (founder example 2026-05-22: "Penix is QB leverage
  * because the league overprioritized WRs").
+ *
+ * `over_rostered` is a RELATIVE hoarding signal, not an absolute
+ * bench-depth count. Every dynasty roster carries bench RB/WR, so a
+ * league with ordinary depth is NOT hoarding. The prior rule (avg >=
+ * starter_req * 1.6) fired on a normal room: a 2-RB starter requirement
+ * tripped at 3.2 RB/team, below the ~5 every league carries (founder
+ * 2026-05-24: "4 RB vs a 4.9 average is not over-rostered"). A position
+ * is over-rostered only when the league piles surplus there well beyond
+ * how much surplus it carries at the OTHER positions (the "everyone went
+ * WR crazy" case) AND that surplus clears a small absolute floor, so a
+ * barely-covered position never reads as hoarded. This is a presentation
+ * gate (when to say "let them overpay"), never a value-scale multiplier.
  */
+// Bodies beyond bare starters a position must average before it can be
+// called over-rostered at all (a normal flex+1 bench is ~1-2).
+const OVER_ROSTER_MIN_SURPLUS = 2;
+// ...and its surplus must exceed the league's average positional surplus
+// by at least this margin (the league is loading THIS position harder
+// than the rest).
+const OVER_ROSTER_REL_MARGIN = 1;
 function buildLeaguePositionContext(
   snap: LeagueSnapshot,
 ): Decision["league_position_context"] {
   const reqs = effectiveStarterReqs(snap);
-  const out: Decision["league_position_context"] = {};
   const teams = snap.rosters.length || 1;
-  for (const pos of ["QB", "RB", "WR", "TE"] as Position[]) {
+  // First pass: per-position average carry, demand (teams light), and
+  // surplus = bodies beyond bare starters the league hoards on average.
+  const rows = (["QB", "RB", "WR", "TE"] as Position[]).map((pos) => {
     const req = reqs[pos] ?? 0;
     let light = 0;
     let total = 0;
@@ -2412,11 +2432,22 @@ function buildLeaguePositionContext(
       if (req > 0 && cnt < req) light += 1;
     }
     const avg = total / teams;
-    out[pos] = {
-      teams_light: light,
+    return { pos, req, light, avg, surplus: req > 0 ? Math.max(0, avg - req) : 0 };
+  });
+  // Second pass: a position is over-rostered only if its surplus stands
+  // out from the league's typical positional surplus AND clears the floor.
+  const meanSurplus =
+    rows.reduce((sum, r) => sum + r.surplus, 0) / (rows.length || 1);
+  const out: Decision["league_position_context"] = {};
+  for (const r of rows) {
+    out[r.pos] = {
+      teams_light: r.light,
       total_teams: teams,
-      avg_per_team: Math.round(avg * 10) / 10,
-      over_rostered: req > 0 && avg >= req * 1.6,
+      avg_per_team: Math.round(r.avg * 10) / 10,
+      over_rostered:
+        r.req > 0 &&
+        r.surplus >= OVER_ROSTER_MIN_SURPLUS &&
+        r.surplus >= meanSurplus + OVER_ROSTER_REL_MARGIN,
     };
   }
   return out;
@@ -2430,7 +2461,13 @@ function buildLeaguePositionContext(
  * over-rostered position is an EV edge (let them overpay); below the
  * starter requirement is a real run threat. Founder 2026-05-22.
  */
-const AGAINST_GRAIN_MIN_LEAN = 0.75;
+// How many bodies below the league average a position must be before the
+// build reads as "against the grain" and the comparison surfaces. A
+// presentation gate (when to SPEAK), not a value-scale change. Set above
+// 1 so a roster only ~1 body under the league (in line with the pack)
+// does not get told it is contrarian (founder 2026-05-24: "4 RB vs a 4.9
+// average is not against the grain").
+const AGAINST_GRAIN_MIN_LEAN = 1.5;
 // Don't render a league-average comparison until the league has drafted
 // enough that per-position averages are stable. Below this, the averages
 // are noise (founder 2026-05-22: "we cannot display this until you have
@@ -2496,27 +2533,38 @@ function buildAgainstGrainRead(
   const bar = coverageBarFor(best.pos, best.req);
   const covered = bar <= 0 || best.yc >= bar;
   const avgTxt = best.avg.toFixed(1);
-  // WR carries the grounded depth rationale; other positions use plain
-  // starter coverage. See coverageBarFor for the research grounding.
-  const depthWhy =
-    best.pos === "WR"
-      ? "you start the most WR and they hold value longest, so WR depth is the most reliable depth on the board"
-      : "it covers your starters";
+  const pos = best.pos;
+  const yc = best.yc;
+  const req = best.req;
+  const spare = yc - req;
+  const reqPlural = req === 1 ? "" : "s";
+  const starterSlots = `${req} starting ${pos} slot${reqPlural}`;
+  // WR is the one position dynasty genuinely wants extra depth at: you
+  // start the most WR and they hold value longest. Other positions are
+  // judged on plain starter coverage. See coverageBarFor for grounding.
+  const wrDepthReason = "you start the most WR and they hold value longest";
   let verdict: "edge_hold" | "edge_at_risk" | "just_light";
   let headline: string;
   let detail: string;
   if (best.over && covered) {
     verdict = "edge_hold";
-    headline = `Against the grain at ${best.pos}, and it is working.`;
-    detail = `The league averages ${avgTxt} ${best.pos} per team; you have ${best.yc}. They over-rostered ${best.pos}, so taking one here is a reach, and the engine has steered you to the value the field left behind. Your ${best.pos} depth holds (${best.yc}, target ~${bar}: ${depthWhy}). Hold and let them overpay; flip only if you fall below ${bar}.`;
+    headline = `Lighter at ${pos} than the league, and covered.`;
+    const reserveTxt = spare > 0 ? ` with ${spare} in reserve` : "";
+    const wrClause =
+      pos === "WR" ? ` And ${wrDepthReason}, so this depth is reliable.` : "";
+    detail = `You have ${yc} ${pos}; the league averages ${avgTxt} per team. ${yc} covers your ${starterSlots}${reserveTxt}, so there is no need to match the field's ${pos} count.${wrClause} Spend this pick on the value they left elsewhere; you only need another ${pos} if injuries later cut you below ${req} starter${reqPlural}.`;
   } else if (best.over && !covered) {
     verdict = "edge_at_risk";
-    headline = `Time to take a ${best.pos} before they are gone.`;
-    detail = `You have ${best.yc} ${best.pos}; a ${best.pos}-heavy dynasty wants ~${bar} (${depthWhy}), and the league is hoarding the position (avg ${avgTxt} per team). The against-the-grain edge is spent here: grab a startable ${best.pos} before the pool thins.`;
+    headline = `Time to add a ${pos} before the pool thins.`;
+    const shortTxt =
+      pos === "WR"
+        ? `under the ${bar} a contender wants at WR (${wrDepthReason})`
+        : `below your ${starterSlots}`;
+    detail = `You have ${yc} ${pos}, ${shortTxt}, and the league is loaded at the position (avg ${avgTxt} per team). The light-${pos} edge is spent here: grab a startable ${pos} now, before the run leaves you reaching.`;
   } else {
     verdict = "just_light";
-    headline = `Lighter at ${best.pos} than the league.`;
-    detail = `You have ${best.yc} ${best.pos}; the league averages ${avgTxt} per team (target ~${bar}). No clear market edge either way; weigh a ${best.pos} when real value shows.`;
+    headline = `Lighter at ${pos} than the league.`;
+    detail = `You have ${yc} ${pos}; the league averages ${avgTxt} per team. The field has not piled into ${pos}, so there is no overpay to exploit and no run to beat. Add a ${pos} when real value falls to you, not to match a count.`;
   }
   return {
     position: best.pos,
