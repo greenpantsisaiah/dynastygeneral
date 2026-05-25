@@ -118,6 +118,7 @@ export type Crosswalk = {
   pfrToSleeper: Map<string, string>;
   nameBySleeper: Map<string, string>;
   posBySleeper: Map<string, string>;
+  birthYearBySleeper: Map<string, number>;
 };
 
 export async function loadCrosswalk(): Promise<Crosswalk> {
@@ -126,6 +127,7 @@ export async function loadCrosswalk(): Promise<Crosswalk> {
   const pfrToSleeper = new Map<string, string>();
   const nameBySleeper = new Map<string, string>();
   const posBySleeper = new Map<string, string>();
+  const birthYearBySleeper = new Map<string, number>();
   for (const r of xwalk) {
     const sleeper = r.sleeper_id?.trim();
     if (!sleeper || sleeper === "NA") continue;
@@ -133,8 +135,16 @@ export async function loadCrosswalk(): Promise<Crosswalk> {
     if (r.pfr_id && r.pfr_id !== "NA") pfrToSleeper.set(r.pfr_id, sleeper);
     if (r.name) nameBySleeper.set(sleeper, r.name);
     if (r.position) posBySleeper.set(sleeper, r.position.toUpperCase());
+    const by = Number((r.birthdate ?? "").slice(0, 4));
+    if (Number.isFinite(by)) birthYearBySleeper.set(sleeper, by);
   }
-  return { gsisToSleeper, pfrToSleeper, nameBySleeper, posBySleeper };
+  return {
+    gsisToSleeper,
+    pfrToSleeper,
+    nameBySleeper,
+    posBySleeper,
+    birthYearBySleeper,
+  };
 }
 
 export async function fetchSleeperActiveIds(): Promise<Set<string>> {

@@ -4,9 +4,14 @@
  * implements the MODEL_CARD section 4.2 RB scoring and the variance-
  * band modifiers from section 5.8.
  *
- * Hard gate: committee_member or starter_uncertain caps at 60
+ * Hard gate: committee_member or starter_uncertain caps at the gate cap
  * regardless of base signals (corpus: a passdown-back ceiling is
  * structurally limited).
+ *
+ * Weights are parameterized (RbWeights) with the shipped values as
+ * RB_DEFAULT_WEIGHTS, so they can be calibrated against the backtest
+ * (scripts/calibrate-rb-rubric.ts) without re-implementing the rubric.
+ * Production passes nothing and gets the defaults.
  *
  * Citations:
  * - Stats with Sasa 2024: 64% of traded RBs improve, median +6.8%
@@ -27,12 +32,34 @@ import {
 } from "../util";
 import type { EvaluationContext } from "../types";
 
-const RB_HARD_GATE_CAP = 60;
-const RB_BELLCOW_BOOST = 8;
-const RB_STRICT_BELLCOW_BOOST = 12;
-const RB_PASSDOWN_FLOOR_BUMP = 4;
+export type RbWeights = {
+  hardGateCap: number;
+  strictBellcow: number;
+  bellcow: number;
+  leadBack: number;
+  passdown: number;
+  cliffBreaker: number;
+  olEffect: number;
+  contract: number;
+  priorBlend: number;
+};
 
-export function evaluateRb(ctx: EvaluationContext): RubricOutput {
+export const RB_DEFAULT_WEIGHTS: RbWeights = {
+  hardGateCap: 60,
+  strictBellcow: 12,
+  bellcow: 8,
+  leadBack: 4,
+  passdown: 4,
+  cliffBreaker: 4,
+  olEffect: 8,
+  contract: 2,
+  priorBlend: 0.3,
+};
+
+export function evaluateRb(
+  ctx: EvaluationContext,
+  w: RbWeights = RB_DEFAULT_WEIGHTS,
+): RubricOutput {
   const stack = [];
   let bandModifier = 0;
   let hardGateActive = false;
@@ -63,50 +90,50 @@ export function evaluateRb(ctx: EvaluationContext): RubricOutput {
   // Role tier (the load-bearing RB signal)
   const roleTier = ctx.player?.rb_role_tier;
   if (roleTier === "strict_bellcow") {
-    estimate += RB_STRICT_BELLCOW_BOOST;
+    estimate += w.strictBellcow;
     stack.push(
       evidence(
         "situation",
         "rb_role_tier:strict_bellcow",
         1.0,
-        RB_STRICT_BELLCOW_BOOST,
+        w.strictBellcow,
         "Strict bellcow (>70% snap share, no committee threat)",
       ),
     );
   } else if (roleTier === "bellcow") {
-    estimate += RB_BELLCOW_BOOST;
+    estimate += w.bellcow;
     stack.push(
       evidence(
         "situation",
         "rb_role_tier:bellcow",
         1.0,
-        RB_BELLCOW_BOOST,
+        w.bellcow,
         "Bellcow role (60-70% snap share)",
       ),
     );
   } else if (roleTier === "lead_back") {
-    estimate += 4;
+    estimate += w.leadBack;
     stack.push(
-      evidence("situation", "rb_role_tier:lead_back", 1.0, 4, "Lead back"),
+      evidence("situation", "rb_role_tier:lead_back", 1.0, w.leadBack, "Lead back"),
     );
   } else if (
     roleTier === "committee_member" ||
     roleTier === "starter_uncertain"
   ) {
-    // HARD GATE: cap at 60. Defeats market prior blend.
+    // HARD GATE: cap at the gate cap. Defeats market prior blend.
     hardGateActive = true;
-    if (estimate > RB_HARD_GATE_CAP) {
-      const reduction = RB_HARD_GATE_CAP - estimate;
+    if (estimate > w.hardGateCap) {
+      const reduction = w.hardGateCap - estimate;
       stack.push(
         evidence(
           "situation",
           `rb_role_tier:${roleTier}`,
           1.0,
           reduction,
-          "Hard gate: committee/uncertain caps at 60",
+          "Hard gate: committee/uncertain caps at the gate cap",
         ),
       );
-      estimate = RB_HARD_GATE_CAP;
+      estimate = w.hardGateCap;
     } else {
       stack.push(
         evidence(
@@ -121,13 +148,13 @@ export function evaluateRb(ctx: EvaluationContext): RubricOutput {
     bandModifier += 6; // committee role widens band materially
   } else if (roleTier === "passdown") {
     // Passdown specialists have a floor (PPR scoring) but lower ceiling
-    estimate += RB_PASSDOWN_FLOOR_BUMP;
+    estimate += w.passdown;
     stack.push(
       evidence(
         "situation",
         "rb_role_tier:passdown",
         1.0,
-        RB_PASSDOWN_FLOOR_BUMP,
+        w.passdown,
         "Passdown specialist (PPR floor, capped ceiling)",
       ),
     );
@@ -166,17 +193,17 @@ export function evaluateRb(ctx: EvaluationContext): RubricOutput {
         "situation",
         "rb_cliff_breaker",
         0.5,
-        4,
+        w.cliffBreaker,
         "Aging RB sustaining bellcow role (cliff-breaker arbitrage)",
       ),
     );
-    estimate += 4;
+    estimate += w.cliffBreaker;
   }
 
   // Team-level OL signal (load-bearing for RBs)
   const olContinuity = ctx.team?.ol_continuity_score ?? null;
   if (olContinuity != null) {
-    const olEffect = (olContinuity - 0.5) * 8;
+    const olEffect = (olContinuity - 0.5) * w.olEffect;
     stack.push(
       evidence(
         "situation",
@@ -261,13 +288,13 @@ export function evaluateRb(ctx: EvaluationContext): RubricOutput {
 
   // Contract-year flag (motivation premium per RESEARCH_CORPUS)
   if (ctx.player?.contract_year_flag === true) {
-    estimate += 2;
+    estimate += w.contract;
     stack.push(
       evidence(
         "situation",
         "contract_year",
         0.3,
-        2,
+        w.contract,
         "Contract-year motivation premium",
       ),
     );
@@ -275,10 +302,10 @@ export function evaluateRb(ctx: EvaluationContext): RubricOutput {
 
   // Final blend with KTC prior. Hard gate defeats the blend so
   // market love can't undo the structural cap on committee/uncertain.
-  const priorWeight = hardGateActive ? 0 : 0.3;
+  const priorWeight = hardGateActive ? 0 : w.priorBlend;
   const blended = blendWithPrior(estimate, prior, priorWeight);
   const final = hardGateActive
-    ? Math.min(blended.final, RB_HARD_GATE_CAP)
+    ? Math.min(blended.final, w.hardGateCap)
     : blended.final;
 
   return {

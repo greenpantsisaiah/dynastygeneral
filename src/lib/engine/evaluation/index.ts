@@ -32,6 +32,11 @@ export type {
   ArbitrageFlag,
 } from "./types";
 
+// Re-exported for the RB rubric backtest/calibration tooling. Production
+// goes through evaluate(); calibration runs evaluateRb with candidate
+// weights against the REAL rubric (no re-implementation).
+export { evaluateRb, RB_DEFAULT_WEIGHTS, type RbWeights } from "./rubrics/rb";
+
 import type { EvaluationContext, EvaluationOutput } from "./types";
 
 export function evaluate(ctx: EvaluationContext): EvaluationOutput {

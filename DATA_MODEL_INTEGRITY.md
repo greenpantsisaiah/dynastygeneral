@@ -37,6 +37,25 @@ Conclusion: do not wire `evaluate()` to REPLACE the market grade on
 current data. The market is already a 0.72-Spearman predictor and the
 rubric does not beat it on free signals.
 
+### Calibration confirms: the limit is the signals, not the weights
+
+`scripts/calibrate-rb-rubric.ts` grid-searched 729 weight combinations of
+the (now parameterized) RB rubric against the same cohort, objective =
+mean per-year Spearman:
+
+- market (KTC): 0.7181
+- rubric @ default weights: 0.6918 (lift -0.0263)
+- rubric @ BEST of 729 combos: 0.7170 (lift -0.0011)
+
+Even optimally weighted, the rubric only MATCHES the market (within
+noise), never beats it. And the optimizer drove `priorBlend` DOWN
+(0.3 -> 0.15) and the role/OL boosts UP, which is the model telling us to
+lean harder on the market and that the free signals add no independent
+predictive power. So weight calibration is not the lever. Better
+SIGNALS (paid/manual) are, or use the rubric only to explain + flag
+arbitrage at the margin. This is the validate-first evidence behind the
+recommendation to NOT do another free scrape.
+
 ## The integrity problem: four disagreeing definitions of player_signals
 
 This is the root issue, and it is the same "unlinked data" class the
