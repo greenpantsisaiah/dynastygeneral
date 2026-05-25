@@ -193,6 +193,14 @@ function run() {
       games_played: 16,
       carries,
       targets: 40,
+      receptions: null,
+      rec_yards: null,
+      rec_tds: null,
+      air_yards: null,
+      drops: null,
+      rz_targets: null,
+      off_snaps: null,
+      team_off_snaps: null,
     });
     const findWorkload = (ctx: ReturnType<typeof buildInflectionsFromSnapshot>) =>
       ctx[0]?.resolutions

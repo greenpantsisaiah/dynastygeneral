@@ -430,3 +430,77 @@ Preserve every item below; the plan connects them, never deletes them.
   the one true shape before collapsing the other three, or pick another
   and migrate the rubric to it.
 - OL-grade source (3a): PFF is blocked; decide proxy vs null-and-degrade.
+
+---
+
+## Addendum: the "data right" on-ramp (founder greenlit 2026-05-25)
+
+Trigger: a founder doubt (the board ranks unproven incoming rookies above
+a proven young 2nd-year player, the Adonai Mitchell case). The
+investigation confirmed this plan's central thesis from a new angle: the
+board's value is a pure FantasyCalc/KTC market passthrough because Layer 2
+(the rubric) is unwired and Layer 1 (signals) is empty. The product
+cannot hold an opinion that differs from the market.
+
+### Key finding (cheaper Phase 3a on-ramp than recorded above)
+
+A large slice of the usage data the rubric needs is ALREADY in the Sleeper
+`/stats/nfl/{season}` feed we call in `season-stats.ts`, and we discard
+it. The endpoint returns, per player-season: `off_snp` + `tm_off_snp`
+(snap share), `rec_air_yd` (air yards / aDOT), `rec_drop` (drops),
+`rec_rz_tgt` (red-zone targets), `rec`, `rec_yd`, `rec_td`, `rec_yar`. We
+parse only points, `rec_tgt`, and `rush_att`. So a meaningful chunk of
+3a is FREE and autonomous-safe (no prod DB write, no nflverse crosswalk),
+not the "HEAVIER nflverse" track. Verified live 2026-05-25 against
+Mitchell: snap share 35->50%, targets 3.2->4.6/g, air yards 211->373,
+drops 7.3%->2.7%, WR112->WR73 across his rookie->year-2 seasons.
+
+### Grounding verdict (dynasty-canon-keeper role, 2026-05-25)
+
+"Proven production beats unproven at the same market rank" is WEAK /
+likely an artifact at the magnitude observed (forward-PPR autocorrelation
+R-squared ~0.6 + survivorship). The rookie premium that "overranks"
+Mitchell is rationally-priced eliteness (Brill-Wyner 2024, replicating /
+reframing Massey-Thaler 2013): the market buys the right tail, which is
+what a multi-year dynasty asset is for. The DEFENSIBLE signal is
+age-adjusted OPPORTUNITY (target share / weighted opportunity, sticky
+~0.70 YoY, ~0.95 corr with PPR), position-conditioned (strongest QB,
+weakest RB/WR for raw production), wired as a per-player PROJECTION prior,
+NEVER a cross-sectional value override that demotes rookies. Do not bolt a
+"proven" or "rookie" multiplier onto the value scale (same lesson as the
+data-disproven TE down-multiplier).
+
+### Greenlit sequence ("all three, in order", mapped to the phases)
+
+- **Stage 1 (Phase 3a-cheap, free + autonomous-safe).** Harvest the usage
+  we already fetch. Extend `season-stats.ts` (`PlayerSeasonStats`) with
+  snap share, air yards / aDOT, drops, RZ targets, receptions, rec yards.
+  Then surface it through the EnrichedPlayer usage fields. No prod DB
+  write, no new dependency. THIS IS THE STARTING POINT.
+- **Stage 2 (value-scale-safe).** (a) Surface an opportunity/role read on
+  candidate + player cards and the inflection scorecard (layer-2/3 detail
+  per REDESIGN_INTENTIONS, NOT a new panel). (b) Value-metric backtest:
+  forward dynasty VALUE (not PPR), residualized on prior production,
+  washouts included, season-held-out (honest caveat: underpowered until
+  more KTC snapshots are ingested; current corpus is 2022-2024 SF/1QB).
+  (c) Neutral ADP-vs-trade-value divergence surface (lowest leverage).
+- **Stage 3 (Phase 3b/3c, GATED on Stage 1-2 + methodology review).**
+  Build the `EnrichedPlayer` resolver (meta + value + the new usage
+  signals + inflection inputs, missing flagged not nulled); wire
+  `evaluate()` into available-pool scoring + `synthesize`,
+  position-conditioned per the grounding. Gate: the value-metric backtest
+  result + `dynasty-assumption-auditor` on the wired weights. This is
+  where the model finally holds its own opinion.
+- **Parallel (Phase 0/1/2/4).** The correctness + consolidation work
+  (one snapshot per request, posture fix, age-curve canonical, Coach
+  mirror) is independent and de-risks the wiring; ship as the plan states.
+- **Second wave (needs founder authorization of prod Supabase writes).**
+  nflverse usage / draft / combine -> `player_signals`: draft capital
+  (`draft_pick_overall`), an athletic composite (RAS substitute), OL
+  continuity from `snap_counts`. NOT a blocker for the WR opportunity
+  read, which Stage 1 covers from the free feed.
+
+### Decision required from the founder
+
+Authorize production Supabase writes when we reach the second wave
+(nflverse ingestion). Stages 1 and 2 need no authorization and start now.

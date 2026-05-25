@@ -36,6 +36,19 @@ const statsEntrySchema = z
         // signal (career-mileage stays a separate multi-season sum).
         rush_att: z.number().nullable().optional(),
         rec_tgt: z.number().nullable().optional(),
+        // Opportunity signals already present in the same response, kept
+        // per ARCHITECTURE_UNIFICATION_PLAN.md "data right" addendum
+        // (2026-05-25). These are the research-defensible signals
+        // (snap share, air yards / aDOT, red-zone role) the parked rubric
+        // needs; harvesting them here is free (no extra fetch, no DB).
+        rec: z.number().nullable().optional(), // receptions
+        rec_yd: z.number().nullable().optional(),
+        rec_td: z.number().nullable().optional(),
+        rec_air_yd: z.number().nullable().optional(), // total air yards on targets
+        rec_drop: z.number().nullable().optional(),
+        rec_rz_tgt: z.number().nullable().optional(), // red-zone targets
+        off_snp: z.number().nullable().optional(), // player offensive snaps
+        tm_off_snp: z.number().nullable().optional(), // team offensive snaps (snap-share denominator)
       })
       .nullable()
       .optional(),
@@ -54,6 +67,22 @@ export type PlayerSeasonStats = {
   carries: number | null;
   /** Receiving targets this season (Sleeper rec_tgt). Null when absent. */
   targets: number | null;
+  /** Receptions (Sleeper rec). Null when absent. */
+  receptions: number | null;
+  /** Receiving yards (Sleeper rec_yd). Null when absent. */
+  rec_yards: number | null;
+  /** Receiving TDs (Sleeper rec_td). Null when absent. */
+  rec_tds: number | null;
+  /** Total air yards on this player's targets (Sleeper rec_air_yd). */
+  air_yards: number | null;
+  /** Dropped passes (Sleeper rec_drop). Null when absent. */
+  drops: number | null;
+  /** Red-zone targets (Sleeper rec_rz_tgt). Null when absent. */
+  rz_targets: number | null;
+  /** Player offensive snaps (Sleeper off_snp). Null when absent. */
+  off_snaps: number | null;
+  /** Team offensive snaps (Sleeper tm_off_snp): snap-share denominator. */
+  team_off_snaps: number | null;
 };
 
 type CacheEntry = {
@@ -115,6 +144,14 @@ async function fetchSeasonStats(season: string): Promise<CacheEntry> {
       games_played: s.gp ?? s.gms_active ?? null,
       carries: s.rush_att ?? null,
       targets: s.rec_tgt ?? null,
+      receptions: s.rec ?? null,
+      rec_yards: s.rec_yd ?? null,
+      rec_tds: s.rec_td ?? null,
+      air_yards: s.rec_air_yd ?? null,
+      drops: s.rec_drop ?? null,
+      rz_targets: s.rec_rz_tgt ?? null,
+      off_snaps: s.off_snp ?? null,
+      team_off_snaps: s.tm_off_snp ?? null,
     });
   }
   return { byPlayerId, fetchedAt: Date.now() };
@@ -242,4 +279,64 @@ export function productionScore(
   if (totalPts == null) return null;
   const ppg = totalPts / games;
   return ppgScoreForPosition(ppg, position);
+}
+
+/**
+ * Opportunity profile: the research-defensible usage read derived from
+ * the fields harvested above. Per the dynasty-canon-keeper grounding
+ * (2026-05-25), opportunity (snap share, target volume, air yards,
+ * red-zone role) is the signal worth wiring as a per-player projection
+ * prior; raw production stickiness alone is mostly autocorrelation.
+ *
+ * All fields are null when their inputs are absent (older seasons, IDP,
+ * pre-rotation rookies). Callers degrade gracefully. Pure function; no
+ * fetch. Registered as the canonical opportunity read when it surfaces.
+ */
+export type OpportunityProfile = {
+  /** Snap share 0-1 (player offensive snaps / team offensive snaps). */
+  snap_share: number | null;
+  /** Targets per game. */
+  targets_per_game: number | null;
+  /** Average depth of target: air yards / targets. */
+  adot: number | null;
+  /** Drop rate 0-1: drops / targets. */
+  drop_rate: number | null;
+  /** Red-zone targets per game. */
+  rz_targets_per_game: number | null;
+  /** Raw targets (echoed for convenience). */
+  targets: number | null;
+};
+
+export function buildOpportunityProfile(
+  stats: PlayerSeasonStats | undefined,
+): OpportunityProfile {
+  const empty: OpportunityProfile = {
+    snap_share: null,
+    targets_per_game: null,
+    adot: null,
+    drop_rate: null,
+    rz_targets_per_game: null,
+    targets: null,
+  };
+  if (!stats) return empty;
+  const games = stats.games_played ?? 0;
+  const tgt = stats.targets;
+  return {
+    snap_share:
+      stats.off_snaps != null &&
+      stats.team_off_snaps != null &&
+      stats.team_off_snaps > 0
+        ? Math.max(0, Math.min(1, stats.off_snaps / stats.team_off_snaps))
+        : null,
+    targets_per_game: tgt != null && games > 0 ? tgt / games : null,
+    adot:
+      stats.air_yards != null && tgt != null && tgt > 0
+        ? stats.air_yards / tgt
+        : null,
+    drop_rate:
+      stats.drops != null && tgt != null && tgt > 0 ? stats.drops / tgt : null,
+    rz_targets_per_game:
+      stats.rz_targets != null && games > 0 ? stats.rz_targets / games : null,
+    targets: tgt,
+  };
 }
