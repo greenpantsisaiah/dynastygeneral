@@ -57,3 +57,9 @@ Before making any structural UI / layout / IA decision, read the redesign intent
 Voice A is the brand. Voice C is rejected. No em dashes. No hedging openers. No linkbait. Numbers always have units and reachable provenance.
 
 @BRAND_VOICE.md
+
+# Team onboarding (collaborators)
+
+The shared orientation for anyone joining the Green Pants Studio work on this repo (the founder + collaborators). Carries the positioning, the marketing-relevant product story, the brand voice in brief, and the git flow. This is co-owned: update it in the repo as the shared knowledge grows, rather than letting it live only in a single machine's local memory.
+
+@ONBOARDING.md
