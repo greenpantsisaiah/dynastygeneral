@@ -3,7 +3,7 @@
  * within 5 picks of their turn. Integrates starter holes, path drift,
  * scarcity math, pick density, and next-picks plan into one call.
  *
- * Server component. Composes synthesizeDecision() output from the
+ * Server component. Composes resolveStandingDecision output from the
  * league page. Embeds AskCoachButton (client) so the user can escalate
  * the call to conversation without losing context.
  *

@@ -43,7 +43,9 @@ export type IntegrityKind =
   | "cache_stale"
   | "starter_reqs_drift"
   | "availability_incoherent"
-  | "cross_source_position";
+  | "cross_source_position"
+  | "weak_recommendation"
+  | "pricing_unresolved";
 
 export type IntegritySeverity = "severe" | "warning";
 
@@ -82,6 +84,8 @@ export function runEngineIntegrityChecks(args: {
   issues.push(...runStarterReqsConsistencyCheck(args));
   issues.push(...runAvailabilityCoherenceCheck(args));
   issues.push(...runCrossSourcePositionCheck(args));
+  issues.push(...runDecisionStrengthCheck(args));
+  issues.push(...runPricingResolutionCheck(args));
 
   const severe = issues.filter((i) => i.severity === "severe");
   const warnings = issues.filter((i) => i.severity === "warning");
@@ -409,6 +413,81 @@ function runCrossSourcePositionCheck(args: {
     if (issues.length >= 5) break;
   }
   return issues;
+}
+
+// 11. Decision strength (self-audit). The standing call should be the
+// strongest GETTABLE player at its position. When the decision surfaces a
+// SAFE (likely_here), materially higher-VALUE same-position candidate but
+// recommends a weaker one, the engine has drifted toward a fringe pick.
+// This is the runtime smoke alarm for the bug class the 2026-05-24
+// board/Coach divergence belonged to: a starter hole filled with a
+// coin-flip fringe player while a safe, better player at the same
+// position sat on the board. It reads ONLY the decision object (the
+// engine's own surfaced candidates), so it catches the symptom whatever
+// the upstream cause. Warning, not severe: legitimate edges exist (a
+// reason the candidate set does not encode), but every fire is worth a
+// human glance via ?diagnose=1 + the Vercel log.
+const WEAK_RECOMMENDATION_VALUE_GAP = 15;
+function runDecisionStrengthCheck(args: {
+  decision: Decision | null;
+}): IntegrityIssue[] {
+  const decision = args.decision;
+  if (!decision) return [];
+  const call = decision.recommendation;
+  const callValue = call.value;
+  if (typeof callValue !== "number") return [];
+  const callPos = call.position;
+  if (!callPos) return [];
+  let strongerSafe: { name: string; value: number } | null = null;
+  for (const c of decision.quadrant_candidates) {
+    if (c.player_id === call.player_id) continue;
+    if (c.position !== callPos) continue;
+    if (typeof c.value !== "number") continue;
+    // A safe alternative has no survival excuse for being passed over.
+    if (c.availability_next_pick !== "likely_here") continue;
+    if (c.value - callValue < WEAK_RECOMMENDATION_VALUE_GAP) continue;
+    if (!strongerSafe || c.value > strongerSafe.value) {
+      strongerSafe = { name: c.name, value: c.value };
+    }
+  }
+  if (!strongerSafe) return [];
+  const gap = Math.round(strongerSafe.value - callValue);
+  return [
+    {
+      kind: "weak_recommendation",
+      severity: "warning",
+      headline: `Standing call ${call.name} (${callPos}, value ${Math.round(callValue)}) is weaker than safe same-position option ${strongerSafe.name} (value ${Math.round(strongerSafe.value)})`,
+      detail: `The board surfaced ${strongerSafe.name} as likely to still be available at the user's pick AND ${gap} value points higher at the same position, yet the call is ${call.name}. Either the standing-call selection is drifting toward a fringe pick (the 2026-05-24 board/Coach class) or the divergence has a reason the candidate set does not encode. Verify the selection.`,
+      evidence: `call ${call.player_id} value ${Math.round(callValue)}, alt ${strongerSafe.name} value ${Math.round(strongerSafe.value)}, gap ${gap}, threshold ${WEAK_RECOMMENDATION_VALUE_GAP}`,
+    },
+  ];
+}
+
+// 12. Pricing resolution (fail loud, not silent-wrong). The consensus
+// rerank cascade ranks priced players (KTC value) above ADP-only and
+// raw-search-rank players. When the value map comes back EMPTY for a
+// non-empty pool, every player falls to the fallback tiers and the board
+// silently ranks by Sleeper search_rank, which is NFL-relevance, not
+// dynasty value. That is a confident-but-wrong board, the worst failure
+// mode. Surface it loudly (severe -> danger banner + log) so the user
+// knows the rankings are degraded rather than trusting a bad order.
+// FantasyCalc being down is a legitimate cause; the honest move is still
+// to say so, not to render a degraded board as authoritative.
+function runPricingResolutionCheck(args: {
+  available: AvailablePlayer[];
+  playerValues: Map<string, PlayerValue>;
+}): IntegrityIssue[] {
+  if (args.available.length === 0) return [];
+  if (args.playerValues.size > 0) return [];
+  return [
+    {
+      kind: "pricing_unresolved",
+      severity: "severe",
+      headline: `Player values failed to resolve for ${args.available.length} available players; rankings are degraded`,
+      detail: `The FantasyCalc value map is empty for a non-empty pool, so the consensus rerank fell back to Sleeper search_rank (NFL relevance, not dynasty value). Standing call, candidate ordering, and trade math are unreliable until values resolve. Likely cause: FantasyCalc fetch or cache failure.`,
+      evidence: `available ${args.available.length}, priced 0`,
+    },
+  ];
 }
 
 export function summarizeIntegrityReport(report: IntegrityReport): string {
