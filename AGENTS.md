@@ -6,7 +6,7 @@ This version has breaking changes. APIs, conventions, and file structure may all
 
 # Multi-session workflow (worktrees + shipping to prod)
 
-The founder runs several Claude sessions at once and is NOT technical. You own all git. Never ask the founder to run git commands, resolve a merge, or reason about branches. They start a session with `dg-new <name>`. The project-local launcher is `../dg-new` (a sibling of `web/`, and usually on PATH). They ship by saying "ship it."
+The founder runs several Claude sessions at once and is NOT technical. You own all git. Never ask the founder to run git commands, resolve a merge, or reason about branches. They start a session with `dg-new <name>`. The session launchers (`dg-session`, which Warp auto-runs per tab, plus `dg-new` and `dg-clean`) live in `~/.local/bin` on PATH; each hardcodes the `web/` main-worktree path (override with `DG_MAIN_WT`). They ship by saying "ship it."
 
 ## Isolation: one session, one worktree, one branch
 
