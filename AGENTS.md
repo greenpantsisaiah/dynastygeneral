@@ -6,7 +6,7 @@ This version has breaking changes. APIs, conventions, and file structure may all
 
 # Multi-session workflow (worktrees + shipping to prod)
 
-The founder runs several Claude sessions at once and is NOT technical. You own all git. Never ask the founder to run git commands, resolve a merge, or reason about branches. They start a session with `dg-new <name>` (launcher at `../dg-new`, a sibling of `web/`) and ship by saying "ship it."
+The founder runs several Claude sessions at once and is NOT technical. You own all git. Never ask the founder to run git commands, resolve a merge, or reason about branches. They start a session with `dg-new <name>`. The project-local launcher is `../dg-new` (a sibling of `web/`, and usually on PATH). They ship by saying "ship it."
 
 ## Isolation: one session, one worktree, one branch
 
@@ -21,8 +21,9 @@ Vercel deploys production on every push to `main` and builds a preview URL for e
 1. `npm run build` clean (zero warnings) AND `npm test` all green. If not, fix before shipping; do not ship red.
 2. Commit your work to your `work/<name>` branch.
 3. `git push -u origin work/<name>` (a branch push, never a main push).
-4. `gh pr create --fill --base main`, then `gh pr merge --squash --delete-branch`. The squash-merge advances `origin/main`, which triggers the Vercel production deploy.
+4. `gh pr create --fill --base main`, then `gh pr merge --squash`. Intentionally omit `--delete-branch` inside a worktree; that cleanup path can print a false "`main` is already used by worktree" error even when the merge succeeded.
 5. Tell the founder it is live in plain language, with the production URL (dynastygeneral.app) and the PR preview URL if a visual check helps.
+6. After merge, retire the worktree with `git worktree remove <path>`. If needed, prune the remote branch from a non-worktree checkout: `git -C ../web push origin --delete work/<name>`.
 
 NEVER run `git push origin main` directly. It bypasses this flow, races other sessions, and trips the safety classifier. Main advances only through merged PRs.
 

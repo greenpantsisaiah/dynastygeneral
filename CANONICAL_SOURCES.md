@@ -144,6 +144,16 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Canonical**: `getAvailablePlayers(...)` (filtered by `picks_made` during active draft, by `roster.players` union otherwise) + KTC harmonization across the FULL pool
 - **Anti-pattern**: filtering by `team != null`. Pre-NFL-draft rookies have `team: null`; the filter silently excludes them. Lint rule "no team!=null player-pool filter" enforces this.
 
+### Priced decision pool (the synthesize prelude)
+
+- **Canonical**: `buildPricedPool(snap)` in `src/lib/strategy/decision-synthesis/priced-pool.ts`
+- **Returns**: `{ available, valueMap, playerValuesById, ktcOverallRanksById }`. Fetches the realistic available pool (`getAvailableForRequest`), prices EVERY rostered player across the league PLUS the full available pool (`resolvePlayerValues`), reranks `available` by the consensus cascade (`rerankByConsensus`), and annotates the snapshot in place with value-calibrated startable / stable depth (`annotateStartableDepth`).
+- **Inputs**: the league snapshot. MUTATES it (startable-depth annotation), the same in-place contract the inline callers relied on.
+- **Consumers**: the hub board (`leagues/[leagueId]/page.tsx`) and Coach (`api/coach/[leagueId]/route.ts`). BOTH must build the synthesize inputs through this helper so their `synthesizeDecision` calls receive identical pool + values + depth and the standing call cannot diverge between surfaces.
+- **Load-bearing detail**: pricing ALL rosters (not `me + available`) is required because the startable-depth tier is built from priced bodies only; omitting opponents inflates the user's own startable counts and silently flips the `fill_starter` + saturation gates. It also keeps the leaguewide rank metric honest (unpriced opponents -> "Lead X pts (100%)").
+- **Anti-pattern**: a hand-rolled `getAvailableForRequest` -> `resolvePlayerValues` -> `rerankByConsensus` -> `annotateStartableDepth` prelude inline in any surface, or pricing only `me + available` before synthesizing/annotating. Import `buildPricedPool`.
+- **Bug class avoided**: 2026-05-24 the hub board recommended Jaylin Noel while Coach recommended Adonai Mitchell for the same pick; Coach priced only `me + available` so its startable annotation inflated and suppressed the WR fill that the hub fired. Two hand-copied preludes had drifted on the opponent-pricing line.
+
 ### Structural constraint state (hold-pick-equity gating)
 
 - **Canonical**: `analyzeLeagueRead(args)` in `src/lib/strategy/league-read/analyze.ts`. Returns `StructuralConstraint[]` with fields `positions_unfilled`, `starter_gap_by_position`, `total_starter_gap`, `picks_remaining`, `unrecoverable_severity`, `early_round_pick_equity`, `is_active`, `guardrail_message`.
@@ -191,7 +201,7 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Inputs**: snapshot (for `buildFormatRulesFromSnapshot(snap)` access), play type
 - **Use**: `canEmitPlay` consults the matrix + `format_rules` before emitting a play. The engine MUST NOT emit a play whose gates are unsatisfied.
 - **Anti-pattern**: per-play-type if/else format checks scattered across emission code. One matrix, one gate.
-- **Bug class avoided**: 2026-05-20 founder report "The platform has been over-prioritizing TEs in my no-TEP league." Two-pronged fix: (1) gate TE-Premium Double-Up play at emission via `requires_te_premium: true` matrix entry; (2) fix non-TEP TE EV overweighting in scoring (tracked separately via `dynasty-bug-investigator`).
+- **Bug class avoided**: 2026-05-20 founder report "The platform has been over-prioritizing TEs in my no-TEP league." Two-pronged fix: (1) gate TE-Premium Double-Up play at emission via `requires_te_premium: true` matrix entry; (2) fix non-TEP TE EV overweighting in scoring (tracked separately via the debug workflow).
 
 ### Companion beat classification (the emotional ROI loop)
 

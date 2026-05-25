@@ -23,6 +23,10 @@ const LATEST_VERSION = "2026-05-24";
 
 const CHANGES: Change[] = [
   {
+    tag: "ONE CALL, BOARD + COACH",
+    text: "The board and Coach now compute the standing call from one priced pool, so they name the same player. A starter-hole pick weighs player value, not just snipe-risk, so strong fallers stay on the board.",
+  },
+  {
     tag: "AGING-RB SIGNALS",
     text: "Aging-RB cards now read real prior-season workload and career mileage from carries, not \"data missing.\"",
   },

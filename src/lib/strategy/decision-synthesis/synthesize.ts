@@ -1012,6 +1012,7 @@ function buildCandidates(
   currentPickNo: number,
   gapAnalysis: OpponentGapAnalysis,
   dials: SynthesisDials,
+  playerValues: Record<string, number>,
 ): ScoredCandidate[] {
   const me = snap.rosters.find((r) => r.is_me);
   if (!me) return [];
@@ -1091,15 +1092,41 @@ function buildCandidates(
     if (startableHaveFor(me, pos) >= reqs[pos]) continue;
     const fillCandidates = topAtPos(available, pos, 5);
     if (fillCandidates.length === 0) continue;
-    // Pick the top-by-position candidate weighted by survival. Window-
-    // aware penalty layer retired 2026-05-12; rule scoring is now pure.
+    // Select the fill candidate with the highest EXPECTED GETTABLE VALUE
+    // = consensus value × survival to the user's pick. The retired
+    // tiebreaker scored purely on snipe-risk (100 if endangered, 60 if
+    // safe), so a fringe coin-flip player beat a safe, higher-value one
+    // at the same hole. Bug 2026-05-24: a round-18 WR hole crowned a
+    // coin-flip rank-#90 WR (Jaylin Noel) over a safe, higher-value WR
+    // (Adonai Mitchell), who then fell off the board entirely. Survival
+    // weighting at the final sort already demotes unreachable picks; this
+    // mirrors it at selection so we neither reach for an unreachable #1
+    // nor ignore value for snipe-risk. Same value-over-flat-urgency
+    // lesson as the Warren/Judkins/Andrews scoring fixes. fillCandidates
+    // is value-sorted (consensus cascade), so the index is the fallback
+    // value proxy when a player is unpriced.
     let top: AvailablePlayer | null = null;
-    let bestNetScore = -Infinity;
-    for (const c of fillCandidates) {
-      const cAvail = availabilityAt(c, nextUserPickNo);
-      const baseScore = cAvail !== "likely_here" ? 100 : 60;
-      if (baseScore > bestNetScore) {
-        bestNetScore = baseScore;
+    let bestExpected = -Infinity;
+    for (let idx = 0; idx < fillCandidates.length; idx++) {
+      const c = fillCandidates[idx];
+      const pct = survivalPctFor({
+        player: c,
+        availability: availabilityAt(c, nextUserPickNo),
+        signal: opponentSignalForCandidate({ player: c, gap: gapAnalysis }),
+        available,
+        gap: gapAnalysis,
+      });
+      // Floor survival at 5% so a vastly-more-valuable but endangered #1
+      // is not zeroed outright; if he still wins he fires urgent below.
+      const surv = Math.max((typeof pct === "number" ? pct : 50) / 100, 0.05);
+      const priced = playerValues[c.id];
+      const valueScore =
+        typeof priced === "number" && Number.isFinite(priced)
+          ? priced
+          : fillCandidates.length - idx;
+      const expected = valueScore * surv;
+      if (expected > bestExpected) {
+        bestExpected = expected;
         top = c;
       }
     }
@@ -1130,7 +1157,7 @@ function buildCandidates(
     // 2026-05-08: a single `gap` was conflated and produced "ADP 54 is
     // 11 picks past consensus" for a Judkins pick whose actual gap was
     // 2 picks. Coach correctly said "1 pick past consensus." Per
-    // dynasty-bug-investigator triage, the body copy needs both gaps.
+    // bug triage, the body copy needs both gaps.
     const gapToNext =
       typeof adp === "number" ? Math.round(adp - nextUserPickNo) : null;
     const gapToCurrent =
@@ -1847,7 +1874,7 @@ function buildEmergencyTradeUp(
   //                      that he's still in the available pool despite
   //                      ADP suggests the league reached less than
   //                      expected; he may simply still be there.
-  // Per dynasty-bug-investigator 2026-04-23 (was firing on 17-slot gaps
+  // Per bug triage 2026-04-23 (was firing on 17-slot gaps
   // with hardcoded "1-2 slots" copy that contradicted the Coach).
   const TRADE_UP_MIN_SLOTS = 1;
   const TRADE_UP_MAX_SLOTS = 5;
@@ -1930,6 +1957,7 @@ export function synthesizeDecision(args: {
     current.pick_no,
     gapAnalysis,
     dials,
+    playerValues,
   );
   if (candidates.length === 0) return null;
 

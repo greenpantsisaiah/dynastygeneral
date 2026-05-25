@@ -751,7 +751,7 @@ Known suppression: TE-Premium Double-Up requires `te_premium: true`.
 This is the non-TEP TE overweighting bug class (founder report
 2026-05-20). The bug also lives in `decision-synthesis/synthesize.ts`
 scoring where TE EV gets over-weighted in non-TEP standing calls;
-separate fix tracked outside this spec via `dynasty-bug-investigator`.
+separate fix tracked outside this spec via the debug workflow.
 
 ### Play type catalog (initial)
 
