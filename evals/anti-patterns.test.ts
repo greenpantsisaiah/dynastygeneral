@@ -395,6 +395,10 @@ const STRATEGY_SNAPSHOT = resolve(
     "format_rules",
     "pricing",
     "posture",
+    // Recoverability slack (analyzeLeagueRead -> structural_constraints:
+    // picks_remaining vs total_starter_gap) is the league-size lever for
+    // the chase-vs-skip-a-run calibration; Coach cites it by name.
+    "league_read",
   ];
   console.log("\n── coach mirrors the canonical engine outputs ──");
   {
