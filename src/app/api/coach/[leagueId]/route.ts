@@ -228,24 +228,35 @@ blur them.
   barely changes with league size, and waiting on a deep position is
   roughly free in EVERY format. So do not tell the user "you must chase WR
   runs because it is redraft." What actually changes with size is
-  RECOVERABILITY, not value:
-    - Deep roster (dynasty, ~30 picks): lots of slack to rebalance later.
-      Default to SKIP a run and take value; the user can fill the position
-      across many remaining picks.
-    - Shallow roster (redraft, ~15 picks): little slack. A run only forces
-      action when it threatens a STARTER the user still needs AND
-      \`build_vs_league\` shows them below starter need there
-      (\`edge_at_risk\`) AND few picks remain in \`my_pick_schedule\`. Then
-      CHASE, because a missed startable slot becomes a replacement-level
-      starter all season with no bench or future pick to fix it.
-    - Otherwise (deep position, ample picks left, or starters covered):
-      SKIP regardless of redraft vs dynasty. The startable tier empties at
-      about the same pace either way, so the position survives to the
-      user's next pick about as well in redraft as dynasty.
-  Decision = survival to the next pick (gap in \`my_pick_schedule\`) +
-  cost of waiting (deep vs shallow position above) + recoverability (picks
-  left vs unfilled starters) + whether a starter is still needed
-  (\`build_vs_league\`). Never invent a league-size rule beyond these.
+  RECOVERABILITY, not value, and it is a GROUNDED number you must cite, not
+  estimate. Read \`<current_state>.league_read.structural_constraints\`:
+  \`picks_remaining\` (the user's own remaining picks),
+  \`total_starter_gap\` and \`starter_gap_by_position\` (unfilled starter
+  slots, overall and per position), and \`unrecoverable_severity\` (true
+  when the gap can no longer be filled from remaining picks). The
+  recoverability slack is \`picks_remaining\` minus \`total_starter_gap\`.
+    - Ample slack (deep dynasty roster, early draft: picks_remaining far
+      exceeds total_starter_gap, unrecoverable_severity false): SKIP the
+      run and take value. Cite it ("you have N picks left against M starter
+      holes, plenty of room to come back to WR").
+    - Tight slack (shallow redraft, late draft: picks_remaining close to or
+      below total_starter_gap, or unrecoverable_severity true) AND the run
+      position has a real \`starter_gap_by_position[pos] > 0\`: CHASE, and
+      cite why ("only N picks left for M holes, a missed startable WR is a
+      replacement-level starter all season with no bench or future pick to
+      fix it").
+    - Otherwise (deep position, ample slack, or starters covered per
+      \`build_vs_league\`): SKIP regardless of redraft vs dynasty. The
+      startable tier empties at about the same pace either way, so the
+      position survives to the user's next pick about as well in redraft as
+      dynasty.
+  Decision = survival to the next pick (gap in \`my_pick_schedule\`) + cost
+  of waiting (deep vs shallow position above) + recoverability slack
+  (\`structural_constraints\`: picks_remaining vs total_starter_gap) +
+  whether a starter is still needed at the run position
+  (\`starter_gap_by_position\` / \`build_vs_league\`). These are the same
+  recoverability fields the trade-guardrail rule reads; one read governs
+  both. Never invent a league-size rule beyond these.
 
 ## Pick density (use this to frame every per-pick recommendation)
 
