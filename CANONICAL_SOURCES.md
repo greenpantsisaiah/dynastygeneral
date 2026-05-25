@@ -154,6 +154,14 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: a hand-rolled `getAvailableForRequest` -> `resolvePlayerValues` -> `rerankByConsensus` -> `annotateStartableDepth` prelude inline in any surface, or pricing only `me + available` before synthesizing/annotating. Import `buildPricedPool`.
 - **Bug class avoided**: 2026-05-24 the hub board recommended Jaylin Noel while Coach recommended Adonai Mitchell for the same pick; Coach priced only `me + available` so its startable annotation inflated and suppressed the WR fill that the hub fired. Two hand-copied preludes had drifted on the opponent-pricing line.
 
+### Standing decision (single production path)
+
+- **Canonical**: `resolveStandingDecision(args)` in `src/lib/strategy/decision-synthesis/decision-bundle.ts`
+- **Returns**: `Decision | null`. The ONE production entry point that calls `synthesizeDecision`. Both the hub board and Coach call this; `synthesizeDecision` is never called directly in app code.
+- **Inputs**: `{ snap, ranked, available, windows, picksUntilMe, playerValues, ktcOverallRanks, dials }`. The `available` + `playerValues` + `ktcOverallRanks` MUST come from `buildPricedPool` (all-rosters priced).
+- **Anti-pattern**: a direct `synthesizeDecision(...)` call in any surface. A new decision surface that hand-builds the prelude can feed a divergent value map or dials, the board/Coach divergence class. Lint rule "no direct synthesizeDecision call (use resolveStandingDecision)" bans the call paren outside `synthesize.ts` (the definition) and `decision-bundle.ts` (the wrapper).
+- **Bug class avoided**: 2026-05-24 board/Coach divergence. With one door fed by the canonical priced pool, a future surface cannot reintroduce a parallel decision derivation.
+
 ### Structural constraint state (hold-pick-equity gating)
 
 - **Canonical**: `analyzeLeagueRead(args)` in `src/lib/strategy/league-read/analyze.ts`. Returns `StructuralConstraint[]` with fields `positions_unfilled`, `starter_gap_by_position`, `total_starter_gap`, `picks_remaining`, `unrecoverable_severity`, `early_round_pick_equity`, `is_active`, `guardrail_message`.

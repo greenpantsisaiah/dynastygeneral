@@ -52,7 +52,7 @@ import {
 } from "@/lib/engine/inflection";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
-import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
+import { resolveStandingDecision } from "@/lib/strategy/decision-synthesis/decision-bundle";
 import { buildPricedPool } from "@/lib/strategy/decision-synthesis/priced-pool";
 import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
@@ -1036,17 +1036,17 @@ export async function POST(
   // saturation gates read the same depth the hub board does.
 
   // request if synthesis errors; coach can still reason from context.
-  let decision: Awaited<ReturnType<typeof synthesizeDecision>> | null = null;
+  let decision: ReturnType<typeof resolveStandingDecision> = null;
   try {
     if (available.length > 0) {
-      decision = synthesizeDecision({
+      decision = resolveStandingDecision({
         snap: snapshot,
         ranked,
         available,
         windows,
-        picks_until_me: pickApproach?.picks_until_me ?? 0,
-        player_values: coachPlayerValues,
-        ktc_overall_ranks: coachKtcOverallRanks,
+        picksUntilMe: pickApproach?.picks_until_me ?? 0,
+        playerValues: coachPlayerValues ?? {},
+        ktcOverallRanks: coachKtcOverallRanks ?? {},
         dials: dialsForSynthesisFrom(effectiveDialsForCoach),
       });
     }

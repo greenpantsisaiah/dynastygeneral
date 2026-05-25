@@ -90,6 +90,22 @@ const RULES: Rule[] = [
       join(SRC, "lib", "strategy", "ev-bank", "formula.ts"),
     ],
   },
+  // The standing decision has ONE production path: resolveStandingDecision
+  // (decision-bundle.ts), fed by buildPricedPool. Calling synthesizeDecision
+  // directly lets a surface hand-build a divergent prelude (different value
+  // coverage, different dials), the 2026-05-24 board/Coach divergence class.
+  // Only the definition and the wrapper may name it with a call paren.
+  {
+    name: "no direct synthesizeDecision call (use resolveStandingDecision)",
+    why: "The standing decision must be produced through resolveStandingDecision (decision-bundle.ts), the single production path fed by buildPricedPool. A direct synthesizeDecision call lets a surface hand-build a divergent prelude, the board/Coach bug class. Per CANONICAL_SOURCES.md.",
+    pattern: /synthesizeDecision\(/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "strategy", "decision-synthesis", "synthesize.ts"),
+      join(SRC, "lib", "strategy", "decision-synthesis", "decision-bundle.ts"),
+    ],
+  },
   // Roster identity must go through isRosterOwnedBy, which checks
   // co_owners. Resolving "is this my roster" by owner_id alone silently
   // mis-identifies co-owned teams, a trust-breaking bug class

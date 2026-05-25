@@ -52,11 +52,9 @@ import { enrichPlaysFromHere } from "@/lib/strategy/plays-from-here/enrich";
 import type { ResolvedPlayFromHere } from "@/lib/strategy/plays-from-here/types";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import type { PickApproach as PickApproachData } from "@/lib/strategy/pick-approach/types";
-import {
-  synthesizeDecision,
-  buildSurvivalResolver,
-} from "@/lib/strategy/decision-synthesis/synthesize";
+import { buildSurvivalResolver } from "@/lib/strategy/decision-synthesis/synthesize";
 import { buildPricedPool } from "@/lib/strategy/decision-synthesis/priced-pool";
+import { resolveStandingDecision } from "@/lib/strategy/decision-synthesis/decision-bundle";
 import {
   dialsForSynthesisFrom,
   type Decision,
@@ -814,14 +812,14 @@ export default async function LeagueHubPage({
             leagueId,
             globalProfile: profileForDials,
           });
-          decision = synthesizeDecision({
+          decision = resolveStandingDecision({
             snap: snapshot,
             ranked: rankedArchetypes,
             available: availablePlayers,
             windows,
-            picks_until_me: pickApproach?.picks_until_me ?? 0,
-            player_values: playerValuesByIdJson,
-            ktc_overall_ranks: ktcOverallRanksByIdJson,
+            picksUntilMe: pickApproach?.picks_until_me ?? 0,
+            playerValues: playerValuesByIdJson,
+            ktcOverallRanks: ktcOverallRanksByIdJson,
             dials: dialsForSynthesisFrom(effectiveDials),
           });
         } catch (err) {
