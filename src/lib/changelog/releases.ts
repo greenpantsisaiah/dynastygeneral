@@ -33,6 +33,22 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-05-25",
+    title: "Earned role, read from the box score",
+    summary:
+      "Aging-cliff cards and Coach now read each player's earned opportunity (snap share and targets), not just his name.",
+    changes: [
+      {
+        tag: "EARNED OPPORTUNITY",
+        text: "Aging WR, TE, and RB cards now show a snap-share-plus-targets signal pulled from last season's box score: a rising role argues the player holds up, an eroding one is the cliff's leading edge. The numbers come from the free stats feed already fetched, so no card waits on data it could have shown.",
+      },
+      {
+        tag: "COACH READS ROLE",
+        text: "Coach now carries each of your players' prior-season snap share, targets per game, average depth of target, red-zone targets, and drop rate, and grounds every role claim in them. A young player whose role climbed reads as buy-the-trajectory; a featured name whose role slipped reads as the early warning. Opportunity informs the projection, never overrides market value.",
+      },
+    ],
+  },
+  {
     version: "2026-05-24",
     title: "One priced pool, sharper signals",
     summary:

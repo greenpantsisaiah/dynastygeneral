@@ -141,6 +141,22 @@ const RULES: Rule[] = [
       join(SRC, "lib", "strategy", "archetypes", "schema.ts"),
     ],
   },
+  // Snap share (and the rest of the opportunity read: aDOT, drop rate,
+  // RZ role) must come from buildOpportunityProfile (season-stats.ts),
+  // the canonical opportunity read. Dividing player snaps by team snaps
+  // inline re-derives snap share and drifts from the canonical (the
+  // clamp, the zero-denominator guard, the null handling). Only the
+  // canonical may divide by team_off_snaps.
+  {
+    name: "no inline snap-share derivation (use buildOpportunityProfile)",
+    why: "Snap share must be derived by buildOpportunityProfile (players/season-stats.ts), which clamps 0-1 and guards a zero denominator. Dividing by team_off_snaps inline re-derives it and drifts. Per CANONICAL_SOURCES.md.",
+    pattern: /\/\s*[A-Za-z0-9_.]*team_off_snaps\b/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "players", "season-stats.ts"),
+    ],
+  },
   // QB starter math is the most-bugged pattern: SF / 2QB leagues have
   // their second QB slot in starter_slots.superflex, NOT in
   // starter_slots.hard.QB. Reading hard.QB without adding superflex,
@@ -415,6 +431,12 @@ const STRATEGY_SNAPSHOT = resolve(
     // picks_remaining vs total_starter_gap) is the league-size lever for
     // the chase-vs-skip-a-run calibration; Coach cites it by name.
     "league_read",
+    // Per-player opportunity read (snap share / targets / aDOT / RZ role)
+    // must be computed via the canonical buildOpportunityProfile, not a
+    // re-derived inline snap-share math, so chat and the inflection cards
+    // cite identical numbers. Asserting the canonical call (not just a
+    // field name) is the stronger "same computed object" check.
+    "buildOpportunityProfile",
   ];
   console.log("\n── coach mirrors the canonical engine outputs ──");
   {

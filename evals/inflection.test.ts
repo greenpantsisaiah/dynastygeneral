@@ -23,11 +23,15 @@
  */
 
 import { resolveInflectionWindow } from "../src/lib/engine/inflection/resolve";
+import { buildOpportunitySignal } from "../src/lib/engine/inflection/opportunity-signal";
 import type { InflectionInputs } from "../src/lib/engine/inflection/types";
 import { buildInflectionsFromSnapshot } from "../src/lib/engine/inflection/from-snapshot";
 import type { LeagueSnapshot } from "../src/lib/strategy/league-state/snapshot";
 import type { SleeperPlayer } from "../src/lib/sleeper/schemas";
-import type { PlayerSeasonStats } from "../src/lib/players/season-stats";
+import type {
+  OpportunityProfile,
+  PlayerSeasonStats,
+} from "../src/lib/players/season-stats";
 
 let passed = 0;
 let failed = 0;
@@ -67,15 +71,17 @@ function run() {
   console.log("\n── 1. Aging RB, no usage data (the live hub case) ──");
   {
     // What from-snapshot.ts actually builds: roster signals only, no
-    // career/prev-season carries. 4 of 5 signals go data_missing.
+    // career/prev-season carries/opportunity. 5 of 6 signals go
+    // data_missing (the opportunity signal added 2026-05-25 is blind
+    // here too, since baseInputs carries no prior-season role data).
     const r = resolveInflectionWindow(
       "aging_cliff_rb",
       baseInputs({ player_name: "Saquon Barkley" }),
     );
     const cs = r.confidence_summary;
     check(
-      "4 of 5 signals data missing",
-      cs.data_missing_count === 4 && r.signals.length === 5,
+      "5 of 6 signals data missing",
+      cs.data_missing_count === 5 && r.signals.length === 6,
       cs.text,
     );
     check(
@@ -133,8 +139,9 @@ function run() {
 
   console.log("\n── 3. Aging RB WITH usage data: more live signals, no false caveat ──");
   {
-    // Career mileage + workload trend now resolve; only the two v2
-    // hardcoded signals (athletic decline, OL trajectory) stay missing.
+    // Career mileage + workload trend now resolve; the two v2 hardcoded
+    // signals (athletic decline, OL trajectory) plus the opportunity
+    // signal (no role data supplied here) stay missing.
     const r = resolveInflectionWindow(
       "aging_cliff_rb",
       baseInputs({
@@ -145,8 +152,8 @@ function run() {
     );
     const cs = r.confidence_summary;
     check(
-      "three signals live, two missing",
-      cs.live_signal_count === 3 && cs.data_missing_count === 2,
+      "three signals live, three missing",
+      cs.live_signal_count === 3 && cs.data_missing_count === 3,
       cs.text,
     );
     check(
@@ -258,6 +265,167 @@ function run() {
       "without careerUsage, mileage is data_missing (graceful)",
       mileageWithout != null && mileageWithout.direction === "data_missing",
       mileageWithout?.direction ?? "none",
+    );
+  }
+
+  console.log("\n── 5. buildOpportunitySignal direction is trend-based ──");
+  {
+    const prof = (over: Partial<OpportunityProfile>): OpportunityProfile => ({
+      snap_share: null,
+      targets_per_game: null,
+      adot: null,
+      drop_rate: null,
+      rz_targets_per_game: null,
+      targets: null,
+      ...over,
+    });
+
+    const rising = buildOpportunitySignal({
+      position: "WR",
+      prev: prof({ snap_share: 0.5, targets_per_game: 4.6 }),
+      prevPrev: prof({ snap_share: 0.35, targets_per_game: 3.2 }),
+    });
+    check(
+      "rising snap share reads story_a (continued role)",
+      rising.direction === "story_a" && /up 15 pts/.test(rising.observation ?? ""),
+      rising.observation ?? "none",
+    );
+
+    const falling = buildOpportunitySignal({
+      position: "WR",
+      prev: prof({ snap_share: 0.45 }),
+      prevPrev: prof({ snap_share: 0.65 }),
+    });
+    check(
+      "eroding snap share reads story_b (cliff edge)",
+      falling.direction === "story_b" && /down 20 pts/.test(falling.observation ?? ""),
+      falling.observation ?? "none",
+    );
+
+    const stable = buildOpportunitySignal({
+      position: "WR",
+      prev: prof({ snap_share: 0.62 }),
+      prevPrev: prof({ snap_share: 0.6 }),
+    });
+    check("stable snap share reads neutral", stable.direction === "neutral");
+
+    const missing = buildOpportunitySignal({
+      position: "WR",
+      prev: null,
+      prevPrev: null,
+    });
+    check(
+      "no prior role data degrades to data_missing",
+      missing.direction === "data_missing",
+    );
+
+    // Targets-per-game fallback when snap share is absent both seasons.
+    const tgtFallback = buildOpportunitySignal({
+      position: "TE",
+      prev: prof({ targets_per_game: 6 }),
+      prevPrev: prof({ targets_per_game: 4 }),
+    });
+    check(
+      "targets/game trend fires when snap share is absent",
+      tgtFallback.direction === "story_a",
+      tgtFallback.observation ?? "none",
+    );
+
+    // One season of role data: report the level, claim no direction.
+    const oneSeason = buildOpportunitySignal({
+      position: "WR",
+      prev: prof({ snap_share: 0.7 }),
+      prevPrev: null,
+    });
+    check(
+      "single season of role data stays neutral",
+      oneSeason.direction === "neutral" && /one season/.test(oneSeason.observation ?? ""),
+      oneSeason.observation ?? "none",
+    );
+
+    // RB carries the pass-down framing, not the receiver framing.
+    const rb = buildOpportunitySignal({
+      position: "RB",
+      prev: prof({ snap_share: 0.4 }),
+      prevPrev: prof({ snap_share: 0.55 }),
+    });
+    check(
+      "RB opportunity signal uses the pass-down-role name",
+      rb.name === "Pass-down role + snap share" && rb.direction === "story_b",
+      rb.name,
+    );
+  }
+
+  console.log(
+    "\n── 6. buildInflectionsFromSnapshot threads opportunity from /stats ──",
+  );
+  {
+    // Aging WR (31) whose snap share climbed 35% -> 50% across the two
+    // prior seasons. The builder must derive opportunity via the canonical
+    // buildOpportunityProfile from the SAME /stats maps and light up the
+    // signal as story_a, with no extra fetch.
+    const snap = {
+      rosters: [{ is_me: true, player_ids: ["wr1"] }],
+    } as unknown as LeagueSnapshot;
+    const playersMap = new Map<string, SleeperPlayer>([
+      [
+        "wr1",
+        {
+          player_id: "wr1",
+          full_name: "Aging WR",
+          position: "WR",
+          team: "MIA",
+          age: 31,
+          years_exp: 9,
+        } as unknown as SleeperPlayer,
+      ],
+    ]);
+    const stat = (
+      offSnaps: number,
+      targets: number,
+    ): PlayerSeasonStats => ({
+      player_id: "wr1",
+      pts_ppr: null,
+      pts_half_ppr: null,
+      pts_std: null,
+      games_played: 16,
+      carries: null,
+      targets,
+      receptions: null,
+      rec_yards: null,
+      rec_tds: null,
+      air_yards: null,
+      drops: null,
+      rz_targets: null,
+      off_snaps: offSnaps,
+      team_off_snaps: 1000,
+    });
+    const findOpportunity = (
+      ctx: ReturnType<typeof buildInflectionsFromSnapshot>,
+    ) =>
+      ctx[0]?.resolutions
+        .flatMap((r) => r.signals)
+        .find((s) => s.name === "Earned opportunity (snap share + targets)");
+
+    const withUsage = buildInflectionsFromSnapshot({
+      snap,
+      playersMap,
+      prevSeasonStats: new Map([["wr1", stat(500, 90)]]),
+      prevPrevSeasonStats: new Map([["wr1", stat(350, 70)]]),
+    });
+    const oppWith = findOpportunity(withUsage);
+    check(
+      "snap share 35% -> 50% lights up opportunity as story_a",
+      oppWith != null && oppWith.direction === "story_a",
+      oppWith?.observation ?? "no signal",
+    );
+
+    const withoutUsage = buildInflectionsFromSnapshot({ snap, playersMap });
+    const oppWithout = findOpportunity(withoutUsage);
+    check(
+      "without /stats maps, opportunity is data_missing (graceful)",
+      oppWithout != null && oppWithout.direction === "data_missing",
+      oppWithout?.direction ?? "none",
     );
   }
 

@@ -17,6 +17,7 @@
  */
 
 import type { ActiveWindow } from "./detect";
+import { buildOpportunitySignal } from "./opportunity-signal";
 import type {
   InflectionInputs,
   InflectionResolution,
@@ -309,6 +310,14 @@ function resolveAgingCliffRB(p: InflectionInputs): InflectionResolution {
     });
   }
 
+  signals.push(
+    buildOpportunitySignal({
+      position: "RB",
+      prev: p.prev_season_opportunity,
+      prevPrev: p.prev_prev_season_opportunity,
+    }),
+  );
+
   signals.push({
     name: "Athletic decline indicators",
     description: "Broken-tackle rate, breakaway speed retention, 40-yard speed indicators.",
@@ -413,6 +422,14 @@ function resolveAgingCliffWR(p: InflectionInputs): InflectionResolution {
     });
   }
 
+  signals.push(
+    buildOpportunitySignal({
+      position: "WR",
+      prev: p.prev_season_opportunity,
+      prevPrev: p.prev_prev_season_opportunity,
+    }),
+  );
+
   signals.push({
     name: "Separation / route-run efficiency",
     description: "PFF separation and route-run grades; declines precede cliff.",
@@ -481,6 +498,14 @@ function resolveAgingCliffTE(p: InflectionInputs): InflectionResolution {
         ? `${drafted.length} rookie TE(s) drafted to displace.`
         : "No clear successor.",
   });
+  signals.push(
+    buildOpportunitySignal({
+      position: "TE",
+      prev: p.prev_season_opportunity,
+      prevPrev: p.prev_prev_season_opportunity,
+    }),
+  );
+
   signals.push({
     name: "12-personnel rate",
     description: "How often the offense uses 2-TE sets; TE-friendly schemes age better.",

@@ -9,7 +9,10 @@ import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { Position } from "@/lib/strategy/archetypes/schema";
 import { humanize, type HumanPlayer } from "@/lib/players/cache";
 import type { SleeperPlayer } from "@/lib/sleeper/schemas";
-import type { PlayerSeasonStats } from "@/lib/players/season-stats";
+import {
+  buildOpportunityProfile,
+  type PlayerSeasonStats,
+} from "@/lib/players/season-stats";
 import { resolveInflections } from "./index";
 import { buildInflectionInputsFromHumanPlayer } from "./build-inputs";
 import type { InflectionContext } from "./types";
@@ -76,6 +79,9 @@ export function buildInflectionsFromSnapshot(args: {
     const prevStat = prevSeasonStats?.get(player.id);
     const prevPrevStat = prevPrevSeasonStats?.get(player.id);
     const career = careerUsage?.get(player.id);
+    // Canonical opportunity read from the SAME stats maps (no extra
+    // fetch). Null when the player had no row that season so the
+    // opportunity signal degrades to data_missing gracefully.
     const inputs = buildInflectionInputsFromHumanPlayer({
       player,
       sameTeamSamePosition,
@@ -83,6 +89,10 @@ export function buildInflectionsFromSnapshot(args: {
       prevSeasonTargets: prevStat?.targets ?? null,
       prevPrevSeasonCarries: prevPrevStat?.carries ?? null,
       prevPrevSeasonTargets: prevPrevStat?.targets ?? null,
+      prevSeasonOpportunity: prevStat ? buildOpportunityProfile(prevStat) : null,
+      prevPrevSeasonOpportunity: prevPrevStat
+        ? buildOpportunityProfile(prevPrevStat)
+        : null,
       careerCarries: career?.carries ?? null,
       careerTargets: career?.targets ?? null,
     });

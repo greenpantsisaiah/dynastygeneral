@@ -28,6 +28,7 @@
  */
 
 import type { Position } from "../../strategy/archetypes/schema";
+import type { OpportunityProfile } from "@/lib/players/season-stats";
 
 // Confidence level for a signal's inclusion in the bifurcation.
 // - validated: peer-reviewed citation OR observed effect size in our
@@ -152,6 +153,12 @@ export type InflectionInputs = {
   prev_season_targets: number | null;
   prev_prev_season_carries: number | null;
   prev_prev_season_targets: number | null;
+  // Canonical opportunity read (snap share, targets/game, aDOT, RZ role,
+  // drop rate) for the most-recent two seasons, from buildOpportunityProfile
+  // over the Sleeper /stats feed. Feeds the aging-cliff opportunity signal
+  // (buildOpportunitySignal). Null when no prior-season usage is available.
+  prev_season_opportunity: OpportunityProfile | null;
+  prev_prev_season_opportunity: OpportunityProfile | null;
   // Roster signals. The set of player_ids on the same team at the same
   // position, with their ages and years_exp, lets us detect "team drafted
   // a backup RB" or "rookie inheriting a crowded WR room."

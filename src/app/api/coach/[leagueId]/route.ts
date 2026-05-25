@@ -57,7 +57,13 @@ import { buildPricedPool } from "@/lib/strategy/decision-synthesis/priced-pool";
 import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
-import { getSeasonStats, getCareerUsage } from "@/lib/players/season-stats";
+import {
+  getSeasonStats,
+  getCareerUsage,
+  buildOpportunityProfile,
+  type OpportunityProfile,
+  type PlayerSeasonStats,
+} from "@/lib/players/season-stats";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import { readProfileServer } from "@/lib/lab/profile-storage";
@@ -1073,6 +1079,10 @@ export async function POST(
   // the context.
   let leagueRead: ReturnType<typeof buildLeagueReadFromSnapshot> | null = null;
   let inflectionItems: ReturnType<typeof buildInflectionsFromSnapshot> = [];
+  // Hoisted so the named-roster mirror below can attach each player's
+  // prior-season opportunity read from the same (24h-cached) /stats map
+  // the inflection cards use. Empty until the try populates it.
+  let coachPrevSeasonStats: Map<string, PlayerSeasonStats> = new Map();
   try {
     const allRosterIds = new Set<string>();
     for (const r of snapshot.rosters) {
@@ -1123,6 +1133,7 @@ export async function POST(
       getSeasonStats(prevSeason).catch(() => new Map()),
       getSeasonStats(prevPrevSeason).catch(() => new Map()),
     ]);
+    coachPrevSeasonStats = prevSeasonStats;
     // Career mileage only when an aging RB is present (gates the
     // multi-season sum). Mirrors the hub so Coach and board agree.
     const careerUsage = rosterHasAgingRb(snapshot, playersMap)
@@ -1157,6 +1168,11 @@ export async function POST(
     team: string | null;
     age: number | null;
     rank: number | null;
+    // Prior-season earned-role read (snap share, targets/game, aDOT, RZ
+    // role, drop rate) via the canonical buildOpportunityProfile. Null
+    // when the player had no /stats row last season. Same numbers the
+    // inflection opportunity signal cites, so chat and board agree.
+    opportunity: OpportunityProfile | null;
   }> = [];
   if (me && me.player_ids.length > 0) {
     try {
@@ -1172,6 +1188,13 @@ export async function POST(
         )
         .map(({ id, p }) => {
           const human = humanize(p);
+          // Canonical opportunity read from last season's /stats row.
+          // Ship it only when at least one role metric resolved, so an
+          // absent-season player carries null rather than an all-null
+          // object the LLM might over-read.
+          const opp = buildOpportunityProfile(coachPrevSeasonStats.get(id));
+          const hasOpp =
+            opp.snap_share != null || opp.targets_per_game != null;
           return {
             player_id: id,
             name: human.name,
@@ -1179,6 +1202,7 @@ export async function POST(
             team: human.team,
             age: human.age,
             rank: typeof p.search_rank === "number" ? p.search_rank : null,
+            opportunity: hasOpp ? opp : null,
           };
         })
         .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
@@ -1431,7 +1455,10 @@ export async function POST(
           // Named roster with KTC-equivalent values where available.
           // Use this list (not position_counts) to VERIFY any claim
           // about WHO is on the roster, AND use `value` to bound any
-          // player-side trade math.
+          // player-side trade math. Each entry also carries `opportunity`
+          // (prior-season snap share / targets-per-game / aDOT / RZ role /
+          // drop rate) when available; cite it per the system prompt's
+          // "How you read opportunity" rule. `...p` spreads it through.
           players: myPlayersResolved.map((p) => {
             const v = playerValueMap.get(p.player_id);
             return {
