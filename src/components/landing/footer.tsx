@@ -29,6 +29,9 @@ export function Footer() {
             <Link href="/library" className="hover:text-foreground">
               Library
             </Link>
+            <Link href="/changelog" className="hover:text-foreground">
+              What's new
+            </Link>
             <Link href="/scout" className="hover:text-foreground">
               Scout
             </Link>

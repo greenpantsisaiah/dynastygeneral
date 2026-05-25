@@ -2,47 +2,24 @@
 
 /**
  * "What's new" ribbon. Slim, dismissible, fixed near the bottom-left
- * corner of the viewport. Surfaces recent shipped changes so testers
- * notice them without us having to send a manual changelog every
- * release.
+ * corner of the viewport. Surfaces the LATEST release so testers
+ * notice shipped changes without a manual changelog email.
  *
- * Versioning is intentionally manual: bump LATEST_VERSION when you
- * have something worth resurfacing. localStorage tracks the last
- * version the user dismissed; if they've dismissed >= LATEST_VERSION
- * we hide. Bumping the number re-shows for everyone.
+ * Source of truth is `src/lib/changelog/releases.ts`. The ribbon
+ * renders LATEST_RELEASE; the full flowing history lives at
+ * /changelog. To re-show the ribbon for everyone, add a newer release
+ * (its version date becomes the new dismissal key).
  *
- * Out of scope for v1: per-route hiding, SSE-driven version push,
- * deeper /changelog page. Add when the manual rhythm starts to fail.
+ * localStorage tracks the last version the user dismissed; if they
+ * have dismissed the latest version we hide.
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { LATEST_RELEASE } from "@/lib/changelog/releases";
 
-type Change = { tag: string; text: string };
-
-const LATEST_VERSION = "2026-05-24";
-
-const CHANGES: Change[] = [
-  {
-    tag: "ONE CALL, BOARD + COACH",
-    text: "The board and Coach now compute the standing call from one priced pool, so they name the same player. A starter-hole pick weighs player value, not just snipe-risk, so strong fallers stay on the board.",
-  },
-  {
-    tag: "AGING-RB SIGNALS",
-    text: "Aging-RB cards now read real prior-season workload and career mileage from carries, not \"data missing.\"",
-  },
-  {
-    tag: "CO-OWNER FIX",
-    text: "Co-owned teams resolve to the right roster everywhere. A co-owner no longer sees another manager's read.",
-  },
-  {
-    tag: "COACH POSTURE",
-    text: "Coach reads your contender / rebuilder / teardown posture on every recommendation, matching the board.",
-  },
-  {
-    tag: "ONE EV NUMBER",
-    text: "Per-pick EV, position, and roster-identity math now run from one source each, so a tune ripples everywhere.",
-  },
-];
+const LATEST_VERSION = LATEST_RELEASE.version;
+const CHANGES = LATEST_RELEASE.changes;
 
 const STORAGE_KEY = "dc:changelog-seen-version";
 
@@ -108,16 +85,31 @@ export function WhatsNewRibbon() {
           </button>
         </div>
         {expanded && (
-          <ul className="mt-3 space-y-2.5 border-t border-border-soft pt-3">
-            {CHANGES.map((c) => (
-              <li key={c.tag} className="flex items-start gap-2 text-xs leading-snug">
-                <span className="mt-0.5 inline-flex shrink-0 items-center rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
-                  {c.tag}
-                </span>
-                <span className="text-foreground">{c.text}</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              {LATEST_RELEASE.title}
+            </div>
+            <ul className="mt-3 space-y-2.5 border-t border-border-soft pt-3">
+              {CHANGES.map((c) => (
+                <li
+                  key={c.tag}
+                  className="flex items-start gap-2 text-xs leading-snug"
+                >
+                  <span className="mt-0.5 inline-flex shrink-0 items-center rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
+                    {c.tag}
+                  </span>
+                  <span className="text-foreground">{c.text}</span>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/changelog"
+              onClick={dismiss}
+              className="mt-3 inline-block font-mono text-[10px] uppercase tracking-[0.14em] text-accent transition hover:underline"
+            >
+              See all releases →
+            </Link>
+          </>
         )}
       </div>
     </div>
