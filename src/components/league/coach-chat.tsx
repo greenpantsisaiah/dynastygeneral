@@ -542,7 +542,13 @@ export function CoachChat({
           ref={scrollRef}
           className={
             isPanel
-              ? "flex-1 overflow-y-auto px-3 py-3"
+              ? // Mobile/stacked: the aside is auto-height (it only gets a
+                // bounded height + sticky at lg+), so without a cap the
+                // message list grows with every turn and buries the input
+                // far below the fold. Cap it so messages scroll INSIDE the
+                // panel and the input stays reachable. At lg+ the bounded
+                // sticky column owns the height, so release the cap.
+                "max-h-[55vh] flex-1 overflow-y-auto px-3 py-3 lg:max-h-none"
               : "max-h-[60vh] overflow-y-auto rounded-lg border border-border-strong bg-surface px-4 py-4"
           }
         >
