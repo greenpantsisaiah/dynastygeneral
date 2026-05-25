@@ -58,6 +58,14 @@ export const RELEASES: Release[] = [
         tag: "ONE EV NUMBER",
         text: "Per-pick EV, position, and roster-identity math now run from one source each, so a tune ripples everywhere.",
       },
+      {
+        tag: "RUNS: WAIT ON DEPTH",
+        text: "A backtest on 41 real drafts shows declining a positional run banks a discount on your off-run picks, and waiting on a deep position like WR costs almost nothing. Coach no longer treats a WR run as a reason to chase.",
+      },
+      {
+        tag: "RUN CALL BY LEAGUE SIZE",
+        text: "Coach calibrates chase-or-skip to your league. The value edge barely changes with size, so the call reads your recoverability: how many picks remain against your unfilled starters. Deep dynasty rosters skip a run and rebalance later; a shallow redraft acts sooner when a run threatens a starter you still need.",
+      },
     ],
   },
   {
