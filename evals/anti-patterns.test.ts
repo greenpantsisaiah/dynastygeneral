@@ -41,6 +41,13 @@ const EVALS = resolve(process.cwd(), "evals");
 
 const RULES: Rule[] = [
   {
+    name: "no stale dynasty-bug-investigator workflow references",
+    why: "The dynasty-bug-investigator workflow alias is unavailable in this environment. Reintroducing it in code/docs creates dead runbook instructions and misroutes debugging. Use the debug workflow language instead.",
+    pattern: /dynasty-bug-investigator/i,
+    scan: { dir: process.cwd(), ext: [".ts", ".tsx", ".md"] },
+    allowFilePrefixes: [EVALS],
+  },
+  {
     name: "no team!=null player-pool filter",
     why: "Pre-NFL-draft rookies have team:null. Filtering by team!=null silently excludes every rookie. Per INVARIANTS.md.",
     pattern: /\.team\s*!==?\s*null/,
@@ -372,6 +379,14 @@ function run() {
   // user-visible decision field, add it to the Coach context AND to this
   // list. Per INVARIANTS.md "Coach consumes canonical engine outputs".
   const COACH_ROUTE = resolve(SRC, "app", "api", "coach", "[leagueId]", "route.ts");
+const HUB_ROUTE = resolve(SRC, "app", "leagues", "[leagueId]", "page.tsx");
+const STRATEGY_SNAPSHOT = resolve(
+  SRC,
+  "lib",
+  "strategy",
+  "league-state",
+  "strategy-snapshot.ts",
+);
   const REQUIRED_IN_COACH = [
     "system_decision",
     "board_candidates",
@@ -433,6 +448,108 @@ function run() {
       );
       console.log(
         "    why: a prompt rule that binds on a field the payload omits forces the LLM to read absent data. Populate posture in contextPayload. Per INVARIANTS.md.",
+      );
+    }
+  }
+  console.log("\n── hub/coach shared snapshot+pool parity guard ──");
+  {
+    let coachContent = "";
+    let hubContent = "";
+    let helperContent = "";
+    try {
+      coachContent = readFileSync(COACH_ROUTE, "utf-8");
+    } catch {
+      coachContent = "";
+    }
+    try {
+      hubContent = readFileSync(HUB_ROUTE, "utf-8");
+    } catch {
+      hubContent = "";
+    }
+    try {
+      helperContent = readFileSync(STRATEGY_SNAPSHOT, "utf-8");
+    } catch {
+      helperContent = "";
+    }
+    const hubBuildsStrategySnapshot = /buildStrategySnapshot\(/.test(hubContent);
+    const coachBuildsStrategySnapshot = /buildStrategySnapshot\(/.test(coachContent);
+    const helperEnrichesSnapshot =
+      /getSeasonStats\(/.test(helperContent) &&
+      /getProjections\(/.test(helperContent) &&
+      /buildLeagueSnapshot\(/.test(helperContent);
+    const hubUsesPricedPool = /buildPricedPool\(\s*snapshot\s*\)/.test(hubContent);
+    const coachUsesPricedPool = /buildPricedPool\(\s*snapshot\s*\)/.test(coachContent);
+    const hubPickApproachUsesAvailable = /buildPickApproach\(\s*snapshot,\s*rankedArchetypes,\s*availablePlayers\s*,?\s*\)/s.test(
+      hubContent,
+    );
+    const coachCapturesAvailable = /const\s+available\s*=\s*pricedPool\.available\s*;/.test(
+      coachContent,
+    );
+    const coachPickApproachUsesAvailable = /buildPickApproach\(\s*snapshot,\s*ranked,\s*available\s*\)/.test(
+      coachContent,
+    );
+    const hubNoDirectBuildLeagueSnapshot = !/buildLeagueSnapshot\(/.test(
+      hubContent,
+    );
+    const coachNoDirectBuildLeagueSnapshot = !/buildLeagueSnapshot\(/.test(
+      coachContent,
+    );
+
+    const hubPricedPoolIdx = hubContent.indexOf("buildPricedPool(snapshot)");
+    const hubPickApproachIdx = hubContent.indexOf("buildPickApproach(");
+    const coachAvailableIdx = coachContent.indexOf(
+      "const available = pricedPool.available",
+    );
+    const coachPickApproachIdx = coachContent.indexOf(
+      "buildPickApproach(snapshot, ranked, available)",
+    );
+    const hubOrderingOk =
+      hubPricedPoolIdx >= 0 &&
+      hubPickApproachIdx >= 0 &&
+      hubPickApproachIdx > hubPricedPoolIdx;
+    const coachOrderingOk =
+      coachAvailableIdx >= 0 &&
+      coachPickApproachIdx >= 0 &&
+      coachPickApproachIdx > coachAvailableIdx;
+
+    const failures: string[] = [];
+    if (!hubBuildsStrategySnapshot)
+      failures.push("hub route does not call buildStrategySnapshot");
+    if (!coachBuildsStrategySnapshot)
+      failures.push("coach route does not call buildStrategySnapshot");
+    if (!helperEnrichesSnapshot)
+      failures.push("strategy-snapshot helper is missing season-stats/projections enrichment");
+    if (!hubUsesPricedPool) failures.push("hub route does not call buildPricedPool(snapshot)");
+    if (!coachUsesPricedPool)
+      failures.push("coach route does not call buildPricedPool(snapshot)");
+    if (!hubPickApproachUsesAvailable)
+      failures.push("hub pick approach is not built from the priced available pool");
+    if (!coachCapturesAvailable)
+      failures.push("coach route does not bind available = pricedPool.available");
+    if (!coachPickApproachUsesAvailable)
+      failures.push("coach pick approach is not built from the priced available pool");
+    if (!hubNoDirectBuildLeagueSnapshot)
+      failures.push("hub route calls buildLeagueSnapshot directly (should use buildStrategySnapshot)");
+    if (!coachNoDirectBuildLeagueSnapshot)
+      failures.push("coach route calls buildLeagueSnapshot directly (should use buildStrategySnapshot)");
+    if (!hubOrderingOk)
+      failures.push("hub ordering drifted: buildPricedPool should run before buildPickApproach");
+    if (!coachOrderingOk)
+      failures.push("coach ordering drifted: available from pricedPool should feed buildPickApproach");
+
+    if (failures.length === 0) {
+      passed++;
+      console.log(
+        "  ✓ hub and coach both use the shared strategy snapshot + priced-pool pipeline",
+      );
+    } else {
+      failed++;
+      console.log(
+        `  ✗ parity guard failed (${failures.length} issue${failures.length === 1 ? "" : "s"})`,
+      );
+      for (const f of failures) console.log(`    - ${f}`);
+      console.log(
+        "    why: Hub and Coach must consume the same snapshot/available/pick-approach inputs to avoid standing-call divergence.",
       );
     }
   }

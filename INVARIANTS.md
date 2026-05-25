@@ -8,7 +8,7 @@ Before editing any code in response to a bug report:
 
 1. State the bug as one sentence: "the bug is X **because** Y."
 2. Verify Y by reading the **runtime data** at the boundary, not the schema or your memory of how it works.
-3. If Y can't be verified in two minutes of focused reading, spawn the `dynasty-bug-investigator` agent with the bug description.
+3. If Y can't be verified in two minutes of focused reading, run the `debug` skill with the bug description and capture the concrete runtime evidence first.
 4. Before writing a helper that computes a number, label, or boolean used in user-facing copy or scoring, check `CANONICAL_SOURCES.md`. If a canonical already owns the domain, IMPORT it. If not, decide whether yours becomes the canonical (add an entry) or whether you can extend an existing one. Don't ship a parallel implementation.
 5. **Cite or flag before shipping a number, label, or window into user-facing copy.** Before writing a constant like "next 4 picks," "21% chance," "act this round," or "value 47" into a component or template, derive the value from runtime snapshot data via a canonical helper. If no canonical produces this value, either ADD one (and register it in `CANONICAL_SOURCES.md`) or FLAG with `// FIXME: hardcoded, no canonical yet` AND open a follow-up note in the commit message. The bug class this prevents: 2026-05-20 "Your active plays" surface shipped with identical "next 4 picks" generic urgency on every play card, when `survivalPctFor` already computed per-partner survival to each slot. Renaming the constant to a friendlier word is not a fix; plumbing the runtime signal IS.
 6. Only then edit code.
@@ -19,7 +19,7 @@ Renaming a flag is not a fix. Adding a fallback to a value that should never be 
 
 Spawn via the Agent tool with `subagent_type` set to one of:
 
-- **`dynasty-bug-investigator`**: root-cause-first bug triage. Returns diagnosis with file:line. Does not edit code.
+- **`debug`**: root-cause-first bug triage workflow. Returns diagnosis with file:line and concrete runtime evidence before code edits.
 - **`dynasty-assumption-auditor`**: defensibility audit on embedded constants and thresholds. Channels statistician + dynasty pro + coach + gambler voices. Returns Defensible / Weak / Indefensible per assumption with citations.
 - **`dynasty-canon-keeper`**: research-grounded signal arbiter. Curates the published corpus (peer-reviewed + named industry frameworks + cohort studies) into citable evidence for every signal, weight, and threshold. Three modes: SEED (bulk corpus build, produces RESEARCH_CORPUS.md), CRITIQUE (per-signal grounding verdict), DEBUNK (challenge pundit/common-knowledge claims with research). Spawn before any signal/weight design work AND when the user, Coach, or product makes a claim that needs grounding. The model has to survive Cade Massey / Wayne Winston / MIT Sloan scrutiny; this agent makes that pass-able.
 - **`dynasty-context-doctor`**: diagnoses LLM hallucinations by classifying as snapshot / contract / model bug.
@@ -118,7 +118,7 @@ Failure mode to ban (anywhere in Coach output): "I don't have [their roster / sp
 
 ### Workflow rules
 
-- **Verify before patching.** State "the bug is X because Y" and verify Y at runtime BEFORE editing. Renaming a flag is not a fix. If Y can't be verified in 2 minutes, spawn `dynasty-bug-investigator`.
+- **Verify before patching.** State "the bug is X because Y" and verify Y at runtime BEFORE editing. Renaming a flag is not a fix. If Y can't be verified in 2 minutes, run the `debug` skill workflow.
 - **Silent catches must log message + stack.** Wide-pipeline try/catch must log `err.message + err.stack`, not just a tag. Parse external blobs per-entry so one bad row doesn't poison a 5MB cache.
 - **`?diagnose=1` for hub error surface.** Append to a league hub URL to render captured silent-catch errors inline.
 - **Build clean before claiming a fix shipped.** `npm run build` zero warnings, `npm test` all suites green.

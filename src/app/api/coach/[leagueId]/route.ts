@@ -35,7 +35,7 @@ import {
   getUserByUsername,
 } from "@/lib/sleeper";
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
-import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { buildStrategySnapshot } from "@/lib/strategy/league-state/strategy-snapshot";
 import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import {
   buildOpponentReadout,
@@ -53,13 +53,11 @@ import {
 } from "@/lib/engine/inflection";
 import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
-import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
 import { synthesizeDecision } from "@/lib/strategy/decision-synthesis/synthesize";
-import { annotateStartableDepth } from "@/lib/engine/roster-fit";
+import { buildPricedPool } from "@/lib/strategy/decision-synthesis/priced-pool";
 import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
-import { normalizePosition } from "@/lib/strategy/archetypes/schema";
 import { getSeasonStats, getCareerUsage } from "@/lib/players/season-stats";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
@@ -1002,7 +1000,7 @@ export async function POST(
     leagueId,
     sleeperUser?.user_id ?? null,
   );
-  const snapshot = await buildLeagueSnapshot({
+  const snapshot = await buildStrategySnapshot({
     league,
     rosters,
     users,
@@ -1012,7 +1010,6 @@ export async function POST(
   const ranked = rankArchetypes(snapshot);
   const opponents = buildOpponentReadout(snapshot);
   const windows = computeWindows(snapshot);
-  const pickApproach = buildPickApproach(snapshot, ranked);
 
   // Counterparty-stated-plans: persistent notes the user logs about
   // opponents (stated plans, trade intent, trigger conditions, psych
@@ -1034,43 +1031,25 @@ export async function POST(
       console.error("[coach:opponent-notes]", err);
     }
   }
-  let available = await getAvailableForRequest(snapshot).catch(() => []);
-
-  // Mirror the hub's value-resolve + rerank pipeline so coach's
-  // synthesized system_decision uses the same canonical pool ordering
-  // the Decision card uses. Without this, coach reasons against a
-  // dynasty_rank-sorted pool while the user sees a KTC-sorted one,
-  // and "the system says X" diverges between surfaces. Single
-  // FantasyCalc fetch is cached, so the cost is in-memory lookups.
-  let coachPlayerValues: Record<string, number> | undefined;
-  let coachKtcOverallRanks: Record<string, number> | undefined;
-  try {
-    const valueIds: string[] = [];
-    const me = snapshot.rosters.find((r) => r.is_me);
-    if (me) for (const id of me.player_ids) valueIds.push(id);
-    for (const p of available) valueIds.push(p.id);
-    const { resolvePlayerValues } = await import("@/lib/players/values");
-    const valueMap = await resolvePlayerValues({
-      ids: valueIds,
-      isSuperflex:
-        snapshot.format === "superflex" || snapshot.format === "2qb",
-      isPpr: snapshot.scoring.includes("PPR"),
-      isHalfPpr: snapshot.scoring.includes("half-PPR"),
-      isTePremium: snapshot.scoring.includes("TE-premium"),
-    });
-    const values: Record<string, number> = {};
-    const ranks: Record<string, number> = {};
-    for (const [id, v] of valueMap.entries()) {
-      values[id] = v.value;
-      if (typeof v.overall_rank === "number") ranks[id] = v.overall_rank;
-    }
-    coachPlayerValues = values;
-    coachKtcOverallRanks = ranks;
-    const { rerankByConsensus } = await import("@/lib/players/rerank");
-    available = rerankByConsensus(available, values);
-  } catch (err) {
-    console.error("[coach:rerank-available]", err);
-  }
+  // Priced pool, single canonical source shared with the hub board.
+  // `buildPricedPool` fetches the realistic available pool, prices EVERY
+  // rostered player across the league plus the full available pool,
+  // reranks by the consensus cascade, and annotates the snapshot with
+  // value-calibrated startable / stable depth. Coach's synthesized
+  // system_decision and the hub board now read identical inputs, so the
+  // standing call cannot diverge between surfaces. Pricing all rosters
+  // (not just me + available) is load-bearing: the startable-depth tier
+  // is built from priced bodies, so omitting opponents inflates the
+  // user's own startable counts and flips the fill_starter gate. That
+  // was the 2026-05-24 Jaylin-Noel (board) vs Adonai-Mitchell (Coach)
+  // divergence: Coach priced only me + available here.
+  const pricedPool = await buildPricedPool(snapshot);
+  const available = pricedPool.available;
+  const pickApproach = buildPickApproach(snapshot, ranked, available);
+  const coachPlayerValues: Record<string, number> | undefined =
+    pricedPool.playerValuesById;
+  const coachKtcOverallRanks: Record<string, number> | undefined =
+    pricedPool.ktcOverallRanksById;
 
   // Compose the system's official per-pick recommendation so coach can
   // confirm or contradict with full awareness. Don't fail the whole
@@ -1092,27 +1071,9 @@ export async function POST(
       globalProfile: judgmentProfileEarly,
     });
 
-  // Annotate the snapshot with value-calibrated startable / stable depth
-  // BEFORE the Decision card synthesizes, so Coach's call mirrors the hub
-  // board (which is depth-aware). Founder 2026-05-16: depth is startable
-  // quality, not raw RB/WR headcount. resolvePlayers is cache-backed.
-  if (coachPlayerValues && Object.keys(coachPlayerValues).length > 0) {
-    try {
-      const cpv = coachPlayerValues;
-      const depthIds = new Set<string>();
-      for (const r of snapshot.rosters) {
-        for (const id of r.player_ids ?? []) depthIds.add(id);
-      }
-      const depthPlayers = await resolvePlayers([...depthIds]);
-      annotateStartableDepth({
-        snap: snapshot,
-        valueOf: (id) => cpv[id] ?? null,
-        positionOf: (id) => normalizePosition(depthPlayers.get(id)?.position),
-      });
-    } catch (err) {
-      console.error("[coach:startable-depth]", err);
-    }
-  }
+  // Startable / stable depth is annotated inside buildPricedPool above
+  // (from the all-rosters value map), so Coach's fill_starter +
+  // saturation gates read the same depth the hub board does.
 
   // request if synthesis errors; coach can still reason from context.
   let decision: Awaited<ReturnType<typeof synthesizeDecision>> | null = null;

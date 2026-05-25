@@ -341,6 +341,65 @@ function run() {
     );
   }
 
+  console.log("\n── 5. Value-aware fill: safe high-value WR beats fringe coin-flip WR ──");
+  {
+    // Bug 2026-05-24 (the Jaylin-Noel vs Adonai-Mitchell board). The fill
+    // selector chose among the top-N at a hole by pure snipe-risk
+    // (baseScore 100 if endangered, 60 if safe), so a fringe coin-flip WR
+    // beat a safe, higher-VALUE WR at the same WR hole and the better
+    // player fell off the board. Fix: select by EXPECTED GETTABLE VALUE =
+    // consensus value × survival. Here the two user picks are consecutive
+    // (216, 217), so the gap has no opponents and survivalPctFor reads
+    // 100% for both WRs; the higher-VALUE WR must win selection. The
+    // pre-fix code read availabilityAt directly (ADP-based) and would
+    // crown the coin-flip ADP fringe WR.
+    const snap = makeSnapshot({
+      myCounts: { QB: 2, RB: 2, WR: 0, TE: 1 },
+      hard: { QB: 1, RB: 2, WR: 2, TE: 1 },
+      flex: 1,
+      superflex: 1,
+      currentPickNo: 216,
+      nextPickNo: 217,
+      hungryOpponents: false,
+    });
+    // Safe star: far past ADP (likely_here under the old ADP read),
+    // high consensus value. Fringe: ADP right at the pick (coin_flip
+    // under the old ADP read), low value. Star listed first (the pool is
+    // value-sorted in production).
+    const star = makePlayer({
+      name: "Safe Star WR",
+      position: "WR",
+      age: 24,
+      adp: 150,
+      search_rank: 60,
+    });
+    const fringe = makePlayer({
+      name: "Fringe WR",
+      position: "WR",
+      age: 23,
+      adp: 216,
+      search_rank: 95,
+    });
+    const available: AvailablePlayer[] = [
+      star,
+      fringe,
+      makePlayer({ name: "Filler RB", position: "RB", age: 25, adp: 230, search_rank: 120 }),
+    ];
+    const decision = synthesizeDecision({
+      snap,
+      available,
+      ranked: emptyArchetypes(),
+      windows: emptyWindows(),
+      picks_until_me: 0,
+      player_values: { [star.id]: 80, [fringe.id]: 25 },
+    });
+    check(
+      "fill selects the higher-VALUE WR, not the fringe coin-flip WR",
+      decision?.recommendation.name === "Safe Star WR",
+      `actual: ${decision?.recommendation.name} (rule ${decision?.recommendation.rule})`,
+    );
+  }
+
   console.log(`\n${passed} passed · ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

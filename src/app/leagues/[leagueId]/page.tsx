@@ -27,6 +27,7 @@ import {
 import { resolveDraftState, type DraftStatus } from "@/lib/sleeper/draft-state";
 import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { buildStrategySnapshot } from "@/lib/strategy/league-state/strategy-snapshot";
 import {
   buildLeagueBriefing,
   type LeagueBriefing,
@@ -55,6 +56,7 @@ import {
   synthesizeDecision,
   buildSurvivalResolver,
 } from "@/lib/strategy/decision-synthesis/synthesize";
+import { buildPricedPool } from "@/lib/strategy/decision-synthesis/priced-pool";
 import {
   dialsForSynthesisFrom,
   type Decision,
@@ -170,9 +172,7 @@ import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
 import { resolvePlayers } from "@/lib/players/cache";
-import { annotateStartableDepth } from "@/lib/engine/roster-fit";
 import { getSeasonStats, getCareerUsage } from "@/lib/players/season-stats";
-import { getProjections } from "@/lib/players/projections";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
@@ -209,7 +209,6 @@ import type {
   RankedArchetype,
   Position,
 } from "@/lib/strategy/archetypes/schema";
-import { normalizePosition } from "@/lib/strategy/archetypes/schema";
 
 type PageProps = {
   params: Promise<{ leagueId: string }>;
@@ -416,25 +415,12 @@ export default async function LeagueHubPage({
   const tierState = await getTier();
   if (draftState) {
     try {
-      // Last-season stats power the production half of the
-      // starter_talent signal. Projections power the redraft-ADP
-      // half. Both non-fatal: failures return empty maps and the
-      // snapshot falls back to dynasty rank-only scoring.
-      const prevSeason = String(Number(league.season) - 1);
-      const [lastSeasonStats, projectionsCache] = await Promise.all([
-        getSeasonStats(prevSeason).catch(() => new Map()),
-        getProjections(league.season).catch(
-          () => ({ byPlayerId: new Map(), fetchedAt: 0 }),
-        ),
-      ]);
-      leagueSnapshot = await buildLeagueSnapshot({
+      leagueSnapshot = await buildStrategySnapshot({
         league,
         rosters,
         users,
         draftState,
         mySleeperUserId: sleeperUser?.user_id ?? null,
-        lastSeasonStats,
-        projections: projectionsCache.byPlayerId,
       });
       const snapshot = leagueSnapshot;
       rankedArchetypes = rankArchetypes(snapshot);
@@ -627,115 +613,30 @@ export default async function LeagueHubPage({
         console.error("[hub:opponent-notes]", err);
       }
 
-      // Pull available players FIRST so the picker predictor can use
-      // pool-depth + tier-crunch signals. Prediction quality depends on
-      // knowing what's still on the board, not just on roster shapes.
-      try {
-        availablePlayers = await getAvailableForRequest(snapshot);
-      } catch (err) {
-        console.error("[hub:available]", err);
-      }
-
-      // Resolve KTC-equivalent values for the user's roster + top 100
-      // available. Used by Strategic Forks for EV-band tagging
-      // (bargain / fair / reach). Cached 24h server-side via the
-      // FantasyCalc resolver; one upstream fetch covers many requests.
-      // The same fetched map is the consensus baseline for ranking
-      // sanity checks below; one cache, two consumers.
+      // Priced pool, single canonical source. One helper fetches the
+      // realistic available pool, prices EVERY rostered player across the
+      // league plus the full available pool, harmonizes the available
+      // ordering by the consensus cascade (KTC > ADP > heuristic), and
+      // annotates the snapshot with value-calibrated startable / stable
+      // depth. The hub board and Coach both call `buildPricedPool` so
+      // their `synthesizeDecision` inputs are identical and the standing
+      // call cannot diverge between surfaces (2026-05-24 Jaylin-Noel /
+      // Adonai-Mitchell split, caused by Coach pricing only me+available
+      // while the hub priced all rosters). The all-rosters pricing is
+      // load-bearing for the startable-depth tier AND for the leaguewide
+      // rank metric (opponents must be priced or "Lead X pts (100%)"
+      // goes structural; founder report 2026-05-11). See priced-pool.ts.
       let valueMap: Awaited<
         ReturnType<typeof import("@/lib/players/values")["resolvePlayerValues"]>
       > | null = null;
       try {
-        const valueIds: string[] = [];
-        // Resolve KTC values for EVERY rostered player across the
-        // league, not just the user's roster. Without this,
-        // `computeLeagueRankMetric` walks `r.player_ids` for opponents
-        // and sums values that aren't in the map, producing totals of
-        // 0 and a bogus "Lead X pts over #2 (100%)" framing. Founder
-        // report 2026-05-11 (completed draft): "Lead 638 pts over #2
-        // (100%)". The 100% lead was structural: opponents were not
-        // being priced. Coach already prices the full league via its
-        // own route; the hub was the outlier.
-        for (const r of snapshot.rosters) {
-          for (const id of r.player_ids) valueIds.push(id);
-        }
-        // Plus the FULL available pool. The available-pool inclusion
-        // exists to feed `rerankByConsensus` across every player the
-        // engine might rank. A prior 100-cap meant consensus-tier
-        // players whose Sleeper `search_rank` put them outside the top
-        // 100 (Khalil Shakir, deep-tier WRs/RBs) never received a
-        // tier-1 KTC ranking and got buried below worse-by-consensus
-        // tier-1 KTC players in the rerank cascade (Shakir 2026-04-26).
-        // FantasyCalc resolver hits a single cached map; expanding the
-        // ID list is O(n) lookups, not extra network.
-        for (const p of availablePlayers) valueIds.push(p.id);
-        const { resolvePlayerValues } = await import(
-          "@/lib/players/values"
-        );
-        valueMap = await resolvePlayerValues({
-          ids: valueIds,
-          isSuperflex:
-            snapshot.format === "superflex" || snapshot.format === "2qb",
-          isPpr: snapshot.scoring.includes("PPR"),
-          isHalfPpr: snapshot.scoring.includes("half-PPR"),
-          isTePremium: snapshot.scoring.includes("TE-premium"),
-        });
-        const out: Record<string, number> = {};
-        const ranksOut: Record<string, number> = {};
-        for (const [id, v] of valueMap.entries()) {
-          out[id] = v.value;
-          if (typeof v.overall_rank === "number") {
-            ranksOut[id] = v.overall_rank;
-          }
-        }
-        playerValuesByIdJson = out;
-        ktcOverallRanksByIdJson = ranksOut;
-
-        // Harmonize the available-pool ordering by the consensus
-        // cascade (KTC value > ADP > heuristic dynasty_rank). Per
-        // 2026-04-25 audit: previously the pool was sorted by
-        // dynasty_rank only, while Strategic Forks re-sorted with
-        // KTC-first internally. Different surfaces saw different
-        // orderings of the same pool, which produced LaPorta
-        // (KTC-top TE) ranking #4 by dynasty_rank in the Decision
-        // card while showing as a top steal in Strategic Forks.
-        // Single canonical ordering now; every downstream surface
-        // uses the same `availablePlayers` array.
-        try {
-          const { rerankByConsensus } = await import(
-            "@/lib/players/rerank"
-          );
-          availablePlayers = rerankByConsensus(availablePlayers, out);
-        } catch (err) {
-          console.error("[hub:rerank-available]", err);
-        }
+        const priced = await buildPricedPool(snapshot);
+        availablePlayers = priced.available;
+        valueMap = priced.valueMap;
+        playerValuesByIdJson = priced.playerValuesById;
+        ktcOverallRanksByIdJson = priced.ktcOverallRanksById;
       } catch (err) {
-        console.error("[hub:player-values]", err);
-      }
-
-      // Annotate the snapshot with value-calibrated startable / stable
-      // depth so the Decision card (saturation + fill gates), SWOT, and
-      // team identity judge depth by STARTABLE quality, not raw bodies.
-      // Founder 2026-05-16: "strategy advice over-weights total RB/WR
-      // counts instead of startable quality and stable depth." Mutates
-      // the shared snapshot object in place; resolvePlayers is cached so
-      // the later allRosterIds resolve hits the same cache.
-      if (valueMap && valueMap.size > 0) {
-        try {
-          const depthIds = new Set<string>();
-          for (const r of leagueSnapshot.rosters) {
-            for (const id of r.player_ids ?? []) depthIds.add(id);
-          }
-          const depthPlayers = await resolvePlayers([...depthIds]);
-          annotateStartableDepth({
-            snap: leagueSnapshot,
-            valueOf: (id) => playerValuesByIdJson[id] ?? null,
-            positionOf: (id) =>
-              normalizePosition(depthPlayers.get(id)?.position),
-          });
-        } catch (err) {
-          console.error("[hub:startable-depth]", err);
-        }
+        captureError(issues, "hub:priced-pool", err);
       }
 
       // Ranking sanity check. Validates engine `available` ordering
