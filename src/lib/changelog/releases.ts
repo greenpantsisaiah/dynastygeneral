@@ -46,6 +46,10 @@ export const RELEASES: Release[] = [
         tag: "DRAFT CAPITAL ON ROOKIES",
         text: "Rookie-debut inflection cards now show each rookie's actual NFL overall pick: pick 1 to 15 reads as the high hit-rate tier and argues breakout, Day 3 picks read as the low hit-rate tier and argue caution. The row used to render 'data missing' on every rookie card because no draft-capital source was wired. The signal earned its wiring: a marginal-projection backtest on 626 player-seasons showed draft pick predicts next-year production beyond last year's points (correlation -0.10 overall, -0.40 for players under 25).",
       },
+      {
+        tag: "MARKET GAPS ON THE CALL",
+        text: "Two markets price each player: the draft market (ADP, where consensus picks) and the trade market (overall trade-value rank). When they disagree by 15 picks or more, each candidate on The Call now carries a one-line read of the gap, showing both numbers and which market is earlier. Adonai Mitchell sits at ADP 196 but value rank 242: drafted 46 picks earlier than the trade market ranks him. The framing is neutral, both numbers visible; the user decides whether ADP is overpaying or the trade market is sleeping on him.",
+      },
     ],
   },
   {

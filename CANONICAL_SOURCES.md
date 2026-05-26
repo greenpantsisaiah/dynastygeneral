@@ -168,6 +168,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: a surface that reads `player_signals.draft_pick_no` directly, re-implementing its own caching / draft-pick lookup. One read, one cache. Data populated by `scripts/ingest-unlock-signals.ts` (founder-authorized 2026-05-26).
 - **Bug class avoided**: rookie-debut cards rendering `data_missing` for draft capital even though the data is now in `player_signals`. Locked by `evals/inflection.test.ts` section 7.
 
+### Market divergence (ADP vs trade-value rank)
+
+- **Canonical**: `readMarketDivergence({ adp, valueRank })` in `src/lib/players/market-divergence.ts`
+- **Returns**: `MarketDivergence | null`. Non-null only when the gap between the two markets is at least `MEANINGFUL_GAP_PICKS` (15 picks). The shape carries `gap` (absolute pick gap), `lean` (`"adp_earlier"` or `"value_earlier"`), and pre-formatted Voice-A `line` ("ADP 196 · value rank 242") + `detail` ("ADP 46 earlier"). Pure function, no IO, safe in client components.
+- **Inputs**: `adp` (the player's draft-market consensus pick number, e.g. Sleeper format-aware ADP) and `valueRank` (the trade-market overall rank from FantasyCalc / KTC; on candidates this is `ktc_overall_rank`). Both must be present; either null returns null.
+- **Use**: The Call's `DivergenceLine` renders on the standing-call card + each candidate row. Stage 2c of the "data right" on-ramp. Surfaces the founder's Adonai Mitchell case (ADP 196 vs value rank 242 = ADP 46 earlier) neutrally; the user decides whether ADP is overpaying or the trade market is sleeping.
+- **Anti-pattern**: a surface that subtracts ADP from value rank inline, picks its own threshold, or invents a "draft market overpaying" verdict in copy. One helper, one threshold, neutral framing.
+- **Bug class avoided**: drift between surfaces on what "the two markets disagree" means, and editorializing the disagreement. Locked by `evals/market-divergence.test.ts`.
+
 ### Strategy windows + archetype lean
 
 - **Canonical**: `buildLeagueSnapshot → rankArchetypes → computeWindows`
