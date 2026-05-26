@@ -2474,7 +2474,7 @@ export default async function LeagueHubPage({
                 <DashboardSection
                   label="How you're doing"
                   title="Your bank, your fits, your sharp positioning"
-                  tagline="Per-pick EV breakdown + position fits + sharp positioning. Tap inside the EV bank to compare to your league."
+                  tagline="Per-pick value-vs-ADP breakdown + position fits + sharp positioning. Tap inside the section to compare to your league."
                   defaultOpen={true}
                   hasChanges={
                     lastVisitPicksMadeTotal > 0 ||
@@ -2494,7 +2494,7 @@ export default async function LeagueHubPage({
                     ) {
                       const sign = lastVisitEvBankDelta >= 0 ? "+" : "";
                       parts.push(
-                        `EV ${sign}${lastVisitEvBankDelta.toFixed(1)}`,
+                        `vsADP ${sign}${lastVisitEvBankDelta.toFixed(1)}`,
                       );
                     }
                     return parts.join(" · ") || undefined;
@@ -2708,7 +2708,7 @@ export default async function LeagueHubPage({
                       tags.push("dynasty");
                     }
                     if (draftActive) {
-                      tags.push("ADP", "EV", "rookies");
+                      tags.push("ADP", "vsADP", "rookies");
                     }
                     return tags;
                   })()}

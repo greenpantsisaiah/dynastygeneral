@@ -345,7 +345,7 @@ export function LeagueSpectrum({
                 {isMe ? `${item.owner_name} (you)` : item.owner_name}
               </text>
               <title>
-                {`${item.owner_name}${isMe ? " (you)" : ""} · ${LEAN_LABEL[item.lean]} · ${Math.round(item.confidence * 100)}% confidence · ${item.picks_made} picks · ${item.ev != null ? `EV ${Math.round(item.ev * 100)}/100` : "EV unknown"}`}
+                {`${item.owner_name}${isMe ? " (you)" : ""} · ${LEAN_LABEL[item.lean]} · ${Math.round(item.confidence * 100)}% confidence · ${item.picks_made} picks · ${item.ev != null ? `Score ${Math.round(item.ev * 100)}/100` : "Score unknown"}`}
               </title>
             </g>
           );
@@ -417,8 +417,8 @@ export function LeagueSpectrum({
                   fill="#cbd5e1"
                 >
                   {item.ev != null
-                    ? `EV ${Math.round(item.ev * 100)}/100${item.ev_raw != null ? ` (${Math.round(item.ev_raw)} raw)` : ""}`
-                    : "EV unknown"}
+                    ? `Score ${Math.round(item.ev * 100)}/100${item.ev_raw != null ? ` (${Math.round(item.ev_raw)} raw)` : ""}`
+                    : "Score unknown"}
                 </text>
               </g>
             );

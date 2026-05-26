@@ -151,8 +151,8 @@ function run() {
     check("big EV delta triggers has_changes", big.has_changes);
     const digest = composeDigestLine(big);
     check(
-      "digest mentions EV bank movement",
-      digest != null && digest.includes("EV bank +0.7"),
+      "digest mentions value vs ADP movement",
+      digest != null && digest.includes("value vs ADP +0.7"),
       `digest: ${digest}`,
     );
   }
@@ -213,11 +213,11 @@ function run() {
     });
     const digest = composeDigestLine(delta);
     check(
-      "digest combines picks + standing call + EV",
+      "digest combines picks + standing call + value vs ADP",
       digest != null &&
         digest.includes("3 picks made") &&
         digest.includes("standing call shifted") &&
-        digest.includes("EV bank +0.7"),
+        digest.includes("value vs ADP +0.7"),
       `digest: ${digest}`,
     );
   }

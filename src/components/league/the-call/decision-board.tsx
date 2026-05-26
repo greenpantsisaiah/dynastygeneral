@@ -488,7 +488,7 @@ export function DecisionBoard({
               </span>
               {sortBtn("value", "Value")}
               <span className="text-muted-2">·</span>
-              {sortBtn("ev", "EV")}
+              {sortBtn("ev", "vsADP")}
               <span className="text-muted-2">·</span>
               {sortBtn("survival", "Survival")}
             </span>
@@ -498,7 +498,7 @@ export function DecisionBoard({
               className={`hidden sm:grid ${HEADER_COLS} items-baseline gap-3 bg-surface/50 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2`}
             >
               <span>Player</span>
-              <span className="text-right">EV</span>
+              <span className="text-right">vsADP</span>
               <span className="text-right">Survival</span>
               <span>Tags</span>
             </div>

@@ -98,35 +98,42 @@ question AND names the underlying emotional / strategic question
 underneath. "Should I trade for X?" carries the underlying "do I
 have enough now?" The product surfaces both.
 
-### 8. EV bank: 3-box row, second from the top
+### 8. The Value vs ADP row, second from the top (renamed 2026-05-26)
 
-UPDATED 2026-05-08 PM after founder direction. The EV bank is not a
-single widget; it is a 3-box row that lives second-from-the-top of
-the hub (below the headline section, above the rest):
+The 3-box row second-from-the-top of the hub is still locked. Its
+labels are updated to honest names. See `FORWARD_EV_PLAN.md` for the
+full naming dictionary; the bare word "EV" is retired from chrome.
 
-- **Box 1: Your EV.** Per-pick bars + total + range (confidence band
-  always visible inline as margin of error).
-- **Box 2: League EV by team.** Per-team summary bars (mine
-  highlighted). Click a team to open a modal showing that team's
+- **Box 1: Your Value vs ADP.** Today's per-pick bars + total +
+  confidence band. Measures draft-timing arbitrage:
+  `(value / 100) * (pickNo - adp)` summed across your picks.
+- **Box 2: League value vs ADP by team.** Per-team summary bars
+  (mine highlighted). Click a team to open a modal showing their
   per-pick bars in the same shape as Box 1.
-- **Box 3: Upcoming events that recalculate EV.** Training camp,
-  weekly post-game recalc, injury news, NFL Draft window, etc.
-  Surfaces "what could move your number next, and when."
+- **Box 3: The in-season surface (target shape, not shipped).**
+  Originally framed as "upcoming events that recalculate EV." Under
+  the 2026-05-26 plan, this becomes the Forward Production surface:
+  per-week banked vs market-projected production, rolled up across
+  the roster, with upcoming events that move the projection
+  (training camp landing, weekly post-game recalc, injury news,
+  bye-week effects). It is gated on the Stage 3 build in
+  `FORWARD_EV_PLAN.md`; until then, Box 3 stays dark in-season.
 
 The range envelope (confidence band) renders for every number in
 every box.
 
-Per founder direction 2026-05-08: "I'd think of it as a three item
-thing. Box 1 = my EV. Box 2 = league EV by team (can click one for
-a modal showing their picks like mine in box 1). Box 3 = Next events
-that will affect/recalculate EV (e.g. training camp, recalc after
-next week's games, injuries, etc.)."
+Founder vocabulary rule (locked 2026-05-26 after the "EV is fluff"
+epiphany): Box 1 and Box 2 use "Value vs ADP" or "vsADP" wherever
+their old "EV bank" / "EV banked" labels lived. New surfaces that
+project forward production label themselves "Forward Production."
+"Forward Value" remains reserved and data-gated. The bare word "EV"
+does not appear in chrome.
 
 ### 9. Cool conversations + screenshots
 
-The product is designed for sharing. Comparator narratives, EV bank
-ranks, decisive locks, opponent reads each render as screenshot-
-optimized artifacts with unobtrusive `dynastygeneral.app` footnote
+The product is designed for sharing. Comparator narratives, value
+vs ADP ranks, decisive locks, opponent reads each render as
+screenshot-optimized artifacts with unobtrusive `dynastygeneral.app` footnote
 branding. We are the primary source.
 
 ### 10. Tufte: scan, focus, consume

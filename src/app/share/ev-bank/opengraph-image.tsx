@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 /**
- * Shareable EV bank rank card. Stateless: the data is encoded in the
+ * Shareable Value vs ADP rank card. Stateless: the data is encoded in the
  * query string of the page URL (?rank=4&total=12&ev=87.1&league=name),
  * so when a social platform fetches the page for unfurl, the OG image
  * route reads those params and renders the user's "Nth of N in EV
@@ -15,7 +15,7 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Dynasty General EV bank rank";
+export const alt = "Dynasty General value vs ADP rank";
 // Force dynamic rendering. The image content depends on query
 // params from the share URL, so we can't prerender at build time.
 export const dynamic = "force-dynamic";
@@ -80,7 +80,7 @@ export default async function OgImage({ searchParams }: Props) {
             <span>·</span>
             <span>{league}</span>
           </div>
-          <span>EV bank rank</span>
+          <span>Value vs ADP rank</span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
@@ -122,9 +122,9 @@ export default async function OgImage({ searchParams }: Props) {
             <span style={{ color: "#fafafa" }}>{rankTier}</span>
             <span>·</span>
             <span style={{ color: evColor, fontWeight: 600 }}>
-              {evDisplay} EV
+              {evDisplay} value
             </span>
-            <span>banked</span>
+            <span>banked vs ADP</span>
           </div>
         </div>
 
@@ -142,7 +142,7 @@ export default async function OgImage({ searchParams }: Props) {
             borderTop: "1px solid #1f1f22",
           }}
         >
-          <span>EV = (value/100) × (pick − ADP)</span>
+          <span>Value vs ADP = (value/100) × (pick − ADP)</span>
           <span>dynastygeneral.app</span>
         </div>
       </div>
@@ -168,7 +168,7 @@ function notFoundImage() {
           gap: 16,
         }}
       >
-        <div style={{ fontSize: 48, fontWeight: 600 }}>EV bank card</div>
+        <div style={{ fontSize: 48, fontWeight: 600 }}>Value vs ADP card</div>
         <div style={{ fontSize: 22, color: "#8b8b8b" }}>
           dynastygeneral.app
         </div>

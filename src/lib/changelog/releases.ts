@@ -34,10 +34,15 @@ export interface Release {
 export const RELEASES: Release[] = [
   {
     version: "2026-05-26",
-    title: "Earned role on the board, draft capital on rookie cards",
+    title:
+      "Kill the bare 'EV' label, plus draft capital and rubric reads on rookies",
     summary:
-      "The Call shows each candidate's earned role, and rookie cards now read their real NFL draft pick instead of saying 'data missing.'",
+      "The check-in, the share card, the trajectory chart, and the sort column on The Call now read 'Value vs ADP' for what the math actually measures. Rookie cards stop saying 'data missing' for draft capital, and the rubric pipeline now surfaces a projection footer on each rookie-debut card.",
     changes: [
+      {
+        tag: "VS ADP, NOT EV",
+        text: "Every chrome that read 'EV bank' or 'EV banked' now reads 'Value vs ADP' or 'value banked vs ADP'. The check-in's checkpoint reads 'Value vs ADP +N.N, Mth of N.' The share card, the trajectory chart, the sort column on The Call, and the share button match. The math is unchanged. The label now matches what the formula does: measure how much each pick beat the market on timing. The names 'Forward Value' and 'Forward Production' are reserved for surfaces that need data and backtests before they earn them.",
+      },
       {
         tag: "ROLE ON THE CALL",
         text: "The standing call and every candidate on the board now carry a one-line role read: last season's snap share and targets per game, with a rising or eroding trend arrow. A second-year player whose snap share climbed shows it; an incoming rookie has no NFL role to show, which is the honest tell that one is proven and the other is a projection. Hover the line for the trend detail.",

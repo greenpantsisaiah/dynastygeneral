@@ -28,12 +28,12 @@ export async function generateMetadata({
   const league = pickString(sp.league) ?? "their dynasty league";
   const title =
     rank != null && total != null
-      ? `Ranked ${ordinal(rank)} of ${total} in EV banked · Dynasty General`
-      : "EV bank rank · Dynasty General";
+      ? `Ranked ${ordinal(rank)} of ${total} in value banked vs ADP · Dynasty General`
+      : "Value vs ADP rank · Dynasty General";
   const description =
     rank != null && total != null && ev != null
-      ? `${ordinal(rank)} of ${total} in ${league}. ${ev >= 0 ? "+" : ""}${ev.toFixed(1)} EV banked. Scored by the engine: EV = (value/100) × (pick − ADP).`
-      : "Dynasty General EV bank rank card.";
+      ? `${ordinal(rank)} of ${total} in ${league}. ${ev >= 0 ? "+" : ""}${ev.toFixed(1)} value banked vs ADP. Scored by the engine: value vs ADP = (value/100) × (pick − ADP).`
+      : "Dynasty General value vs ADP rank card.";
   return {
     title,
     description,
@@ -55,12 +55,12 @@ export default async function ShareEvBankPage({ searchParams }: Props) {
       <main className="flex-1 bg-background">
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-3xl px-6 pt-14 pb-10 sm:pt-20">
-            <Ticker label="Shared · EV bank rank" />
+            <Ticker label="Shared · Value vs ADP rank" />
             {rank != null && total != null && ev != null ? (
               <>
                 <h1 className="mt-6 text-5xl font-semibold tracking-tight text-foreground sm:text-6xl">
                   {ordinal(rank)} of {total}{" "}
-                  <span className="text-muted">in EV banked</span>
+                  <span className="text-muted">in value banked vs ADP</span>
                 </h1>
                 <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted sm:text-lg">
                   {league ? <>League: {league}. </> : null}
@@ -70,12 +70,12 @@ export default async function ShareEvBankPage({ searchParams }: Props) {
                     }
                   >
                     {ev >= 0 ? "+" : ""}
-                    {ev.toFixed(1)} EV
+                    {ev.toFixed(1)} value
                   </span>{" "}
-                  banked. Scored by the Dynasty General engine.
+                  banked vs ADP. Scored by the Dynasty General engine.
                 </p>
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-2">
-                  EV per pick is{" "}
+                  Value vs ADP per pick is{" "}
                   <code className="font-mono">(value / 100) × (pick − ADP)</code>
                   . Positive picks bank value the engine thinks the market
                   underpriced. Negative picks are sharp locks the engine
@@ -96,12 +96,12 @@ export default async function ShareEvBankPage({ searchParams }: Props) {
             ) : (
               <>
                 <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">
-                  No EV bank card here.
+                  No value vs ADP card here.
                 </h1>
                 <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted">
-                  This share link is missing its rank, total, or EV value.
-                  Generate a fresh one from the EV bank section of your
-                  league hub.
+                  This share link is missing its rank, total, or value.
+                  Generate a fresh one from the value-vs-ADP section of
+                  your league hub.
                 </p>
               </>
             )}

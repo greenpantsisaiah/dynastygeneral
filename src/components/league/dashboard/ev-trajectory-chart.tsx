@@ -92,7 +92,7 @@ export function EvTrajectoryChart({
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
-            Your EV bank
+            Your value vs ADP
           </div>
           <div className="mt-1 flex items-baseline gap-3">
             <span className={`font-mono text-3xl font-semibold leading-none ${totalColor}`}>
@@ -114,7 +114,7 @@ export function EvTrajectoryChart({
             )}
           </div>
           <p className="mt-1 text-[11px] text-muted-2">
-            Cumulative EV banked across {trajectory.points.length} picks.{" "}
+            Value banked vs ADP across {trajectory.points.length} picks.{" "}
             {bank.entries.length - trajectory.points.length > 0 && (
               <>
                 {bank.entries.length - trajectory.points.length} unresolved (no ADP / value).
@@ -143,9 +143,9 @@ export function EvTrajectoryChart({
         <HoveredNodeTooltip entry={hovered.entry} cumulative={hovered.cumulative} />
       ) : (
         <p className="mt-3 text-[11px] text-muted-2">
-          Hover a pick to see its individual EV contribution. Confidence
-          ribbon shows the +/- 3-pick ADP-noise envelope around the
-          running total.
+          Hover a pick to see its individual value-vs-ADP contribution.
+          Confidence ribbon shows the +/- 3-pick ADP-noise envelope
+          around the running total.
         </p>
       )}
     </div>
@@ -295,7 +295,7 @@ function TrajectorySvg({
         className="w-full h-auto"
         preserveAspectRatio="none"
         role="img"
-        aria-label="Cumulative EV banked across your picks"
+        aria-label="Value banked vs ADP across your picks"
       >
         {/* Axes + zero baseline */}
         <line
