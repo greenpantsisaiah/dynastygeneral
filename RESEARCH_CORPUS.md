@@ -402,6 +402,23 @@ Coach receives the recoverability fields directly: `league_read.structural_const
 
 Confounders: single ecosystem (the founder's leagues share managers and norms), manager skill, corpus-derived ADP thins in small cells, KTC cross-check underpowered. Re-run command in the script header.
 
+### VALIDATED (negative, directional): prior-season opportunity adds no marginal forward-VALUE edge over the market in the deep tier
+
+The Stage 2b methodology gate of the "data right" on-ramp (ARCHITECTURE_UNIFICATION_PLAN.md addendum). `scripts/backtest-opportunity-value-edge.ts` asks the only question that licenses a value-scale change: does prior-season OPPORTUNITY (snap share, targets/g from the free Sleeper /stats feed, joined by player_id == Sleeper id, verified) predict forward dynasty VALUE (KTC SF rank movement) BEYOND what prior production and the market's own rank already price? Outcome is rank movement (+ = climbed), washouts kept (fell out of the forward snapshot => worst rank + 25). Band 100-280 (the deep tier where the founder's Adonai Mitchell doubt lives). The marginal read residualizes forward value on prior PPR and current market rank (OLS), then correlates snap share with the residual; a positive residual corr would mean opportunity predicts value the market has NOT priced (worth wiring). Stratified medians (proven/unproven x hi/lo snap) and an age-conditioned cut (the young-riser thesis) cross-check.
+
+Data ceiling (the plan anticipated it): KTC SF snapshots run 2022-08..2024-12 and historical_outcomes is 2022-2024, so exactly ONE vintage has a clean prior (production + opportunity) AND a forward value snapshot: 2023-10-01 -> 2024-08-13 (~10mo), n=119 with snap share. A second 24mo vintage (2022-08 -> 2024-08, prior opportunity from 2021 /stats) has no production control.
+
+Result (vintage A, clean):
+- Raw corr(snap share, forward value delta) is approximately ZERO: ALL -0.03; QB +0.05, RB -0.10, WR +0.07, TE +0.01; WR/TE targets/g -0.13.
+- MARGINAL (residualized) signal is essentially zero: residual on prior PPR -0.04; on prior PPR + market rank -0.03. The market already prices whatever opportunity carries in the deep tier.
+- Stratified: proven hi-opp vs lo-opp forward-value edge -6 ranks (none).
+- AGE-CONDITIONED, the founder's young-riser thesis, REFUTED in this sample: young (<=24) corr(snap, forward value) = -0.25; young hi-opp median delta -86 vs young lo-opp -33. A young deep-tier player who ALREADY has a high snap share gained LESS forward value, not more. The market's preference for unproven upside in the deep tier is rationally-priced eliteness (Brill-Wyner 2024; the asset is the right tail), which is exactly the grounding verdict, now seen in the value data.
+- Vintage B (24mo, no production control): ALL -0.02; RB -0.37 (high-snap RBs LOST rank value over 24mo, the aging-workhorse-cliff pattern the inflection cards warn about), WR +0.08, TE +0.23.
+
+Verdict: prior-season opportunity is excellent decision CONTEXT (surfaced in Stage 1 inflection cards + Stage 2a candidate cards), but it shows NO marginal forward-VALUE signal over the market in the deep tier, and among young deep-tier players the relationship is if anything negative. This CONFIRMS the grounding (no opportunity multiplier on the value scale, same lesson as the data-disproven TE down-multiplier) and means Stage 3 VALUE-scale wiring is NOT supported by current evidence. The rubric stays parked as a value override. Keep opportunity where it is: a projection-context display, not a value input.
+
+Caveats (DIRECTIONAL ONLY): one clean vintage, n=119, KTC rank as the value proxy (non-stationary as new players enter), deep-tier only, small per-position (15-40) and per-age (young n=20) cells. The unlock is broader KTC snapshot coverage, a cleaner value metric (market points date-matched, not rank), the SHALLOW tier (top-100, untested here), and a production-PROJECTION target (vs value) for the prior-not-override framing. What this did NOT re-test: opportunity -> forward PRODUCTION (the grounded ~0.95, mostly autocorrelation). Re-run command in the script header. Connects to "Open questions" item on the rubric value-wiring gate.
+
 ### EXPERIMENT SPEC: continuous arbitrage vs fill-then-trade
 
 Status: NOT YET RUN. Documented so a future pass executes it rather than guessing.
