@@ -21,7 +21,12 @@ import {
   classifyAnticipationBeat,
   classifyMilestoneBeat,
   classifySnipeBeats,
+  classifySeasonStandingBeat,
+  classifyRosterTalentBeat,
+  classifyCallbackBeats,
+  buildPickResolutions,
   reconcileExpectation,
+  reconcileExpectations,
   expectationFromPickDeviation,
 } from "../src/lib/strategy/companion/classify";
 import {
@@ -36,6 +41,7 @@ import type {
   AnticipationInput,
   Beat,
   ExpectationRecord,
+  SeasonStandingInput,
 } from "../src/lib/strategy/companion/types";
 import type { PlayCommitment } from "../src/lib/strategy/plays/types";
 import type { WhatIfReadout } from "../src/lib/strategy/decision-synthesis/whatif";
@@ -518,6 +524,193 @@ function run() {
   check(
     "classifier suppresses a beat with an unresolved raw-id call",
     classifyDebateBeat(rawIdReadout, "sarratt", "dynasty_draft") === null,
+  );
+
+  // 15. In-season standing milestone (the in-season visibility guarantee).
+  //     The draft EV-bank milestone is blind in-season; this twin keeps
+  //     the check-in non-empty after the draft, grounded in calcStanding.
+  const standingTop: SeasonStandingInput = {
+    rank: 2,
+    of: 12,
+    wins: 5,
+    losses: 2,
+    ties: 0,
+  };
+  const sb = classifySeasonStandingBeat(standingTop, "in_season");
+  check("season-standing milestone fires in-season", sb != null);
+  check(
+    "season-standing leads with the rank",
+    sb?.headline.includes("2nd of 12") ?? false,
+    sb?.headline,
+  );
+  check("season-standing top-third reads as a win", sb?.tone === "win");
+  check(
+    "season-standing has no em dash or exclamation",
+    sb ? noEmDashOrBang(sb) : false,
+  );
+  check(
+    "season-standing suppressed outside in-season",
+    classifySeasonStandingBeat(standingTop, "dynasty_draft") === null,
+  );
+  check(
+    "season-standing suppressed before any games (0-0 is noise)",
+    classifySeasonStandingBeat(
+      { rank: 1, of: 12, wins: 0, losses: 0, ties: 0 },
+      "in_season",
+    ) === null,
+  );
+
+  // 15b. Offseason safety net: the roster-talent milestone, and the
+  //      one-milestone fallback precedence (EV bank -> record -> talent).
+  const talent = classifyRosterTalentBeat(
+    { rank: 3, of: 12, value: 1840 },
+    "in_season",
+  );
+  check("roster-talent milestone fires post-draft", talent != null);
+  check(
+    "roster-talent leads with the rank",
+    talent?.headline.includes("3rd of 12 by roster value") ?? false,
+    talent?.headline,
+  );
+  check(
+    "roster-talent suppressed outside in-season",
+    classifyRosterTalentBeat({ rank: 3, of: 12, value: 1840 }, "pre_draft") ===
+      null,
+  );
+  // Offseason: no record, no EV bank -> exactly the roster-talent milestone.
+  const offseason = classifyBeats({
+    stage: "in_season",
+    rosterTalent: { rank: 3, of: 12, value: 1840 },
+    seasonStanding: { rank: 1, of: 12, wins: 0, losses: 0, ties: 0 },
+  });
+  check(
+    "offseason hub gets exactly one (roster-talent) milestone",
+    offseason.length === 1 &&
+      offseason[0].kind === "milestone" &&
+      offseason[0].headline.includes("roster value"),
+    `${offseason.length} beats`,
+  );
+  // Once games are played, the record milestone wins; talent stays silent.
+  const inSeasonStanding = classifyBeats({
+    stage: "in_season",
+    rosterTalent: { rank: 3, of: 12, value: 1840 },
+    seasonStanding: { rank: 2, of: 12, wins: 5, losses: 2, ties: 0 },
+  });
+  check(
+    "record milestone takes precedence over roster talent",
+    inSeasonStanding.filter((b) => b.kind === "milestone").length === 1 &&
+      inSeasonStanding.some((b) => b.headline.includes("by record")),
+    inSeasonStanding.map((b) => b.headline).join(" | "),
+  );
+
+  // 16. Callback (the running story): a non-destructive head-to-head on an
+  //     open pick bet, grounded in current value.
+  const cbValues = new Map<string, number>([
+    ["evans", 70],
+    ["nabers", 64],
+    ["bust", 40],
+    ["star", 92],
+  ]);
+  const cbValueOf = (id: string | null): number | null =>
+    id ? (cbValues.get(id) ?? null) : null;
+  const pickBet = (
+    betId: string,
+    subjLabel: string,
+    subjId: string,
+    altLabel: string,
+    altId: string,
+  ): ExpectationRecord => ({
+    bet_id: betId,
+    league_id: "L",
+    kind: "pick",
+    created_at_pick_no: 30,
+    created_at_week: null,
+    subject_player_id: subjId,
+    subject_label: subjLabel,
+    expected_metric: "ev",
+    expected_value: 0,
+    alternative_label: altLabel,
+    alternative_value: 6,
+    alternative_player_id: altId,
+    resolution_condition: "season value",
+    horizon: "this_season",
+    resolved: false,
+  });
+  const cbWin = classifyCallbackBeats({
+    openBets: [pickBet("b1", "Mike Evans", "evans", "Malik Nabers", "nabers")],
+    valueOf: cbValueOf,
+    checkpointLabel: "week 9",
+    stage: "in_season",
+  });
+  check("callback fires for an open pick bet", cbWin.length === 1);
+  check(
+    "callback (pick ahead) is a win and names the checkpoint",
+    cbWin[0]?.tone === "win" && (cbWin[0]?.headline.includes("week 9") ?? false),
+    cbWin[0]?.headline,
+  );
+  check(
+    "callback body cites both current values",
+    (cbWin[0]?.body?.includes("70") && cbWin[0]?.body?.includes("64")) ?? false,
+    cbWin[0]?.body,
+  );
+  check(
+    "callback has no em dash or exclamation",
+    cbWin[0] ? noEmDashOrBang(cbWin[0]) : false,
+  );
+  // Behind, but not decisively (gap 64 vs 70 = -6, inside the band): a
+  // neutral "still cooking" callback, not a graduated critique.
+  const cbBehind = classifyCallbackBeats({
+    openBets: [pickBet("b2", "Malik Nabers", "nabers", "Mike Evans", "evans")],
+    valueOf: cbValueOf,
+    checkpointLabel: "week 9",
+    stage: "in_season",
+  });
+  check("callback (pick behind) is neutral", cbBehind[0]?.tone === "neutral");
+  check(
+    "callback skips a decisively separated bet (it graduates to reconcile)",
+    classifyCallbackBeats({
+      openBets: [pickBet("b3", "Star", "star", "Malik Nabers", "nabers")],
+      valueOf: cbValueOf,
+      checkpointLabel: "week 9",
+      stage: "in_season",
+    }).length === 0,
+  );
+  check(
+    "callback skips a bet whose alternative cannot be priced",
+    classifyCallbackBeats({
+      openBets: [pickBet("b4", "Mike Evans", "evans", "Ghost", "ghost")],
+      valueOf: cbValueOf,
+      checkpointLabel: "week 9",
+      stage: "in_season",
+    }).length === 0,
+  );
+
+  // 17. Terminal reconcile: only a decisive value separation resolves a
+  //     season-long bet, and a contrarian pick resolves honest-first.
+  const decisiveWin = pickBet("w1", "Star", "star", "Malik Nabers", "nabers");
+  const decisiveLoss = pickBet("l1", "Bust Pick", "bust", "Star", "star");
+  const stillClose = pickBet("c1", "Mike Evans", "evans", "Malik Nabers", "nabers");
+  const resolutions = buildPickResolutions({
+    openBets: [decisiveWin, decisiveLoss, stillClose],
+    valueOf: cbValueOf,
+  });
+  check(
+    "only decisively separated bets resolve",
+    resolutions.length === 2 &&
+      resolutions.every((r) => r.bet_id !== "c1"),
+    resolutions.map((r) => r.bet_id).join(","),
+  );
+  const recon = reconcileExpectations(
+    [decisiveWin, decisiveLoss, stillClose],
+    resolutions,
+  );
+  const winBeat = recon.beats.find((b) => b.bet_id === "w1");
+  const lossBeat = recon.beats.find((b) => b.bet_id === "l1");
+  check("decisive contrarian win -> vindication", winBeat?.kind === "vindication");
+  check("decisive contrarian loss -> critique", lossBeat?.kind === "critique");
+  check(
+    "the still-close bet stays open (no resolution)",
+    recon.records.find((r) => r.bet_id === "c1")?.resolved === false,
   );
 
   console.log(`\n${passed} passed ${"·"} ${failed} failed`);
