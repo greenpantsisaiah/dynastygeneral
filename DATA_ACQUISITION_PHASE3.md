@@ -5,9 +5,24 @@ empty `player_signals` / `team_signals` tables so the parked rubric
 expertise (`src/lib/engine/evaluation/`) and the inflection model can
 run on real data. It is the "acquire data first" track from
 `ARCHITECTURE_UNIFICATION_PLAN.md` Phase 3, researched against live
-sources 2026-05-23 (agent a21cff68). No code has been written and
-nothing has been written to the database. This doc is for the founder
-to authorize before either happens.
+sources 2026-05-23 (agent a21cff68).
+
+**Update 2026-05-26: Tier 1 + Tier 2 of the first cut SHIPPED. After a
+read-only validation showed draft capital is a real marginal projection
+signal (residualized -0.10 overall, -0.40 for young; n=626) and that
+opportunity is not (~0; Stage 2b), the founder authorized the targeted
+ingestion. `scripts/ingest-unlock-signals.ts` upserted 1,752
+skill-position rows into `player_signals` with `draft_pick_no`,
+`draft_round`, an athletic composite in `ras` (NOT the proprietary
+score; per-field `source_attribution` makes the distinction explicit),
+and `confidence_per_field`. Non-skill rows are dropped at ingest per
+the plan. The script is dry-run by default; `--write` performed the
+production upsert. Tier 3 (OL continuity from `snap_counts`) is
+deferred pending its own read-only validation. Opportunity signals from
+Sleeper /stats are NOT in `player_signals` because Stage 2b showed they
+carry no marginal signal; they remain decision CONTEXT in the
+inflection cards and The Call (Stage 1 / 2a, shipped). Phase 3b/3c (the
+EnrichedPlayer resolver + wiring `evaluate()`) follow.**
 
 Already shipped (Phase 3a, PR #21): prior-season carries + targets from
 the free Sleeper `/stats` endpoint, lighting up the inflection
