@@ -34,13 +34,17 @@ export interface Release {
 export const RELEASES: Release[] = [
   {
     version: "2026-05-26",
-    title: "See the earned role on the board",
+    title: "Earned role on the board, draft capital on rookie cards",
     summary:
-      "The Call now shows each candidate's earned role, so a proven sophomore's snap-share climb is visible next to the rookies ranked around him.",
+      "The Call shows each candidate's earned role, and rookie cards now read their real NFL draft pick instead of saying 'data missing.'",
     changes: [
       {
         tag: "ROLE ON THE CALL",
         text: "The standing call and every candidate on the board now carry a one-line role read: last season's snap share and targets per game, with a rising or eroding trend arrow. A second-year player whose snap share climbed shows it; an incoming rookie has no NFL role to show, which is the honest tell that one is proven and the other is a projection. Hover the line for the trend detail.",
+      },
+      {
+        tag: "DRAFT CAPITAL ON ROOKIES",
+        text: "Rookie-debut inflection cards now show each rookie's actual NFL overall pick: pick 1 to 15 reads as the high hit-rate tier and argues breakout, Day 3 picks read as the low hit-rate tier and argue caution. The row used to render 'data missing' on every rookie card because no draft-capital source was wired. The signal earned its wiring: a marginal-projection backtest on 626 player-seasons showed draft pick predicts next-year production beyond last year's points (correlation -0.10 overall, -0.40 for players under 25).",
       },
     ],
   },

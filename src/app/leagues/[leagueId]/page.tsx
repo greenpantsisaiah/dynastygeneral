@@ -190,6 +190,7 @@ import {
   readOpportunity,
   type OpportunityRead,
 } from "@/lib/players/opportunity-read";
+import { getDraftPickMap } from "@/lib/players/draft-capital";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
@@ -1000,12 +1001,19 @@ export default async function LeagueHubPage({
       const careerUsage = rosterHasAgingRb(leagueSnapshot, playersMap)
         ? await getCareerUsage(leagueSnapshot.season).catch(() => undefined)
         : undefined;
+      // Draft capital (`player_signals.draft_pick_no`) via the canonical
+      // getDraftPickMap. 24h cached; lights up the rookie-debut card's
+      // "Draft capital" signal that previously rendered data_missing.
+      const draftPickByPlayerId = await getDraftPickMap().catch(
+        () => new Map<string, number>(),
+      );
       inflectionItems = buildInflectionsFromSnapshot({
         snap: leagueSnapshot,
         playersMap,
         prevSeasonStats: inflPrevStats,
         prevPrevSeasonStats: inflPrevPrevStats,
         careerUsage,
+        draftPickByPlayerId,
       });
 
       // Earned-role read for The Call cards. Built from the same /stats

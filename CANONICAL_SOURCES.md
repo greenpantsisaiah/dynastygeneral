@@ -159,6 +159,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: re-deriving an opportunity direction inline in a resolver, or re-implementing the snap-share / target trend (use `readOpportunity`). One signal builder, consumed by every aging window.
 - **Bug class avoided**: aging-cliff cards that rendered `data_missing` for role even though the snap-share / target data was sitting in the `/stats` feed we already fetch (the "data right" Stage 1 gap). Locked by `evals/inflection.test.ts`.
 
+### Draft capital (`draft_pick_overall`)
+
+- **Canonical**: `getDraftPickMap()` in `src/lib/players/draft-capital.ts`
+- **Returns**: `Promise<Map<string, number>>` of `Sleeper player_id -> NFL overall draft pick`, sourced from production `player_signals.draft_pick_no`. 24h in-process cache; in-flight requests dedupe.
+- **Inputs**: none (reads the table). Server-only via `getAdminClient()`; never import in client components.
+- **Use**: threaded by the hub and Coach into `buildInflectionsFromSnapshot` as `draftPickByPlayerId`, which sets `InflectionInputs.draft_pick_overall`. Consumed by `resolveRookieDebut` for the "Draft capital" scorecard row (tier-graded story_a / neutral / story_b). The eventual `EnrichedPlayer` resolver (Phase 3b/3c) reads through this canonical too.
+- **Anti-pattern**: a surface that reads `player_signals.draft_pick_no` directly, re-implementing its own caching / draft-pick lookup. One read, one cache. Data populated by `scripts/ingest-unlock-signals.ts` (founder-authorized 2026-05-26).
+- **Bug class avoided**: rookie-debut cards rendering `data_missing` for draft capital even though the data is now in `player_signals`. Locked by `evals/inflection.test.ts` section 7.
+
 ### Strategy windows + archetype lean
 
 - **Canonical**: `buildLeagueSnapshot → rankArchetypes → computeWindows`

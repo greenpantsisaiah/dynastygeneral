@@ -31,9 +31,20 @@ export function buildInflectionsFromSnapshot(args: {
   // Feeds the RB mileage signal + the >=1500-carry cliff trigger. When
   // absent, the mileage signal renders data_missing (graceful).
   careerUsage?: Map<string, { carries: number; targets: number }>;
+  // NFL overall draft pick per Sleeper player_id, from
+  // `player_signals.draft_pick_no` via the canonical `getDraftPickMap`.
+  // Lights up the rookie-debut card's "Draft capital" signal (Phase 3b);
+  // null entries degrade gracefully to data_missing.
+  draftPickByPlayerId?: Map<string, number>;
 }): InflectionContext[] {
-  const { snap, playersMap, prevSeasonStats, prevPrevSeasonStats, careerUsage } =
-    args;
+  const {
+    snap,
+    playersMap,
+    prevSeasonStats,
+    prevPrevSeasonStats,
+    careerUsage,
+    draftPickByPlayerId,
+  } = args;
   const myRoster = snap.rosters.find((r) => r.is_me);
   if (!myRoster) return [];
 
@@ -95,6 +106,7 @@ export function buildInflectionsFromSnapshot(args: {
         : null,
       careerCarries: career?.carries ?? null,
       careerTargets: career?.targets ?? null,
+      draftPickOverall: draftPickByPlayerId?.get(player.id) ?? null,
     });
     if (!inputs) continue;
     const resolved = resolveInflections(inputs);

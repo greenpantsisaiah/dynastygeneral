@@ -64,6 +64,7 @@ import {
   type OpportunityProfile,
   type PlayerSeasonStats,
 } from "@/lib/players/season-stats";
+import { getDraftPickMap } from "@/lib/players/draft-capital";
 import { SYSTEM_PROMPT } from "@/lib/engine/system-prompt";
 import { isNflDraftWindowActive } from "@/lib/draft-window/active";
 import { readProfileServer } from "@/lib/lab/profile-storage";
@@ -1139,12 +1140,19 @@ export async function POST(
     const careerUsage = rosterHasAgingRb(snapshot, playersMap)
       ? await getCareerUsage(snapshot.season).catch(() => undefined)
       : undefined;
+    // Draft capital from player_signals (canonical getDraftPickMap, 24h
+    // cached). Lights up Coach's rookie-debut inflection cards' "Draft
+    // capital" signal, matching the hub.
+    const draftPickByPlayerId = await getDraftPickMap().catch(
+      () => new Map<string, number>(),
+    );
     inflectionItems = buildInflectionsFromSnapshot({
       snap: snapshot,
       playersMap,
       prevSeasonStats,
       prevPrevSeasonStats,
       careerUsage,
+      draftPickByPlayerId,
     });
   } catch (err) {
     console.error("[coach:league-read+inflections]", err);
