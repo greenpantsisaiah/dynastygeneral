@@ -170,7 +170,15 @@ import { StrategicForks } from "@/components/league/strategic-forks";
 import { DraftJournal } from "@/components/league/draft-journal";
 import { WatchlistStrip } from "@/components/league/watchlist-strip";
 import { resolvePlayers } from "@/lib/players/cache";
-import { getSeasonStats, getCareerUsage } from "@/lib/players/season-stats";
+import {
+  getSeasonStats,
+  getCareerUsage,
+  buildOpportunityProfile,
+} from "@/lib/players/season-stats";
+import {
+  readOpportunity,
+  type OpportunityRead,
+} from "@/lib/players/opportunity-read";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
@@ -363,6 +371,10 @@ export default async function LeagueHubPage({
   let playsFromHere: ResolvedPlayFromHere[] = [];
   let pickApproach: PickApproachData | null = null;
   let decision: Decision | null = null;
+  // Per-candidate earned-role read (snap share + targets trend) for The
+  // Call cards, keyed by player_id. Built from the same prior-season
+  // /stats maps the inflection cards use, via the canonical readOpportunity.
+  let opportunityById: Record<string, OpportunityRead> = {};
   let opponentReadout: OpponentReadout | null = null;
   let opponentCharacterizations: OpponentCharacterization[] = [];
   let opponentNotesByRoster: Map<number, OpponentNote[]> = new Map();
@@ -984,6 +996,26 @@ export default async function LeagueHubPage({
         prevPrevSeasonStats: inflPrevPrevStats,
         careerUsage,
       });
+
+      // Earned-role read for The Call cards. Built from the same /stats
+      // maps via the canonical readOpportunity (one threshold, shared with
+      // the inflection signal), only for the players on the board. A
+      // rookie with no prior-season role yields null and shows no line,
+      // which is itself the honest signal: a proven sophomore's earned
+      // role is visible while incoming rookies are projection-only.
+      if (decision) {
+        const boardIds = new Set<string>(
+          decision.quadrant_candidates.map((c) => c.player_id),
+        );
+        boardIds.add(decision.recommendation.player_id);
+        for (const id of boardIds) {
+          const read = readOpportunity({
+            prev: buildOpportunityProfile(inflPrevStats.get(id)),
+            prevPrev: buildOpportunityProfile(inflPrevPrevStats.get(id)),
+          });
+          if (read) opportunityById[id] = read;
+        }
+      }
 
       // Draft progress scorecard. "How am I doing in this draft."
       // Uses Sleeper format-aware ADP (via pickAdpFromVariants) as
@@ -2147,6 +2179,7 @@ export default async function LeagueHubPage({
                     decision={decision}
                     leagueId={leagueId}
                     currentPickNo={leagueSnapshot?.draft.next_pick_no ?? null}
+                    opportunityById={opportunityById}
                     suggestedPlays={suggestedPlays}
                     picksMadeForUser={(() => {
                       if (!leagueSnapshot || !myRoster) return [];

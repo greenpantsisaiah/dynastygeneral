@@ -35,6 +35,7 @@
 import { useState } from "react";
 import type { Decision } from "@/lib/strategy/decision-synthesis/types";
 import type { Play } from "@/lib/strategy/plays/types";
+import type { OpportunityRead } from "@/lib/players/opportunity-read";
 import { DecisionBoard } from "./decision-board";
 
 export type TheCallProps = {
@@ -43,6 +44,8 @@ export type TheCallProps = {
   currentPickNo: number | null;
   suggestedPlays?: Play[];
   picksMadeForUser?: { player_id: string; pick_no: number }[];
+  /** Earned-role read per candidate player_id (snap share + targets trend). */
+  opportunityById?: Record<string, OpportunityRead>;
 };
 
 export function TheCall({
@@ -51,6 +54,7 @@ export function TheCall({
   currentPickNo,
   suggestedPlays = [],
   picksMadeForUser = [],
+  opportunityById = {},
 }: TheCallProps) {
   return (
     <section
@@ -66,6 +70,7 @@ export function TheCall({
         currentPickNo={currentPickNo}
         suggestedPlays={suggestedPlays}
         picksMadeForUser={picksMadeForUser}
+        opportunityById={opportunityById}
       />
 
       {decision.trade_up_consideration && (

@@ -19,6 +19,7 @@ import type {
   DecisionQuadrantCandidate,
 } from "@/lib/strategy/decision-synthesis/types";
 import type { Play, PlayCommitment } from "@/lib/strategy/plays/types";
+import type { OpportunityRead } from "@/lib/players/opportunity-read";
 import { computeEv } from "./candidate-bits";
 import {
   abandonPlay,
@@ -58,6 +59,8 @@ export type DecisionBoardProps = {
   currentPickNo: number | null;
   suggestedPlays?: Play[];
   picksMadeForUser?: { player_id: string; pick_no: number }[];
+  /** Earned-role read per candidate player_id (snap share + targets trend). */
+  opportunityById?: Record<string, OpportunityRead>;
 };
 
 function lastInTierByPlayer(
@@ -114,6 +117,51 @@ function Chip({ text, tone = "muted" }: { text: string; tone?: Tone }) {
   );
 }
 
+// Earned-role detail (Tufte Layer 2): last season's snap share + targets
+// with a trend arrow. Display-only; the read comes from the canonical
+// readOpportunity. A rising role on a young name is buy-the-trajectory; an
+// eroding one on a veteran is the early warning. The trend detail rides on
+// the title attribute as provenance-on-hover. Renders nothing for players
+// with no prior-season role data (rookies), which is itself the honest
+// signal: a proven sophomore's earned role shows; incoming rookies don't.
+function RoleLine({ read }: { read: OpportunityRead | undefined }) {
+  if (!read) return null;
+  const arrow =
+    read.trend === "rising" ? "↑" : read.trend === "falling" ? "↓" : null;
+  const tone =
+    read.trend === "rising"
+      ? "text-success"
+      : read.trend === "falling"
+        ? "text-danger"
+        : "text-muted-2";
+  const label =
+    read.trend === "rising"
+      ? "rising"
+      : read.trend === "falling"
+        ? "eroding"
+        : read.trend === "flat"
+          ? "steady"
+          : null;
+  return (
+    <p
+      className="mt-1 text-[11px] leading-snug text-muted-2"
+      title={read.detail}
+    >
+      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+        Role
+      </span>{" "}
+      {read.line}
+      {label ? (
+        <span className={`font-mono ${tone}`}>
+          {" · "}
+          {arrow ? `${arrow} ` : ""}
+          {label}
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
 // 538-style inline magnitude bar for survival.
 function SurvBar({ pct }: { pct: number }) {
   const tone =
@@ -135,6 +183,7 @@ export function DecisionBoard({
   currentPickNo,
   suggestedPlays = [],
   picksMadeForUser = [],
+  opportunityById = {},
 }: DecisionBoardProps) {
   const pickNo = decision.pick_no;
   const standingCallId = decision.recommendation.player_id;
@@ -378,6 +427,7 @@ export function DecisionBoard({
             {decision.recommendation.primary_reason}
           </p>
         )}
+        <RoleLine read={opportunityById[standingCallId]} />
         {!callAtRisk && (
           <p className="mt-1 text-[11px] leading-snug text-warning">
             Nothing's about to be gone. Take {decision.recommendation.name} for
@@ -465,6 +515,7 @@ export function DecisionBoard({
                       {note}
                     </p>
                   )}
+                  <RoleLine read={opportunityById[c.player_id]} />
                 </div>
               );
             })}
