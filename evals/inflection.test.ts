@@ -429,6 +429,75 @@ function run() {
     );
   }
 
+  console.log(
+    "\n── 7. buildInflectionsFromSnapshot threads draftPickByPlayerId (Phase 3b) ──",
+  );
+  {
+    // A true rookie (years_exp=0) enters the rookie-debut window. With a
+    // draftPickByPlayerId entry the "Draft capital" signal must light up
+    // with the right tier label and direction. Without it, it stays
+    // data_missing (graceful). Locks the Phase 3b wiring of
+    // player_signals.draft_pick_no into the inflection model.
+    const snap = {
+      rosters: [{ is_me: true, player_ids: ["rk1"] }],
+    } as unknown as LeagueSnapshot;
+    const playersMap = new Map<string, SleeperPlayer>([
+      [
+        "rk1",
+        {
+          player_id: "rk1",
+          full_name: "Rookie Test WR",
+          position: "WR",
+          team: "ATL",
+          age: 22,
+          years_exp: 0,
+        } as unknown as SleeperPlayer,
+      ],
+    ]);
+    const findDraft = (
+      ctx: ReturnType<typeof buildInflectionsFromSnapshot>,
+    ) =>
+      ctx[0]?.resolutions
+        .flatMap((r) => r.signals)
+        .find((s) => s.name === "Draft capital");
+
+    const withPick = buildInflectionsFromSnapshot({
+      snap,
+      playersMap,
+      draftPickByPlayerId: new Map([["rk1", 8]]),
+    });
+    const dWith = findDraft(withPick);
+    check(
+      "pick 8 lights up Draft capital as top-15 / story_a",
+      dWith != null &&
+        dWith.direction === "story_a" &&
+        /top-15/i.test(dWith.observation ?? ""),
+      dWith?.observation ?? "no signal",
+    );
+
+    const withDay3 = buildInflectionsFromSnapshot({
+      snap,
+      playersMap,
+      draftPickByPlayerId: new Map([["rk1", 200]]),
+    });
+    const dDay3 = findDraft(withDay3);
+    check(
+      "pick 200 lights up Draft capital as Day 3 / story_b",
+      dDay3 != null &&
+        dDay3.direction === "story_b" &&
+        /Day 3/.test(dDay3.observation ?? ""),
+      dDay3?.observation ?? "no signal",
+    );
+
+    const withoutPick = buildInflectionsFromSnapshot({ snap, playersMap });
+    const dNone = findDraft(withoutPick);
+    check(
+      "without draftPickByPlayerId, Draft capital is data_missing",
+      dNone != null && dNone.direction === "data_missing",
+      dNone?.direction ?? "none",
+    );
+  }
+
   console.log(`\n${passed} passed · ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

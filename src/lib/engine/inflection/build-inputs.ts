@@ -17,11 +17,14 @@
  *     /stats), gated on rosterHasAgingRb so only aging-RB rosters pay
  *     the fetch. Lights up the mileage signal + the 1500-carry RB cliff
  *     trigger. Phase 3 ingestion supersedes it with stored values.
- *   - draft_pick_overall: NOT in the Sleeper players blob. Verified
- *     2026-05-23 against api.sleeper.app/v1/players/nfl: metadata
- *     carries only channel_id / genius_id / rookie_year, no NFL draft
- *     position. Filling this needs an external draft-capital source
- *     (the Phase 3 acquisition track), not a HumanPlayer thread-through.
+ *   - draft_pick_overall: PLUMBED (2026-05-26) from
+ *     `player_signals.draft_pick_no` via the canonical `getDraftPickMap`
+ *     (players/draft-capital.ts), threaded by
+ *     `buildInflectionsFromSnapshot`. Lights up the rookie-debut card's
+ *     "Draft capital" signal that previously rendered data_missing. Data
+ *     ingested by `scripts/ingest-unlock-signals.ts`, authorized after
+ *     the read-only validation showed draft capital is a real marginal
+ *     projection signal (residualized -0.40 for young; n=626).
  *   - compounding_news_count: only present for RBs we extracted
  *
  * The architecture is right; the data plumbing fills in over v2.
