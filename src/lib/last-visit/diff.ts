@@ -164,7 +164,7 @@ export function composeDigestLine(delta: LastVisitDelta): string | null {
   }
   if (delta.ev_bank_delta != null && Math.abs(delta.ev_bank_delta) >= 0.5) {
     const sign = delta.ev_bank_delta >= 0 ? "+" : "";
-    parts.push(`EV bank ${sign}${delta.ev_bank_delta.toFixed(1)}`);
+    parts.push(`value vs ADP ${sign}${delta.ev_bank_delta.toFixed(1)}`);
   }
   if (parts.length === 0) return null;
   return `Since ${formatTimeSince(delta.ms_since_last_visit)}: ${parts.join(", ")}.`;

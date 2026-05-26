@@ -273,7 +273,7 @@ export function classifyMilestoneBeat(
     stage,
     source: {
       signal: "analyzeLeagueEvBank",
-      detail: `EV bank rank ${evBank.my_rank} of ${evBank.ranked_count}`,
+      detail: `Value vs ADP rank ${evBank.my_rank} of ${evBank.ranked_count}`,
       values: {
         ev_total: evTotal,
         rank: evBank.my_rank,

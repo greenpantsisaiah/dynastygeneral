@@ -147,9 +147,9 @@ function phraseMilestone(v: Values): { headline: string; body?: string } {
   const progress = num(v.progress_pct);
   const head =
     evTotal != null && rank != null && of != null
-      ? `EV bank ${signed(evTotal)}, ${ordinal(rank)} of ${of}.`
+      ? `Value vs ADP ${signed(evTotal)}, ${ordinal(rank)} of ${of}.`
       : evTotal != null
-        ? `EV bank ${signed(evTotal)}.`
+        ? `Value vs ADP ${signed(evTotal)}.`
         : "Checkpoint.";
   const body =
     progress != null ? `Draft ${Math.round(progress)}% in. Solid session.` : undefined;

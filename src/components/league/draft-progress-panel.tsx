@@ -298,7 +298,7 @@ function EvBankSection({
               ))}
             </div>
             <p className="mt-3 text-[10px] leading-snug text-muted-2">
-              EV per pick = (value/100) × (pick − ADP). Range from realistic ADP noise of ±{bank.adp_noise_picks} picks. Sharp locks count negative against the bank by definition.
+              Value vs ADP per pick = (value/100) × (pick − ADP). Range from realistic ADP noise of ±{bank.adp_noise_picks} picks. Sharp locks count negative by definition.
             </p>
           </>
         )}
@@ -355,12 +355,12 @@ function ShareEvBankButton({
 
   async function onShare() {
     const url = buildShareUrl();
-    const shareText = `${ordinalShort(rank)} of ${total} in EV banked on Dynasty General.`;
+    const shareText = `${ordinalShort(rank)} of ${total} in value banked vs ADP on Dynasty General.`;
     setError(null);
     try {
       const nav = typeof navigator !== "undefined" ? navigator : null;
       if (nav && "share" in nav && typeof nav.share === "function") {
-        await nav.share({ title: "EV bank rank", text: shareText, url });
+        await nav.share({ title: "Value vs ADP rank", text: shareText, url });
         return;
       }
       if (nav && nav.clipboard && nav.clipboard.writeText) {
@@ -381,7 +381,7 @@ function ShareEvBankButton({
         type="button"
         onClick={onShare}
         className="rounded-md border border-accent/60 bg-accent/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:bg-accent/20"
-        title="Generates a shareable card with your rank, league size, and EV banked. Anyone with the link sees the same numbers."
+        title="Generates a shareable card with your rank, league size, and value banked vs ADP. Anyone with the link sees the same numbers."
       >
         Share this rank
       </button>
