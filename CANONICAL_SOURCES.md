@@ -177,6 +177,23 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: a surface that subtracts ADP from value rank inline, picks its own threshold, or invents a "draft market overpaying" verdict in copy. One helper, one threshold, neutral framing.
 - **Bug class avoided**: drift between surfaces on what "the two markets disagree" means, and editorializing the disagreement. Locked by `evals/market-divergence.test.ts`.
 
+### Player + team signals readers (production `player_signals` / `team_signals`)
+
+- **Canonical**: `getPlayerSignalsMap()` and `getTeamSignalsMap()` in `src/lib/players/player-signals.ts`
+- **Returns**: `Promise<Map<player_id | team, row>>`, fetched server-side via `getAdminClient()` (service role), cached 24h with in-flight dedupe.
+- **Inputs**: none. Reads the whole table (both are small).
+- **Use**: every consumer of `evaluate()` (the rubric pipeline) reads through these. The hub fetches both once per render and threads them into `evaluateForPlayer`. Future Coach + EnrichedPlayer wiring reads the same maps.
+- **Anti-pattern**: a surface that reads `from("player_signals")` or `from("team_signals")` inline. One read, one cache. Data populated by `scripts/ingest-unlock-signals.ts` plus admin manual coding.
+- **Bug class avoided**: each surface paying its own DB round-trip + drifting on what columns to select.
+
+### Live rubric wiring (`evaluate()` per player)
+
+- **Canonical**: `evaluateForPlayer(args)` in `src/lib/engine/evaluation/wiring.ts`; honest-framing helper `isRubricPriorDriven(out)` in the same file.
+- **Returns**: `EvaluationOutput | null`. Null only when position is unknown; otherwise the rubric's point estimate + variance band + evidence stack + market delta + confidence. Pure adapter: builds an `EvaluationContext` from already-fetched `player_signals` + `team_signals` + meta and calls `evaluate()`.
+- **Use**: Phase 3c wiring. Currently consumed ONLY for rostered rookies (the user's `years_exp === 0` players) and surfaced as a Layer-3 footer on the inflection rookie-debut card, never into value scoring or `synthesize` (the Stage 2b backtest showed opportunity-class signals carry no marginal forward-VALUE edge; the rubric's value-wiring stays parked). `isRubricPriorDriven` flags reads dominated by the Bayesian prior so the UI footer renders an honest caveat instead of a confident projection it isn't.
+- **Anti-pattern**: building an `EvaluationContext` inline in a surface, or calling `evaluate()` outside this wrapper without consuming `getPlayerSignalsMap`. One adapter, one read.
+- **Bug class avoided**: surfaces drifting on how they hydrate the rubric, and value-scale wiring that the 2b evidence doesn't support. Locked by `evals/evaluation-wiring.test.ts`.
+
 ### Strategy windows + archetype lean
 
 - **Canonical**: `buildLeagueSnapshot → rankArchetypes → computeWindows`
