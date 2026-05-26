@@ -7,6 +7,11 @@
  *     (2026-05-23) from the free Sleeper /stats endpoint (rush_att /
  *     rec_tgt) via `buildInflectionsFromSnapshot`, keyed by Sleeper
  *     player_id. Lights up the workload-trend signal on the hub + Coach.
+ *   - prev_season / prev_prev_season opportunity: PLUMBED (2026-05-25)
+ *     from the same free /stats feed via the canonical
+ *     buildOpportunityProfile (snap share, targets/game, aDOT, RZ role,
+ *     drops). Lights up the aging-cliff opportunity signal
+ *     (buildOpportunitySignal). Stage 1 of the "data right" on-ramp.
  *   - career_carries / career_targets: PLUMBED (2026-05-24) via
  *     getCareerUsage (a bounded multi-season sum of the same Sleeper
  *     /stats), gated on rosterHasAgingRb so only aging-RB rosters pay
@@ -23,6 +28,7 @@
  */
 
 import type { HumanPlayer } from "@/lib/players/cache";
+import type { OpportunityProfile } from "@/lib/players/season-stats";
 import type { Position } from "../../strategy/archetypes/schema";
 import type { InflectionInputs } from "./types";
 
@@ -40,6 +46,8 @@ export function buildInflectionInputsFromHumanPlayer(args: {
   prevSeasonTargets?: number | null;
   prevPrevSeasonCarries?: number | null;
   prevPrevSeasonTargets?: number | null;
+  prevSeasonOpportunity?: OpportunityProfile | null;
+  prevPrevSeasonOpportunity?: OpportunityProfile | null;
   compoundingNewsCount?: number | null;
 }): InflectionInputs | null {
   const { player } = args;
@@ -59,6 +67,8 @@ export function buildInflectionInputsFromHumanPlayer(args: {
     prev_season_targets: args.prevSeasonTargets ?? null,
     prev_prev_season_carries: args.prevPrevSeasonCarries ?? null,
     prev_prev_season_targets: args.prevPrevSeasonTargets ?? null,
+    prev_season_opportunity: args.prevSeasonOpportunity ?? null,
+    prev_prev_season_opportunity: args.prevPrevSeasonOpportunity ?? null,
     same_team_same_position: args.sameTeamSamePosition.map((p) => ({
       player_id: p.id,
       age: p.age,

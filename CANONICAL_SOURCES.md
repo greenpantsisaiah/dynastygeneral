@@ -133,6 +133,23 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: reading `me.position_counts[pos] >= reqs[pos]` to decide "starter hole filled," or ranking teams by `position_counts[pos]` for a "deep / thin at X" claim. Six replacement-level WRs are not "deep at WR."
 - **Bug class avoided**: 2026-05-16 founder report: "strategy advice over-weights total RB/WR counts instead of startable quality and stable depth." A roster stacked with low-value bench bodies read as saturated / deep, suppressing real starter recommendations and producing body-count SWOT reads. Locked by `evals/startable-depth.test.ts`.
 
+### Opportunity profile (earned-role usage read)
+
+- **Canonical**: `buildOpportunityProfile(stats)` in `src/lib/players/season-stats.ts`
+- **Returns**: `OpportunityProfile` = `{ snap_share, targets_per_game, adot, drop_rate, rz_targets_per_game, targets }`, every field nullable (graceful when a season carries no usage row)
+- **Inputs**: one `PlayerSeasonStats` (or `undefined`) from the free Sleeper `/stats` feed. Pure, no fetch. Clamps `snap_share` to 0-1 and guards a zero-snap denominator.
+- **Use**: the per-player earned-role read anywhere it surfaces (inflection opportunity signal, Coach `my_roster.players[].opportunity`, Stage 2 candidate / player cards). Per the dynasty-canon-keeper grounding (2026-05-25, ARCHITECTURE_UNIFICATION_PLAN.md "data right" addendum): opportunity (target / weighted-opportunity share, sticky ~0.70 YoY, ~0.95 corr with PPR) is the research-defensible usage signal. It informs a PROJECTION read, never a value-scale multiplier.
+- **Anti-pattern**: dividing player snaps by `team_off_snaps` inline (re-derives snap share without the clamp / zero-guard), or re-computing aDOT / drop rate / RZ-per-game in a surface. Lint rule "no inline snap-share derivation (use buildOpportunityProfile)" bans the `/ ...team_off_snaps` signature outside the canonical.
+- **Bug class avoided**: the value-scale trap. A rookie / proven multiplier on FantasyCalc value is indefensible (Brill-Wyner 2024; same lesson as the data-disproven TE down-multiplier). The defensible lever is age-adjusted opportunity wired as a projection prior, position-conditioned. Locked by `evals/opportunity-profile.test.ts`.
+
+### Inflection opportunity signal (aging-cliff role trend)
+
+- **Canonical**: `buildOpportunitySignal({ position, prev, prevPrev })` in `src/lib/engine/inflection/opportunity-signal.ts`
+- **Returns**: one `InflectionSignal` (snap share + targets/game, with aDOT / RZ / drop-rate as readout). Direction is TREND-based (this season vs last): rising role -> `story_a`, eroding -> `story_b`, flat -> `neutral`; `data_missing` when the prior season has no role data; `neutral` (level only) when there is no prior to compare.
+- **Inputs**: position (RB / WR / TE) and the most-recent two `OpportunityProfile`s (from `buildOpportunityProfile`). Consumed by the aging-cliff RB / WR / TE resolvers in `resolve.ts`; threaded by `buildInflectionsFromSnapshot` from the same `/stats` maps that feed the workload signal (zero extra fetch).
+- **Anti-pattern**: re-deriving an opportunity direction inline in a resolver or a render component, or re-implementing the snap-share / target trend. One signal builder, consumed by every aging window.
+- **Bug class avoided**: aging-cliff cards that rendered `data_missing` for role even though the snap-share / target data was sitting in the `/stats` feed we already fetch (the "data right" Stage 1 gap). Locked by `evals/inflection.test.ts`.
+
 ### Strategy windows + archetype lean
 
 - **Canonical**: `buildLeagueSnapshot → rankArchetypes → computeWindows`
