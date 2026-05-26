@@ -142,12 +142,21 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: dividing player snaps by `team_off_snaps` inline (re-derives snap share without the clamp / zero-guard), or re-computing aDOT / drop rate / RZ-per-game in a surface. Lint rule "no inline snap-share derivation (use buildOpportunityProfile)" bans the `/ ...team_off_snaps` signature outside the canonical.
 - **Bug class avoided**: the value-scale trap. A rookie / proven multiplier on FantasyCalc value is indefensible (Brill-Wyner 2024; same lesson as the data-disproven TE down-multiplier). The defensible lever is age-adjusted opportunity wired as a projection prior, position-conditioned. Locked by `evals/opportunity-profile.test.ts`.
 
+### Opportunity role read (trend + display string)
+
+- **Canonical**: `readOpportunity({ prev, prevPrev })` (with `describeRole`) in `src/lib/players/opportunity-read.ts`
+- **Returns**: `OpportunityRead | null` = `{ line, trend, detail }` where `line` is the role string ("49% snaps, 4.6 tgt/g, 5 aDOT"), `trend` is `"rising" | "falling" | "flat" | "single_season"`, and `detail` is the plain-English trend ("snap share up 14 pts from 35%"). `null` when the prior season carries no role data (rookie / injury year), so callers hide the line or render `data_missing`.
+- **Inputs**: the most-recent two `OpportunityProfile`s (from `buildOpportunityProfile`). Pure; type-only dependency on season-stats so it is safe to import server-side without the fetch/zod weight.
+- **Owns**: the single rising/falling threshold (snap share >= 7 pts, or targets >= 1.0/g fallback) AND the role-description string. Both the inflection opportunity signal and The Call candidate-card `RoleLine` consume it, so the scorecard, chat, and the board never disagree on the trend call or the numbers.
+- **Anti-pattern**: re-implementing the snap-share / target trend or the role string in a surface, or hardcoding a second material-change threshold. One read, every consumer.
+- **Bug class avoided**: drift between the inflection card's trend and the candidate card's trend for the same player. Locked by `evals/opportunity-read.test.ts`.
+
 ### Inflection opportunity signal (aging-cliff role trend)
 
 - **Canonical**: `buildOpportunitySignal({ position, prev, prevPrev })` in `src/lib/engine/inflection/opportunity-signal.ts`
-- **Returns**: one `InflectionSignal` (snap share + targets/game, with aDOT / RZ / drop-rate as readout). Direction is TREND-based (this season vs last): rising role -> `story_a`, eroding -> `story_b`, flat -> `neutral`; `data_missing` when the prior season has no role data; `neutral` (level only) when there is no prior to compare.
+- **Returns**: one `InflectionSignal`. Wraps `readOpportunity` and maps its trend onto the window's stories: rising role -> `story_a`, eroding -> `story_b`, flat / single_season -> `neutral`; `data_missing` when the prior season has no role data.
 - **Inputs**: position (RB / WR / TE) and the most-recent two `OpportunityProfile`s (from `buildOpportunityProfile`). Consumed by the aging-cliff RB / WR / TE resolvers in `resolve.ts`; threaded by `buildInflectionsFromSnapshot` from the same `/stats` maps that feed the workload signal (zero extra fetch).
-- **Anti-pattern**: re-deriving an opportunity direction inline in a resolver or a render component, or re-implementing the snap-share / target trend. One signal builder, consumed by every aging window.
+- **Anti-pattern**: re-deriving an opportunity direction inline in a resolver, or re-implementing the snap-share / target trend (use `readOpportunity`). One signal builder, consumed by every aging window.
 - **Bug class avoided**: aging-cliff cards that rendered `data_missing` for role even though the snap-share / target data was sitting in the `/stats` feed we already fetch (the "data right" Stage 1 gap). Locked by `evals/inflection.test.ts`.
 
 ### Strategy windows + archetype lean

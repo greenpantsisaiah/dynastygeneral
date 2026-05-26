@@ -33,6 +33,18 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-05-26",
+    title: "See the earned role on the board",
+    summary:
+      "The Call now shows each candidate's earned role, so a proven sophomore's snap-share climb is visible next to the rookies ranked around him.",
+    changes: [
+      {
+        tag: "ROLE ON THE CALL",
+        text: "The standing call and every candidate on the board now carry a one-line role read: last season's snap share and targets per game, with a rising or eroding trend arrow. A second-year player whose snap share climbed shows it; an incoming rookie has no NFL role to show, which is the honest tell that one is proven and the other is a projection. Hover the line for the trend detail.",
+      },
+    ],
+  },
+  {
     version: "2026-05-25",
     title: "Earned role, read from the box score",
     summary:
