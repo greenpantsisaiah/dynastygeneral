@@ -191,6 +191,12 @@ import {
   type OpportunityRead,
 } from "@/lib/players/opportunity-read";
 import { getDraftPickMap } from "@/lib/players/draft-capital";
+import {
+  getPlayerSignalsMap,
+  getTeamSignalsMap,
+} from "@/lib/players/player-signals";
+import { evaluateForPlayer } from "@/lib/engine/evaluation/wiring";
+import type { EvaluationOutput } from "@/lib/engine/evaluation";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
 import { OpponentCharacterizations } from "@/components/league/opponent-characterizations";
 import { buildOpponentCharacterizations } from "@/lib/strategy/opponents/characterize";
@@ -387,6 +393,12 @@ export default async function LeagueHubPage({
   // Call cards, keyed by player_id. Built from the same prior-season
   // /stats maps the inflection cards use, via the canonical readOpportunity.
   let opportunityById: Record<string, OpportunityRead> = {};
+  // Live rubric projection per rookie on the user's roster (Phase 3c).
+  // evaluate() runs only for rostered rookies (years_exp === 0) where
+  // the read-only validation showed draft capital as a real signal;
+  // surfaced as a Layer-3 footer on the inflection rookie-debut card.
+  // Display-only; never feeds value scoring (per 2b verdict).
+  let rubricByPlayerId: Record<string, EvaluationOutput> = {};
   let opponentReadout: OpponentReadout | null = null;
   let opponentCharacterizations: OpponentCharacterization[] = [];
   let opponentNotesByRoster: Map<number, OpponentNote[]> = new Map();
@@ -1015,6 +1027,42 @@ export default async function LeagueHubPage({
         careerUsage,
         draftPickByPlayerId,
       });
+
+      // Rubric projection on rookie cards (Phase 3c). Run evaluate()
+      // for the user's rostered rookies only; surfaced as a Layer-3
+      // footer in InflectionPanel. Display-only; never feeds value
+      // scoring (per Stage 2b verdict). Player and team signal maps are
+      // 24h cached, so this costs at most one fetch per process per day.
+      const myRosterForRubric = leagueSnapshot.rosters.find((r) => r.is_me);
+      const myRookieIds = (myRosterForRubric?.player_ids ?? []).filter(
+        (id) => playersMap.get(id)?.years_exp === 0,
+      );
+      if (myRookieIds.length > 0) {
+        const [playerSignalsMap, teamSignalsMap] = await Promise.all([
+          getPlayerSignalsMap().catch(() => new Map()),
+          getTeamSignalsMap().catch(() => new Map()),
+        ]);
+        for (const id of myRookieIds) {
+          const sp = playersMap.get(id);
+          if (!sp) continue;
+          const out = evaluateForPlayer({
+            player_signals: playerSignalsMap.get(id) ?? null,
+            team_signals: sp.team ? teamSignalsMap.get(sp.team) ?? null : null,
+            ktc_value:
+              typeof playerValuesByIdJson?.[id] === "number"
+                ? playerValuesByIdJson[id]
+                : null,
+            adp: null,
+            search_rank:
+              typeof sp.search_rank === "number" ? sp.search_rank : null,
+            position: sp.position ?? null,
+            age: typeof sp.age === "number" ? sp.age : null,
+            years_exp:
+              typeof sp.years_exp === "number" ? sp.years_exp : null,
+          });
+          if (out) rubricByPlayerId[id] = out;
+        }
+      }
 
       // Earned-role read for The Call cards. Built from the same /stats
       // maps via the canonical readOpportunity (one threshold, shared with
@@ -2515,7 +2563,10 @@ export default async function LeagueHubPage({
                         />
                       )}
                     {inflectionItems.length > 0 && (
-                      <InflectionPanel items={inflectionItems} />
+                      <InflectionPanel
+                        items={inflectionItems}
+                        rubricByPlayerId={rubricByPlayerId}
+                      />
                     )}
                     {contenderOutlook && (
                       <ContenderOutlookCard outlook={contenderOutlook} />

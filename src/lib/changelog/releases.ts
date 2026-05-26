@@ -50,6 +50,10 @@ export const RELEASES: Release[] = [
         tag: "MARKET GAPS ON THE CALL",
         text: "Two markets price each player: the draft market (ADP, where consensus picks) and the trade market (overall trade-value rank). When they disagree by 15 picks or more, each candidate on The Call now carries a one-line read of the gap, showing both numbers and which market is earlier. Adonai Mitchell sits at ADP 196 but value rank 242: drafted 46 picks earlier than the trade market ranks him. The framing is neutral, both numbers visible; the user decides whether ADP is overpaying or the trade market is sleeping on him.",
       },
+      {
+        tag: "RUBRIC PROJECTION ON ROOKIES",
+        text: "The parked rubric pipeline now runs live on every rookie on your roster, surfacing a projection footer on the inflection rookie-debut card: point estimate, variance range, confidence, and the top contributions from the evidence stack. When the rubric has too little signal to read for a player, the footer wears a warning-tone caveat instead of pretending to a confident call. The wiring is projection-only and never feeds value scoring; the larger value-scale rubric wiring stays parked until the backtest evidence supports it.",
+      },
     ],
   },
   {

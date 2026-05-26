@@ -16,8 +16,23 @@
  */
 
 import type { InflectionContext } from "@/lib/engine/inflection";
+import type { EvaluationOutput } from "@/lib/engine/evaluation";
+import { isRubricPriorDriven } from "@/lib/engine/evaluation/wiring";
 
-export function InflectionPanel({ items }: { items: InflectionContext[] }) {
+export function InflectionPanel({
+  items,
+  rubricByPlayerId = {},
+}: {
+  items: InflectionContext[];
+  /**
+   * Live rubric output per Sleeper player_id, surfaced as a Layer-3
+   * "Rubric projection" footer on rookie-debut cards. Phase 3c wiring:
+   * narrow, projection-only, honest about prior-driven cases. Never
+   * touches the value scale. Map keys are the rooster-rookie ids the
+   * hub computed evaluate() for.
+   */
+  rubricByPlayerId?: Record<string, EvaluationOutput>;
+}) {
   if (items.length === 0) return null;
 
   // Flatten: each player can be in multiple windows. One row per
@@ -217,10 +232,68 @@ export function InflectionPanel({ items }: { items: InflectionContext[] }) {
                   </ul>
                 </div>
               </div>
+
+              {r.window === "rookie_debut" && rubricByPlayerId[row.player_id] ? (
+                <RubricProjection out={rubricByPlayerId[row.player_id]} />
+              ) : null}
             </li>
           );
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * Layer-3 rubric-projection footer on rookie-debut cards (Phase 3c).
+ * Shows evaluate()'s point estimate, variance band, and the top-3
+ * evidence contributions. When the rubric is mostly prior-driven (few
+ * signals are populated yet for the rubric to read), the footer wears
+ * a warning-tone caveat in the same shape as the inflection
+ * calibration_note. Honest about its own evidence; never reads as a
+ * confident projection it isn't.
+ */
+function RubricProjection({ out }: { out: EvaluationOutput }) {
+  const priorDriven = isRubricPriorDriven(out);
+  const top = [...out.evidence_stack]
+    .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
+    .slice(0, 3);
+  return (
+    <div className="mt-3 rounded-md border border-border-soft bg-surface-2/40 px-3 py-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-2">
+          Rubric projection
+        </span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+          conf {Math.round(out.confidence * 100)}%
+        </span>
+      </div>
+      <p className="mt-1 text-[12px] leading-snug text-foreground">
+        Point estimate <span className="font-mono font-semibold">{Math.round(out.point_estimate)}</span>{" "}
+        <span className="text-muted-2">
+          (range {Math.round(out.variance_band.lo)}-{Math.round(out.variance_band.hi)})
+        </span>
+      </p>
+      {priorDriven ? (
+        <p className="mt-1 rounded-sm border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] leading-snug text-warning">
+          Mostly prior-driven: the rubric had little live signal to read for this player. Treat the number as the position's base rate, not a player-specific read. More signals will land as ingestion grows.
+        </p>
+      ) : top.length > 0 ? (
+        <ul className="mt-1 space-y-0.5 text-[11px] leading-snug text-muted-2">
+          {top.map((e, i) => (
+            <li key={i}>
+              <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+                {e.layer}
+              </span>{" "}
+              <span className="text-foreground">{e.signal}</span>{" "}
+              <span className={`font-mono ${e.contribution >= 0 ? "text-success" : "text-danger"}`}>
+                {e.contribution >= 0 ? "+" : ""}
+                {e.contribution.toFixed(1)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
