@@ -34,9 +34,9 @@ export interface Release {
 export const RELEASES: Release[] = [
   {
     version: "2026-05-25",
-    title: "Earned role, read from the box score",
+    title: "Earned role, and a companion that shows up in-season",
     summary:
-      "Aging-cliff cards and Coach now read each player's earned opportunity (snap share and targets), not just his name.",
+      "Aging-cliff cards and Coach now read each player's earned opportunity, and the companion check-in stays with you after the draft.",
     changes: [
       {
         tag: "EARNED OPPORTUNITY",
@@ -45,6 +45,10 @@ export const RELEASES: Release[] = [
       {
         tag: "COACH READS ROLE",
         text: "Coach now carries each of your players' prior-season snap share, targets per game, average depth of target, red-zone targets, and drop rate, and grounds every role claim in them. A young player whose role climbed reads as buy-the-trajectory; a featured name whose role slipped reads as the early warning. Opportunity informs the projection, never overrides market value.",
+      },
+      {
+        tag: "COMPANION IN-SEASON",
+        text: "The check-in at the top of the hub used to go quiet once the draft ended. It now leads with where you sit by record, and it remembers the picks you took over the call: while a value race is close it keeps the running story, and once the gap is decisive it tells you the gamble cashed or names the gap you left. Every line traces to a real number, the same honest-first rule the draft companion already follows.",
       },
     ],
   },

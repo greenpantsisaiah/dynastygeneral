@@ -135,6 +135,12 @@ function phraseCallback(v: Values): { headline: string; body?: string } {
 }
 
 function phraseMilestone(v: Values): { headline: string; body?: string } {
+  // In-season twin: a record-based standing checkpoint (the EV bank is
+  // draft-only). Distinguished by the context tag the classifier sets.
+  if (v.context === "season_standing") return phraseSeasonStanding(v);
+  // Offseason safety net: a roster-talent standing checkpoint.
+  if (v.context === "roster_talent") return phraseRosterTalent(v);
+
   const evTotal = num(v.ev_total);
   const rank = num(v.rank);
   const of = num(v.of);
@@ -148,6 +154,37 @@ function phraseMilestone(v: Values): { headline: string; body?: string } {
   const body =
     progress != null ? `Draft ${Math.round(progress)}% in. Solid session.` : undefined;
   return { headline: head, body };
+}
+
+function phraseSeasonStanding(v: Values): { headline: string; body?: string } {
+  const rank = num(v.rank);
+  const of = num(v.of);
+  const wins = num(v.wins);
+  const losses = num(v.losses);
+  const ties = num(v.ties);
+  if (rank == null || of == null) return { headline: "Checkpoint." };
+  const record =
+    wins != null && losses != null
+      ? `${wins}-${losses}${ties ? `-${ties}` : ""}`
+      : null;
+  const inHunt = rank <= Math.ceil(of / 3);
+  const headline = `${ordinal(rank)} of ${of} by record${record ? `, ${record}` : ""}.`;
+  const body = inHunt
+    ? "We are in the hunt. Same read carries the trade table: sell from strength, buy the holes."
+    : "Long season ahead. The EV edge is in the trade table now, not the standings.";
+  return { headline, body };
+}
+
+function phraseRosterTalent(v: Values): { headline: string; body?: string } {
+  const rank = num(v.rank);
+  const of = num(v.of);
+  if (rank == null || of == null) return { headline: "Checkpoint." };
+  const inHunt = rank <= Math.ceil(of / 3);
+  const headline = `${ordinal(rank)} of ${of} by roster value.`;
+  const body = inHunt
+    ? "Talent says contender. The off-season job is turning depth into the one or two upgrades that win the title."
+    : "The talent gap is real and bridgeable. Sell what you cannot start, buy the holes before the market reprices.";
+  return { headline, body };
 }
 
 // --- formatting helpers (units always, no em dashes, no exclamations) ---

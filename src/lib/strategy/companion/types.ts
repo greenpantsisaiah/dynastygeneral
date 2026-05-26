@@ -135,6 +135,13 @@ export type ExpectationRecord = {
   // the road not taken (the alternative the engine favored, if any)
   alternative_label?: string | null;
   alternative_value?: number | null;
+  /**
+   * The alternative's player id, so the running-story callback + the
+   * terminal reconcile can read the call's CURRENT value (not just the
+   * draft-time `alternative_value`). Null for non-pick bets. Migration
+   * 0016 added the column.
+   */
+  alternative_player_id?: string | null;
   /** The user's logged reasoning (the investment phase). */
   thesis?: string | null;
   // resolution
@@ -186,3 +193,39 @@ export type DraftProgressInput = {
   picks_made: number;
   total_picks: number;
 };
+
+/**
+ * League standing for the in-season milestone beat. The draft EV-bank
+ * milestone is structurally blind in-season (it is built from
+ * `picks_made`); this is its in-season twin, grounded in the record-based
+ * standing (`calcStanding`). Only meaningful once games are played.
+ */
+export type SeasonStandingInput = {
+  rank: number;
+  of: number;
+  wins: number;
+  losses: number;
+  ties: number;
+};
+
+/**
+ * Roster-talent standing for the OFFSEASON milestone. Reuses
+ * `teamIdentity.forward` (lineup_talent_rank, the user's starter value
+ * ranked across all rosters), so it never re-derives the rank. The
+ * post-draft safety net: in the offseason there is no record yet and the
+ * draft EV-bank milestone may not resolve, so this keeps the check-in
+ * non-empty with a grounded "where you stand" read.
+ */
+export type RosterTalentInput = {
+  rank: number;
+  of: number;
+  value: number;
+};
+
+/**
+ * Current normalized value lookup for a player id (FantasyCalc 0-100, the
+ * same map the EV bank and trade pricing read). Powers the callback +
+ * terminal reconcile head-to-head. Returns null when the player has no
+ * resolved value.
+ */
+export type ValueLookup = (playerId: string | null) => number | null;

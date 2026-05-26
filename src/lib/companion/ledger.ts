@@ -139,6 +139,7 @@ function expectationToRow(
     expected_ci_high: r.expected_ci_high ?? null,
     alternative_label: r.alternative_label ?? null,
     alternative_value: r.alternative_value ?? null,
+    alternative_player_id: r.alternative_player_id ?? null,
     thesis: r.thesis ?? null,
     resolution_condition: r.resolution_condition,
     horizon: r.horizon,
@@ -166,6 +167,10 @@ function toExpectationRecord(row: Record<string, unknown>): ExpectationRecord {
     alternative_label:
       row.alternative_label != null ? String(row.alternative_label) : null,
     alternative_value: numOrNull(row.alternative_value),
+    alternative_player_id:
+      row.alternative_player_id != null
+        ? String(row.alternative_player_id)
+        : null,
     thesis: row.thesis != null ? String(row.thesis) : null,
     resolution_condition: String(row.resolution_condition ?? ""),
     horizon: oneOf(row.horizon, HORIZONS, "this_season"),

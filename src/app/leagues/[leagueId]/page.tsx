@@ -83,12 +83,23 @@ import { DraftProgressPanel } from "@/components/league/draft-progress-panel";
 import { LastVisitWriter } from "@/components/system/last-visit-writer";
 import { LastVisitDigest } from "@/components/league/last-visit-digest";
 import { CompanionCheckIn } from "@/components/league/companion-check-in";
-import { classifyBeats } from "@/lib/strategy/companion/classify";
+import {
+  classifyBeats,
+  buildPickResolutions,
+  reconcileExpectations,
+  expectationFromPickDeviation,
+} from "@/lib/strategy/companion/classify";
 import { reconstructPickDebate } from "@/lib/strategy/companion/debate";
+import {
+  readExpectations,
+  persistResolved,
+  upsertExpectation,
+} from "@/lib/companion/ledger";
 import type {
   Beat,
   BeatStage,
   AnticipationInput,
+  ExpectationRecord,
 } from "@/lib/strategy/companion/types";
 import type { WhatIfReadout } from "@/lib/strategy/decision-synthesis/whatif";
 import {
@@ -1495,6 +1506,99 @@ export default async function LeagueHubPage({
             }
           }
         }
+        // In-season loop (Principle 13). Three grounded additions to the
+        // draft-only beats above:
+        //  1. A record-based standing milestone, the in-season twin of the
+        //     draft EV-bank checkpoint, so the check-in is never empty
+        //     after the draft (no ledger history required).
+        //  2. The expectation ledger: read open bets, surface the running
+        //     story as non-destructive callbacks, and reconcile the ones
+        //     whose value race has separated decisively into vindication /
+        //     critique (persisted).
+        //  3. The write side: log a divergent pick as a bet so the loop
+        //     has something to remember. All ledger I/O is best-effort and
+        //     RLS-scoped to the signed-in user.
+        const rawStanding = myRoster
+          ? calcStanding(rosters, myRoster.roster_id)
+          : null;
+        const companionSeasonStanding = rawStanding
+          ? { ...rawStanding, of: rosters.length }
+          : null;
+        // Offseason safety net: reuse the team-identity lineup-talent rank
+        // (no re-derivation) so a post-draft hub with a 0-0 record still
+        // has a grounded "where you stand" beat.
+        const companionRosterTalent = teamIdentity
+          ? {
+              rank: teamIdentity.forward.lineup_talent_rank,
+              of: teamIdentity.forward.total_teams,
+              value: teamIdentity.forward.lineup_talent_value,
+            }
+          : null;
+        const companionValueOf = (id: string | null): number | null =>
+          id ? (lrValueMap.get(id)?.value ?? null) : null;
+        const companionCheckpointLabel = nflState?.week
+          ? `week ${nflState.week}`
+          : "value check";
+
+        let companionOpenBets: ExpectationRecord[] = [];
+        let companionResolvedBeats: Beat[] = [];
+        if (authUser) {
+          try {
+            const allBets = await readExpectations({
+              userId: authUser.id,
+              leagueId,
+            });
+            const existingBetIds = new Set(allBets.map((b) => b.bet_id));
+            companionOpenBets = allBets.filter((b) => !b.resolved);
+
+            // Reconcile the bets whose value race has separated decisively.
+            const resolutions = buildPickResolutions({
+              openBets: companionOpenBets,
+              valueOf: companionValueOf,
+            });
+            if (resolutions.length > 0) {
+              const reconciled = reconcileExpectations(
+                companionOpenBets,
+                resolutions,
+              );
+              companionResolvedBeats = reconciled.beats;
+              const nowResolved = reconciled.records.filter((r) => r.resolved);
+              if (nowResolved.length > 0) {
+                await persistResolved({
+                  userId: authUser.id,
+                  records: nowResolved,
+                });
+                const resolvedIds = new Set(nowResolved.map((r) => r.bet_id));
+                companionOpenBets = companionOpenBets.filter(
+                  (b) => !resolvedIds.has(b.bet_id),
+                );
+              }
+            }
+
+            // Write side: log a divergent pick as a new bet (idempotent;
+            // never re-write an id that already exists, which would reset a
+            // resolved row to open).
+            if (companionWhatIf && companionChosenId) {
+              const myPick = leagueSnapshot.draft.picks_made.find(
+                (p) =>
+                  p.player_id === companionChosenId &&
+                  p.roster_id === leagueSnapshot.my_roster_id,
+              );
+              const newBet = expectationFromPickDeviation({
+                leagueId,
+                whatIf: companionWhatIf,
+                chosenId: companionChosenId,
+                pickNo: myPick?.pick_no ?? leagueSnapshot.draft.picks_made.length,
+              });
+              if (newBet && !existingBetIds.has(newBet.bet_id)) {
+                await upsertExpectation({ userId: authUser.id, record: newBet });
+              }
+            }
+          } catch (err) {
+            console.error("[hub:companion-ledger]", err);
+          }
+        }
+
         companionBeats = classifyBeats({
           stage: companionStage,
           whatIf: companionWhatIf,
@@ -1506,6 +1610,12 @@ export default async function LeagueHubPage({
             total_picks:
               leagueSnapshot.total_teams * (leagueSnapshot.draft.rounds ?? 0),
           },
+          seasonStanding: companionSeasonStanding,
+          rosterTalent: companionRosterTalent,
+          openExpectations: companionOpenBets,
+          valueOf: companionValueOf,
+          checkpointLabel: companionCheckpointLabel,
+          resolvedBeats: companionResolvedBeats,
         });
       } catch (err) {
         console.error("[hub:last-visit-digest]", err);
