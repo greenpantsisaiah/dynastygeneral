@@ -159,6 +159,41 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: re-deriving an opportunity direction inline in a resolver, or re-implementing the snap-share / target trend (use `readOpportunity`). One signal builder, consumed by every aging window.
 - **Bug class avoided**: aging-cliff cards that rendered `data_missing` for role even though the snap-share / target data was sitting in the `/stats` feed we already fetch (the "data right" Stage 1 gap). Locked by `evals/inflection.test.ts`.
 
+### Draft capital (`draft_pick_overall`)
+
+- **Canonical**: `getDraftPickMap()` in `src/lib/players/draft-capital.ts`
+- **Returns**: `Promise<Map<string, number>>` of `Sleeper player_id -> NFL overall draft pick`, sourced from production `player_signals.draft_pick_no`. 24h in-process cache; in-flight requests dedupe.
+- **Inputs**: none (reads the table). Server-only via `getAdminClient()`; never import in client components.
+- **Use**: threaded by the hub and Coach into `buildInflectionsFromSnapshot` as `draftPickByPlayerId`, which sets `InflectionInputs.draft_pick_overall`. Consumed by `resolveRookieDebut` for the "Draft capital" scorecard row (tier-graded story_a / neutral / story_b). The eventual `EnrichedPlayer` resolver (Phase 3b/3c) reads through this canonical too.
+- **Anti-pattern**: a surface that reads `player_signals.draft_pick_no` directly, re-implementing its own caching / draft-pick lookup. One read, one cache. Data populated by `scripts/ingest-unlock-signals.ts` (founder-authorized 2026-05-26).
+- **Bug class avoided**: rookie-debut cards rendering `data_missing` for draft capital even though the data is now in `player_signals`. Locked by `evals/inflection.test.ts` section 7.
+
+### Market divergence (ADP vs trade-value rank)
+
+- **Canonical**: `readMarketDivergence({ adp, valueRank })` in `src/lib/players/market-divergence.ts`
+- **Returns**: `MarketDivergence | null`. Non-null only when the gap between the two markets is at least `MEANINGFUL_GAP_PICKS` (15 picks). The shape carries `gap` (absolute pick gap), `lean` (`"adp_earlier"` or `"value_earlier"`), and pre-formatted Voice-A `line` ("ADP 196 · value rank 242") + `detail` ("ADP 46 earlier"). Pure function, no IO, safe in client components.
+- **Inputs**: `adp` (the player's draft-market consensus pick number, e.g. Sleeper format-aware ADP) and `valueRank` (the trade-market overall rank from FantasyCalc / KTC; on candidates this is `ktc_overall_rank`). Both must be present; either null returns null.
+- **Use**: The Call's `DivergenceLine` renders on the standing-call card + each candidate row. Stage 2c of the "data right" on-ramp. Surfaces the founder's Adonai Mitchell case (ADP 196 vs value rank 242 = ADP 46 earlier) neutrally; the user decides whether ADP is overpaying or the trade market is sleeping.
+- **Anti-pattern**: a surface that subtracts ADP from value rank inline, picks its own threshold, or invents a "draft market overpaying" verdict in copy. One helper, one threshold, neutral framing.
+- **Bug class avoided**: drift between surfaces on what "the two markets disagree" means, and editorializing the disagreement. Locked by `evals/market-divergence.test.ts`.
+
+### Player + team signals readers (production `player_signals` / `team_signals`)
+
+- **Canonical**: `getPlayerSignalsMap()` and `getTeamSignalsMap()` in `src/lib/players/player-signals.ts`
+- **Returns**: `Promise<Map<player_id | team, row>>`, fetched server-side via `getAdminClient()` (service role), cached 24h with in-flight dedupe.
+- **Inputs**: none. Reads the whole table (both are small).
+- **Use**: every consumer of `evaluate()` (the rubric pipeline) reads through these. The hub fetches both once per render and threads them into `evaluateForPlayer`. Future Coach + EnrichedPlayer wiring reads the same maps.
+- **Anti-pattern**: a surface that reads `from("player_signals")` or `from("team_signals")` inline. One read, one cache. Data populated by `scripts/ingest-unlock-signals.ts` plus admin manual coding.
+- **Bug class avoided**: each surface paying its own DB round-trip + drifting on what columns to select.
+
+### Live rubric wiring (`evaluate()` per player)
+
+- **Canonical**: `evaluateForPlayer(args)` in `src/lib/engine/evaluation/wiring.ts`; honest-framing helper `isRubricPriorDriven(out)` in the same file.
+- **Returns**: `EvaluationOutput | null`. Null only when position is unknown; otherwise the rubric's point estimate + variance band + evidence stack + market delta + confidence. Pure adapter: builds an `EvaluationContext` from already-fetched `player_signals` + `team_signals` + meta and calls `evaluate()`.
+- **Use**: Phase 3c wiring. Currently consumed ONLY for rostered rookies (the user's `years_exp === 0` players) and surfaced as a Layer-3 footer on the inflection rookie-debut card, never into value scoring or `synthesize` (the Stage 2b backtest showed opportunity-class signals carry no marginal forward-VALUE edge; the rubric's value-wiring stays parked). `isRubricPriorDriven` flags reads dominated by the Bayesian prior so the UI footer renders an honest caveat instead of a confident projection it isn't.
+- **Anti-pattern**: building an `EvaluationContext` inline in a surface, or calling `evaluate()` outside this wrapper without consuming `getPlayerSignalsMap`. One adapter, one read.
+- **Bug class avoided**: surfaces drifting on how they hydrate the rubric, and value-scale wiring that the 2b evidence doesn't support. Locked by `evals/evaluation-wiring.test.ts`.
+
 ### Strategy windows + archetype lean
 
 - **Canonical**: `buildLeagueSnapshot → rankArchetypes → computeWindows`

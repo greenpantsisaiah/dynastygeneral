@@ -20,6 +20,7 @@ import type {
 } from "@/lib/strategy/decision-synthesis/types";
 import type { Play, PlayCommitment } from "@/lib/strategy/plays/types";
 import type { OpportunityRead } from "@/lib/players/opportunity-read";
+import { readMarketDivergence } from "@/lib/players/market-divergence";
 import { computeEv } from "./candidate-bits";
 import {
   abandonPlay,
@@ -158,6 +159,40 @@ function RoleLine({ read }: { read: OpportunityRead | undefined }) {
           {label}
         </span>
       ) : null}
+    </p>
+  );
+}
+
+// Market-divergence detail (Tufte Layer 2): the gap between where the
+// DRAFT market consensus picks a player (ADP) and where the TRADE market
+// ranks him (FantasyCalc / KTC overall_rank). Two markets, one player; a
+// big gap is a real disagreement. Display-only, neutral framing: shows
+// both numbers and which side is earlier, no verdict. Renders nothing
+// when the markets agree (within noise) or either input is missing.
+// Adjacent to RoleLine so each candidate gets one role read + one market
+// read, both grounded in canonicals.
+function DivergenceLine({
+  adp,
+  valueRank,
+}: {
+  adp: number | null | undefined;
+  valueRank: number | null | undefined;
+}) {
+  const div = readMarketDivergence({ adp, valueRank });
+  if (!div) return null;
+  const tone =
+    div.lean === "adp_earlier" ? "text-warning" : "text-success";
+  return (
+    <p
+      className="mt-1 text-[11px] leading-snug text-muted-2"
+      title={`${div.line} (${div.detail})`}
+    >
+      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+        Market gap
+      </span>{" "}
+      {div.line}
+      {" · "}
+      <span className={`font-mono ${tone}`}>{div.detail}</span>
     </p>
   );
 }
@@ -428,6 +463,10 @@ export function DecisionBoard({
           </p>
         )}
         <RoleLine read={opportunityById[standingCallId]} />
+        <DivergenceLine
+          adp={callCand?.adp}
+          valueRank={callCand?.ktc_overall_rank}
+        />
         {!callAtRisk && (
           <p className="mt-1 text-[11px] leading-snug text-warning">
             Nothing's about to be gone. Take {decision.recommendation.name} for
@@ -516,6 +555,7 @@ export function DecisionBoard({
                     </p>
                   )}
                   <RoleLine read={opportunityById[c.player_id]} />
+                  <DivergenceLine adp={c.adp} valueRank={c.ktc_overall_rank} />
                 </div>
               );
             })}

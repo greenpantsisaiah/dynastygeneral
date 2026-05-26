@@ -17,6 +17,37 @@ founder, do not ship the drift.
 
 ---
 
+## State update at merge time (2026-05-26 evening)
+
+Between this plan being drafted and the rename branch being shipped,
+a parallel session merged four PRs to main that advanced parts of
+this plan ahead of schedule:
+
+- PR #41: `chore(data-right)` ingested draft capital + an athletic
+  composite into `player_signals` (Stage 3a data acquisition,
+  founder-authorized prod write).
+- PR #42: `feat(data-right)` Phase 3b wired draft capital into the
+  rookie-debut inflection card (was "data missing"; now reads the
+  real NFL overall pick).
+- PR #43: `feat(data-right)` Stage 2c shipped the ADP-vs-trade-value
+  market-gap read on every candidate on The Call.
+- PR #44: `feat(data-right)` Phase 3c wired `evaluate()` to a
+  rookie-card projection footer (point estimate, variance range,
+  confidence, top evidence-stack contributions). Projection-only,
+  never feeds value scoring, per the plan's NOT-DO rules.
+
+So at merge time of this rename ship: Stage 2c is DONE, Stage 3a/3b
+data + wiring landed for the rookie-debut surface specifically,
+Stage 3c shipped a narrow rookie-card slice. The broader work
+(in-season Forward Production hub surface, Stage 4 scoring re-cast,
+Stage 5 Forward Value) remains as written below.
+
+The plan's gates and naming dictionary held: the rookie ship is
+projection-only, position-conditioned, never a value-scale override.
+The "What we will NOT do" list survived.
+
+---
+
 ## Why this doc exists
 
 Today's `perPickEv = (value / 100) * (pickNo - adp)` carries only market
@@ -123,27 +154,26 @@ These are the inputs Forward Production will consume. They are
 data-side, not metric-side, so they were correct to ship ahead of
 this plan.
 
-## Stage 2c: ADP-vs-trade-value divergence surface (NEXT shippable)
+## Stage 2c: ADP-vs-trade-value divergence surface · SHIPPED (PR #43)
 
-Per the `project_rookie_vs_sophomore_valuation` memory note: a neutral
-surface that shows where Sleeper ADP and FantasyCalc trade value
-disagree, surfacing the Mitchell-class divergence (early ADP, lower
-trade value, or vice versa). Does NOT touch the value scale. Does NOT
-need any forward projection. Greenlit. Shippable.
+Done as `readMarketDivergence` (`src/lib/players/market-divergence.ts`)
+plus the per-candidate market-gap line on The Call. Surfaces
+divergence neutrally when the two markets disagree by 15+ picks,
+shows both numbers and which market is earlier, no verdict. The
+Mitchell case (ADP 196, value rank 242) reads as the canonical
+example. Stage 2c is closed; new work in this space goes through the
+canonical reader.
 
-Why it goes here: it gives the user their first taste of "here is
-where two market signals disagree, and here is who sits in the gap,"
-which is the conceptual on-ramp to a forthcoming "here is where the
-model would diverge from the market when the model lands." Low-risk
-warmup for the bigger metric-side ship.
+## Stage 3a: Pick the Forward Production target (still required for the broader hub surface)
 
-Gate: build + test green. Manual exercise on a fixture league showing
-the Mitchell case (early Sleeper ADP, low FantasyCalc value) and the
-inverse.
+PR #44 shipped a NARROW first slice (rookie-debut card, projection
+footer, never feeds value) without a founder decision recorded here.
+That ship is consistent with this plan's NOT-DO rules and is
+preserved. The decision below is still required before the BROADER
+Stage 3c surface (in-season hub-wide Forward Production EV bank,
+multi-position projection across the roster) starts.
 
-## Stage 3a: Pick the Forward Production target (founder decision)
-
-Before any code, founder records:
+Before any code on the broader surface, founder records:
 
 - **Horizon.** Rest-of-season (current week through week 17)?
   Full-season (Sep through W17)? Multi-year cumulative (Y1, Y1+Y2,
@@ -161,9 +191,19 @@ Before any code, founder records:
 Gate: founder decision recorded in this doc or in a follow-up
 locked decision file. Stage 3b does not start without it.
 
-## Stage 3b: Build the Forward Production projection
+## Stage 3b: Build the Forward Production projection · PARTIAL (rookie slice shipped)
 
-The work. Per the unification plan's Phase 3 sequencing:
+PR #41 + #42 + #44 wired the rubric pipeline live for one specific
+surface (the rookie-debut inflection card). Draft capital is in
+`player_signals` (signal table populated for the first time);
+`evaluate()` runs on each rookie and produces a point estimate,
+variance band, confidence, and top contributions, surfaced in a
+projection footer with a warning-tone caveat when the signal is
+thin. The broader Stage 3b ambition (every player gets a Forward
+Production projection consumable on every surface) remains ahead.
+
+The work for the broader surface. Per the unification plan's Phase 3
+sequencing:
 
 1. Enrich the player resolver to merge: meta + market value + the
    Stage 1 opportunity signals + age + scheme + injury history.
@@ -191,7 +231,13 @@ If a position rubric fails any gate, the position runs market-only
 until it passes. We don't ship a position's Forward Production until
 it survives.
 
-## Stage 3c: Surface Forward Production on the hub
+## Stage 3c: Surface Forward Production on the hub · NARROW SLICE SHIPPED
+
+PR #44 ships the rookie-debut card's projection footer (point
+estimate, variance band, confidence, top evidence-stack
+contributions). That is the first surface in the product that
+carries a model-derived forward read with a CI band. The remainder
+of Stage 3c (the in-season hub-wide surface below) is still ahead.
 
 The in-season equivalent of the draft-time bank, recast around the
 shipped projection:

@@ -34,9 +34,10 @@ export interface Release {
 export const RELEASES: Release[] = [
   {
     version: "2026-05-26",
-    title: "Kill the bare 'EV' label, plus role on the board",
+    title:
+      "Kill the bare 'EV' label, plus draft capital and rubric reads on rookies",
     summary:
-      "The check-in, the share card, the trajectory chart, and the sort column on The Call now read 'Value vs ADP' for what the math actually measures. The earned-role read on candidate cards stays.",
+      "The check-in, the share card, the trajectory chart, and the sort column on The Call now read 'Value vs ADP' for what the math actually measures. Rookie cards stop saying 'data missing' for draft capital, and the rubric pipeline now surfaces a projection footer on each rookie-debut card.",
     changes: [
       {
         tag: "VS ADP, NOT EV",
@@ -45,6 +46,18 @@ export const RELEASES: Release[] = [
       {
         tag: "ROLE ON THE CALL",
         text: "The standing call and every candidate on the board now carry a one-line role read: last season's snap share and targets per game, with a rising or eroding trend arrow. A second-year player whose snap share climbed shows it; an incoming rookie has no NFL role to show, which is the honest tell that one is proven and the other is a projection. Hover the line for the trend detail.",
+      },
+      {
+        tag: "DRAFT CAPITAL ON ROOKIES",
+        text: "Rookie-debut inflection cards now show each rookie's actual NFL overall pick: pick 1 to 15 reads as the high hit-rate tier and argues breakout, Day 3 picks read as the low hit-rate tier and argue caution. The row used to render 'data missing' on every rookie card because no draft-capital source was wired. The signal earned its wiring: a marginal-projection backtest on 626 player-seasons showed draft pick predicts next-year production beyond last year's points (correlation -0.10 overall, -0.40 for players under 25).",
+      },
+      {
+        tag: "MARKET GAPS ON THE CALL",
+        text: "Two markets price each player: the draft market (ADP, where consensus picks) and the trade market (overall trade-value rank). When they disagree by 15 picks or more, each candidate on The Call now carries a one-line read of the gap, showing both numbers and which market is earlier. Adonai Mitchell sits at ADP 196 but value rank 242: drafted 46 picks earlier than the trade market ranks him. The framing is neutral, both numbers visible; the user decides whether ADP is overpaying or the trade market is sleeping on him.",
+      },
+      {
+        tag: "RUBRIC PROJECTION ON ROOKIES",
+        text: "The parked rubric pipeline now runs live on every rookie on your roster, surfacing a projection footer on the inflection rookie-debut card: point estimate, variance range, confidence, and the top contributions from the evidence stack. When the rubric has too little signal to read for a player, the footer wears a warning-tone caveat instead of pretending to a confident call. The wiring is projection-only and never feeds value scoring; the larger value-scale rubric wiring stays parked until the backtest evidence supports it.",
       },
     ],
   },
