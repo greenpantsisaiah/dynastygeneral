@@ -46,6 +46,10 @@ export const RELEASES: Release[] = [
         tag: "BUILT VS MISSING ON EVERY PLAY",
         text: "Active play cards now show what is already on your roster toward the play, with values. A QB Stack you already have the anchor and the same-team WR for reads 'Built: Lamar Jackson (val 85), Mark Andrews (val 60) · covered' with a green covered chip. A Bridge QB with the bridge starter but no young dev yet reads 'Built: Rodgers (val 20) · still need the dev QB' with a partial chip. A QB Hoard with 4 QBs in a 1QB league reads 'Built: Mahomes, Burrow, Herbert, Richardson · three flippable past the one-starter mark.' A build lane shows its lane contributors when the roster fits the lane and the lane's named gap when it does not. The 'no target on the board yet' empty fallback now fires only when nothing is built and nothing is on the board.",
       },
+      {
+        tag: "SNIPED, WITH A TRADE ANGLE",
+        text: "When someone else drafts the named partner on a play you are tracking, the card no longer says 'thin' as if it were still waiting on the board. It says 'sniped' in red, names the manager who holds the piece, and surfaces a trade angle: the holder's thin position and the surplus pieces on your roster that fit it. A handcuff sniped to lincolnenglish reads 'sniped: Pierre Strong (val 18) drafted by lincolnenglish' with the second line 'Trade angle: lincolnenglish is light at WR. Your surplus there: Brandon Aiyuk (val 45).' No fabricated lever: when the holder is full at every position you have surplus at, the angle line stays off.",
+      },
     ],
   },
   {

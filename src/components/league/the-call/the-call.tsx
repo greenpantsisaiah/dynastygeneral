@@ -40,6 +40,7 @@ import type { OwnedRosterPlayer } from "@/lib/strategy/plays/detect";
 import type { LaneMembership } from "@/lib/strategy/lane-identity";
 import type { FormatRules } from "@/lib/engine/llm-contract";
 import type { DismissedSuggestion } from "@/lib/plays-storage";
+import type { OppHolder } from "@/lib/strategy/plays/coverage";
 import { DecisionBoard } from "./decision-board";
 
 export type TheCallProps = {
@@ -58,6 +59,8 @@ export type TheCallProps = {
   valueMap?: Record<string, number>;
   laneMemberships?: LaneMembership[];
   formatRules?: FormatRules | null;
+  /** Opponent roster lookup by player_id; drives the sniped coverage. */
+  oppHolders?: Record<string, OppHolder>;
 };
 
 export function TheCall({
@@ -74,6 +77,7 @@ export function TheCall({
   valueMap = {},
   laneMemberships = [],
   formatRules = null,
+  oppHolders = {},
 }: TheCallProps) {
   return (
     <section
@@ -97,6 +101,7 @@ export function TheCall({
         valueMap={valueMap}
         laneMemberships={laneMemberships}
         formatRules={formatRules}
+        oppHolders={oppHolders}
       />
 
       {decision.trade_up_consideration && (

@@ -42,6 +42,7 @@ import {
 } from "@/lib/plays/sync";
 import {
   derivePlayCoverage,
+  type OppHolder,
   type PlayCoverage,
 } from "@/lib/strategy/plays/coverage";
 
@@ -91,6 +92,12 @@ export type DecisionBoardProps = {
   laneMemberships?: LaneMembership[];
   /** Format rules (drives qb_hoard coverage starter math). */
   formatRules?: FormatRules | null;
+  /**
+   * Opponent roster lookup keyed by player_id. Drives the "sniped"
+   * coverage verdict (named partner on someone else's roster) + the
+   * trade-angle line. Empty / absent = no sniped detection.
+   */
+  oppHolders?: Record<string, OppHolder>;
 };
 
 function lastInTierByPlayer(
@@ -241,9 +248,17 @@ function CoverageChip({
       ? "border-success/60 text-success"
       : verdict === "partial"
         ? "border-warning/60 text-warning"
-        : "border-border-soft text-muted-2";
+        : verdict === "sniped"
+          ? "border-danger/60 text-danger"
+          : "border-border-soft text-muted-2";
   const label =
-    verdict === "covered" ? "covered" : verdict === "partial" ? "partial" : "thin";
+    verdict === "covered"
+      ? "covered"
+      : verdict === "partial"
+        ? "partial"
+        : verdict === "sniped"
+          ? "sniped"
+          : "thin";
   return (
     <span
       className={`max-w-full break-words text-center font-mono text-[9px] uppercase tracking-[0.12em] border rounded-full px-1.5 py-0.5 ${cls}`}
@@ -259,7 +274,9 @@ function CoverageLine({ coverage }: { coverage: PlayCoverage }) {
       ? "text-success"
       : coverage.verdict === "partial"
         ? "text-warning"
-        : "text-muted-2";
+        : coverage.verdict === "sniped"
+          ? "text-danger"
+          : "text-muted-2";
   if (coverage.built.length === 0) {
     return (
       <p className="mt-0.5 text-[11px] text-muted-2">
@@ -272,23 +289,36 @@ function CoverageLine({ coverage }: { coverage: PlayCoverage }) {
     .map((p) => (p.value != null ? `${p.name} (val ${p.value})` : p.name))
     .join(", ");
   return (
-    <p className="mt-0.5 text-[11px] leading-snug">
-      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
-        Built
-      </span>{" "}
-      <span className="text-foreground">{builtText}</span>
-      {coverage.missing ? (
-        <>
-          <span className="text-muted-2"> · </span>
-          <span className={tone}>missing {coverage.missing}</span>
-        </>
-      ) : (
-        <>
-          <span className="text-muted-2"> · </span>
-          <span className={tone}>covered</span>
-        </>
-      )}
-    </p>
+    <>
+      <p className="mt-0.5 text-[11px] leading-snug">
+        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+          Built
+        </span>{" "}
+        <span className="text-foreground">{builtText}</span>
+        {coverage.missing ? (
+          <>
+            <span className="text-muted-2"> · </span>
+            <span className={tone}>
+              {coverage.verdict === "sniped" ? "sniped: " : "missing "}
+              {coverage.missing}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-muted-2"> · </span>
+            <span className={tone}>covered</span>
+          </>
+        )}
+      </p>
+      {coverage.verdict === "sniped" && coverage.trade_angle ? (
+        <p className="mt-0.5 text-[11px] leading-snug">
+          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
+            Trade angle
+          </span>{" "}
+          <span className="text-foreground">{coverage.trade_angle}</span>
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -321,6 +351,7 @@ export function DecisionBoard({
   valueMap = {},
   laneMemberships = [],
   formatRules = null,
+  oppHolders = {},
 }: DecisionBoardProps) {
   const syncCtx = useMemo(
     () => ({ leagueId, authedUserId }),
@@ -701,6 +732,7 @@ export function DecisionBoard({
                 valueMap,
                 laneMemberships,
                 formatRules,
+                oppHolders,
               });
               return (
                 <div
