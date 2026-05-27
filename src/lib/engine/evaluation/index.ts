@@ -24,6 +24,11 @@ import {
   ktcToScore,
 } from "./util";
 
+export { evaluateRb } from "./rubrics/rb";
+export { evaluateQb } from "./rubrics/qb";
+export { evaluateWr } from "./rubrics/wr";
+export { evaluateTe } from "./rubrics/te";
+
 export type {
   EvaluationOutput,
   EvaluationContext,

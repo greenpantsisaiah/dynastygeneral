@@ -1,0 +1,22 @@
+◇ injected env (13) from .env.local // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+=== 2023 (KTC 2023-03-16, fmt=1qb, n=106 WRs) ===
+  market (KTC) Spearman vs 2023 PPG: 0.778
+  rubric       Spearman vs 2023 PPG: 0.771
+  LIFT (rubric - market):           -0.008
+  rubric-bullish WRs: 0 | mean outcome pctile: n/a (>0.5 = right-pointing)
+
+=== 2024 (KTC 2024-09-08, fmt=1qb, n=114 WRs) ===
+  market (KTC) Spearman vs 2024 PPG: 0.721
+  rubric       Spearman vs 2024 PPG: 0.708
+  LIFT (rubric - market):           -0.013
+  rubric-bullish WRs: 0 | mean outcome pctile: n/a (>0.5 = right-pointing)
+
+=== POOLED (n=220) ===
+  market (KTC) Spearman: 0.744
+  rubric       Spearman: 0.734
+  LIFT:                  -0.010
+  95% CI of lift:        [-0.021, -0.003]
+
+Reading: positive lift = the rubric's free signals rank WRs' realized production better than KTC alone. CI excluding zero = statistically meaningful.
+
