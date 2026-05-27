@@ -70,6 +70,41 @@ export type FormatRules = {
   league_type: "redraft" | "keeper" | "dynasty";
   /** Number of players that carry over per season in keeper leagues; null otherwise. */
   max_keepers: number | null;
+  /**
+   * Taxi (developmental) squad slots. Sleeper's `league.settings.taxi_slots`.
+   * 0 when the league has no taxi.
+   */
+  taxi_slots: number;
+  /**
+   * Years-of-experience cutoff for taxi eligibility. Sleeper's
+   * `league.settings.taxi_years`. null when the league has no taxi.
+   * Per Sleeper rule: a player is taxi-eligible only when
+   * `years_exp <= taxi_years` AND not previously activated to the main
+   * roster (the second clause is not derivable from snapshot alone).
+   */
+  taxi_years: number | null;
+  /** True when taxi_slots > 0. The yes/no signal Coach reads first. */
+  has_taxi: boolean;
+  /**
+   * IR / reserve slots. Sleeper's `league.settings.reserve_slots`
+   * (mirrored by the IR entries in roster_positions). 0 when no IR.
+   */
+  ir_slots: number;
+  /** True when ir_slots > 0. */
+  has_ir: boolean;
+  /** True when the league is configured as best ball (auto-optimized lineups). */
+  best_ball: boolean;
+  /** Week the trade deadline lands on. null when absent. */
+  trade_deadline_week: number | null;
+  /** Week regular-season scoring ends. null when absent. */
+  playoff_week_start: number | null;
+  /**
+   * Raw Sleeper `waiver_type` code (0/1/2). Sleeper does not expose a
+   * stable enum, so we ship the raw number and tell Coach to ask the
+   * user rather than infer FAAB vs rolling vs reverse-standings.
+   * null when absent.
+   */
+  waiver_type_raw: number | null;
 };
 
 /**
@@ -155,6 +190,13 @@ export function buildFormatRulesFromSnapshot(
   // Sleeper format). Most leagues run 0 of each; some run 1 of each.
   const kStartersMax = ss.hard.K ?? 0;
   const dstStartersMax = ss.hard.DST ?? 0;
+  // League-mechanic settings (taxi, IR, trade deadline, waivers, best
+  // ball). The snapshot's league_settings block is the source of truth;
+  // fall back to "not configured" sentinels when absent (synthetic test
+  // snapshots) so the FormatRules shape is always complete.
+  const settings = snap.league_settings;
+  const taxiSlots = settings?.taxi_slots ?? 0;
+  const irSlots = settings?.ir_slots ?? ss.ir_slots ?? 0;
   return {
     qb_starters_max: qbStartersMax,
     rb_starters_max: rbStartersMax,
@@ -171,6 +213,15 @@ export function buildFormatRulesFromSnapshot(
     sf_eligible: isSF ? SF_ELIGIBLE : null,
     league_type: snap.league_type,
     max_keepers: snap.max_keepers,
+    taxi_slots: taxiSlots,
+    taxi_years: taxiSlots > 0 ? settings?.taxi_years ?? null : null,
+    has_taxi: taxiSlots > 0,
+    ir_slots: irSlots,
+    has_ir: irSlots > 0,
+    best_ball: settings?.best_ball ?? false,
+    trade_deadline_week: settings?.trade_deadline_week ?? null,
+    playoff_week_start: settings?.playoff_week_start ?? null,
+    waiver_type_raw: settings?.waiver_type_raw ?? null,
   };
 }
 
@@ -185,6 +236,14 @@ export function buildFormatRulesFromRosterPositions(args: {
   isSuperflex: boolean;
   leagueType?: "redraft" | "keeper" | "dynasty";
   maxKeepers?: number | null;
+  /**
+   * Optional Sleeper `league.settings` passthrough. When provided,
+   * taxi / IR / waivers / trade-deadline / best-ball / playoff fields
+   * populate from it. Callers that already extracted the settings
+   * record should pass it here so Coach context isn't blind to these
+   * league rules.
+   */
+  leagueSettings?: Record<string, unknown> | null;
 }): FormatRules {
   const {
     rosterPositions,
@@ -192,6 +251,7 @@ export function buildFormatRulesFromRosterPositions(args: {
     isSuperflex,
     leagueType = "dynasty",
     maxKeepers = null,
+    leagueSettings,
   } = args;
   const countSlot = (slot: string): number =>
     rosterPositions.filter((p) => p === slot).length;
@@ -213,6 +273,16 @@ export function buildFormatRulesFromRosterPositions(args: {
   const kStartersMax = countSlot("K");
   const dstStartersMax = countSlot("DEF") + countSlot("DST");
   const tePremium = scoringHighlights.some((s) => /TE.?premium|TEP/i.test(s));
+  // Parse league-mechanic settings if the caller passed them through.
+  // Sleeper exposes these on `league.settings`; absent it we land at
+  // safe "not configured" sentinels.
+  const num = (key: string): number | null => {
+    if (!leagueSettings) return null;
+    const v = leagueSettings[key];
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  };
+  const taxiSlots = num("taxi_slots") ?? 0;
+  const irSlots = num("reserve_slots") ?? 0;
   return {
     qb_starters_max: qbStartersMax,
     rb_starters_max: rbStartersMax,
@@ -229,6 +299,15 @@ export function buildFormatRulesFromRosterPositions(args: {
     sf_eligible: isSuperflex ? SF_ELIGIBLE : null,
     league_type: leagueType,
     max_keepers: maxKeepers,
+    taxi_slots: taxiSlots,
+    taxi_years: taxiSlots > 0 ? num("taxi_years") : null,
+    has_taxi: taxiSlots > 0,
+    ir_slots: irSlots,
+    has_ir: irSlots > 0,
+    best_ball: (num("best_ball") ?? 0) > 0,
+    trade_deadline_week: num("trade_deadline"),
+    playoff_week_start: num("playoff_week_start"),
+    waiver_type_raw: num("waiver_type"),
   };
 }
 

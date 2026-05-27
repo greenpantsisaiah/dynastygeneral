@@ -87,6 +87,22 @@ export type RosterSnapshot = {
   wins: number;
   losses: number;
   ties: number;
+  /**
+   * Player IDs currently on this roster's taxi (developmental) squad.
+   * Sleeper stores this as `roster.taxi`. Empty array when the league
+   * has no taxi or this roster has nothing parked there. Distinct from
+   * the active roster; a taxi player does NOT count against starter
+   * room and is ineligible to be started. Optional: synthetic snapshots
+   * in evals tests may omit it; consumers treat undefined as [].
+   */
+  taxi_player_ids?: string[];
+  /**
+   * Player IDs currently on this roster's IR / reserve. Sleeper stores
+   * this as `roster.reserve`. Empty array when the league has no IR or
+   * this roster has nothing reserved. Reserve players do not start.
+   * Optional for the same reason as taxi_player_ids.
+   */
+  reserve_player_ids?: string[];
 };
 
 export type DraftPickRecord = {
@@ -146,6 +162,42 @@ export type StarterSlots = {
   rec_flex: number;
   // Total bench slots.
   bench: number;
+  // IR / reserve slots parsed from roster_positions. A player parked
+  // here is ineligible to start. 0 when the league has no IR. Optional
+  // so synthetic test fixtures may omit it; consumers treat undefined
+  // as 0.
+  ir_slots?: number;
+  // Taxi (developmental) slots parsed from roster_positions. Sleeper
+  // also exposes `league.settings.taxi_slots`; this counts the
+  // roster_positions entries as the slot count. 0 when the league has
+  // no taxi. Optional for the same reason as ir_slots.
+  taxi_slots?: number;
+};
+
+/**
+ * League-mechanic settings parsed from Sleeper's `league.settings`
+ * passthrough. These are the rules that govern the league outside the
+ * weekly lineup (taxi, IR, trade deadline, waivers, playoff structure,
+ * best ball). They are surfaced to FormatRules and Coach context so the
+ * LLM can cite them rather than speculate. Every field is nullable / 0
+ * when the league does not configure it.
+ */
+export type LeagueSettings = {
+  /** Total taxi squad slots configured on the league. 0 if no taxi. */
+  taxi_slots: number;
+  /** Years of experience cutoff for taxi eligibility. null = no taxi. */
+  taxi_years: number | null;
+  /** Total IR slots configured on the league. 0 if no IR. */
+  ir_slots: number;
+  /** Week the trade deadline lands on (Sleeper integer). null when absent. */
+  trade_deadline_week: number | null;
+  /** Week regular-season scoring ends and the playoffs begin. null when absent. */
+  playoff_week_start: number | null;
+  /** Sleeper waiver_type raw code (0/1/2). null when absent. We do
+   *  not decode the meaning here; Coach is told to ask the user. */
+  waiver_type_raw: number | null;
+  /** True when the league is configured as best ball (lineups auto-optimize). */
+  best_ball: boolean;
 };
 
 export type LeagueSnapshot = {
@@ -163,6 +215,14 @@ export type LeagueSnapshot = {
   max_keepers: number | null;
   scoring: LeagueScoring[];
   starter_slots: StarterSlots;
+  /**
+   * League-mechanic settings (taxi, IR, trade deadline, waiver type,
+   * best ball, playoff week). Surfaced so format_rules + Coach can cite
+   * concrete league rules instead of speculating. Optional so synthetic
+   * test fixtures may omit it; consumers treat undefined as the
+   * "not configured" sentinel block.
+   */
+  league_settings?: LeagueSettings;
   rosters: RosterSnapshot[];
   my_roster_id: number | null;
   // Draft state at moment of snapshot. May be no_draft.
@@ -331,6 +391,8 @@ function parseStarterSlots(league: SleeperLeague): StarterSlots {
   let superflex = 0;
   let rec_flex = 0;
   let bench = 0;
+  let ir_slots = 0;
+  let taxi_slots = 0;
   for (const raw of positions) {
     const p = raw.toUpperCase();
     if (p === "QB") hard.QB++;
@@ -343,9 +405,36 @@ function parseStarterSlots(league: SleeperLeague): StarterSlots {
     else if (p === "SUPER_FLEX" || p === "SUPERFLEX" || p === "SF") superflex++;
     else if (p === "REC_FLEX" || p === "WRTE_FLEX") rec_flex++;
     else if (p === "BN") bench++;
-    // Skip IR, TAXI, and IDP slots (DL/LB/DB/IDP_FLEX etc). Not modeled.
+    else if (p === "IR" || p === "RES") ir_slots++;
+    else if (p === "TAXI") taxi_slots++;
+    // IDP slots (DL/LB/DB/IDP_FLEX etc) still skipped: not modeled.
   }
-  return { hard, flex, superflex, rec_flex, bench };
+  return { hard, flex, superflex, rec_flex, bench, ir_slots, taxi_slots };
+}
+
+/**
+ * Parse league-mechanic settings from Sleeper's `league.settings`
+ * passthrough. Defensive: every field falls back to a "not configured"
+ * sentinel (0 or null) so callers can ship the block unconditionally
+ * and the Coach context can cite a concrete "no taxi" rather than
+ * inferring absence.
+ */
+function parseLeagueSettings(league: SleeperLeague): LeagueSettings {
+  const s = (league.settings ?? {}) as Record<string, unknown>;
+  const num = (key: string): number | null =>
+    typeof s[key] === "number" && Number.isFinite(s[key] as number)
+      ? (s[key] as number)
+      : null;
+  const taxiSlots = num("taxi_slots") ?? 0;
+  return {
+    taxi_slots: taxiSlots,
+    taxi_years: taxiSlots > 0 ? num("taxi_years") : null,
+    ir_slots: num("reserve_slots") ?? 0,
+    trade_deadline_week: num("trade_deadline"),
+    playoff_week_start: num("playoff_week_start"),
+    waiver_type_raw: num("waiver_type"),
+    best_ball: (num("best_ball") ?? 0) > 0,
+  };
 }
 
 function detectScoring(league: SleeperLeague): LeagueScoring[] {
@@ -651,6 +740,8 @@ export async function buildLeagueSnapshot(args: {
       wins: asNumber(settings.wins),
       losses: asNumber(settings.losses),
       ties: asNumber(settings.ties),
+      taxi_player_ids: [...(r.taxi ?? [])],
+      reserve_player_ids: [...(r.reserve ?? [])],
     };
   });
 
@@ -734,6 +825,7 @@ export async function buildLeagueSnapshot(args: {
     max_keepers: maxKeepers,
     scoring: detectScoring(league),
     starter_slots: parseStarterSlots(league),
+    league_settings: parseLeagueSettings(league),
     rosters: rosterSnapshots,
     my_roster_id: myRosterId,
     draft: {
