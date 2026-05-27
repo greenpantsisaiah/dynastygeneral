@@ -1175,12 +1175,34 @@ export async function POST(
     pos: string | null;
     team: string | null;
     age: number | null;
+    /** NFL years of experience. 0 = rookie. Drives taxi eligibility. */
+    years_exp: number | null;
     rank: number | null;
     // Prior-season earned-role read (snap share, targets/game, aDOT, RZ
     // role, drop rate) via the canonical buildOpportunityProfile. Null
     // when the player had no /stats row last season. Same numbers the
     // inflection opportunity signal cites, so chat and board agree.
     opportunity: OpportunityProfile | null;
+    /**
+     * Currently parked on this roster's taxi (developmental) squad.
+     * Coach must not suggest moving a player here who is already here.
+     */
+    currently_on_taxi: boolean;
+    /**
+     * Currently on IR / reserve. A reserve player does not start; the
+     * room is for injured players, not developmental.
+     */
+    currently_on_reserve: boolean;
+    /**
+     * Conservative taxi-eligibility flag. True iff the league has taxi
+     * AND the player's NFL experience is within the league's
+     * `taxi_years` cutoff AND the player is not already on taxi /
+     * reserve. Sleeper's full rule ALSO requires the player to have
+     * never been activated to the main roster; we cannot verify the
+     * second clause from the snapshot, so the system prompt asks Coach
+     * to flag the constraint when recommending a candidate.
+     */
+    taxi_eligible: boolean;
   }> = [];
   if (me && me.player_ids.length > 0) {
     try {
@@ -1203,14 +1225,27 @@ export async function POST(
           const opp = buildOpportunityProfile(coachPrevSeasonStats.get(id));
           const hasOpp =
             opp.snap_share != null || opp.targets_per_game != null;
+          const onTaxi = (me?.taxi_player_ids ?? []).includes(id);
+          const onReserve = (me?.reserve_player_ids ?? []).includes(id);
+          const taxiEligible =
+            formatRules.has_taxi &&
+            !onTaxi &&
+            !onReserve &&
+            typeof human.yearsExp === "number" &&
+            formatRules.taxi_years != null &&
+            human.yearsExp <= formatRules.taxi_years;
           return {
             player_id: id,
             name: human.name,
             pos: human.position,
             team: human.team,
             age: human.age,
+            years_exp: human.yearsExp,
             rank: typeof p.search_rank === "number" ? p.search_rank : null,
             opportunity: hasOpp ? opp : null,
+            currently_on_taxi: onTaxi,
+            currently_on_reserve: onReserve,
+            taxi_eligible: taxiEligible,
           };
         })
         .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
@@ -1822,6 +1857,33 @@ export async function POST(
         }Decline to propose specific trades; describe the archetype of an acceptable ask (round bands, position type, value direction) instead. Numeric trade math without pricing context is the regression class we just fixed; do not regress.\n`
       : "";
 
+  // Taxi-question classifier. Mirrors the trade guard: when the user
+  // asks about taxi placement in a league that has no taxi squad,
+  // structurally inject a GUARD that bars the LLM from recommending
+  // taxi candidates at all. Bug class: 2026-05-27, Coach recommended a
+  // current starter for taxi while the league rules + current taxi
+  // list were absent from context.
+  const TAXI_QUESTION_RE = /\btaxi\b|\bpractice squad\b|\bdevelopmental squad\b/i;
+  const looksLikeTaxiQuestion = TAXI_QUESTION_RE.test(message);
+  const taxiGuard =
+    looksLikeTaxiQuestion && !formatRules.has_taxi
+      ? `\n\n[GUARD] This league has no taxi squad (format_rules.has_taxi === false; taxi_slots === ${formatRules.taxi_slots}). Do not recommend taxi candidates. Tell the user plainly that taxi does not exist in this league and stop.\n`
+      : "";
+
+  // Unread-surface classifier. When the user asks about a league
+  // surface Coach does not have in context (this week's matchup, live
+  // scoring, opponent lineups, recent waiver claims / FAAB bids, the
+  // league chat / commish notes), refuse speculation and name what to
+  // consult. Same shape as the trade + taxi guards. Founder direction
+  // 2026-05-27: "tell coach explicitly not to speculate on stuff it
+  // doesn't have."
+  const UNREAD_SURFACE_RE =
+    /\b(this week|current week|matchup|projected score|live score|opposing lineup|opponent('|)s lineup|starting lineup|waiver wire|waiver claim|faab|free agent (?:add|bid)|league chat|commish|commissioner|rule override)\b/i;
+  const looksLikeUnreadSurfaceQuestion = UNREAD_SURFACE_RE.test(message);
+  const unreadSurfaceGuard = looksLikeUnreadSurfaceQuestion
+    ? `\n\n[GUARD] The user is asking about a league surface that is not in your context (matchups / live scoring / opponent lineups / waiver claims / FAAB / league chat / commish notes). Say plainly which surface is missing and propose what to consult (Sleeper league settings, the matchup tab, beat-writer reports). Do not bracket-and-guess; bracket-and-guess on absent data is the hallucination class.\n`
+    : "";
+
   // Per-turn context injection. The fresh snapshot is wrapped with the
   // current user message so it lands AFTER any prior turns. This makes
   // it the most recent thing the model has seen and resolves the bug
@@ -1840,7 +1902,7 @@ export async function POST(
     history.length > COACH_HISTORY_LIMIT
       ? history.slice(-COACH_HISTORY_LIMIT)
       : history;
-  const turnContent = `<current_state>\n${JSON.stringify(contextPayload, null, 2)}\n</current_state>${tradeGuard}\n\n${message}`;
+  const turnContent = `<current_state>\n${JSON.stringify(contextPayload, null, 2)}\n</current_state>${tradeGuard}${taxiGuard}${unreadSurfaceGuard}\n\n${message}`;
   const messages: Anthropic.MessageParam[] = [
     ...trimmedHistory.map((m) => ({ role: m.role, content: m.content })),
     { role: "user", content: turnContent },

@@ -224,6 +224,7 @@ export async function assembleContext(
     isSuperflex,
     leagueType,
     maxKeepers,
+    leagueSettings: settingsRaw,
   });
 
   // Player values for every rostered player across the league, resolved

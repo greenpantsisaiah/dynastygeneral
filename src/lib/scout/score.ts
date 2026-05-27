@@ -395,6 +395,7 @@ export async function scoreTeamForLeague(args: {
     rosterPositions: league.roster_positions ?? [],
     scoringHighlights,
     isSuperflex,
+    leagueSettings: (league.settings ?? null) as Record<string, unknown> | null,
   });
   // Mirror snapshot.ts: union roster.players (server-of-record after the
   // draft completes) with the live draft picks (only source of truth
