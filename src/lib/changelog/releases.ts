@@ -33,6 +33,22 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-05-27",
+    title: "Plays remember on your account, and they show what you have built",
+    summary:
+      "Tracked plays now persist to your account so they survive a new browser or a fresh device, and each active play card reads the pieces you have already built off your roster instead of going quiet when no follow-through target is on the board.",
+    changes: [
+      {
+        tag: "TRACKED PLAYS REMEMBER",
+        text: "Track a play once and the choice persists on your account: open the league on a different browser or device and the same plays are still tracked, the same suggestions are still dismissed. Anonymous use still works the same way; signing in pushes any plays you tracked anonymously up to your account in one shot. No more clicking Track again every time you open the hub.",
+      },
+      {
+        tag: "BUILT VS MISSING ON EVERY PLAY",
+        text: "Active play cards now show what is already on your roster toward the play, with values. A QB Stack you already have the anchor and the same-team WR for reads 'Built: Lamar Jackson (val 85), Mark Andrews (val 60) · covered' with a green covered chip. A Bridge QB with the bridge starter but no young dev yet reads 'Built: Rodgers (val 20) · still need the dev QB' with a partial chip. A QB Hoard with 4 QBs in a 1QB league reads 'Built: Mahomes, Burrow, Herbert, Richardson · three flippable past the one-starter mark.' A build lane shows its lane contributors when the roster fits the lane and the lane's named gap when it does not. The 'no target on the board yet' empty fallback now fires only when nothing is built and nothing is on the board.",
+      },
+    ],
+  },
+  {
     version: "2026-05-26",
     title:
       "Kill the bare 'EV' label, plus draft capital and rubric reads on rookies",

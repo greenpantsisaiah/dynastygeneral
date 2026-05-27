@@ -20,20 +20,30 @@ import type {
 } from "@/lib/strategy/decision-synthesis/types";
 import type { Play, PlayCommitment } from "@/lib/strategy/plays/types";
 import type { OpportunityRead } from "@/lib/players/opportunity-read";
+import type { OwnedRosterPlayer } from "@/lib/strategy/plays/detect";
+import type { LaneMembership } from "@/lib/strategy/lane-identity";
+import type { FormatRules } from "@/lib/engine/llm-contract";
 import { readMarketDivergence } from "@/lib/players/market-divergence";
 import { computeEv } from "./candidate-bits";
 import {
-  abandonPlay,
   archetypeLabel,
-  commitPlay,
-  dismissSuggestion,
   getDismissedSuggestions,
   getPlayCommitments,
   lapseStaleCommitments,
-  markPlayExecuted,
-  restoreSuggestion,
   type DismissedSuggestion,
 } from "@/lib/plays-storage";
+import {
+  abandonPlayWithSync,
+  commitPlayWithSync,
+  dismissSuggestionWithSync,
+  markPlayExecutedWithSync,
+  mergeServerInitialState,
+  restoreSuggestionWithSync,
+} from "@/lib/plays/sync";
+import {
+  derivePlayCoverage,
+  type PlayCoverage,
+} from "@/lib/strategy/plays/coverage";
 
 const NO_RUSH_SURVIVAL = 75;
 const DROPOFF_POSITIONS = ["RB", "WR", "TE", "QB"] as const;
@@ -62,6 +72,25 @@ export type DecisionBoardProps = {
   picksMadeForUser?: { player_id: string; pick_no: number }[];
   /** Earned-role read per candidate player_id (snap share + targets trend). */
   opportunityById?: Record<string, OpportunityRead>;
+  /**
+   * Auth user id when signed in. Triggers the server sync (POST to
+   * /api/plays) on every commit / abandon / dismiss / restore and runs
+   * the upload-on-mount merge with `initialServerCommitments` and
+   * `initialServerDismissals`. Null = anonymous, localStorage only.
+   */
+  authedUserId?: string | null;
+  /** Server-side play_commitments rows for this user/league. */
+  initialServerCommitments?: PlayCommitment[];
+  /** Server-side play_dismissals rows for this user/league. */
+  initialServerDismissals?: DismissedSuggestion[];
+  /** The user's rostered players (drives play coverage). */
+  ownedPlayers?: OwnedRosterPlayer[];
+  /** FantasyCalc value lookup, normalized 0-100. */
+  valueMap?: Record<string, number>;
+  /** Roster lane memberships (drives lane_path play coverage). */
+  laneMemberships?: LaneMembership[];
+  /** Format rules (drives qb_hoard coverage starter math). */
+  formatRules?: FormatRules | null;
 };
 
 function lastInTierByPlayer(
@@ -197,6 +226,72 @@ function DivergenceLine({
   );
 }
 
+// Coverage chip + line: the "Built / Missing" read on an active play.
+// The chip carries the verdict color; the line names the built pieces
+// (with values) and what is still missing. Replaces the prior "No
+// target on the board yet" empty state when the user has anchor +
+// partner pieces already in hand. Source: derivePlayCoverage canonical.
+function CoverageChip({
+  verdict,
+}: {
+  verdict: PlayCoverage["verdict"];
+}) {
+  const cls =
+    verdict === "covered"
+      ? "border-success/60 text-success"
+      : verdict === "partial"
+        ? "border-warning/60 text-warning"
+        : "border-border-soft text-muted-2";
+  const label =
+    verdict === "covered" ? "covered" : verdict === "partial" ? "partial" : "thin";
+  return (
+    <span
+      className={`max-w-full break-words text-center font-mono text-[9px] uppercase tracking-[0.12em] border rounded-full px-1.5 py-0.5 ${cls}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function CoverageLine({ coverage }: { coverage: PlayCoverage }) {
+  const tone =
+    coverage.verdict === "covered"
+      ? "text-success"
+      : coverage.verdict === "partial"
+        ? "text-warning"
+        : "text-muted-2";
+  if (coverage.built.length === 0) {
+    return (
+      <p className="mt-0.5 text-[11px] text-muted-2">
+        Nothing built yet on this play.
+        {coverage.missing ? ` Missing ${coverage.missing}` : null}
+      </p>
+    );
+  }
+  const builtText = coverage.built
+    .map((p) => (p.value != null ? `${p.name} (val ${p.value})` : p.name))
+    .join(", ");
+  return (
+    <p className="mt-0.5 text-[11px] leading-snug">
+      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2">
+        Built
+      </span>{" "}
+      <span className="text-foreground">{builtText}</span>
+      {coverage.missing ? (
+        <>
+          <span className="text-muted-2"> · </span>
+          <span className={tone}>missing {coverage.missing}</span>
+        </>
+      ) : (
+        <>
+          <span className="text-muted-2"> · </span>
+          <span className={tone}>covered</span>
+        </>
+      )}
+    </p>
+  );
+}
+
 // 538-style inline magnitude bar for survival.
 function SurvBar({ pct }: { pct: number }) {
   const tone =
@@ -219,7 +314,18 @@ export function DecisionBoard({
   suggestedPlays = [],
   picksMadeForUser = [],
   opportunityById = {},
+  authedUserId = null,
+  initialServerCommitments = [],
+  initialServerDismissals = [],
+  ownedPlayers = [],
+  valueMap = {},
+  laneMemberships = [],
+  formatRules = null,
 }: DecisionBoardProps) {
+  const syncCtx = useMemo(
+    () => ({ leagueId, authedUserId }),
+    [leagueId, authedUserId],
+  );
   const pickNo = decision.pick_no;
   const standingCallId = decision.recommendation.player_id;
   const cands = decision.quadrant_candidates;
@@ -229,6 +335,14 @@ export function DecisionBoard({
   const [sortKey, setSortKey] = useState<SortKey>("value");
 
   useEffect(() => {
+    // Merge server-side rows into localStorage on mount, then run any
+    // local-only rows up via the upload-on-signin pass (no-op when
+    // anonymous). Idempotent: safe to run on every effect tick.
+    mergeServerInitialState({
+      ctx: syncCtx,
+      serverCommitments: initialServerCommitments,
+      serverDismissals: initialServerDismissals,
+    });
     if (currentPickNo != null) {
       lapseStaleCommitments({ leagueId, currentPickNo });
     }
@@ -239,8 +353,8 @@ export function DecisionBoard({
       for (const target of c.followthrough_targets) {
         const at = userPicksById.get(target.player_id);
         if (at != null) {
-          markPlayExecuted({
-            leagueId,
+          markPlayExecutedWithSync({
+            ctx: syncCtx,
             commitmentId: c.commitment_id,
             executedWith: target,
             executedAtPickNo: at,
@@ -251,7 +365,14 @@ export function DecisionBoard({
     }
     setCommitments(getPlayCommitments(leagueId));
     setDismissed(getDismissedSuggestions(leagueId));
-  }, [leagueId, currentPickNo, picksMadeForUser]);
+  }, [
+    leagueId,
+    currentPickNo,
+    picksMadeForUser,
+    syncCtx,
+    initialServerCommitments,
+    initialServerDismissals,
+  ]);
 
   const activePlays = commitments.filter((c) => c.status === "active");
 
@@ -574,6 +695,13 @@ export function DecisionBoard({
               const onBoard = c.followthrough_targets.filter((t) =>
                 cands.some((cc) => cc.player_id === t.player_id),
               );
+              const coverage = derivePlayCoverage({
+                play: c,
+                ownedPlayers,
+                valueMap,
+                laneMemberships,
+                formatRules,
+              });
               return (
                 <div
                   key={c.commitment_id}
@@ -587,11 +715,15 @@ export function DecisionBoard({
                       <span className="text-[13px] font-semibold text-foreground">
                         {c.play_name}
                       </span>
+                      {coverage ? <CoverageChip verdict={coverage.verdict} /> : null}
                     </span>
                     <button
                       type="button"
                       onClick={() => {
-                        abandonPlay({ leagueId, commitmentId: c.commitment_id });
+                        abandonPlayWithSync({
+                          ctx: syncCtx,
+                          commitmentId: c.commitment_id,
+                        });
                         refresh();
                       }}
                       className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
@@ -599,16 +731,19 @@ export function DecisionBoard({
                       Abandon
                     </button>
                   </div>
-                  {onBoard.length > 0 ? (
-                    <p className="mt-0.5 text-[11px] text-accent">
-                      Tagged on the board: {onBoard.map((t) => t.name).join(", ")}
-                    </p>
+                  {coverage ? (
+                    <CoverageLine coverage={coverage} />
                   ) : (
                     <p className="mt-0.5 text-[11px] text-muted-2">
                       No target on the board yet; it surfaces in the table when one
                       is available.
                     </p>
                   )}
+                  {onBoard.length > 0 ? (
+                    <p className="mt-0.5 text-[11px] text-accent">
+                      Tagged on the board: {onBoard.map((t) => t.name).join(", ")}
+                    </p>
+                  ) : null}
                 </div>
               );
             })}
@@ -629,8 +764,8 @@ export function DecisionBoard({
                   <button
                     type="button"
                     onClick={() => {
-                      commitPlay({
-                        leagueId,
+                      commitPlayWithSync({
+                        ctx: syncCtx,
                         play: p,
                         committedAtPickNo: currentPickNo ?? 0,
                       });
@@ -643,7 +778,7 @@ export function DecisionBoard({
                   <button
                     type="button"
                     onClick={() => {
-                      dismissSuggestion({ leagueId, play: p });
+                      dismissSuggestionWithSync({ ctx: syncCtx, play: p });
                       refresh();
                     }}
                     className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-2 hover:text-danger transition-colors"
@@ -660,7 +795,8 @@ export function DecisionBoard({
               <button
                 type="button"
                 onClick={() => {
-                  for (const d of dismissed) restoreSuggestion({ leagueId, key: d.key });
+                  for (const d of dismissed)
+                    restoreSuggestionWithSync({ ctx: syncCtx, key: d.key });
                   refresh();
                 }}
                 className="underline decoration-dotted hover:text-accent"

@@ -263,6 +263,14 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern 1**: hardcoded "next N picks" copy in play cards. The urgency comes from the canonical above; the follow-through copy names a specific deadline pick number, not a generic window. Bug: 2026-05-20 "Your active plays" shipped with identical "next 4 picks" framing on every play card.
 - **Anti-pattern 2**: deriving play urgency in a render component instead of consuming `play.play_urgency`. The engine derives; the render reads.
 
+### Play coverage (built / missing read off the user's roster)
+
+- **Canonical**: `derivePlayCoverage(args)` in `src/lib/strategy/plays/coverage.ts`
+- **Returns**: `PlayCoverage | null` = `{ verdict: "covered" | "partial" | "thin", built: PlayCoverageBuiltPiece[], missing: string | null, summary: string }`. Per-archetype branch (qb_wr_stack, anchor_handcuff, bridge_qb, qb_hoard, lane_path) reads the user's rostered players against the play's anchor + partner template.
+- **Inputs**: `{ play: PlayCommitment, ownedPlayers, valueMap, laneMemberships?, formatRules? }`. `ownedPlayers` is the same `OwnedRosterPlayer[]` the hub builds for `suggestPlaysFromRoster`; `laneMemberships` is required for `lane_path` (the play's primary_player.player_id is `lane:{lane_id}` and coverage reads off the live `LaneMembership` for that lane).
+- **Use**: the active-play card in `decision-board.tsx` consumes this so a well-built play reads "Built: A (val X), B (val Y) · covered" instead of the empty "No target on the board yet." Founder report 2026-05-26: "It feels empty when I'm doing well at one." Voice A: numbers carry units (val N), no em dashes, no hedging.
+- **Anti-pattern**: a render component that walks the roster inline to decide whether a play is "covered" or counts QBs against starter need outside this helper. One canonical, every play card.
+
 ### Play format gates (engine emission gate)
 
 - **Canonical**: `playFormatGates: Record<PlayType, FormatGates>` (to be added at `src/lib/strategy/plays/catalog.ts`) + `canEmitPlay(snap, playType)` consumer
