@@ -1,0 +1,205 @@
+◇ injected env (13) from .env.local // tip: ◈ secrets for agents [www.dotenvx.com]
+
+=== player_signals (all rows) (1925 rows) ===
+[####################] 100.0%  position                                  1925/1925  distinct=4 (WR:746 RB:516 TE:387 QB:276)
+[######..............]  31.1%  team                                      598/1925  distinct=33 (<null>:1327 ARI:25 WAS:23 NYJ:22)
+[....................]   0.0%  age                                       0/1925
+[######..............]  31.7%  snap_share_prior_year                     610/1925  [0 .. 0.3857 .. 0.9967]
+[....................]   0.0%  route_participation_prior_year            0/1925
+[######..............]  31.1%  target_share_prior_year                   598/1925  [0 .. 0.0255941499085923 .. 0.358241758241758]
+[######..............]  31.1%  rush_share_prior_year                     598/1925  [0 .. 0.0022 .. 0.7308]
+[....................]   0.0%  weighted_opportunity_prior_year           0/1925
+[....................]   0.0%  high_value_touches_prior_year             0/1925
+[....................]   0.0%  yprr_prior_year                           0/1925
+[....................]   0.0%  adot_prior_year                           0/1925
+[....................]   0.0%  epa_per_play_prior_year                   0/1925
+[....................]   0.0%  cpoe_prior_year                           0/1925
+[###############.....]  76.5%  draft_round                               1473/1925  [1 .. 4 .. 9]
+[###############.....]  76.5%  draft_pick_no                             1473/1925  [1 .. 119 .. 262]
+[##############......]  69.9%  ras                                       1345/1925  [0.03466337893191624 .. 0.5322639323323102 .. 96.4]
+[....................]   0.0%  college_dominator                         0/1925
+[....................]   0.0%  breakout_age                              0/1925
+[############........]  59.2%  weight_lb                                 1140/1925  [154 .. 214 .. 336]
+[############........]  59.2%  height_in                                 1139/1925  [65 .. 73 .. 80]
+[....................]   0.0%  contract_years_remaining                  0/1925
+[....................]   0.0%  recent_extension_flag                     0/1925  distinct=1 (<null>:1925)
+[....................]   0.0%  contract_year_flag                        0/1925  distinct=1 (<null>:1925)
+[####................]  19.1%  rb_role_tier                              368/1925  distinct=6 (<null>:1557 starter_uncertain:220 committee_member:107 lead_back:27)
+[....................]   0.0%  rb_traded_offseason_flag                  0/1925  distinct=1 (<null>:1925)
+[....................]   0.0%  rb_role_at_new_team_projected             0/1925  distinct=1 (<null>:1925)
+[....................]   0.0%  rb_passdown_share_prior_year              0/1925
+[####################] 100.0%  compounding_news_count                    1925/1925  [0 .. 0 .. 0]
+[####################] 100.0%  source_attribution                        1925/1925
+[##################..]  91.0%  confidence_per_field                      1752/1925
+[####################] 100.0%  updated_by                                1925/1925  distinct=2 (ingest-unlock-signals@2026-05-26:1752 ingest-player-signals:173)
+
+=== player_signals stratified position=QB (276 rows) ===
+[####################] 100.0%  position                                  276/276  distinct=1 (QB:276)
+[######..............]  29.3%  team                                      81/276  distinct=33 (<null>:195 IND:4 KC:4 CIN:4)
+[....................]   0.0%  age                                       0/276
+[######..............]  29.0%  snap_share_prior_year                     80/276  [0.02 .. 0.8167 .. 0.9967]
+[....................]   0.0%  route_participation_prior_year            0/276
+[######..............]  29.3%  target_share_prior_year                   81/276  [0 .. 0 .. 0.0037593984962406]
+[######..............]  29.3%  rush_share_prior_year                     81/276  [0 .. 0.0362 .. 0.2174]
+[....................]   0.0%  weighted_opportunity_prior_year           0/276
+[....................]   0.0%  high_value_touches_prior_year             0/276
+[....................]   0.0%  yprr_prior_year                           0/276
+[....................]   0.0%  adot_prior_year                           0/276
+[....................]   0.0%  epa_per_play_prior_year                   0/276
+[....................]   0.0%  cpoe_prior_year                           0/276
+[#################...]  82.6%  draft_round                               228/276  [1 .. 3 .. 9]
+[#################...]  82.6%  draft_pick_no                             228/276  [1 .. 94 .. 262]
+[#############.......]  65.9%  ras                                       182/276  [0.041212121212121214 .. 0.520548375649052 .. 82.1]
+[....................]   0.0%  college_dominator                         0/276
+[....................]   0.0%  breakout_age                              0/276
+[#############.......]  64.1%  weight_lb                                 177/276  [192 .. 219 .. 252]
+[#############.......]  64.1%  height_in                                 177/276  [70 .. 75 .. 79]
+[....................]   0.0%  contract_years_remaining                  0/276
+[....................]   0.0%  recent_extension_flag                     0/276  distinct=1 (<null>:276)
+[....................]   0.0%  contract_year_flag                        0/276  distinct=1 (<null>:276)
+[....................]   0.0%  rb_role_tier                              0/276  distinct=1 (<null>:276)
+[....................]   0.0%  rb_traded_offseason_flag                  0/276  distinct=1 (<null>:276)
+[....................]   0.0%  rb_role_at_new_team_projected             0/276  distinct=1 (<null>:276)
+[....................]   0.0%  rb_passdown_share_prior_year              0/276
+[####################] 100.0%  compounding_news_count                    276/276  [0 .. 0 .. 0]
+[####################] 100.0%  source_attribution                        276/276
+[###################.]  95.3%  confidence_per_field                      263/276
+[####################] 100.0%  updated_by                                276/276  distinct=2 (ingest-unlock-signals@2026-05-26:263 ingest-player-signals:13)
+
+=== player_signals stratified position=RB (516 rows) ===
+[####################] 100.0%  position                                  516/516  distinct=1 (RB:516)
+[######..............]  28.9%  team                                      149/516  distinct=33 (<null>:367 NYJ:7 LAC:6 NO:6)
+[....................]   0.0%  age                                       0/516
+[######..............]  28.5%  snap_share_prior_year                     147/516  [0 .. 0.2162 .. 0.8259]
+[....................]   0.0%  route_participation_prior_year            0/516
+[######..............]  28.9%  target_share_prior_year                   149/516  [0 .. 0.0230088495575221 .. 0.234545454545455]
+[######..............]  28.9%  rush_share_prior_year                     149/516  [0 .. 0.0817 .. 0.7308]
+[....................]   0.0%  weighted_opportunity_prior_year           0/516
+[....................]   0.0%  high_value_touches_prior_year             0/516
+[....................]   0.0%  yprr_prior_year                           0/516
+[....................]   0.0%  adot_prior_year                           0/516
+[....................]   0.0%  epa_per_play_prior_year                   0/516
+[....................]   0.0%  cpoe_prior_year                           0/516
+[###############.....]  75.2%  draft_round                               388/516  [1 .. 5 .. 9]
+[###############.....]  75.2%  draft_pick_no                             388/516  [2 .. 134 .. 260]
+[###############.....]  74.6%  ras                                       385/516  [0.04419123092367252 .. 0.5478501755074234 .. 91.7]
+[....................]   0.0%  college_dominator                         0/516
+[....................]   0.0%  breakout_age                              0/516
+[############........]  58.1%  weight_lb                                 300/516  [170 .. 213 .. 274]
+[############........]  57.9%  height_in                                 299/516  [65 .. 71 .. 75]
+[....................]   0.0%  contract_years_remaining                  0/516
+[....................]   0.0%  recent_extension_flag                     0/516  distinct=1 (<null>:516)
+[....................]   0.0%  contract_year_flag                        0/516  distinct=1 (<null>:516)
+[##############......]  71.1%  rb_role_tier                              367/516  distinct=6 (starter_uncertain:220 <null>:149 committee_member:106 lead_back:27)
+[....................]   0.0%  rb_traded_offseason_flag                  0/516  distinct=1 (<null>:516)
+[....................]   0.0%  rb_role_at_new_team_projected             0/516  distinct=1 (<null>:516)
+[....................]   0.0%  rb_passdown_share_prior_year              0/516
+[####################] 100.0%  compounding_news_count                    516/516  [0 .. 0 .. 0]
+[####################] 100.0%  source_attribution                        516/516
+[##################..]  92.2%  confidence_per_field                      476/516
+[####################] 100.0%  updated_by                                516/516  distinct=2 (ingest-unlock-signals@2026-05-26:476 ingest-player-signals:40)
+
+=== player_signals stratified position=WR (746 rows) ===
+[####################] 100.0%  position                                  746/746  distinct=1 (WR:746)
+[######..............]  31.8%  team                                      237/746  distinct=33 (<null>:509 WAS:11 ARI:10 BUF:9)
+[....................]   0.0%  age                                       0/746
+[#######.............]  33.0%  snap_share_prior_year                     246/746  [0 .. 0.4024 .. 0.9482]
+[....................]   0.0%  route_participation_prior_year            0/746
+[######..............]  31.8%  target_share_prior_year                   237/746  [0 .. 0.0497017892644135 .. 0.358241758241758]
+[######..............]  31.8%  rush_share_prior_year                     237/746  [0 .. 0 .. 0.0394]
+[....................]   0.0%  weighted_opportunity_prior_year           0/746
+[....................]   0.0%  high_value_touches_prior_year             0/746
+[....................]   0.0%  yprr_prior_year                           0/746
+[....................]   0.0%  adot_prior_year                           0/746
+[....................]   0.0%  epa_per_play_prior_year                   0/746
+[....................]   0.0%  cpoe_prior_year                           0/746
+[###############.....]  74.9%  draft_round                               559/746  [1 .. 4 .. 9]
+[###############.....]  74.9%  draft_pick_no                             559/746  [1 .. 108 .. 258]
+[##############......]  70.2%  ras                                       524/746  [0.03466337893191624 .. 0.5281037524241049 .. 96.4]
+[....................]   0.0%  college_dominator                         0/746
+[....................]   0.0%  breakout_age                              0/746
+[############........]  58.0%  weight_lb                                 433/746  [154 .. 201 .. 238]
+[############........]  58.0%  height_in                                 433/746  [67 .. 73 .. 78]
+[....................]   0.0%  contract_years_remaining                  0/746
+[....................]   0.0%  recent_extension_flag                     0/746  distinct=1 (<null>:746)
+[....................]   0.0%  contract_year_flag                        0/746  distinct=1 (<null>:746)
+[....................]   0.1%  rb_role_tier                              1/746  distinct=2 (<null>:745 committee_member:1)
+[....................]   0.0%  rb_traded_offseason_flag                  0/746  distinct=1 (<null>:746)
+[....................]   0.0%  rb_role_at_new_team_projected             0/746  distinct=1 (<null>:746)
+[....................]   0.0%  rb_passdown_share_prior_year              0/746
+[####################] 100.0%  compounding_news_count                    746/746  [0 .. 0 .. 0]
+[####################] 100.0%  source_attribution                        746/746
+[##################..]  90.1%  confidence_per_field                      672/746
+[####################] 100.0%  updated_by                                746/746  distinct=2 (ingest-unlock-signals@2026-05-26:672 ingest-player-signals:74)
+
+=== player_signals stratified position=TE (387 rows) ===
+[####################] 100.0%  position                                  387/387  distinct=1 (TE:387)
+[#######.............]  33.9%  team                                      131/387  distinct=33 (<null>:256 ARI:6 DET:6 CLE:5)
+[....................]   0.0%  age                                       0/387
+[#######.............]  35.4%  snap_share_prior_year                     137/387  [0 .. 0.3854 .. 0.935]
+[....................]   0.0%  route_participation_prior_year            0/387
+[#######.............]  33.9%  target_share_prior_year                   131/387  [0 .. 0.0347349177330896 .. 0.273905996758509]
+[#######.............]  33.9%  rush_share_prior_year                     131/387  [0 .. 0 .. 0.1195]
+[....................]   0.0%  weighted_opportunity_prior_year           0/387
+[....................]   0.0%  high_value_touches_prior_year             0/387
+[....................]   0.0%  yprr_prior_year                           0/387
+[....................]   0.0%  adot_prior_year                           0/387
+[....................]   0.0%  epa_per_play_prior_year                   0/387
+[....................]   0.0%  cpoe_prior_year                           0/387
+[###############.....]  77.0%  draft_round                               298/387  [1 .. 4 .. 8]
+[###############.....]  77.0%  draft_pick_no                             298/387  [4 .. 125 .. 256]
+[#############.......]  65.6%  ras                                       254/387  [0.05295395309125287 .. 0.5334326302786789 .. 66.8]
+[....................]   0.0%  college_dominator                         0/387
+[....................]   0.0%  breakout_age                              0/387
+[############........]  59.4%  weight_lb                                 230/387  [212 .. 249 .. 336]
+[############........]  59.4%  height_in                                 230/387  [71 .. 77 .. 80]
+[....................]   0.0%  contract_years_remaining                  0/387
+[....................]   0.0%  recent_extension_flag                     0/387  distinct=1 (<null>:387)
+[....................]   0.0%  contract_year_flag                        0/387  distinct=1 (<null>:387)
+[....................]   0.0%  rb_role_tier                              0/387  distinct=1 (<null>:387)
+[....................]   0.0%  rb_traded_offseason_flag                  0/387  distinct=1 (<null>:387)
+[....................]   0.0%  rb_role_at_new_team_projected             0/387  distinct=1 (<null>:387)
+[....................]   0.0%  rb_passdown_share_prior_year              0/387
+[####################] 100.0%  compounding_news_count                    387/387  [0 .. 0 .. 0]
+[####################] 100.0%  source_attribution                        387/387
+[##################..]  88.1%  confidence_per_field                      341/387
+[####################] 100.0%  updated_by                                387/387  distinct=2 (ingest-unlock-signals@2026-05-26:341 ingest-player-signals:46)
+
+=== team_signals (all 32 teams) (32 rows) ===
+[####################] 100.0%  ol_continuity_score                       32/32  [0.7176 .. 0.875 .. 1]
+[....................]   0.0%  ol_grade_run                              0/32
+[....................]   0.0%  ol_grade_pass                             0/32
+[####################] 100.0%  rookie_ol_starters_count                  32/32  [0 .. 0 .. 0]
+[....................]   0.0%  rookie_ol_position_breakdown              0/32
+[....................]   0.0%  hc_id                                     0/32  distinct=1 (<null>:32)
+[....................]   0.0%  hc_first_time_flag                        0/32  distinct=1 (<null>:32)
+[....................]   0.0%  hc_tenure_yrs                             0/32
+[....................]   0.0%  hc_background_tag                         0/32  distinct=1 (<null>:32)
+[....................]   0.0%  oc_id                                     0/32  distinct=1 (<null>:32)
+[....................]   0.0%  oc_tenure_yrs                             0/32
+[....................]   0.0%  oc_first_year_with_team_flag              0/32  distinct=1 (<null>:32)
+[....................]   0.0%  scheme_tag                                0/32  distinct=1 (<null>:32)
+[####################] 100.0%  staff_novelty_composite                   32/32  [0 .. 0 .. 0]
+[....................]   0.0%  scheme_pace                               0/32
+[....................]   0.0%  pass_rate_neutral                         0/32
+[....................]   0.0%  personnel_12_rate                         0/32
+[####################] 100.0%  source_attribution                        32/32
+[####################] 100.0%  updated_by                                32/32  distinct=1 (ingest-player-signals:32)
+
+=== player_health (0 rows) ===
+[....................]   0.0%  games_missed_3yr                          0/0
+[....................]   0.0%  injury_history                            0/0
+[....................]   0.0%  chronic_flag                              0/0  distinct=0 ()
+[....................]   0.0%  current_status                            0/0  distinct=0 ()
+[....................]   0.0%  off_field_flag                            0/0  distinct=0 ()
+[....................]   0.0%  holdout_flag                              0/0  distinct=0 ()
+
+=== historical_signal_codes: 728 rows (backtest-only) ===
+=== historical_outcomes: 3877 rows (backtest-only) ===
+
+=== SUMMARY ===
+player_signals: 1925 rows
+team_signals:   32 rows
+player_health:  0 rows
+historical_signal_codes: 728 rows
+historical_outcomes:     3877 rows

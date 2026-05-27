@@ -63,3 +63,9 @@ Voice A is the brand. Voice C is rejected. No em dashes. No hedging openers. No 
 The shared orientation for anyone joining the Green Pants Studio work on this repo (the founder + collaborators). Carries the positioning, the marketing-relevant product story, the brand voice in brief, and the git flow. This is co-owned: update it in the repo as the shared knowledge grows, rather than letting it live only in a single machine's local memory.
 
 @ONBOARDING.md
+
+# Model Live Plan (the orchestration plan; auto-load)
+
+The multi-session orchestration plan to get our model live across the whole product with no fallbacks. It coordinates ARCHITECTURE_UNIFICATION_PLAN.md, FORWARD_EV_PLAN.md, DATA_ACQUISITION_PHASE3.md, MODEL_CARD.md, VALIDATION_PLAN.md, BUILD_PLAN.md. Read it before any data-acquisition, rubric-wiring, or decision-engine work. Companion: TRUTH_AUDIT_2026_05_26.md (the Phase A coverage matrix + rubric-read map that sets Phase B priorities).
+
+@MODEL_LIVE_PLAN.md
