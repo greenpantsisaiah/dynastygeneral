@@ -446,8 +446,22 @@ const STRATEGY_SNAPSHOT = resolve(
     } catch {
       coachContent = "";
     }
+    // The Coach context is assembled in the route AND in the helpers
+    // the route now calls (e.g. buildMyRosterForCoach in
+    // src/lib/coach/my-roster.ts). Concatenate both so a canonical
+    // field cited inside a helper still satisfies the lint. The
+    // intent is "the named roster build cites the canonical
+    // helper," not "the route file literally contains the substring."
+    const COACH_MY_ROSTER = resolve(SRC, "lib", "coach", "my-roster.ts");
+    let coachHelperContent = "";
+    try {
+      coachHelperContent = readFileSync(COACH_MY_ROSTER, "utf-8");
+    } catch {
+      coachHelperContent = "";
+    }
+    const coachSurface = coachContent + "\n" + coachHelperContent;
     const missing = coachContent
-      ? REQUIRED_IN_COACH.filter((f) => !coachContent.includes(f))
+      ? REQUIRED_IN_COACH.filter((f) => !coachSurface.includes(f))
       : ["(route unreadable)"];
     if (missing.length === 0) {
       passed++;

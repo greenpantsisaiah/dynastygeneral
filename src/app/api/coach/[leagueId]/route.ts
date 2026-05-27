@@ -23,6 +23,10 @@ import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
 import { humanize, resolvePlayers } from "@/lib/players/cache";
 import {
+  buildMyRosterForCoach,
+  type CoachMyRosterPlayer,
+} from "@/lib/coach/my-roster";
+import {
   buildOperationalContext,
   enumerateAllLeaguePicks,
 } from "@/lib/engine/llm-contract";
@@ -60,8 +64,6 @@ import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import {
   getSeasonStats,
   getCareerUsage,
-  buildOpportunityProfile,
-  type OpportunityProfile,
   type PlayerSeasonStats,
 } from "@/lib/players/season-stats";
 import { getDraftPickMap } from "@/lib/players/draft-capital";
@@ -1163,96 +1165,29 @@ export async function POST(
   // their trade angles, windows.
   const me = snapshot.rosters.find((r) => r.is_me);
 
-  // Resolve the user's roster to NAMED players. Per architecture
-  // pillar (reference_invariants_doc.md): "The coach LLM must
-  // receive the user's NAMED roster (player name, position, team,
-  // age). IDs alone produce hallucinations like 'you need a TE'
-  // when the user already has Kincaid." Without this the prompt's
-  // "verify before assert" rule has nothing to verify against.
-  let myPlayersResolved: Array<{
-    player_id: string;
-    name: string;
-    pos: string | null;
-    team: string | null;
-    age: number | null;
-    /** NFL years of experience. 0 = rookie. Drives taxi eligibility. */
-    years_exp: number | null;
-    rank: number | null;
-    // Prior-season earned-role read (snap share, targets/game, aDOT, RZ
-    // role, drop rate) via the canonical buildOpportunityProfile. Null
-    // when the player had no /stats row last season. Same numbers the
-    // inflection opportunity signal cites, so chat and board agree.
-    opportunity: OpportunityProfile | null;
-    /**
-     * Currently parked on this roster's taxi (developmental) squad.
-     * Coach must not suggest moving a player here who is already here.
-     */
-    currently_on_taxi: boolean;
-    /**
-     * Currently on IR / reserve. A reserve player does not start; the
-     * room is for injured players, not developmental.
-     */
-    currently_on_reserve: boolean;
-    /**
-     * Conservative taxi-eligibility flag. True iff the league has taxi
-     * AND the player's NFL experience is within the league's
-     * `taxi_years` cutoff AND the player is not already on taxi /
-     * reserve. Sleeper's full rule ALSO requires the player to have
-     * never been activated to the main roster; we cannot verify the
-     * second clause from the snapshot, so the system prompt asks Coach
-     * to flag the constraint when recommending a candidate.
-     */
-    taxi_eligible: boolean;
-  }> = [];
+  // Resolve the user's roster's SleeperPlayer records once. The
+  // named-roster build (buildMyRosterForCoach) needs them; so does
+  // the opponent-roster build below. We keep the cache lookup here
+  // and defer the named-roster build until AFTER `formatRules` is
+  // declared further down the route (the taxi-eligibility math binds
+  // on it). The previous inline build referenced formatRules from
+  // inside a .map() closure that ran BEFORE the const was declared,
+  // hitting a temporal dead zone, throwing, and silently shipping an
+  // empty `me.players` to Coach. Founder report 2026-05-27: Coach
+  // said "your me.players array is empty in this snapshot." Locked
+  // by evals/coach-my-roster.test.ts.
+  let myRosterResolved: Map<string, import("@/lib/sleeper/schemas").SleeperPlayer> =
+    new Map();
   if (me && me.player_ids.length > 0) {
     try {
-      const resolved = await resolvePlayers(me.player_ids);
-      myPlayersResolved = me.player_ids
-        .map((id) => {
-          const p = resolved.get(id);
-          return p ? { id, p } : null;
-        })
-        .filter(
-          (entry): entry is { id: string; p: NonNullable<ReturnType<typeof resolved.get>> } =>
-            entry !== null,
-        )
-        .map(({ id, p }) => {
-          const human = humanize(p);
-          // Canonical opportunity read from last season's /stats row.
-          // Ship it only when at least one role metric resolved, so an
-          // absent-season player carries null rather than an all-null
-          // object the LLM might over-read.
-          const opp = buildOpportunityProfile(coachPrevSeasonStats.get(id));
-          const hasOpp =
-            opp.snap_share != null || opp.targets_per_game != null;
-          const onTaxi = (me?.taxi_player_ids ?? []).includes(id);
-          const onReserve = (me?.reserve_player_ids ?? []).includes(id);
-          const taxiEligible =
-            formatRules.has_taxi &&
-            !onTaxi &&
-            !onReserve &&
-            typeof human.yearsExp === "number" &&
-            formatRules.taxi_years != null &&
-            human.yearsExp <= formatRules.taxi_years;
-          return {
-            player_id: id,
-            name: human.name,
-            pos: human.position,
-            team: human.team,
-            age: human.age,
-            years_exp: human.yearsExp,
-            rank: typeof p.search_rank === "number" ? p.search_rank : null,
-            opportunity: hasOpp ? opp : null,
-            currently_on_taxi: onTaxi,
-            currently_on_reserve: onReserve,
-            taxi_eligible: taxiEligible,
-          };
-        })
-        .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
+      myRosterResolved = await resolvePlayers(me.player_ids);
     } catch (err) {
       console.error("[coach:resolve-roster]", err);
     }
   }
+  // The shaped, ready-to-ship `me.players` payload. Populated below
+  // once formatRules + playerValueMap are available.
+  let myPlayersResolved: CoachMyRosterPlayer[] = [];
 
   // Per-opponent named rosters. Without this, Coach can read
   // "Saquonatraitor has 8 WRs and 2 TEs" but not WHICH WRs and TEs,
@@ -1408,6 +1343,21 @@ export async function POST(
     Object.entries(opContext.pricing.player_values).map(([id, v]) => [id, v]),
   );
 
+  // Named-roster build. Runs HERE (not at the top of the route)
+  // because the taxi-eligibility math reads `formatRules.has_taxi` /
+  // `taxi_years`, both populated by opContext above. Pure helper;
+  // unit-tested by evals/coach-my-roster.test.ts so the temporal
+  // dead-zone class (2026-05-27) cannot regress.
+  if (me) {
+    myPlayersResolved = buildMyRosterForCoach({
+      me,
+      formatRules,
+      resolvedPlayers: myRosterResolved,
+      prevSeasonStats: coachPrevSeasonStats,
+      playerValueMap,
+    });
+  }
+
   // Roster posture. The hub renders this as the PostureBanner; Coach
   // must read the SAME computed posture, not infer it. The system
   // prompt's "Read posture BEFORE every recommendation" block binds on
@@ -1501,16 +1451,9 @@ export async function POST(
           // player-side trade math. Each entry also carries `opportunity`
           // (prior-season snap share / targets-per-game / aDOT / RZ role /
           // drop rate) when available; cite it per the system prompt's
-          // "How you read opportunity" rule. `...p` spreads it through.
-          players: myPlayersResolved.map((p) => {
-            const v = playerValueMap.get(p.player_id);
-            return {
-              ...p,
-              value: v ? v.value : null,
-              overall_rank: v ? v.overall_rank : null,
-              position_rank: v ? v.position_rank : null,
-            };
-          }),
+          // "How you read opportunity" rule. Built via the
+          // buildMyRosterForCoach canonical (already value-enriched).
+          players: myPlayersResolved,
         }
       : null,
     // Trade pricing context (single source of truth via
