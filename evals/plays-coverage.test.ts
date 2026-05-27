@@ -11,10 +11,12 @@
  */
 
 import { derivePlayCoverage } from "../src/lib/strategy/plays/coverage";
-import type { PlayCommitment } from "../src/lib/strategy/plays/types";
+import type { OppHolder } from "../src/lib/strategy/plays/coverage";
+import type { PlayCommitment, PlayPlayerRef } from "../src/lib/strategy/plays/types";
 import type { OwnedRosterPlayer } from "../src/lib/strategy/plays/detect";
 import type { LaneMembership } from "../src/lib/strategy/lane-identity";
 import type { FormatRules } from "../src/lib/engine/llm-contract";
+import type { Position } from "../src/lib/strategy/archetypes/schema";
 
 // U+2014 (em dash) is banned in product output by BRAND_VOICE. We build
 // the character via charCode so this source file passes both the
@@ -41,6 +43,7 @@ function noEmDash(s: string | null): boolean {
 function basePlay(
   archetype: PlayCommitment["archetype"],
   primary: PlayCommitment["primary_player"],
+  followthrough_targets: PlayPlayerRef[] = [],
 ): PlayCommitment {
   return {
     commitment_id: `${archetype}-test`,
@@ -48,12 +51,32 @@ function basePlay(
     play_name: "Test Play",
     league_id: "L1",
     primary_player: primary,
-    followthrough_targets: [],
+    followthrough_targets,
     followthrough_description: "",
     committed_at_pick_no: 10,
     lapses_after_pick_no: 60,
     committed_at: new Date().toISOString(),
     status: "active",
+  };
+}
+
+function holder(args: {
+  roster_id: number;
+  owner_name: string | null;
+  counts?: Partial<Record<Position, number>>;
+}): OppHolder {
+  const base: Record<Position, number> = {
+    QB: 0,
+    RB: 0,
+    WR: 0,
+    TE: 0,
+    K: 0,
+    DST: 0,
+  };
+  return {
+    roster_id: args.roster_id,
+    owner_name: args.owner_name,
+    position_counts: { ...base, ...(args.counts ?? {}) } as Record<Position, number>,
   };
 }
 
@@ -421,7 +444,282 @@ function run() {
     );
   }
 
-  console.log("\nSection 6: Voice A regressions");
+  console.log("\nSection 6: Sniped verdict + trade angle");
+  {
+    // Anchor + Handcuff, handcuff drafted by another roster. The
+    // founder's case (2026-05-27): "Quinshon Judkins + Handcuff" with
+    // the named CLE backup now on lincolnenglish's roster.
+    const stackPartner: PlayPlayerRef = {
+      player_id: "te1",
+      name: "Mark Andrews",
+      position: "TE",
+      team: "BAL",
+    };
+    const handcuffPartner: PlayPlayerRef = {
+      player_id: "rbBackup",
+      name: "Pierre Strong",
+      position: "RB",
+      team: "CLE",
+    };
+    const devPartner: PlayPlayerRef = {
+      player_id: "qbDev",
+      name: "Cam Ward",
+      position: "QB",
+      team: "TEN",
+    };
+
+    // -- qb_wr_stack: anchor in hand, the engine's named pass-catcher
+    //    was drafted by another roster.
+    {
+      const play = basePlay(
+        "qb_wr_stack",
+        {
+          player_id: "qbAnchor",
+          name: "Lamar Jackson",
+          position: "QB",
+          team: "BAL",
+        },
+        [stackPartner],
+      );
+      const owned: OwnedRosterPlayer[] = [
+        p({ id: "qbAnchor", name: "Lamar Jackson", position: "QB", team: "BAL" }),
+        // User has 4 WRs (surplus past 3 starters) so a trade lever exists.
+        p({ id: "wr1", name: "Justin Jefferson", position: "WR", team: "MIN" }),
+        p({ id: "wr2", name: "CeeDee Lamb", position: "WR", team: "DAL" }),
+        p({ id: "wr3", name: "Amon-Ra St. Brown", position: "WR", team: "DET" }),
+        p({ id: "wr4", name: "Brandon Aiyuk", position: "WR", team: "SF" }),
+      ];
+      const oppHolders: Record<string, OppHolder> = {
+        te1: holder({
+          roster_id: 5,
+          owner_name: "lincolnenglish",
+          counts: { QB: 1, RB: 2, WR: 1, TE: 2 },
+        }),
+      };
+      const cov = derivePlayCoverage({
+        play,
+        ownedPlayers: owned,
+        valueMap: { qbAnchor: 85, te1: 60, wr1: 95, wr2: 88, wr3: 70, wr4: 45 },
+        oppHolders,
+      });
+      check(
+        "qb_wr_stack: sniped verdict when named partner held by opponent",
+        cov?.verdict === "sniped",
+        cov?.summary,
+      );
+      check(
+        "qb_wr_stack: summary names the holder",
+        (cov?.summary ?? "").includes("lincolnenglish"),
+        cov?.summary,
+      );
+      check(
+        "qb_wr_stack: sniped[] carries the partner + owner",
+        cov?.sniped?.[0]?.owner_name === "lincolnenglish" &&
+          cov?.sniped?.[0]?.name === "Mark Andrews",
+        JSON.stringify(cov?.sniped),
+      );
+      check(
+        "qb_wr_stack: no em dash in sniped output",
+        noEmDash(cov?.summary ?? "") &&
+          noEmDash(cov?.missing ?? null) &&
+          noEmDash(cov?.trade_angle ?? null),
+      );
+    }
+
+    // -- anchor_handcuff: anchor in hand, handcuff drafted elsewhere.
+    //    Holder is light at WR; user has WR surplus -> the lever names it.
+    {
+      const play = basePlay(
+        "anchor_handcuff",
+        {
+          player_id: "rbAnchor",
+          name: "Quinshon Judkins",
+          position: "RB",
+          team: "CLE",
+        },
+        [handcuffPartner],
+      );
+      const owned: OwnedRosterPlayer[] = [
+        p({ id: "rbAnchor", name: "Quinshon Judkins", position: "RB", team: "CLE" }),
+        p({ id: "wr1", name: "Justin Jefferson", position: "WR", team: "MIN" }),
+        p({ id: "wr2", name: "CeeDee Lamb", position: "WR", team: "DAL" }),
+        p({ id: "wr3", name: "Amon-Ra St. Brown", position: "WR", team: "DET" }),
+        p({ id: "wr4", name: "Brandon Aiyuk", position: "WR", team: "SF" }),
+      ];
+      const oppHolders: Record<string, OppHolder> = {
+        rbBackup: holder({
+          roster_id: 7,
+          owner_name: "lincolnenglish",
+          counts: { QB: 1, RB: 3, WR: 1, TE: 1 },
+        }),
+      };
+      const formatRules = {
+        qb_starters_max: 1,
+        rb_starters_max: 2,
+        wr_starters_max: 3,
+        te_starters_max: 1,
+        is_superflex: false,
+      } as unknown as FormatRules;
+      const cov = derivePlayCoverage({
+        play,
+        ownedPlayers: owned,
+        valueMap: { rbAnchor: 80, rbBackup: 18, wr1: 95, wr2: 88, wr3: 70, wr4: 45 },
+        oppHolders,
+        formatRules,
+      });
+      check(
+        "anchor_handcuff: sniped verdict + holder named",
+        cov?.verdict === "sniped" &&
+          (cov?.summary ?? "").includes("lincolnenglish"),
+        cov?.summary,
+      );
+      check(
+        "anchor_handcuff: trade_angle names holder's thin position",
+        (cov?.trade_angle ?? "").includes("WR") &&
+          (cov?.trade_angle ?? "").includes("lincolnenglish"),
+        cov?.trade_angle ?? "",
+      );
+      check(
+        "anchor_handcuff: trade_angle includes a surplus piece by name",
+        (cov?.trade_angle ?? "").includes("Brandon Aiyuk"),
+        cov?.trade_angle ?? "",
+      );
+    }
+
+    // -- bridge_qb: bridge in hand, the engine's young dev was drafted.
+    {
+      const play = basePlay(
+        "bridge_qb",
+        {
+          player_id: "qbBridge",
+          name: "Aaron Rodgers",
+          position: "QB",
+          team: "NYJ",
+        },
+        [devPartner],
+      );
+      const owned: OwnedRosterPlayer[] = [
+        p({
+          id: "qbBridge",
+          name: "Aaron Rodgers",
+          position: "QB",
+          team: "NYJ",
+          age: 41,
+          yearsExp: 19,
+        }),
+      ];
+      const oppHolders: Record<string, OppHolder> = {
+        qbDev: holder({
+          roster_id: 9,
+          owner_name: "izzydabomb",
+          counts: { QB: 2, RB: 2, WR: 3, TE: 1 },
+        }),
+      };
+      const cov = derivePlayCoverage({
+        play,
+        ownedPlayers: owned,
+        valueMap: { qbBridge: 20, qbDev: 45 },
+        oppHolders,
+      });
+      check(
+        "bridge_qb: sniped fires when the named dev is held elsewhere",
+        cov?.verdict === "sniped" && cov?.sniped?.[0]?.name === "Cam Ward",
+        cov?.summary,
+      );
+    }
+
+    // -- Fallback: no oppHolders -> sniped never fires (anchor-only
+    //    handcuff play falls back to the existing "thin" verdict).
+    {
+      const play = basePlay(
+        "anchor_handcuff",
+        {
+          player_id: "rbAnchor2",
+          name: "Saquon Barkley",
+          position: "RB",
+          team: "PHI",
+        },
+        [{
+          player_id: "rbBackup2",
+          name: "Will Shipley",
+          position: "RB",
+          team: "PHI",
+        }],
+      );
+      const owned: OwnedRosterPlayer[] = [
+        p({ id: "rbAnchor2", name: "Saquon Barkley", position: "RB", team: "PHI" }),
+      ];
+      const cov = derivePlayCoverage({
+        play,
+        ownedPlayers: owned,
+        valueMap: { rbAnchor2: 80 },
+      });
+      check(
+        "anchor_handcuff: absent oppHolders -> thin (no false sniped)",
+        cov?.verdict === "thin",
+        cov?.summary,
+      );
+    }
+
+    // -- No trade lever: holder has no thin positions, user has no
+    //    cross-fit surplus. Sniped still fires (the play state is what
+    //    it is); trade_angle is null (no fabricated angle).
+    {
+      const play = basePlay(
+        "anchor_handcuff",
+        {
+          player_id: "rbAnchorB",
+          name: "Bijan Robinson",
+          position: "RB",
+          team: "ATL",
+        },
+        [{
+          player_id: "rbBackupB",
+          name: "Tyler Allgeier",
+          position: "RB",
+          team: "ATL",
+        }],
+      );
+      const owned: OwnedRosterPlayer[] = [
+        p({ id: "rbAnchorB", name: "Bijan Robinson", position: "RB", team: "ATL" }),
+        // No surplus at any position; opponent has full starters.
+        p({ id: "qbU", name: "User QB", position: "QB", team: "PHI" }),
+      ];
+      const oppHolders: Record<string, OppHolder> = {
+        rbBackupB: holder({
+          roster_id: 3,
+          owner_name: "saquonatraitor",
+          // Holder has every position covered to starter req.
+          counts: { QB: 1, RB: 3, WR: 3, TE: 1 },
+        }),
+      };
+      const formatRules = {
+        qb_starters_max: 1,
+        rb_starters_max: 2,
+        wr_starters_max: 3,
+        te_starters_max: 1,
+      } as unknown as FormatRules;
+      const cov = derivePlayCoverage({
+        play,
+        ownedPlayers: owned,
+        valueMap: { rbAnchorB: 90, rbBackupB: 8, qbU: 50 },
+        oppHolders,
+        formatRules,
+      });
+      check(
+        "sniped fires even when no clean trade lever exists",
+        cov?.verdict === "sniped",
+        cov?.summary,
+      );
+      check(
+        "trade_angle = null when no holder need + user surplus overlap",
+        cov?.trade_angle == null || cov.trade_angle === null,
+        `trade_angle = ${cov?.trade_angle ?? "null"}`,
+      );
+    }
+  }
+
+  console.log("\nSection 7: Voice A regressions");
   {
     const cases: { name: string; coverage: ReturnType<typeof derivePlayCoverage> }[] = [
       {

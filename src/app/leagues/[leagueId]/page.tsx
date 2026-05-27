@@ -148,6 +148,7 @@ import {
 } from "@/lib/strategy/plays/detect";
 import type { Play, PlayCommitment } from "@/lib/strategy/plays/types";
 import type { DismissedSuggestion } from "@/lib/plays-storage";
+import type { OppHolder } from "@/lib/strategy/plays/coverage";
 import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 import type { TradeOpportunity } from "@/lib/strategy/trade-opportunities/detect";
 import {
@@ -956,6 +957,12 @@ export default async function LeagueHubPage({
   // map flattens to a plain Record for the same trip.
   let ownedPlayersForPlays: OwnedRosterPlayer[] = [];
   let playsValueMap: Record<string, number> = {};
+  // Opponent roster lookup keyed by player_id. Drives the "sniped"
+  // verdict on play coverage (a named partner now held by another
+  // roster) + the trade-angle lever (the holder's thin position cross-
+  // referenced against the user's surplus). Built from leagueSnapshot
+  // .rosters once below; only non-user-owned players are included.
+  let playsOppHolders: Record<string, OppHolder> = {};
   // Server-side play state. When the user is signed in, the play_commitments
   // + play_dismissals tables (migration 0017) are the canonical source; the
   // hub fetches them and the client merges with any local-only rows from
@@ -1383,6 +1390,47 @@ export default async function LeagueHubPage({
                 ];
                 ownedPlayersForPlays = ownedPlayers;
                 playsValueMap = ktcValuesForPlays;
+
+                // Build the opponent-holder lookup used by the
+                // "sniped" coverage verdict. Each player_id on every
+                // NON-me roster maps to its holder (roster_id +
+                // owner_name + their per-position count snapshot, so
+                // the trade-angle helper can name the holder's thin
+                // positions without re-walking the snapshot).
+                const oppMap: Record<string, OppHolder> = {};
+                for (const r of leagueSnapshot.rosters) {
+                  if (r.is_me) continue;
+                  const ownerName =
+                    r.owner_name ?? (r.owner_id ? `roster ${r.roster_id}` : null);
+                  for (const pid of r.player_ids ?? []) {
+                    if (oppMap[pid]) continue;
+                    oppMap[pid] = {
+                      roster_id: r.roster_id,
+                      owner_name: ownerName,
+                      position_counts: r.position_counts,
+                    };
+                  }
+                }
+                // Also include picks_made by non-me rosters in this
+                // active draft (roster.players is empty mid-draft, so
+                // picks_made carries the just-drafted assignments).
+                for (const pick of leagueSnapshot.draft.picks_made) {
+                  if (oppMap[pick.player_id]) continue;
+                  const ownerRoster = leagueSnapshot.rosters.find(
+                    (r) => r.roster_id === pick.roster_id,
+                  );
+                  if (!ownerRoster || ownerRoster.is_me) continue;
+                  oppMap[pick.player_id] = {
+                    roster_id: ownerRoster.roster_id,
+                    owner_name:
+                      ownerRoster.owner_name ??
+                      (ownerRoster.owner_id
+                        ? `roster ${ownerRoster.roster_id}`
+                        : null),
+                    position_counts: ownerRoster.position_counts,
+                  };
+                }
+                playsOppHolders = oppMap;
               }
             } catch (err) {
               console.error("[hub:trade-opportunities]", err);
@@ -2399,6 +2447,7 @@ export default async function LeagueHubPage({
                         ? buildFormatRulesFromSnapshot(leagueSnapshot)
                         : null
                     }
+                    oppHolders={playsOppHolders}
                   />
                 </div>
               )}
