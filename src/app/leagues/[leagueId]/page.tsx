@@ -194,10 +194,7 @@ import {
   type OpportunityRead,
 } from "@/lib/players/opportunity-read";
 import { getDraftPickMap } from "@/lib/players/draft-capital";
-import {
-  getPlayerSignalsMap,
-  getTeamSignalsMap,
-} from "@/lib/players/player-signals";
+import { resolveEnrichedPlayers } from "@/lib/players/enriched-player";
 import { evaluateForPlayer } from "@/lib/engine/evaluation/wiring";
 import type { EvaluationOutput } from "@/lib/engine/evaluation";
 import { buildOpponentReadout, type OpponentReadout } from "@/lib/strategy/opponents/observe";
@@ -1056,7 +1053,7 @@ export default async function LeagueHubPage({
       const draftPickByPlayerId = await getDraftPickMap().catch(
         () => new Map<string, number>(),
       );
-      inflectionItems = buildInflectionsFromSnapshot({
+      inflectionItems = await buildInflectionsFromSnapshot({
         snap: leagueSnapshot,
         playersMap,
         prevSeasonStats: inflPrevStats,
@@ -1075,27 +1072,31 @@ export default async function LeagueHubPage({
         (id) => playersMap.get(id)?.years_exp === 0,
       );
       if (myRookieIds.length > 0) {
-        const [playerSignalsMap, teamSignalsMap] = await Promise.all([
-          getPlayerSignalsMap().catch(() => new Map()),
-          getTeamSignalsMap().catch(() => new Map()),
-        ]);
+        // Phase C2 (MODEL_LIVE_PLAN): the rookie-debut rubric read goes
+        // through the canonical EnrichedPlayer resolver so signals +
+        // team_signals + value + identity arrive on one object with
+        // the no-silent-null `missing` contract. evaluate() still owns
+        // the rubric math; the resolver owns the data plumbing.
+        const enrichedByPlayerId = await resolveEnrichedPlayers({
+          playerIds: myRookieIds,
+          playersMap,
+          valueLookup: (id) =>
+            typeof playerValuesByIdJson?.[id] === "number"
+              ? playerValuesByIdJson[id]
+              : null,
+        });
         for (const id of myRookieIds) {
-          const sp = playersMap.get(id);
-          if (!sp) continue;
+          const enriched = enrichedByPlayerId.get(id);
+          if (!enriched) continue;
           const out = evaluateForPlayer({
-            player_signals: playerSignalsMap.get(id) ?? null,
-            team_signals: sp.team ? teamSignalsMap.get(sp.team) ?? null : null,
-            ktc_value:
-              typeof playerValuesByIdJson?.[id] === "number"
-                ? playerValuesByIdJson[id]
-                : null,
-            adp: null,
-            search_rank:
-              typeof sp.search_rank === "number" ? sp.search_rank : null,
-            position: sp.position ?? null,
-            age: typeof sp.age === "number" ? sp.age : null,
-            years_exp:
-              typeof sp.years_exp === "number" ? sp.years_exp : null,
+            player_signals: enriched.signals,
+            team_signals: enriched.team_signals,
+            ktc_value: enriched.ktc_value,
+            adp: enriched.adp,
+            search_rank: enriched.search_rank,
+            position: enriched.position,
+            age: enriched.age,
+            years_exp: enriched.years_exp,
           });
           if (out) rubricByPlayerId[id] = out;
         }

@@ -67,7 +67,7 @@ function baseInputs(overrides: Partial<InflectionInputs>): InflectionInputs {
   };
 }
 
-function run() {
+async function run() {
   console.log("\n── 1. Aging RB, no usage data (the live hub case) ──");
   {
     // What from-snapshot.ts actually builds: roster signals only, no
@@ -209,14 +209,17 @@ function run() {
       off_snaps: null,
       team_off_snaps: null,
     });
-    const findWorkload = (ctx: ReturnType<typeof buildInflectionsFromSnapshot>) =>
+    const findWorkload = (ctx: Awaited<ReturnType<typeof buildInflectionsFromSnapshot>>) =>
       ctx[0]?.resolutions
         .flatMap((r) => r.signals)
         .find((s) => s.name === "Workload trend");
 
-    const withUsage = buildInflectionsFromSnapshot({
+    const withUsage = await buildInflectionsFromSnapshot({
       snap,
       playersMap,
+      playerSignalsMap: new Map(),
+      teamSignalsMap: new Map(),
+      playerHealthMap: new Map(),
       prevSeasonStats: new Map([["4866", stat(240)]]),
       prevPrevSeasonStats: new Map([["4866", stat(300)]]),
     });
@@ -232,7 +235,7 @@ function run() {
       wlWith?.direction ?? "none",
     );
 
-    const withoutUsage = buildInflectionsFromSnapshot({ snap, playersMap });
+    const withoutUsage = await buildInflectionsFromSnapshot({ snap, playersMap, playerSignalsMap: new Map(), teamSignalsMap: new Map(), playerHealthMap: new Map() });
     const wlWithout = findWorkload(withoutUsage);
     check(
       "without usage maps, workload trend is data_missing (graceful)",
@@ -242,14 +245,17 @@ function run() {
 
     // careerUsage threads career_carries -> the mileage signal.
     const findMileage = (
-      ctx: ReturnType<typeof buildInflectionsFromSnapshot>,
+      ctx: Awaited<ReturnType<typeof buildInflectionsFromSnapshot>>,
     ) =>
       ctx[0]?.resolutions
         .flatMap((r) => r.signals)
         .find((s) => s.name === "Career mileage");
-    const withCareer = buildInflectionsFromSnapshot({
+    const withCareer = await buildInflectionsFromSnapshot({
       snap,
       playersMap,
+      playerSignalsMap: new Map(),
+      teamSignalsMap: new Map(),
+      playerHealthMap: new Map(),
       careerUsage: new Map([["4866", { carries: 1850, targets: 300 }]]),
     });
     const mileage = findMileage(withCareer);
@@ -401,15 +407,18 @@ function run() {
       team_off_snaps: 1000,
     });
     const findOpportunity = (
-      ctx: ReturnType<typeof buildInflectionsFromSnapshot>,
+      ctx: Awaited<ReturnType<typeof buildInflectionsFromSnapshot>>,
     ) =>
       ctx[0]?.resolutions
         .flatMap((r) => r.signals)
         .find((s) => s.name === "Earned opportunity (snap share + targets)");
 
-    const withUsage = buildInflectionsFromSnapshot({
+    const withUsage = await buildInflectionsFromSnapshot({
       snap,
       playersMap,
+      playerSignalsMap: new Map(),
+      teamSignalsMap: new Map(),
+      playerHealthMap: new Map(),
       prevSeasonStats: new Map([["wr1", stat(500, 90)]]),
       prevPrevSeasonStats: new Map([["wr1", stat(350, 70)]]),
     });
@@ -420,7 +429,7 @@ function run() {
       oppWith?.observation ?? "no signal",
     );
 
-    const withoutUsage = buildInflectionsFromSnapshot({ snap, playersMap });
+    const withoutUsage = await buildInflectionsFromSnapshot({ snap, playersMap, playerSignalsMap: new Map(), teamSignalsMap: new Map(), playerHealthMap: new Map() });
     const oppWithout = findOpportunity(withoutUsage);
     check(
       "without /stats maps, opportunity is data_missing (graceful)",
@@ -455,15 +464,18 @@ function run() {
       ],
     ]);
     const findDraft = (
-      ctx: ReturnType<typeof buildInflectionsFromSnapshot>,
+      ctx: Awaited<ReturnType<typeof buildInflectionsFromSnapshot>>,
     ) =>
       ctx[0]?.resolutions
         .flatMap((r) => r.signals)
         .find((s) => s.name === "Draft capital");
 
-    const withPick = buildInflectionsFromSnapshot({
+    const withPick = await buildInflectionsFromSnapshot({
       snap,
       playersMap,
+      playerSignalsMap: new Map(),
+      teamSignalsMap: new Map(),
+      playerHealthMap: new Map(),
       draftPickByPlayerId: new Map([["rk1", 8]]),
     });
     const dWith = findDraft(withPick);
@@ -475,9 +487,12 @@ function run() {
       dWith?.observation ?? "no signal",
     );
 
-    const withDay3 = buildInflectionsFromSnapshot({
+    const withDay3 = await buildInflectionsFromSnapshot({
       snap,
       playersMap,
+      playerSignalsMap: new Map(),
+      teamSignalsMap: new Map(),
+      playerHealthMap: new Map(),
       draftPickByPlayerId: new Map([["rk1", 200]]),
     });
     const dDay3 = findDraft(withDay3);
@@ -489,7 +504,7 @@ function run() {
       dDay3?.observation ?? "no signal",
     );
 
-    const withoutPick = buildInflectionsFromSnapshot({ snap, playersMap });
+    const withoutPick = await buildInflectionsFromSnapshot({ snap, playersMap, playerSignalsMap: new Map(), teamSignalsMap: new Map(), playerHealthMap: new Map() });
     const dNone = findDraft(withoutPick);
     check(
       "without draftPickByPlayerId, Draft capital is data_missing",
@@ -502,4 +517,7 @@ function run() {
   if (failed > 0) process.exit(1);
 }
 
-run();
+run().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

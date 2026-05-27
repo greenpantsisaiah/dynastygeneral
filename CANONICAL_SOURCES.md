@@ -194,6 +194,16 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: building an `EvaluationContext` inline in a surface, or calling `evaluate()` outside this wrapper without consuming `getPlayerSignalsMap`. One adapter, one read.
 - **Bug class avoided**: surfaces drifting on how they hydrate the rubric, and value-scale wiring that the 2b evidence doesn't support. Locked by `evals/evaluation-wiring.test.ts`.
 
+### Enriched player resolver (identity + market + signals + health + inflection in one object)
+
+- **Canonical**: `resolveEnrichedPlayer(player_id, args?)` and `resolveEnrichedPlayers({ playerIds, ... })` in `src/lib/players/enriched-player.ts`. Phase C2 of `MODEL_LIVE_PLAN.md`; the foundation Phase D wires `evaluate()` over.
+- **Returns**: `EnrichedPlayer | null` (single) or `Map<player_id, EnrichedPlayer>` (batch). Each row carries identity (Sleeper meta), market (FantasyCalc `value` + ADP + ranks), `signals` (the wide `PlayerSignalsRowWide` the rubric reads), `team_signals`, `health` (production `player_health`), `inflection_inputs` (the full 10-arg payload the bifurcation engine consumes), and a `missing: MissingFieldFlag[]` list naming every null field with the reason (`table_empty` / `row_missing` / `column_null` / `not_acquired` / `not_provided`) and the one-line consumer impact.
+- **The `missing` list is the no-silent-null contract.** A consumer that reads a null field knows WHY and what that means for the surface (e.g. "rubric falls back to position base rate", "trade-pricing math has no anchor"). Removes the ambiguity behind the audit's Leak 4.
+- **Inputs**: `playerIds[]` plus optional pre-fetched maps (`playersMap`, `valueMap` / `valueLookup`, `playerSignalsMap`, `teamSignalsMap`, `playerHealthMap`, `prevSeasonStats`, `prevPrevSeasonStats`, `careerUsage`, `draftPickByPlayerId`), an optional `rosterContext: HumanPlayer[]` for the same-team-same-position grouping, and an optional `valueFormat` (`isSuperflex` / `isPpr` / `isHalfPpr` / `isTePremium`) used to fetch FantasyCalc when no value source is provided. The resolver fetches only what is not pre-provided.
+- **Consumers**: the hub rookie-debut rubric path (`leagues/[leagueId]/page.tsx`), `buildInflectionsFromSnapshot` (`engine/inflection/from-snapshot.ts`), and `assembleContext` (`engine/context.ts`). Phase D will migrate the other seven `resolvePlayerValues` consumers + the Coach pricing block + the priced-pool prelude.
+- **Anti-pattern**: a surface that reads `player_signals` / `team_signals` / `player_health` directly, calls `resolvePlayerValues` outside the priced-pool canonical, or builds an `InflectionInputs` inline. One resolver, one cache, one missing-field contract. Phase G's lockdown lint enforces this once the remaining consumers migrate.
+- **Bug class avoided**: the audit's Leak 4 (the `engine/context.ts` inflection call passed only 2 of 10 args; the other 8 were null even when the underlying maps existed). The Phase D / G migration also closes the "8 disagreeing `resolvePlayerValues` consumers" (A5 inventory). Locked by `evals/enriched-player.test.ts`.
+
 ### Strategy windows + archetype lean
 
 - **Canonical**: `buildLeagueSnapshot → rankArchetypes → computeWindows`

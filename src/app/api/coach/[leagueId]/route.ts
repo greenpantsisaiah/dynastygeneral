@@ -1081,7 +1081,7 @@ export async function POST(
   // best-effort: if either fails, Coach still works on the rest of
   // the context.
   let leagueRead: ReturnType<typeof buildLeagueReadFromSnapshot> | null = null;
-  let inflectionItems: ReturnType<typeof buildInflectionsFromSnapshot> = [];
+  let inflectionItems: Awaited<ReturnType<typeof buildInflectionsFromSnapshot>> = [];
   // Hoisted so the named-roster mirror below can attach each player's
   // prior-season opportunity read from the same (24h-cached) /stats map
   // the inflection cards use. Empty until the try populates it.
@@ -1148,7 +1148,7 @@ export async function POST(
     const draftPickByPlayerId = await getDraftPickMap().catch(
       () => new Map<string, number>(),
     );
-    inflectionItems = buildInflectionsFromSnapshot({
+    inflectionItems = await buildInflectionsFromSnapshot({
       snap: snapshot,
       playersMap,
       prevSeasonStats,
