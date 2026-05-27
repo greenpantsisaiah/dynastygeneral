@@ -35,7 +35,8 @@ type BucketName =
   | "opponent-notes"
   | "last-visit"
   | "soundboard"
-  | "soundboard-submit";
+  | "soundboard-submit"
+  | "plays";
 
 type LimitSpec = {
   // Requests allowed
@@ -97,6 +98,11 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // peaks can hit ~10 in a tight window. 30/min keeps room while
   // bounding a compromised account.
   "opponent-notes": { requests: 30, window: "1 m" },
+  // Plays sync (commit, abandon, dismiss, restore). Auth-required.
+  // Mid-draft a real user tracks / dismisses a handful per session;
+  // the upload-on-signin pass also bursts up to ~20 in one shot.
+  // 60/min covers both shapes.
+  plays: { requests: 60, window: "1 m" },
   // Last-visit fingerprint writes. One write per hub render; a user
   // can rapidly refresh the hub mid-draft (5-10 times in a minute is
   // plausible). 60/min covers worst-case real usage and stops a

@@ -146,7 +146,9 @@ import {
   detectLanePlays,
   type OwnedRosterPlayer,
 } from "@/lib/strategy/plays/detect";
-import type { Play } from "@/lib/strategy/plays/types";
+import type { Play, PlayCommitment } from "@/lib/strategy/plays/types";
+import type { DismissedSuggestion } from "@/lib/plays-storage";
+import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 import type { TradeOpportunity } from "@/lib/strategy/trade-opportunities/detect";
 import {
   summarizeUpcomingDraft,
@@ -948,6 +950,34 @@ export default async function LeagueHubPage({
   let draftPathProjection: DraftPathProjection | null = null;
   let tradeOpportunities: TradeOpportunity[] = [];
   let suggestedPlays: Play[] = [];
+  // Hoisted so the active-play card can render coverage (built/missing)
+  // off the same data the engine uses to suggest plays. The OwnedRosterPlayer
+  // shape ships through to the client via TheCall; the FantasyCalc value
+  // map flattens to a plain Record for the same trip.
+  let ownedPlayersForPlays: OwnedRosterPlayer[] = [];
+  let playsValueMap: Record<string, number> = {};
+  // Server-side play state. When the user is signed in, the play_commitments
+  // + play_dismissals tables (migration 0017) are the canonical source; the
+  // hub fetches them and the client merges with any local-only rows from
+  // localStorage on first mount. Anonymous users see empty arrays here and
+  // localStorage continues to drive the panel.
+  let serverPlayCommitments: PlayCommitment[] = [];
+  let serverPlayDismissals: DismissedSuggestion[] = [];
+  if (authUser) {
+    try {
+      const [{ readCommitments, readDismissals }] = await Promise.all([
+        import("@/lib/plays/storage-server"),
+      ]);
+      const [c, d] = await Promise.all([
+        readCommitments({ userId: authUser.id, leagueId }),
+        readDismissals({ userId: authUser.id, leagueId }),
+      ]);
+      serverPlayCommitments = c;
+      serverPlayDismissals = d;
+    } catch (err) {
+      captureError(issues, "hub:plays-server-state", err);
+    }
+  }
   let leagueEvBank: LeagueEvBankReadout | null = null;
   if (leagueSnapshot) {
     try {
@@ -1351,6 +1381,8 @@ export default async function LeagueHubPage({
                     ktcValues: ktcValuesForPlays,
                   }),
                 ];
+                ownedPlayersForPlays = ownedPlayers;
+                playsValueMap = ktcValuesForPlays;
               }
             } catch (err) {
               console.error("[hub:trade-opportunities]", err);
@@ -2356,6 +2388,17 @@ export default async function LeagueHubPage({
                           pick_no: p.pick_no,
                         }));
                     })()}
+                    authedUserId={authUser?.id ?? null}
+                    initialServerCommitments={serverPlayCommitments}
+                    initialServerDismissals={serverPlayDismissals}
+                    ownedPlayers={ownedPlayersForPlays}
+                    valueMap={playsValueMap}
+                    laneMemberships={rosterLaneMemberships}
+                    formatRules={
+                      leagueSnapshot
+                        ? buildFormatRulesFromSnapshot(leagueSnapshot)
+                        : null
+                    }
                   />
                 </div>
               )}

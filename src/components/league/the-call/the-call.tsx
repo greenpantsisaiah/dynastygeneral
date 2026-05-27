@@ -34,8 +34,12 @@
 
 import { useState } from "react";
 import type { Decision } from "@/lib/strategy/decision-synthesis/types";
-import type { Play } from "@/lib/strategy/plays/types";
+import type { Play, PlayCommitment } from "@/lib/strategy/plays/types";
 import type { OpportunityRead } from "@/lib/players/opportunity-read";
+import type { OwnedRosterPlayer } from "@/lib/strategy/plays/detect";
+import type { LaneMembership } from "@/lib/strategy/lane-identity";
+import type { FormatRules } from "@/lib/engine/llm-contract";
+import type { DismissedSuggestion } from "@/lib/plays-storage";
 import { DecisionBoard } from "./decision-board";
 
 export type TheCallProps = {
@@ -46,6 +50,14 @@ export type TheCallProps = {
   picksMadeForUser?: { player_id: string; pick_no: number }[];
   /** Earned-role read per candidate player_id (snap share + targets trend). */
   opportunityById?: Record<string, OpportunityRead>;
+  /** Server-side state for the plays panel. Triggers account-sync mode. */
+  authedUserId?: string | null;
+  initialServerCommitments?: PlayCommitment[];
+  initialServerDismissals?: DismissedSuggestion[];
+  ownedPlayers?: OwnedRosterPlayer[];
+  valueMap?: Record<string, number>;
+  laneMemberships?: LaneMembership[];
+  formatRules?: FormatRules | null;
 };
 
 export function TheCall({
@@ -55,6 +67,13 @@ export function TheCall({
   suggestedPlays = [],
   picksMadeForUser = [],
   opportunityById = {},
+  authedUserId = null,
+  initialServerCommitments = [],
+  initialServerDismissals = [],
+  ownedPlayers = [],
+  valueMap = {},
+  laneMemberships = [],
+  formatRules = null,
 }: TheCallProps) {
   return (
     <section
@@ -71,6 +90,13 @@ export function TheCall({
         suggestedPlays={suggestedPlays}
         picksMadeForUser={picksMadeForUser}
         opportunityById={opportunityById}
+        authedUserId={authedUserId}
+        initialServerCommitments={initialServerCommitments}
+        initialServerDismissals={initialServerDismissals}
+        ownedPlayers={ownedPlayers}
+        valueMap={valueMap}
+        laneMemberships={laneMemberships}
+        formatRules={formatRules}
       />
 
       {decision.trade_up_consideration && (
