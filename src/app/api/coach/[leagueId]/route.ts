@@ -22,6 +22,7 @@ import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
 import { humanize, resolvePlayers } from "@/lib/players/cache";
+import { getProjections } from "@/lib/players/projections";
 import {
   buildMyRosterForCoach,
   type CoachMyRosterPlayer,
@@ -1086,6 +1087,10 @@ export async function POST(
   // prior-season opportunity read from the same (24h-cached) /stats map
   // the inflection cards use. Empty until the try populates it.
   let coachPrevSeasonStats: Map<string, PlayerSeasonStats> = new Map();
+  // Season-before-last stats, hoisted for the taxi-advisable rising-role
+  // trend (readOpportunity needs two seasons). Same cached /stats fetch
+  // the inflection cards already make below.
+  let coachPrevPrevSeasonStats: Map<string, PlayerSeasonStats> = new Map();
   try {
     const allRosterIds = new Set<string>();
     for (const r of snapshot.rosters) {
@@ -1137,6 +1142,7 @@ export async function POST(
       getSeasonStats(prevPrevSeason).catch(() => new Map()),
     ]);
     coachPrevSeasonStats = prevSeasonStats;
+    coachPrevPrevSeasonStats = prevPrevSeasonStats;
     // Career mileage only when an aging RB is present (gates the
     // multi-season sum). Mirrors the hub so Coach and board agree.
     const careerUsage = rosterHasAgingRb(snapshot, playersMap)
@@ -1349,12 +1355,28 @@ export async function POST(
   // unit-tested by evals/coach-my-roster.test.ts so the temporal
   // dead-zone class (2026-05-27) cannot regress.
   if (me) {
+    // Redraft ADP feeds the taxi-advisable "projected this year" trigger.
+    // getProjections is 24h-cached (buildStrategySnapshot already pulled
+    // it for starter_talent_score), so this is a warm map read, not a
+    // second upstream fetch.
+    const coachProjections = await getProjections(snapshot.season).catch(
+      () => ({ byPlayerId: new Map() }),
+    );
+    const adpFormatKey = {
+      isSuperflex: formatRules.is_superflex,
+      isPpr: snapshot.scoring.includes("PPR"),
+      isHalfPpr: snapshot.scoring.includes("half-PPR"),
+      isTePremium: formatRules.te_premium,
+    };
     myPlayersResolved = buildMyRosterForCoach({
       me,
       formatRules,
       resolvedPlayers: myRosterResolved,
       prevSeasonStats: coachPrevSeasonStats,
+      prevPrevSeasonStats: coachPrevPrevSeasonStats,
       playerValueMap,
+      projectionsByPlayerId: coachProjections.byPlayerId,
+      adpFormatKey,
     });
   }
 

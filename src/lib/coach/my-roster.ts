@@ -25,8 +25,14 @@ import {
   type OpportunityProfile,
   type PlayerSeasonStats,
 } from "@/lib/players/season-stats";
+import {
+  pickRedraftAdpFromVariants,
+  type AdpFormatKey,
+  type PlayerAdp,
+} from "@/lib/players/projections";
 import type { SleeperPlayer } from "@/lib/sleeper/schemas";
 import type { RosterSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { assessTaxiAdvisable } from "./taxi-advisable";
 
 /**
  * Resolved player value entry. Mirrors the shape Coach reads off the
@@ -73,6 +79,17 @@ export type CoachMyRosterPlayer = {
    * snapshot.
    */
   taxi_eligible: boolean;
+  /**
+   * Whether the player SHOULD be taxied (a football question), distinct
+   * from taxi_eligible (a league-rules question). False when he projects
+   * to contribute to the active roster this year (established / rising /
+   * projected near-term role). Coach ranks taxi candidates by this and
+   * steers eligible-but-not-advisable players to the active roster. See
+   * src/lib/coach/taxi-advisable.ts.
+   */
+  taxi_advisable: boolean;
+  /** One-line rationale for taxi_advisable (cite when steering to active). */
+  taxi_advisable_reason: string;
   /** FantasyCalc-equivalent value (0-100). Null when unpriced. */
   value: number | null;
   /** Overall rank in the priced pool. Null when unpriced. */
@@ -99,10 +116,34 @@ export function buildMyRosterForCoach(args: {
   formatRules: FormatRules;
   resolvedPlayers: Map<string, SleeperPlayer>;
   prevSeasonStats: Map<string, PlayerSeasonStats>;
+  /**
+   * Season-before-last stats. Used with prevSeasonStats to read the
+   * year-over-year usage trend (the canonical readOpportunity) for the
+   * taxi-advisable "rising role" trigger. Pass an empty Map when absent.
+   */
+  prevPrevSeasonStats: Map<string, PlayerSeasonStats>;
   playerValueMap: Map<string, ResolvedPlayerValue>;
+  /**
+   * Format-matched redraft ADP source. The byPlayerId map from
+   * getProjections; the helper resolves the right variant per player via
+   * the canonical pickRedraftAdpFromVariants. Pass an empty Map when
+   * projections are unavailable (the taxi-advisable signal degrades to
+   * the established-role + rising-trend triggers).
+   */
+  projectionsByPlayerId: Map<string, PlayerAdp>;
+  /** League format key for redraft ADP variant selection. */
+  adpFormatKey: Omit<AdpFormatKey, "isRookie" | "position">;
 }): CoachMyRosterPlayer[] {
-  const { me, formatRules, resolvedPlayers, prevSeasonStats, playerValueMap } =
-    args;
+  const {
+    me,
+    formatRules,
+    resolvedPlayers,
+    prevSeasonStats,
+    prevPrevSeasonStats,
+    playerValueMap,
+    projectionsByPlayerId,
+    adpFormatKey,
+  } = args;
   if (me.player_ids.length === 0) return [];
 
   const taxiSet = new Set(me.taxi_player_ids ?? []);
@@ -124,6 +165,28 @@ export function buildMyRosterForCoach(args: {
       typeof human.yearsExp === "number" &&
       formatRules.taxi_years != null &&
       human.yearsExp <= formatRules.taxi_years;
+
+    // Football read: should this eligible player actually be taxied, or
+    // does he project to contribute this year? Steers established / rising
+    // / projected-startable players off taxi (the Higgins case).
+    const prevPrevOpp = buildOpportunityProfile(prevPrevSeasonStats.get(id));
+    const prevPrevHasOpp =
+      prevPrevOpp.snap_share != null || prevPrevOpp.targets_per_game != null;
+    const { value: redraftAdp } = pickRedraftAdpFromVariants(
+      projectionsByPlayerId.get(id),
+      {
+        ...adpFormatKey,
+        isRookie: human.yearsExp === 0,
+        position: human.position,
+      },
+    );
+    const advisability = assessTaxiAdvisable({
+      taxiEligible,
+      prevOpportunity: hasOpp ? opp : null,
+      prevPrevOpportunity: prevPrevHasOpp ? prevPrevOpp : null,
+      redraftAdp,
+    });
+
     const v = playerValueMap.get(id);
     out.push({
       player_id: id,
@@ -137,6 +200,8 @@ export function buildMyRosterForCoach(args: {
       currently_on_taxi: onTaxi,
       currently_on_reserve: onReserve,
       taxi_eligible: taxiEligible,
+      taxi_advisable: advisability.advisable,
+      taxi_advisable_reason: advisability.reason,
       value: v ? v.value : null,
       overall_rank: v ? v.overall_rank : null,
       position_rank: v ? v.position_rank : null,

@@ -244,47 +244,73 @@ coverage rollup) belongs on the EnrichedPlayer resolver because
 that resolver is where the "flag missing fields, do not silently
 null" rule is locked, per ARCHITECTURE_UNIFICATION_PLAN.md Phase 3b.
 
-## A4: Per-position backtests (scope decision below)
+## A4: Per-position backtests (closeout 2026-05-27)
 
-The MODEL_LIVE_PLAN spec calls for an RB rerun plus first-time WR /
-TE / QB backtests. Three pieces of context decide how this gets
-done:
+Closed out by a parallel Warp tab on 2026-05-27. The RB scripts were
+hydrated from branch `work/s-260523-135829-29809`; a position-
+parameterized cohort builder (`src/lib/signals/position-cohort.ts`)
+was added to size the WR / TE / QB harnesses against the SAME shape
+the RB cohort uses. All four backtests are first-time runs against
+the now-populated `player_signals` (post the 2026-05-26 ingest).
 
-1. The existing RB backtest + calibration scripts
-   (`scripts/backtest-rb-rubric.ts`, `scripts/calibrate-rb-rubric.ts`,
-   `src/lib/signals/rb-cohort.ts`) live only on branch
-   `work/s-260523-135829-29809` (commit `3a2c10b`) and were never
-   merged to main. They run against the populated tables this
-   audit measured; pulling them into this worktree is a small move
-   (three files, one ingestion shape, no DB writes).
-2. The WR / TE / QB backtests do not exist at all. Building each
-   requires position-specific cohort logic (the RB cohort lib is the
-   pattern) plus a backtest harness that ranks by `evaluate()` vs
-   ranks by `ktc_value` and computes Spearman against forward PPR.
-3. The A1 + A2 picture already PREDICTS the WR / TE / QB results:
-   the rubric is functionally market + age for those positions, so
-   the backtest lift will be small and likely negative (an age curve
-   alone tends to undercut the market on long-horizon dynasty PPR
-   because young players are higher-variance than the curve
-   captures). The backtest still has to run; it's the gating
-   evidence per the FORWARD_EV_PLAN.
+Loss function: Spearman rank correlation between the position
+rubric's `point_estimate` and realized season-Y PPR points-per-game
+(games_played >= 6). Decision years: 2023 + 2024 (pooled). Market
+baseline: KTC value from the historical snapshot dated <= Sep 15 of
+year Y (`historical_market_values`, 1qb format, the modal market in
+the cohort). Cohort built from nflverse usage signals for Y-1 (per
+VALIDATION_PLAN section 4 temporal blinding) plus xwalk birth_year
+(age) and xwalk draft_year (years_exp / is_rookie). 95% CI of the
+lift is bootstrap (1000 iters, mulberry32 PRNG, deterministic
+seed=42, sampling rows with replacement across pooled years).
 
-### Scope call
+Outputs in `data/audits/backtest-{rb,wr,te,qb}-2026-05-27.txt`.
 
-The Phase A truth audit can ship A1 / A2 / A3 / A5 right now (this
-doc) without A4. The rest of A is one of two paths:
+### Per-position results
 
-- **A4 stays in this session.** Pull the RB scripts, re-run RB, build
-  WR / TE / QB harness, run all four. Maybe 2-4 hours wall time. The
-  truth audit gets a per-position backtest table appended in place.
-- **A4 spins off to a parallel Warp tab.** The audit doc ships as-is
-  with the predicted result recorded; the tab runs the four backtests
-  and PRs the table back into this doc when done. Founder kicks Phase
-  B + C tabs in parallel because A1's data already sets the priority
-  list.
+| Position | n (2023+2024 pooled) | Market (KTC) Spearman | Rubric Spearman | Lift | 95% CI of lift | Primary signals that fired | Interpretation |
+|---|---:|---:|---:|---:|---|---|---|
+| RB | 129 | 0.717 | 0.689 | -0.028 | [-0.063, 0.006] | `rb_role_tier` (snap-derived, ~71% of RBs), `ol_continuity_score` (100%), age curve (100%); compounding_news / traded / staff_novelty / rookie_ol / contract_year all DEAD | Matches prior baseline (memory note 2026-05-23: market 0.7181 / rubric 0.6918 / lift -0.0263 on n=129) to 0.001. Phase A prediction confirmed: the 2026-05-26 ingest filled columns the rubric does not read (draft_pick_no, ras, weight, height), so lift did not move. CI straddles zero; the rubric is statistically indistinguishable from the market. |
+| WR | 220 | 0.744 | 0.734 | -0.010 | [-0.021, -0.003] | Age curve (100%), `is_rookie` band-modifier (rookies only); scheme_tag / pass_rate_neutral / compounding_news / staff_novelty / contract_year all DEAD | First-time backtest. The age curve plus a wider band for rookies mildly DEGRADES the rank vs market. CI excludes zero on the negative side: a small but real negative lift on free signals. Consistent with Phase A's prediction (the load-bearing WR signals target_share + YPRR are not read by the rubric code yet, even when populated). |
+| TE | 94 | 0.728 | 0.719 | -0.009 | [-0.050, 0.026] | Age curve (100%), TE rookie penalty (`years_exp === 0` branch fires via xwalk draft_year), TE early-breakout flag (DEAD: needs personnel_12_rate); oc_tenure / compounding_news all DEAD | First-time backtest. CI straddles zero on a small cohort (n=94, smallest of the four). Year-by-year noisy (2023: -0.036; 2024: +0.018) suggests the rookie penalty branch can help or hurt depending on which rookies hit. Without `personnel_12_rate` the early-breakout arbitrage flag never fires. |
+| QB | 70 | 0.781 | 0.709 | -0.072 | [-0.222, 0.012] | Tier classification from KTC (100%), tier-conditional age multiplier (100%); scheme_tag / oc_tenure / ol_grade_pass / hc_first_time_flag / compounding_news all DEAD | First-time backtest. n=70 is below the n>=100 floor the plan called for (the per-position cohort is bounded by how many QBs hit the 6-game floor with KTC + outcomes both present). CI is wide and overlaps zero. Year-by-year wildly different (2023: -0.158; 2024: +0.011); the tier-conditional age multipliers appear to be overcorrecting in 2023 (Tier-3 young QBs getting docked too hard or Tier-1 aging QBs getting kept too high). The QB rubric is the most signal-starved AND the smallest cohort. |
 
-The founder reads this doc and picks. Phase B priorities below do
-NOT depend on A4 landing first.
+### Bootstrap CI methodology note
+
+The 95% CI is the 2.5 / 97.5 percentile of the lift (rubric Spearman
+minus market Spearman) distribution across 1000 bootstrap resamples
+of the pooled cohort. Sampling with replacement at the player-record
+level, holding both rubric and market scores fixed per record so
+the resample preserves their joint distribution against outcome.
+For positions where the CI straddles zero (RB, TE, QB), the
+rubric's deviation from the market is not statistically distinguishable
+from noise on the current sample size. WR's CI excludes zero on the
+negative side, meaning the small negative lift is real.
+
+### What the numbers tell us
+
+The headline of this audit (A1 + A2: three of four rubrics are
+functionally market + age in production because their columns are
+0% populated) is empirically confirmed. No position rubric clears
+the bar. RB has its one second signal (`rb_role_tier`) and still
+sits at zero lift inside CI; WR / TE / QB have no second signal
+that fires, and their lifts are negative-to-zero with CIs that span
+or barely-exclude zero.
+
+This is the gating evidence for Phase B (data acquisition) and
+Phase D (rubric wiring). Without the columns the rubrics READ being
+populated, no calibration of weights changes the answer (re-confirms
+the 2026-05-23 RB calibration result: 729 weight combos, lift
+within noise of zero). Phase A truth audit's Phase B priority list
+stands.
+
+Phase D2 (wiring evaluate() into live scoring) is BLOCKED on Phase
+B delivering populated columns. Shipping the rubric live today
+would, per these four backtests, mildly degrade WR rank quality
+(-0.010 Spearman, CI excludes zero) and leave RB / TE / QB
+indistinguishable from the market while complicating the surface.
+No-half-the-product rule applies: Phase D ships when Phase B has
+filled enough signals for ALL FOUR positions to clear the bar.
 
 ## A5: Value-source inventory across surfaces
 
@@ -401,13 +427,12 @@ audit:
 
 ## A6: founder reads this and picks Phase B + C order
 
-The audit is done minus the A4 backtest table (decision above).
+The audit is done (A1 + A2 + A3 + A4 + A5). A4 closed 2026-05-27.
 Phase B + C can both kick off in parallel from new Warp tabs the
 moment the founder gives the priority order.
 
 Recommended next move:
 
-- Decide A4 path: same session vs parallel tab.
 - Pick Phase B priority #1 (recommended: the 32-row coaching /
   scheme table). Spawn a `dg-new sig-scheme32` tab.
 - Spawn a `dg-new enriched-player` tab for Phase C2 (the resolver

@@ -269,7 +269,7 @@ worktree.
   Closes Leak 2 + Leak 3 from the audit. Add lint banning direct
   `buildLeagueSnapshot` outside the builder boundary. Register in
   `CANONICAL_SOURCES.md`.
-- **C2. EnrichedPlayer resolver (Phase 3b of unification plan). SHIPPED 2026-05-27.**
+- **C2. EnrichedPlayer resolver (Phase 3b of unification plan).**
   Merge meta + value + `player_signals` + `team_signals` +
   `player_health` + inflection inputs into a single per-player
   resolver. Missing fields are FLAGGED (not silently nulled): the
@@ -279,23 +279,6 @@ worktree.
   (`from-snapshot.ts`, `context.ts`) consume it; the seven optional
   args in `build-inputs.ts` are supplied from one place. This is
   the FOUNDATION Phase D wires `evaluate()` over.
-  Delivered: `src/lib/players/enriched-player.ts`
-  (`resolveEnrichedPlayer` + `resolveEnrichedPlayers` +
-  `MissingFieldFlag`); `src/lib/players/player-health.ts`
-  (`getPlayerHealthMap` + `isPlayerHealthTableEmpty`); inflection
-  `from-snapshot.ts` + `engine/context.ts` migrated to consume the
-  resolver (Leak 4 closed); the hub rookie-debut rubric path
-  migrated as a first behavior-preserving consumer;
-  `evals/enriched-player.test.ts` locks the four required cases plus
-  the 9-arg inflection gap; canonical registered in
-  CANONICAL_SOURCES.md and pillared in INVARIANTS.md.
-  Deferred to Phase D + Phase G: the other seven `resolvePlayerValues`
-  consumers from the A5 inventory (hub board, AAR, admin debug,
-  `llm-contract.ts` Coach pricing, `engine/context.ts` decision
-  endpoints, `draft-paths/project.ts`, `class-strength/compute.ts`,
-  `priced-pool.ts`) migrate when their consumer surface is touched in
-  Phase D wiring; the lockdown CI lint banning direct
-  `resolvePlayerValues` reads ships in Phase G.
 - **C3. One ageEffect canonical (Phase 2.3 of unification plan).**
   Three to four divergent age curves exist (`players/age-curve.ts`,
   `evaluation/util.ts`, `windows/compute.ts`, `synthesize.ts`). Pick
@@ -312,11 +295,34 @@ worktree.
   to "same computed object referenced." Coach reads
   `LeagueContext` + `EnrichedPlayer`, never a forked build of either.
   This is the durable enforcement of [[feedback-coach-uses-exact-architecture]].
+- **C4a. Absorb `taxi_advisable` (tracked interim, shipped 2026-05-28,
+  PR #53).** `src/lib/coach/taxi-advisable.ts` is a KNOWN forked build:
+  it answers "is this player a near-term contributor (so keep him active,
+  do not taxi him)" by reaching into raw opportunity + redraft ADP with
+  ABSOLUTE thresholds (`ESTABLISHED_SNAP_SHARE` 0.5, `ESTABLISHED_TARGETS_PG`
+  3.5, `REDRAFT_STARTABLE_ADP` 150). This violates two invariants on
+  purpose-for-now: the evaluation-engine contract ("NO consumer reaches
+  into raw signals; read `EvaluationOutput`") and the roster-fit
+  "rank-based, not absolute thresholds / no-hardcoded-number" rule. It was
+  shipped early because `evaluate()` cannot make this call yet: the
+  `player_signals` opportunity columns it would read are 0% populated
+  (Phase A4 finding), and the canonical startable tier is dynasty-VALUE
+  ranked, which misses low-value-but-ascending players (the Higgins case
+  it exists to catch). CONVERGENCE: when Phase D exposes a near-term
+  contributor / year-1 role signal on `EvaluationOutput` (working name
+  `near_term_role`), delete the three thresholds and have
+  `assessTaxiAdvisable` consume that field via `EnrichedPlayer`, so the
+  board, Coach, and taxi share one "contributor this year" projection.
+  This convergence is FAIL-LOUD tracked: `evals/taxi-advisable-convergence.test.ts`
+  passes while the field is absent and BREAKS CI the moment it lands,
+  pointing here. Do not close this item by deleting the test; close it by
+  converging the consumer.
 
 PHASE C EXIT CRITERION: every consumer of value, snapshot, or strategy
 reads from one of the four "ones." A CI lint fails if a new surface
 reaches around them. The architecture can support Phase D's wiring
-without divergence.
+without divergence. (Known tracked exception until Phase D: C4a
+`taxi_advisable`, guarded by its convergence tripwire.)
 
 ---
 

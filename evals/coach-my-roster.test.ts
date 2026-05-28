@@ -29,8 +29,24 @@ import {
   type ResolvedPlayerValue,
 } from "../src/lib/coach/my-roster";
 import type { FormatRules } from "../src/lib/engine/llm-contract";
+import type { PlayerAdp } from "../src/lib/players/projections";
+import type { PlayerSeasonStats } from "../src/lib/players/season-stats";
 import type { SleeperPlayer } from "../src/lib/sleeper/schemas";
 import type { RosterSnapshot } from "../src/lib/strategy/league-state/snapshot";
+
+// SF PPR TE-premium format key, matching SF_DYNASTY_TAXI_RULES. ADP maps
+// are empty in most scenarios, so this only needs to typecheck.
+const TAXI_FORMAT_KEY = {
+  isSuperflex: true,
+  isPpr: true,
+  isHalfPpr: false,
+  isTePremium: true,
+};
+
+// Empty projection / prev-prev defaults, spread into call sites that
+// don't exercise the redraft-ADP or rising-trend triggers.
+const NO_PROJECTIONS = new Map<string, PlayerAdp>();
+const NO_PREV_PREV = new Map<string, PlayerSeasonStats>();
 
 let passed = 0;
 let failed = 0;
@@ -210,6 +226,9 @@ function run() {
       formatRules: SF_DYNASTY_TAXI_RULES,
       resolvedPlayers: resolved,
       prevSeasonStats: new Map(),
+      prevPrevSeasonStats: NO_PREV_PREV,
+      projectionsByPlayerId: NO_PROJECTIONS,
+      adpFormatKey: TAXI_FORMAT_KEY,
       playerValueMap: valueMap,
     });
     check(
@@ -272,6 +291,9 @@ function run() {
       formatRules: NO_TAXI_RULES,
       resolvedPlayers: resolved,
       prevSeasonStats: new Map(),
+      prevPrevSeasonStats: NO_PREV_PREV,
+      projectionsByPlayerId: NO_PROJECTIONS,
+      adpFormatKey: TAXI_FORMAT_KEY,
       playerValueMap: new Map(),
     });
     check(
@@ -320,6 +342,9 @@ function run() {
       formatRules: SF_DYNASTY_TAXI_RULES,
       resolvedPlayers: resolved,
       prevSeasonStats: new Map(),
+      prevPrevSeasonStats: NO_PREV_PREV,
+      projectionsByPlayerId: NO_PROJECTIONS,
+      adpFormatKey: TAXI_FORMAT_KEY,
       playerValueMap: new Map(),
     });
     const taxi = out.find((p) => p.player_id === "already-taxi");
@@ -355,6 +380,9 @@ function run() {
       formatRules: SF_DYNASTY_TAXI_RULES,
       resolvedPlayers: new Map(),
       prevSeasonStats: new Map(),
+      prevPrevSeasonStats: NO_PREV_PREV,
+      projectionsByPlayerId: NO_PROJECTIONS,
+      adpFormatKey: TAXI_FORMAT_KEY,
       playerValueMap: new Map(),
     });
     check(
@@ -387,12 +415,90 @@ function run() {
       formatRules: SF_DYNASTY_TAXI_RULES,
       resolvedPlayers: resolved,
       prevSeasonStats: new Map(),
+      prevPrevSeasonStats: NO_PREV_PREV,
+      projectionsByPlayerId: NO_PROJECTIONS,
+      adpFormatKey: TAXI_FORMAT_KEY,
       playerValueMap: new Map(),
     });
     check(
       "unresolved IDs are dropped, not faked",
       out.length === 1 && out[0]?.player_id === "known-1",
       "1 of 2 ids resolved",
+    );
+  }
+
+  // Scenario 6: end-to-end Higgins case. A taxi-eligible sophomore who ran
+  // a real role last year (56% snaps from prevSeasonStats) must come back
+  // taxi_eligible: true AND taxi_advisable: false. This proves the wiring
+  // from prevSeasonStats -> buildOpportunityProfile -> assessTaxiAdvisable
+  // -> the taxi_advisable field, the exact path the 2026-05-28 bug missed.
+  {
+    const me = syntheticRoster(["higgins"]);
+    const resolved = new Map<string, SleeperPlayer>([
+      [
+        "higgins",
+        syntheticPlayer({
+          id: "higgins",
+          name: "Jayden Higgins",
+          position: "WR",
+          team: "HOU",
+          age: 23,
+          yearsExp: 1,
+          searchRank: 80,
+        }),
+      ],
+    ]);
+    // 56% snap share last season: off_snaps / team_off_snaps = 560 / 1000.
+    const prevStats = new Map<string, PlayerSeasonStats>([
+      [
+        "higgins",
+        {
+          player_id: "higgins",
+          pts_ppr: null,
+          pts_half_ppr: null,
+          pts_std: null,
+          games_played: 17,
+          carries: null,
+          targets: 68,
+          receptions: null,
+          rec_yards: null,
+          rec_tds: null,
+          air_yards: null,
+          drops: null,
+          rz_targets: null,
+          off_snaps: 560,
+          team_off_snaps: 1000,
+        },
+      ],
+    ]);
+    const out = buildMyRosterForCoach({
+      me,
+      formatRules: SF_DYNASTY_TAXI_RULES,
+      resolvedPlayers: resolved,
+      prevSeasonStats: prevStats,
+      prevPrevSeasonStats: NO_PREV_PREV,
+      projectionsByPlayerId: NO_PROJECTIONS,
+      adpFormatKey: TAXI_FORMAT_KEY,
+      playerValueMap: new Map(),
+    });
+    const higgins = out[0];
+    check(
+      "Higgins is taxi_eligible (1 yr exp <= taxi_years 2)",
+      higgins?.taxi_eligible === true,
+      "eligibility unchanged",
+    );
+    check(
+      "Higgins is NOT taxi_advisable (56% snaps = real role)",
+      higgins?.taxi_advisable === false,
+      higgins?.taxi_advisable_reason,
+    );
+    check(
+      "taxi_advisable_reason explains the steer to active",
+      typeof higgins?.taxi_advisable_reason === "string" &&
+        /real role|active roster|snaps/i.test(
+          higgins?.taxi_advisable_reason ?? "",
+        ),
+      higgins?.taxi_advisable_reason,
     );
   }
 
