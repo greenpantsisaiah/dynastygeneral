@@ -1,0 +1,22 @@
+◇ injected env (13) from .env.local // tip: ⌁ auth for agents [www.vestauth.com]
+
+=== 2023 (KTC 2023-03-16, fmt=1qb, n=45 TEs) ===
+  market (KTC) Spearman vs 2023 PPG: 0.792
+  rubric       Spearman vs 2023 PPG: 0.756
+  LIFT (rubric - market):           -0.036
+  rubric-bullish TEs: 0 | mean outcome pctile: n/a (>0.5 = right-pointing)
+
+=== 2024 (KTC 2024-09-08, fmt=1qb, n=49 TEs) ===
+  market (KTC) Spearman vs 2024 PPG: 0.667
+  rubric       Spearman vs 2024 PPG: 0.685
+  LIFT (rubric - market):           0.018
+  rubric-bullish TEs: 0 | mean outcome pctile: n/a (>0.5 = right-pointing)
+
+=== POOLED (n=94) ===
+  market (KTC) Spearman: 0.728
+  rubric       Spearman: 0.719
+  LIFT:                  -0.009
+  95% CI of lift:        [-0.050, 0.026]
+
+Reading: positive lift = the rubric's free signals rank TEs' realized production better than KTC alone. CI excluding zero = statistically meaningful.
+

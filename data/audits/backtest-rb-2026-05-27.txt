@@ -1,0 +1,22 @@
+◇ injected env (13) from .env.local // tip: ⌘ override existing { override: true }
+
+=== 2023 (KTC 2023-03-16, fmt=1qb, n=64 RBs) ===
+  market (KTC) Spearman vs 2023 PPG: 0.742
+  rubric       Spearman vs 2023 PPG: 0.698
+  LIFT (rubric - market):           -0.045
+  rubric-bullish RBs: 0 | mean outcome pctile: n/a (>0.5 = right-pointing)
+
+=== 2024 (KTC 2024-09-08, fmt=1qb, n=65 RBs) ===
+  market (KTC) Spearman vs 2024 PPG: 0.694
+  rubric       Spearman vs 2024 PPG: 0.686
+  LIFT (rubric - market):           -0.008
+  rubric-bullish RBs: 0 | mean outcome pctile: n/a (>0.5 = right-pointing)
+
+=== POOLED (n=129) ===
+  market (KTC) Spearman: 0.717
+  rubric       Spearman: 0.689
+  LIFT:                  -0.028
+  95% CI of lift:        [-0.063, 0.006]
+
+Reading: positive lift = the rubric's free signals rank RBs' realized production better than KTC alone. CI excluding zero = statistically meaningful.
+
