@@ -1,0 +1,2129 @@
+{
+  "prediction_year": 2026,
+  "generated_at": "2026-05-27T20:15:56.185Z",
+  "model": "claude-sonnet-4-6",
+  "teams": {
+    "BUF": {
+      "extracted_at": "2026-05-27T20:14:45.264Z",
+      "scheme_tag": {
+        "value": "west_coast",
+        "confidence": "high",
+        "rationale": "Both HC Brady and OC Carmichael come directly from the Sean Payton/New Orleans Saints offensive tree; Carmichael was Saints OC for 15 years under Payton and Brady was a Payton offensive assistant in 2017-18; beat writer and ex-QB Chase Daniel explicitly noted 'Sean Payton influence' and under-center play-action focus expected in Buffalo's 2026 offense."
+      },
+      "hc_id": {
+        "value": "joe-brady",
+        "confidence": "high",
+        "rationale": "Officially named Bills HC on January 27, 2026 per buffalobills.com and ESPN; confirmed across all major sources."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "CBS Sports explicitly states Brady 'has never been a head coach at any level'; his only prior head coaching was an interim HC stint at no level per Wikipedia, and his prior NFL roles were QB coach and OC only."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Hired January 27, 2026; 2026 is his first season as Bills HC per buffalobills.com."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Brady was the Bills' offensive coordinator in the 2024 and 2025 seasons immediately before being promoted to HC in January 2026 per buffalobills.com official profile."
+      },
+      "oc_id": {
+        "value": "pete-carmichael",
+        "confidence": "high",
+        "rationale": "Pete Carmichael Jr. was officially hired as Bills OC on January 30/31, 2026, confirmed by buffalobills.com, NFL.com, Pro Football Rumors, and ESPN sources."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Carmichael was hired in January 2026; 2026 is his first and only season with the Bills."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Carmichael came from the Denver Broncos (2024-25 senior offensive assistant) and has never previously coached for Buffalo; 2026 is his first year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "New HC (Brady, hired Jan 2026) = +1; New OC (Carmichael, hired Jan 2026) = +1; Brandon Beane continues as GM in his 10th year with the Bills with no new GM hired = +0; total = 2."
+      },
+      "source_urls": [
+        "https://www.buffalobills.com/team/coaches-roster/joe-brady",
+        "https://www.buffalobills.com/news/bills-name-pete-carmichael-as-offensive-coordinator",
+        "https://www.buffalobills.com/news/buffalo-bills-announce-2026-assistant-coaching-staff-additions",
+        "https://en.wikipedia.org/wiki/2026_Buffalo_Bills_season",
+        "https://en.wikipedia.org/wiki/Pete_Carmichael_Jr.",
+        "https://en.wikipedia.org/wiki/Joe_Brady_(American_football_coach)",
+        "https://www.espn.com/nfl/story/_/id/47746216/buffalo-bills-head-coach-joe-brady-why-next",
+        "https://www.nfl.com/news/bills-pete-carmichael-jr-new-offensive-coordinator",
+        "https://www.cbssports.com/nfl/news/bills-joe-brady-head-coach-sean-mcdermott/",
+        "https://www.profootballrumors.com/2026/01/bills-to-hire-pete-carmichael-jr-as-oc",
+        "https://www.si.com/nfl/bills/onsi/coaches-bills-coaching-staff-tracker-joe-brady-makes-his-first-hires-as-rookie-head-coach"
+      ],
+      "source_paragraphs": [
+        "'Named head coach of the Buffalo Bills on January 27, 2026... Prior to that he was the Bills offensive coordinator in 2024 and 2025.' — buffalobills.com/team/coaches-roster/joe-brady (accessed May 2026)",
+        "'Carmichael spent the last two seasons as a senior offensive assistant under Sean Payton in Denver and represents a significant hire for Brady, providing the first-time head coach with a seasoned lieutenant with whom Brady is familiar from their two seasons spent together in New Orleans.' — NFL.com, Jan 31 2026",
+        "'During his time with the Saints, Payton was the primary play caller, like Brady will be in Buffalo, and Carmichael helped install and game plan.' — buffalobills.com/news/bills-name-pete-carmichael-as-offensive-coordinator, Jan 31 2026",
+        "'The 2026 season will be the Buffalo Bills 57th in the National Football League (NFL)... their tenth under GM Brandon Beane and their first with Joe Brady as head coach.' — Wikipedia, 2026 Buffalo Bills season (updated May 2026)"
+      ],
+      "extraction_notes": "HC Brady calls plays himself per multiple sources (NFL.com, Pro Football Rumors); Carmichael serves in a game-planning/install role rather than as the primary play-caller, analogous to his Saints role under Payton. OC slug used is 'pete-carmichael' (omitting 'jr' per kebab convention; full legal name is Pete Carmichael Jr.). Scheme coded 'west_coast' rather than 'spread' or 'pro_style' because the Brady/Carmichael pairing is explicitly described as rooted in Sean Payton's Saints system — horizontal short-to-intermediate passing, under-center play-action, and two-back sets. Brady's Bills offense in 2024-25 also ranked top-5 in rushing rate (44.2%), consistent with a run-heavy west-coast foundation. Brandon Beane was confirmed as continuing GM (10th year per Wikipedia); no new GM was hired in the 2026 offseason."
+    },
+    "KC": {
+      "extracted_at": "2026-05-27T20:15:30.359Z",
+      "scheme_tag": {
+        "value": "reid",
+        "confidence": "high",
+        "rationale": "Andy Reid is the progenitor of the 'reid' tree — West Coast-derived, motion-heavy, 12-personnel, RPO wrinkles; the Chiefs offense is the canonical example of this scheme."
+      },
+      "hc_id": {
+        "value": "andy-reid",
+        "confidence": "high",
+        "rationale": "Andy Reid has been Kansas City's head coach since 2013; confirmed as HC for 2026 season by Wikipedia, Chiefs.com, and multiple beat sources."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Andy Reid was previously head coach of the Philadelphia Eagles (1999–2012) before joining Kansas City in 2013."
+      },
+      "hc_tenure_yrs": {
+        "value": 14,
+        "confidence": "high",
+        "rationale": "Reid's first season with KC was 2013; 2026 is his 14th season (2013 = Year 1, 2026 = Year 14). Confirmed by Wikipedia: 'their 14th under head coach Andy Reid.'"
+      },
+      "hc_background_tag": {
+        "value": "other",
+        "confidence": "high",
+        "rationale": "Reid came to Kansas City directly from his prior NFL HC seat with the Philadelphia Eagles (1999–2012), making him a retread HC — coded as 'other'."
+      },
+      "oc_id": {
+        "value": "eric-bieniemy",
+        "confidence": "high",
+        "rationale": "Eric Bieniemy was officially hired as Chiefs OC on January 23, 2026, confirmed by Chiefs.com official announcement and multiple corroborating sources. Note: Andy Reid retains primary play-calling duties, but Bieniemy holds the formal OC title."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Bieniemy was hired in January 2026 (2026 offseason); 2026 is Year 1 of this second stint. His prior KC OC tenure (2018–2022) does not carry over per coding rules."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Bieniemy signed with KC on January 23, 2026 after spending 2025 as the Chicago Bears' RBs coach, making 2026 his first year back with this team in this role."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "New OC (Bieniemy, hired Jan 2026) = +1. HC Andy Reid retained = 0. GM Brett Veach retained (Year 10) = 0. Total = 1."
+      },
+      "source_urls": [
+        "https://www.chiefs.com/news/chiefs-name-eric-bieniemy-as-offensive-coordinator (January 23, 2026)",
+        "https://en.wikipedia.org/wiki/2026_Kansas_City_Chiefs_season (updated May 2026)",
+        "https://en.wikipedia.org/wiki/Eric_Bieniemy (updated 2026)",
+        "https://www.foxsports.com/stories/nfl/welcome-back-eric-bieniemy-replaces-matt-nagy-chiefs-offensive-coordinator (January 23, 2026)",
+        "https://atozsports.com/nfl/kansas-city-chiefs-news/chiefs-andy-reid-confirms-suspicions-about-whether-new-offensive-coordinator-eric-bieniemy-will-call-plays-in-2026/ (January 26, 2026)",
+        "https://arrowheadaddict.com/tracking-kansas-city-chiefs-coaching-changes-ahead-of-2026-season (February 21, 2026)",
+        "https://kckingdom.com/chiefs-2026-offseason-primer-retooling-once-mighty-dynasty (January 25, 2026)"
+      ],
+      "source_paragraphs": [
+        "\"The Kansas City Chiefs welcomed back a familiar face on Friday as Eric Bieniemy officially signed on as Offensive Coordinator heading into the 2026 season.\" — Chiefs.com, Jan 23 2026",
+        "\"The 2026 season will be the Kansas City Chiefs' 57th...their tenth under the leadership of general manager Brett Veach and their 14th under head coach Andy Reid.\" — Wikipedia",
+        "\"He confirmed that play-calling will remain his lane...\" — A to Z Sports, Jan 26 2026 (Reid on play-calling duties)",
+        "\"Bieniemy went on to spend the 2023 season as the Washington Commanders' Offensive Coordinator before serving on UCLA's coaching staff in 2024. He then returned to the NFL this past season as the Chicago Bears' Running Backs' Coach\" — Chiefs.com OC announcement"
+      ],
+      "extraction_notes": "Andy Reid calls plays (confirmed by Reid himself in Jan 2026 press conference), but Eric Bieniemy holds the formal OC title and is listed as OC. oc_id is therefore 'eric-bieniemy' per standard coding. Bieniemy's immediate prior role was NFL position coach (RBs coach, Chicago Bears 2025), not OC, so hc_background_tag precedent noted but does not apply here. Brett Veach returns as GM for his 10th season — no new GM. The only new coordinator-level hire this offseason was Bieniemy (OC). Steve Spagnuolo returns as DC."
+    },
+    "ARI": {
+      "extracted_at": "2026-05-27T20:16:40.630Z",
+      "scheme_tag": {
+        "value": "mcvay",
+        "confidence": "high",
+        "rationale": "Mike LaFleur is the sixth head coaching product of Sean McVay's coaching tree, spending three seasons as Rams OC under McVay; sources explicitly call him a product of the McVay-Kyle Shanahan offensive tree, with his most recent role directly under McVay at LA."
+      },
+      "hc_id": {
+        "value": "mike-lafleur",
+        "confidence": "high",
+        "rationale": "Arizona Cardinals officially hired Rams OC Mike LaFleur as head coach on February 1, 2026, per team announcement and NFL.com."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Multiple sources confirm LaFleur is a first-time NFL head coach; ESPN notes he is 'the sixth straight head coach hired by the Cardinals who does not have permanent NFL head coaching experience.'"
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "LaFleur was hired February 1, 2026, making 2026 Year 1 of his tenure with the Cardinals."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "LaFleur came directly from the Los Angeles Rams offensive coordinator role, which he held for three seasons (2023–2025) under Sean McVay."
+      },
+      "oc_id": {
+        "value": "nathaniel-hackett",
+        "confidence": "high",
+        "rationale": "Nathaniel Hackett was officially named Arizona's offensive coordinator on February 13, 2026, per the team's own bio page; LaFleur is the play-caller but Hackett holds the OC title."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Hackett was hired as Cardinals OC on February 13, 2026, making 2026 Year 1 of his tenure with Arizona."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Hackett has never previously been on Arizona's staff; he came from a defensive analyst role with the Green Bay Packers in 2025, making 2026 his first year with this team."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Two 2026-offseason hires: new HC (LaFleur, hired Feb 1, 2026) and new OC (Hackett, hired Feb 13, 2026); GM Monti Ossenfort was retained and is in Year 4, so no new GM."
+      },
+      "source_urls": [
+        "https://www.azcardinals.com/news/cardinals-choose-mike-lafleur-as-new-head-coach-2026",
+        "https://www.nfl.com/news/cardinals-plan-to-hire-rams-offensive-coordinator-mike-lafleur-as-new-head-coach",
+        "https://www.espn.com/nfl/story/_/id/47800131/sources-cardinals-set-hire-rams-mike-lafleur-head-coach",
+        "https://www.si.com/nfl/cardinals/onsi/news/arizona-cardinals-finalize-2026-coaching-staff",
+        "https://www.azcardinals.com/team/coaches-roster/nathaniel-hackett",
+        "https://www.cbssports.com/nfl/news/nathaniel-hackett-cardinals-offensive-coordinator-mike-lafleur-matt-lafleur/",
+        "https://en.wikipedia.org/wiki/Nathaniel_Hackett",
+        "https://www.acmepackingcompany.com/green-bay-packers-news/79090/nathaniel-hackett-takes-cardinals-oc-job-for-mike-lafleur",
+        "https://en.wikipedia.org/wiki/2026_Arizona_Cardinals_season",
+        "https://arizonasports.com/nfl/arizona-cardinals/mike-lafleur-led-offense",
+        "https://www.si.com/nfl/cardinals/onsi/analysis/arizona-cardinals-couldnt-beat-him-hired-mike-lafleur"
+      ],
+      "source_paragraphs": [
+        "The Cardinals have tabbed Rams offensive coordinator Mike LaFleur as their next head coach... LaFleur, the younger brother of Packers coach Matt LaFleur, has been the Rams offensive coordinator the past three seasons. (azcardinals.com, Feb 3 2026)",
+        "LaFleur is the sixth head coaching product of McVay, following the Cincinnati Bengals' Zac Taylor, the Green Bay Packers' Matt LaFleur, former Los Angeles Chargers head coach Brandon Staley, the Minnesota Vikings' Kevin O'Connell and the Jacksonville Jaguars' Liam Coen. (NFL.com, Feb 2 2026)",
+        "Hackett came to the Cardinals after spending last season (2025) as a defensive analyst with the Green Bay Packers... Nathaniel Hackett was named Arizona's offensive coordinator on 2/13/26. (azcardinals.com official bio)",
+        "LaFleur's root philosophy still rests in the Shanahan zone-run scheme... LaFleur is coming out of one of the most successful coaching trees in recent history with Sean McVay and Mike Shanahan heavily influencing the young coach. (SI/AllCardinals, Feb 2 2026)"
+      ],
+      "extraction_notes": "LaFleur is the play-caller; Hackett holds the OC title in a non-play-calling role, mirroring the structure Hackett had in Green Bay under Matt LaFleur. GM Monti Ossenfort is in his 4th season (hired 2023) — no GM change this offseason. scheme_tag=mcvay is preferred over shanahan because LaFleur's most recent and defining role was 3 years as McVay's OC at the Rams; however, his roots trace back through both Shanahan and McVay trees and sources note both influences."
+    },
+    "ATL": {
+      "extracted_at": "2026-05-27T20:17:24.915Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Stefanski's offense is rooted in the Gary Kubiak/Shanahan wide-zone run game + play-action boot; he was directly mentored by Kubiak at Minnesota in 2019 and carried that wide-zone, play-action system to Cleveland."
+      },
+      "hc_id": {
+        "value": "kevin-stefanski",
+        "confidence": "high",
+        "rationale": "Atlanta Falcons officially named Kevin Stefanski head coach on January 17, 2026, per the team's official announcement."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Stefanski previously served as HC of the Cleveland Browns from 2020 to 2025; this is his second NFL head coaching position."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Stefanski was hired January 17, 2026; 2026 is Year 1 with the Falcons."
+      },
+      "hc_background_tag": {
+        "value": "other",
+        "confidence": "high",
+        "rationale": "Immediately before joining Atlanta, Stefanski was HC of the Cleveland Browns (fired January 5, 2026); prior HC stint qualifies as 'other'."
+      },
+      "oc_id": {
+        "value": "tommy-rees",
+        "confidence": "high",
+        "rationale": "Atlanta officially hired Tommy Rees as offensive coordinator on January 22, 2026, per the team's official site and NFL.com tracker."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Rees was hired in January 2026; 2026 is his first season with the Falcons (Year 1)."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Rees came from the Cleveland Browns (2024–25); 2026 is his first year with the Atlanta Falcons."
+      },
+      "staff_novelty_composite": {
+        "value": 3,
+        "confidence": "high",
+        "rationale": "All three components are new in the 2026 offseason: HC Kevin Stefanski (hired Jan 17), OC Tommy Rees (hired Jan 22), and GM Ian Cunningham (hired Jan 2026 from Bears assistant GM role)."
+      },
+      "source_urls": [
+        "https://www.atlantafalcons.com/news/atlanta-falcons-2026-coaching-staff (March 9, 2026)",
+        "https://www.atlantafalcons.com/news/tommy-rees-falcons-offensive-coordinator (January 2026)",
+        "https://www.atlantafalcons.com/news/atlanta-falcons-name-kevin-stefanski-head-coach (January 18, 2026)",
+        "https://en.wikipedia.org/wiki/2026_Atlanta_Falcons_season (May 2026)",
+        "https://www.nfl.com/news/nfl-coaching-gm-tracker-latest-news-interviews-developments-2026-hiring-cycle",
+        "https://www.si.com/nfl/falcons/onsi/news/atlanta-falcons-announce-finalized-coaching-staff-for-2026 (March 9, 2026)",
+        "https://www.brownszone.com/2025/01/14/analysis-kevin-stefanski-needs-to-get-offense-back-to-his-roots/",
+        "https://en.wikipedia.org/wiki/Kevin_Stefanski"
+      ],
+      "source_paragraphs": [
+        "'The 2026 season will be the Atlanta Falcons' 61st in the NFL...and their first under the leadership of general manager Ian Cunningham and head coach Kevin Stefanski.' (Wikipedia, 2026 ATL season)",
+        "'Stefanski, who joined the Falcons on January 17, has been plenty busy in his short time with the team...He also made key external hires to his group, including offensive coordinator Tommy Rees and offensive line coach Bill Callahan.' (atlantafalcons.com, March 9 2026)",
+        "'Offensive coordinator Tommy Rees will call plays in his first season in Atlanta.' (SI.com, March 9, 2026)",
+        "'Stefanski was raised in the West Coast system under former Vikings coach Brad Childress and learned a version of the Air Coryell system from coordinator Norv Turner but was most influenced by Gary Kubiak in their one season together in Minnesota. Kubiak and Mike Shanahan had their foundation in the West Coast system but expanded it with a focus on the wide zone run scheme connected to play-action.' (BrownsZone, Jan 14, 2025)"
+      ],
+      "extraction_notes": "Stefanski calls plays with Rees as the named OC; Rees officially holds the OC title. Play-calling duties shared/collaborative: Rees took over playcalling mid-2025 in Cleveland, and the Falcoholic noted some expectation Stefanski may call plays in 2026, but Rees is the official OC and play-caller per the team's own announcement (\"Offensive coordinator Tommy Rees will call plays in his first season in Atlanta\" — SI.com). GM Ian Cunningham (formerly Bears assistant GM) was hired January 2026 per Wikipedia/NFL.com tracker. HC background: Stefanski is a retread HC (prior HC at CLE 2020-25), so hc_background_tag = 'other'. Scheme: Stefanski was raised on West Coast offense (Brad Childress, Gary Kubiak) and deployed the Kubiak/Shanahan wide-zone run + play-action system in Cleveland; scheme_tag = 'shanahan' is appropriate. No interim seasons counted for tenure math."
+    },
+    "BAL": {
+      "extracted_at": "2026-05-27T20:18:09.231Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "OC Declan Doyle's offense derives directly from Ben Johnson (Chicago Bears), who runs a Shanahan-tree wide-zone system; OL coach Dwayne Ledford also ran outside zone in Atlanta, reinforcing the zone-run identity."
+      },
+      "hc_id": {
+        "value": "jesse-minter",
+        "confidence": "high",
+        "rationale": "Jesse Minter was officially announced as Baltimore Ravens head coach on January 22, 2026, per baltimoreravens.com and ESPN."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "NFL.com explicitly stated this will be Minter's first time as a head coach at any level; a brief 2023 interim HC stint for one Michigan game does not qualify."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Minter was hired January 22, 2026; the 2026 season counts as Year 1."
+      },
+      "hc_background_tag": {
+        "value": "defensive_coordinator",
+        "confidence": "high",
+        "rationale": "Minter was the Los Angeles Chargers' defensive coordinator from 2024 to 2025 immediately before being hired as Ravens HC."
+      },
+      "oc_id": {
+        "value": "declan-doyle",
+        "confidence": "high",
+        "rationale": "Declan Doyle was hired as Baltimore's offensive coordinator on February 2, 2026, confirmed by baltimoreravens.com and ESPN."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Doyle was hired as Ravens OC in February 2026; the 2026 season is Year 1 with the team."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Doyle came from the Chicago Bears (2025) and was a brand-new hire to Baltimore in February 2026."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "New HC (Minter, hired Jan 2026) + New OC (Doyle, hired Feb 2026) = 2; GM Eric DeCosta is entering his eighth year and was NOT a new hire in 2026."
+      },
+      "source_urls": [
+        "https://www.baltimoreravens.com/news/ravens-announce-2026-coaching-staff",
+        "https://www.baltimoreravens.com/news/ravens-full-coaching-staff-coaches-jesse-minter-offense-defense-special-teams",
+        "https://www.espn.com/nfl/story/_/id/47696974/ravens-hiring-chargers-dc-jesse-minter-new-head-coach",
+        "https://www.espn.com/nfl/story/_/id/47781378/ravens-hire-bears-declan-doyle-oc-sources-say",
+        "https://en.wikipedia.org/wiki/Jesse_Minter",
+        "https://en.wikipedia.org/wiki/Declan_Doyle",
+        "https://www.baltimoreravens.com/news/declan-doyle-ravens-hiring-offensive-coordinator-jesse-minter",
+        "https://en.wikipedia.org/wiki/2026_Baltimore_Ravens_season",
+        "https://www.profootballrumors.com/2026/03/offseason-outlook-baltimore-ravens-2",
+        "https://www.nfl.com/news/jesse-minter-ravens-hire-head-coach-chargers-dc",
+        "https://www.si.com/nfl/ravens/onsi/news/baltimore-ravens-new-coaches-could-refresh-offensive-line-approach"
+      ],
+      "source_paragraphs": [
+        "Jesse Minter was announced as the head coach of the Baltimore Ravens on January 22, 2026. Prior to this, he was the defensive coordinator for the Los Angeles Chargers from 2024 to 2025. This will be Minter's first time as a head coach at any level. (Wikipedia/Jesse Minter; NFL.com, Jan 22 2026)",
+        "The 2026 season will be the Baltimore Ravens' 31st in the National Football League (NFL), their eighth under general manager Eric DeCosta and their first season under head coach Jesse Minter. (Wikipedia/2026 Baltimore Ravens season)",
+        "Declan Doyle was hired as the offensive coordinator for the Baltimore Ravens on February 2, 2026, after one season as OC with the Chicago Bears under head coach Ben Johnson, where Johnson called the plays. (Wikipedia/Declan Doyle; ESPN, Jan 30 2026)",
+        "OL coach Dwayne Ledford's rushing attack in Atlanta was primarily outside zone; Johnson is one of the highest-regarded offensive minds in the NFL, creating his own spin-off of the Shanahan offense. (SI.com Ravens, Mar 5 2026; baltimoreravens.com, Feb 3 2026)"
+      ],
+      "extraction_notes": "Doyle is the named, sole OC and will be the play-caller in Baltimore (promotion from his Bears role where Johnson called plays). No co-OC situation. Scheme coded as 'shanahan' because Doyle's system traces through Ben Johnson (Shanahan-tree wide-zone), and the Ravens' new OL coach Dwayne Ledford also ran outside zone in Atlanta. The interim HC game Minter coached for Michigan in 2023 (one game, due to Jim Harbaugh suspension) does not count as an NFL HC stint per coding rules. GM Eric DeCosta is in his 8th year; no GM change in 2026 offseason."
+    },
+    "CAR": {
+      "extracted_at": "2026-05-27T20:19:00.060Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Canales built his offensive identity through 13 seasons with Pete Carroll's Seattle Seahawks and then as OC for the Buccaneers; the system is rooted in the outside/wide-zone run game, play-action, and boot-leg passes characteristic of the Shanahan/McVay/Carroll coaching tree, which Idzik (who also came from Seattle and Tampa) continues as play-caller in 2026."
+      },
+      "hc_id": {
+        "value": "dave-canales",
+        "confidence": "high",
+        "rationale": "Dave Canales was officially hired as Panthers HC on January 25, 2024, confirmed by Panthers.com and multiple sources; he remains HC for 2026."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Panthers.com explicitly states Canales became 'the seventh head coach in franchise history' on January 25, 2024, and NFL.com confirms this was his first NFL HC role, having been an OC previously."
+      },
+      "hc_tenure_yrs": {
+        "value": 3,
+        "confidence": "high",
+        "rationale": "Canales hired January 25, 2024 (Year 1 = 2024, Year 2 = 2025, Year 3 = 2026)."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Canales came directly from serving as OC for the Tampa Bay Buccaneers in 2023 before being hired as Carolina's HC in January 2024."
+      },
+      "oc_id": {
+        "value": "brad-idzik",
+        "confidence": "high",
+        "rationale": "Brad Idzik is confirmed as OC on Panthers.com, ESPN, and NFL.com; he was named OC in February 2024 and is now also taking over play-calling duties from Canales for the 2026 season per the Panthers' official announcement."
+      },
+      "oc_tenure_yrs": {
+        "value": 3,
+        "confidence": "high",
+        "rationale": "Idzik was hired as OC alongside Canales in February 2024 (Year 1 = 2024, Year 2 = 2025, Year 3 = 2026); Panthers.com confirms he 'enters his second season [in 2025]' as OC, making 2026 his third."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Idzik has been with the Panthers since 2024 as OC; he is not new to the team in 2026, only gaining play-calling duties for the first time this season."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "No new HC (Canales is Year 3), no new OC (Idzik is Year 3 with same title), and no new GM (Dan Morgan promoted in January 2024, now Year 3). The 2026 new hires (Bevell, C. Smith, Stukes) are position/assistant roles, not HC/OC/GM changes."
+      },
+      "source_urls": [
+        "https://www.panthers.com/news/panthers-announce-2026-coaching-staff",
+        "https://www.panthers.com/team/coaches-roster/",
+        "https://www.qcnews.com/nfl/carolina-panthers/panthers-finalize-2026-coaching-staff-with-three-new-faces-and-two-promotions/",
+        "https://www.panthers.com/news/dave-canales-offensive-coordinator-brad-idzik-to-call-plays-in-2026",
+        "https://www.espn.com/nfl/story/_/id/48033768/nfl-carolina-panthers-brad-idzik-dave-canales-playcalling",
+        "https://www.panthers.com/news/panthers-retain-evero-announce-idzik-and-smith-to-fill-out-staff",
+        "https://lastwordonsports.com/nfl/2026/04/28/brad-idzik-just-got-the-keys-to-the-panthers-offense/",
+        "https://en.wikipedia.org/wiki/Dave_Canales",
+        "https://www.nfl.com/news/panthers-expected-to-hire-buccaneers-offensive-coordinator-dave-canales-as-next-head-coach"
+      ],
+      "source_paragraphs": [
+        "\"Brad Idzik enters his second season with Carolina as the team's offensive coordinator. After spending the 2023 season with Head Coach Dave Canales in Tampa Bay as the wide receivers coach, Idzik joined the Panthers coaching staff in 2024.\" (Panthers.com coaches roster)",
+        "\"The Panthers coach told reporters Tuesday at the 2026 NFL Scouting Combine that offensive coordinator Brad Idzik was going to call plays this year.\" (Panthers.com, Feb 2026)",
+        "\"Dave Canales was hired as the head coach of the Carolina Panthers on January 25, 2024...Canales came to Carolina after serving as offensive coordinator for the Tampa Bay Buccaneers (2023).\" (Panthers.com coaching staff page)",
+        "\"Head coach Dave Canales brought three new faces onto his staff...The new hires, Darrell Bevell, Carl Smith, and Dwayne Stukes, are all filling positions that were not part of the coaching staff in 2025.\" (QCNews/Panthers.com, May 2026)"
+      ],
+      "extraction_notes": "Idzik has held the OC title since 2024 (Year 1) but was NOT the play-caller until 2026; Canales called plays in 2024 and 2025. For 2026, Idzik takes over full play-calling. This does NOT change oc_first_year_with_team_flag (false) or oc_tenure_yrs (3), as his title is unchanged. Dan Morgan has been GM/President of Football Ops since January 22, 2024 — not a new hire in 2026. The three new 2026 hires (Bevell as associate HC, C. Smith as senior offensive consultant, Stukes as ST/defensive asst.) are not HC/OC/GM slots and do not affect the novelty composite. Scheme tag 'shanahan' reflects Canales and Idzik both coming from the Pete Carroll Seattle Seahawks and Todd Bowles/Canales Buccaneers lineage — outside zone, play-action boot, West Coast-adjacent run-first pass offense consistent with the Shanahan tree."
+    },
+    "CHI": {
+      "extracted_at": "2026-05-27T20:19:59.939Z",
+      "scheme_tag": {
+        "value": "pro_style",
+        "confidence": "medium",
+        "rationale": "Ben Johnson's offense is built on 12-personnel, wide/outside zone runs, heavy play-action off the run game, and pre-snap motion — a structured, under-center pro-style system. Johnson himself cites Bevell, Gase, and Martz as influences; he is not from the Shanahan/McVay coaching tree specifically."
+      },
+      "hc_id": {
+        "value": "ben-johnson",
+        "confidence": "high",
+        "rationale": "Ben Johnson was hired as Bears head coach on January 21, 2025; officially enters Year 2 (2026 season) confirmed by chicagobears.com and Wikipedia."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Johnson had never been an NFL head coach before the 2025 Bears hire; prior role was OC with the Detroit Lions."
+      },
+      "hc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Johnson was hired before the 2025 season (Year 1 = 2025), so 2026 is Year 2."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Johnson served as Detroit Lions OC from 2022–2024 immediately before becoming Bears HC."
+      },
+      "oc_id": {
+        "value": "press-taylor",
+        "confidence": "high",
+        "rationale": "Press Taylor was promoted from passing game coordinator to offensive coordinator in February 2026, officially announced February 18, 2026; Johnson retains play-calling duties."
+      },
+      "oc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Taylor joined the Bears before the 2025 season as pass game coordinator (Year 1 = 2025), making 2026 his Year 2 with the team (even though his OC title is new in 2026)."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Taylor was already on the Bears' coaching staff in 2025 as passing game coordinator; 2026 is his second year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Only the OC title is new (Taylor promoted from pass game coordinator to OC in the 2026 offseason, replacing departed Declan Doyle); HC Ben Johnson is in Year 2, GM Ryan Poles is continuing."
+      },
+      "source_urls": [
+        "https://www.chicagobears.com/news/chicago-bears-announce-coaching-staff-promotion-and-additions (Feb 18, 2026)",
+        "https://en.wikipedia.org/wiki/2026_Chicago_Bears_season",
+        "https://en.wikipedia.org/wiki/Ben_Johnson_(American_football_coach)",
+        "https://www.chicagobears.com/team/coaches/ben-johnson",
+        "https://heavy.com/sports/nfl/chicago-bears/press-taylor-promoted-offensive-coordinator/ (Feb 8, 2026)",
+        "https://www.foxsports.com/articles/nfl/bears-promote-press-taylor-to-offensive-coordinator-under-coach-ben-johnson (Feb 18, 2026)",
+        "https://chicago.suntimes.com/bears/2026/02/08/bears-to-promote-press-taylor-to-offensive-coordinator-to-replace-declan-doyle-source",
+        "https://en.wikipedia.org/wiki/Declan_Doyle",
+        "https://markbullock.substack.com/p/lessons-david-blough-can-learn-from (Jan 14, 2026)",
+        "https://www.chicagobears.com/news/bears-coach-ben-johnson-ids-areas-of-emphasis-for-2026-season-offense-caleb-williams-receivers (Mar 31, 2026)"
+      ],
+      "source_paragraphs": [
+        "'Press Taylor has been elevated to Offensive Coordinator.' — chicagobears.com, Feb 18 2026",
+        "'The 2026 season will be the Chicago Bears' 107th in the National Football League (NFL), their fifth under the leadership of general manager Ryan Poles and their second under head coach Ben Johnson.' — Wikipedia, 2026 Chicago Bears season",
+        "'Johnson joined the Bears after serving as Offensive Coordinator (2022-24) for the Detroit Lions.' — chicagobears.com/team/coaches/ben-johnson",
+        "'It's still 12 personnel and it's still a wide zone scheme... Johnson is of course known for his ability to marry the run and the pass game via play-action.' — markbullock.substack.com, Jan 14 2026"
+      ],
+      "extraction_notes": "Ben Johnson retains play-calling duties as HC; Press Taylor's OC role is primarily game-planning/organizational support rather than play-caller. Declan Doyle (2025 OC) departed January 30, 2026 for Baltimore Ravens. GM Ryan Poles is in Year 5, not new. Scheme is best described as pro_style (12-personnel, outside/wide zone run-heavy, play-action off run game, pre-snap motion) — not a pure Shanahan/McVay tree despite some stylistic similarities; Johnson's cited influences include Bevell, Gase, Martz, and Campbell lineage. Taylor's oc_first_year_with_team_flag=false because he was already on staff in 2025 as pass game coordinator, but his OC title is new in 2026 — per rules, 'first year with THIS team' means he is Year 2. For staff_novelty_composite, Taylor counts as a 'new OC' since he did not hold the OC title last season (Doyle did)."
+    },
+    "CIN": {
+      "extracted_at": "2026-05-27T20:20:49.863Z",
+      "scheme_tag": {
+        "value": "mcvay",
+        "confidence": "high",
+        "rationale": "Zac Taylor came directly from Sean McVay's Rams staff (assistant WRs coach 2017, QBs coach 2018) and is explicitly cited as 'the first of five McVay assistants with the Rams to get his own gig,' passing that offensive system to OC Dan Pitcher."
+      },
+      "hc_id": {
+        "value": "zac-taylor",
+        "confidence": "high",
+        "rationale": "Bengals official site and NFL.com confirm Zac Taylor is returning as head coach for the 2026 season."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Taylor has been the Bengals' head coach since February 4, 2019 — this is his eighth season; he is not a first-time NFL HC."
+      },
+      "hc_tenure_yrs": {
+        "value": 8,
+        "confidence": "high",
+        "rationale": "Hired Feb 4, 2019; 2019=Y1, 2020=Y2, 2021=Y3, 2022=Y4, 2023=Y5, 2024=Y6, 2025=Y7, 2026=Y8."
+      },
+      "hc_background_tag": {
+        "value": "position_coach",
+        "confidence": "high",
+        "rationale": "Immediately before becoming the Bengals' HC, Taylor was the quarterbacks coach for the L.A. Rams in 2018 — a position coach role, not an OC or DC."
+      },
+      "oc_id": {
+        "value": "dan-pitcher",
+        "confidence": "high",
+        "rationale": "Bengals official site, NBC Sports, and CincyJungle all list Dan Pitcher as offensive coordinator for the 2026 season."
+      },
+      "oc_tenure_yrs": {
+        "value": 3,
+        "confidence": "high",
+        "rationale": "Pitcher was promoted to OC on January 25, 2024 (before the 2024 season = Y1); 2025 season = Y2; 2026 season = Y3. He has been with the Bengals organization since 2016."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Pitcher has been with the Bengals since 2016 (10 seasons through 2025) — he is far from his first year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "No new HC (Taylor retained Jan 2026), no new OC (Pitcher retained, returning for Y3), no new GM (Duke Tobin retained). Zero of three novelty flags triggered."
+      },
+      "source_urls": [
+        "https://www.bengals.com/news/bengals-finalize-2026-coaching-staff",
+        "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/bengals-announce-their-2026-coaching-staff",
+        "https://www.nfl.com/news/bengals-retaining-head-coach-zac-taylor-personnel-executive-duke-tobin-for-2026-season",
+        "https://www.bengals.com/team/coaches-roster/zac-taylor",
+        "https://www.bengals.com/team/coaches-roster/dan-pitcher",
+        "https://en.wikipedia.org/wiki/Zac_Taylor",
+        "https://en.wikipedia.org/wiki/Dan_Pitcher",
+        "https://www.bengals.com/news/how-sean-mcvay-way-has-bengals-roots-zac-taylor-dan-pitcher",
+        "https://www.cincyjungle.com/cincinnati-bengals-coaching-staff/185989/2026-coaches-zac-taylor"
+      ],
+      "source_paragraphs": [
+        "'Zac Taylor was named the 10th head coach in Bengals history on Feb. 4, 2019. The 2025 season was his seventh in the position.' (bengals.com/coaches-roster)",
+        "'Dan Pitcher completed his 10th season on the Bengals' coaching staff in 2025, and his second as offensive coordinator. He previously coached QBs from 2020-23.' (bengals.com/coaches-roster/dan-pitcher)",
+        "'The Bengals are retaining head coach Zac Taylor and player personnel chief Duke Tobin following a 6-11 season, owner Mike Brown announced Monday.' (NFL.com, Jan 6 2026)",
+        "'Current Bengals head coach Zac Taylor, the first of five McVay assistants with the Rams to get his own gig, is passing the legacy to his own assistants, such as offensive coordinator Dan Pitcher.' (bengals.com McVay Way feature, March 2026)"
+      ],
+      "extraction_notes": "Zac Taylor immediately preceded his HC role as QBs coach (position coach) at LAR 2018 under Sean McVay — he was not an OC immediately before, so hc_background_tag = position_coach. Dan Pitcher was promoted to OC internally on Jan 25, 2024 (replacing Brian Callahan) — he is in Year 3 as OC but has been with CIN since 2016, so oc_first_year_with_team_flag = false. The only offseason coaching addition was Davis Koetter (assistant WRs coach, entry-level hire from college) — this does not count as a new OC or GM hire. Duke Tobin holds the title of 'director of player personnel' and is the de facto GM; he was retained. Scheme coded as 'mcvay' (not just 'shanahan') because Taylor came specifically from McVay's Rams staff and the Bengals offense closely mirrors McVay's 11-personnel, motion-heavy, play-action system rather than the broader Shanahan outside-zone tree."
+    },
+    "CLE": {
+      "extracted_at": "2026-05-27T20:21:33.664Z",
+      "scheme_tag": {
+        "value": "pro_style",
+        "confidence": "medium",
+        "rationale": "Monken's offense is a physical, run-first system built on inside-zone reads, RPOs, play-action, and vertical passing; does not fit a pure Shanahan outside-zone tree or any other named tree — closest to balanced pro_style with spread elements."
+      },
+      "hc_id": {
+        "value": "todd-monken",
+        "confidence": "high",
+        "rationale": "Browns officially announced Todd Monken as HC on January 28, 2026 per ESPN and clevelandbrowns.com."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Monken had never been an NFL head coach before; his only prior HC role was at Southern Miss (college), per ESPN and NFL.com sources."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Monken was hired January 28, 2026 — the 2026 season is his first with the Browns."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Monken was the Baltimore Ravens offensive coordinator for three seasons (2023-25) immediately before being hired by Cleveland."
+      },
+      "oc_id": {
+        "value": "travis-switzer",
+        "confidence": "high",
+        "rationale": "Browns named Travis Switzer as offensive coordinator per clevelandbrowns.com official announcement on February 20, 2026."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Switzer was hired as OC in the 2026 offseason (announced Feb 20, 2026); 2026 is his Year 1 with Cleveland."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Switzer came from the Ravens (9 seasons), never previously with the Browns; 2026 is his first year with this team."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "New HC (Monken, hired Jan 2026) + new OC (Switzer, hired Feb 2026) = 2; GM Andrew Berry was retained from prior regime, not a new hire."
+      },
+      "source_urls": [
+        "https://www.espn.com/nfl/story/_/id/47754909/browns-hiring-todd-monken-new-coach",
+        "https://www.clevelandbrowns.com/news/browns-name-coordinators-for-the-2026-coaching-staff",
+        "https://www.clevelandbrowns.com/news/browns-finalize-the-2026-coaching-staff",
+        "https://en.wikipedia.org/wiki/2026_Cleveland_Browns_season",
+        "https://www.nfl.com/news/browns-to-hire-former-ravens-oc-todd-monken-as-new-head-coach",
+        "https://www.espn.com/nfl/story/_/id/47512919/cleveland-browns-fire-coach-kevin-stefanski-keep-general-manager-andrew-berry-questions-whats-next",
+        "https://www.si.com/nfl/browns/onsi/news/cleveland-browns-reveal-final-2026-coaching-staff-01kjtk3bbz9b"
+      ],
+      "source_paragraphs": [
+        "'The Browns have hired former Baltimore Ravens offensive coordinator Todd Monken as their next head coach.' (ESPN, Jan 28 2026)",
+        "'Travis Switzer is the Browns offensive coordinator after nine seasons with the Ravens.' (clevelandbrowns.com, Feb 20 2026)",
+        "'The 2026 season will be the Cleveland Browns' 74th as a member of the NFL...their seventh under general manager Andrew Berry, and their first under new head coach Todd Monken.' (Wikipedia)",
+        "'Todd Monken's bread and butter has been a strong rushing attack. During his time as Ravens OC (2023-25), Baltimore ranked at or near the top of the NFL in most rushing categories.' (ESPN)"
+      ],
+      "extraction_notes": "Monken called plays himself in Baltimore; scheme is best tagged pro_style — a balanced, inside-zone-heavy, RPO/play-action system with spread elements. Does not derive from Shanahan outside-zone tree or any named WC/air-raid/EP tree. Switzer was Ravens run game coordinator (not OC) prior to this role; 2026 is his OC debut. GM Andrew Berry retained (in year 7 with CLE); NOT a new offseason hire — does not count toward staff_novelty_composite. DC Jim Schwartz departed; new DC Mike Rutenberg also hired in 2026 offseason but DC is not tracked in this schema. No interim HC stints to disqualify Monken's first-time HC flag."
+    },
+    "DAL": {
+      "extracted_at": "2026-05-27T20:22:22.285Z",
+      "scheme_tag": {
+        "value": "pro_style",
+        "confidence": "medium",
+        "rationale": "Schottenheimer's Cowboys offense is built around physical running, play-action, pre-snap motion, and balanced run/pass — a traditional pro-style attack with no clear Shanahan/McVay/Reid/air-raid lineage; Adams' OC emphasis on dominant run-game design reinforces this identity."
+      },
+      "hc_id": {
+        "value": "brian-schottenheimer",
+        "confidence": "high",
+        "rationale": "Official Cowboys site and NFL.com confirm Brian Schottenheimer was named the 10th head coach of the Dallas Cowboys on January 24, 2025."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Multiple sources explicitly state this is Schottenheimer's first head coaching job in the NFL; he succeeded Mike McCarthy having only ever been an OC/coordinator before."
+      },
+      "hc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Schottenheimer was hired January 24, 2025 (before the 2025 season = Year 1); 2026 season is therefore Year 2."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Schottenheimer was the Dallas Cowboys' offensive coordinator for the 2023 and 2024 seasons immediately before being promoted to head coach on January 24, 2025."
+      },
+      "oc_id": {
+        "value": "klayton-adams",
+        "confidence": "high",
+        "rationale": "Official Cowboys site, ESPN, and NFL.com all confirm Klayton Adams is the offensive coordinator for the 2025 and 2026 seasons; multiple 2026 sources confirm he returns for a second straight year in that role."
+      },
+      "oc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Adams was hired as OC on January 31, 2025 (before the 2025 season = Year 1 with the team); the 2026 season is therefore Year 2."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Adams was hired January 31, 2025 and served as OC for the entire 2025 season; he is returning for his second year with the Cowboys in 2026, not his first."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "None of the three tracked roles changed in the Jan–Aug 2026 window: HC Schottenheimer (hired Jan 2025, Year 2), OC Adams (hired Jan 2025, Year 2), and GM Jerry Jones (longtime owner/GM, no change). The new DC Christian Parker is not one of the three counted fields."
+      },
+      "source_urls": [
+        "https://www.nfl.com/news/cowboys-hire-offensive-coordinator-brian-schottenheimer-as-next-head-coach",
+        "https://www.dallascowboys.com/team/coaches-roster/brian-schottenheimer",
+        "https://www.dallascowboys.com/team/coaches-roster/klayton-adams",
+        "https://en.wikipedia.org/wiki/Klayton_Adams",
+        "https://www.espn.com/nfl/story/_/id/43643589/cowboys-name-klayton-adams-new-offensive-coordinator",
+        "https://www.si.com/nfl/cowboys/onsi/news/dallas-cowboys-reveal-full-coaching-staff-2026-nfl-season",
+        "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/cowboys-announce-2026-coaching-staff",
+        "https://en.wikipedia.org/wiki/Brian_Schottenheimer",
+        "https://www.espn.com/nfl/story/_/id/47681906/nfl-dallas-cowboys-brian-schottenheimer-dak-prescott",
+        "https://www.dallascowboys.com/news/2026-cowboys-coaching-tracker-arrivals-departures-and-latest-news"
+      ],
+      "source_paragraphs": [
+        "\"Brian Schottenheimer was named the 10th head coach of the Dallas Cowboys on Jan. 24, 2025 after two seasons as the team's offensive coordinator.\" — dallascowboys.com/team/coaches-roster/brian-schottenheimer",
+        "\"The Dallas Cowboys hired Klayton Adams as offensive coordinator on January 31, 2025, to replace Brian Schottenheimer, who was promoted to head coach.\" — en.wikipedia.org/wiki/Klayton_Adams",
+        "\"Klayton Adams is the team's offensive coordinator for the second straight season with Parker now leading the defense.\" — si.com (Feb 20, 2026)",
+        "\"The only changes to the offensive staff were the additions of Kyle Fuller as assistant offensive line coach/quality control coach and Stephen Bravo-Brown as assistant wide receivers coach.\" — nbcsports.com (Feb 19, 2026)"
+      ],
+      "extraction_notes": "Jerry Jones serves as both owner and GM of the Cowboys — there is no separate GM title and no GM hire in the 2026 offseason. Schottenheimer retains play-calling duties (Adams is a supporting/game-planning OC, not the play-caller); oc_id is still klayton-adams as he holds the official OC title. The only major 2026 offseason staff change was the hiring of new DC Christian Parker (Jan. 22, 2026), which does not factor into staff_novelty_composite. Scheme_tag set to pro_style: the Cowboys under Schottenheimer/Adams emphasize physical running, strong OL, play-action, and pre-snap motion — a balanced, traditional pro-style system with no clear Shanahan, McVay, or Reid tree affiliation. Confidence on scheme is medium given Schottenheimer's long OC career spans multiple systems (Jets, Rams, Seahawks, Cowboys/McCarthy era)."
+    },
+    "DEN": {
+      "extracted_at": "2026-05-27T20:23:12.761Z",
+      "scheme_tag": {
+        "value": "spread",
+        "confidence": "medium",
+        "rationale": "Sean Payton runs a multiple-personnel spread passing attack rooted in his Saints lineage — motion-heavy, quick-game concepts, 11 personnel, QB-friendly RPO elements — not a pure Walsh West Coast or Shanahan outside-zone tree; 'spread' best captures his horizontal, QB-centric system."
+      },
+      "hc_id": {
+        "value": "sean-payton",
+        "confidence": "high",
+        "rationale": "Official Broncos site and multiple sources confirm Sean Payton is entering his fourth season as Denver's HC in 2026."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Payton was HC of the New Orleans Saints from 2006–2021, a 15-year tenure, before coming to Denver; he is not a first-time NFL HC."
+      },
+      "hc_tenure_yrs": {
+        "value": 4,
+        "confidence": "high",
+        "rationale": "Payton was officially named Broncos HC on February 3, 2023 (Year 1 = 2023, Year 2 = 2024, Year 3 = 2025, Year 4 = 2026)."
+      },
+      "hc_background_tag": {
+        "value": "other",
+        "confidence": "high",
+        "rationale": "Immediately before being hired by Denver in Feb 2023, Payton had stepped away from coaching after the 2021 Saints season and spent 2022 as a FOX Sports studio analyst — a broadcasting/sabbatical role that maps to 'other'."
+      },
+      "oc_id": {
+        "value": "davis-webb",
+        "confidence": "high",
+        "rationale": "Official Broncos press release (Feb 2, 2026) and ESPN (Feb 24, 2026) confirm Davis Webb was named OC, replacing Joe Lombardi, and will serve as the team's playcaller in 2026."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Webb was promoted to OC in February 2026 (the 2026 offseason), making 2026 his first year in this OC role; prior years with Denver were as QB coach / pass game coordinator."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Webb joined the Broncos in 2023 as quarterbacks coach and has been with the team continuously since; 2026 is NOT his first year with this team, only his first year as OC."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Only the OC role is new this offseason (Webb promoted from QB coach, replacing Joe Lombardi in Feb 2026). Sean Payton returns as HC (Year 4). GM George Paton signed a new extension but has been GM since 2021 — not a new hire. Count = 1."
+      },
+      "source_urls": [
+        "https://www.denverbroncos.com/news/head-coach-sean-payton-names-davis-webb-as-offensive-coordinator-and-logan-kilgore-as-quarterbacks-coach",
+        "https://www.espn.com/nfl/story/_/id/48025767/sean-payton-says-oc-davis-webb-broncos-playcaller",
+        "https://www.denverbroncos.com/team/coaches-roster/sean-payton",
+        "https://www.denverbroncos.com/news/broncos-announce-updates-to-2026-coaching-staff",
+        "https://www.denverbroncos.com/news/broncos-sign-general-manager-george-paton-to-new-five-year-contract-through-2030-season",
+        "https://en.wikipedia.org/wiki/Sean_Payton",
+        "https://athlonsports.com/nfl/denver-broncos/denver-broncos-2026-offseason-outlook",
+        "https://www.espn.com/nfl/story/_/id/48092008/denver-broncos-searching-big-plays-offense-offseason-free-agency-draft",
+        "https://www.nfl.com/news/broncos-gm-george-paton-agrees-to-new-five-year-contract"
+      ],
+      "source_paragraphs": [
+        "Payton has named Davis Webb as Offensive Coordinator and Logan Kilgore as Quarterbacks Coach. Webb, who joined the Broncos in 2023 as the team's quarterbacks coach, spent the 2025 season as the Broncos' offensive pass game coordinator/quarterbacks coach. (denverbroncos.com, Feb 2, 2026)",
+        "Payton announced Tuesday that newly named offensive coordinator Davis Webb will be the team's playcaller on game days. It means the 2026 season will be the first time in Payton's tenure as an NFL head coach — since 2006 — that he will not [call plays]. (ESPN, Feb 24, 2026)",
+        "Sean Payton enters his third season [now fourth] with the Denver Broncos after being named the 20th head coach in franchise history on Feb. 3, 2023, by Owner and CEO Greg Penner. (denverbroncos.com)",
+        "The Denver Broncos have signed General Manager George Paton to a new five-year contract through the 2030 season. Since joining the Broncos as general manager in 2021 after 14 seasons with the Minnesota Vikings, Paton has helped reshape Denver's roster. (denverbroncos.com, May 2026)"
+      ],
+      "extraction_notes": "\nOne notable source discrepancy: Athlon Sports refers to the outgoing OC as \"Pete Carmichael\" (who went to Buffalo Bills) while the official Broncos site and ESPN name the replaced OC as \"Joe Lombardi.\" The official Broncos team site (denverbroncos.com, Feb 2, 2026) is the primary source and names Joe Lombardi as the outgoing OC; Carmichael may have been a separate offensive assistant. Davis Webb was the team's QB coach from 2023–2024 and offensive pass game coordinator/QB coach in 2025 before being promoted to OC. The scheme_tag of 'spread' reflects Payton's Saints-lineage multiple-formation, motion-heavy, QB-centric passing attack — not a Shanahan outside-zone or Reid West Coast tree, and not a pure air raid. Payton called his own plays for his first 3 Denver seasons; 2026 is the first year Webb calls plays. Webb's oc_first_year_with_team_flag is FALSE because he joined Denver in 2023; this is only his first year in the OC title.\n"
+    },
+    "DET": {
+      "extracted_at": "2026-05-27T20:23:59.015Z",
+      "scheme_tag": {
+        "value": "pro_style",
+        "confidence": "high",
+        "rationale": "Petzing and Campbell both emphasize run-first, under-center looks, heavy play-action off the run game, and balanced run/pass — multiple sources explicitly describe this as physical, under-center, run-establishing football with no clear Shanahan/McVay/Reid tree."
+      },
+      "hc_id": {
+        "value": "dan-campbell",
+        "confidence": "high",
+        "rationale": "Dan Campbell was named Lions HC on January 20, 2021 and is returning for the 2026 season per the official Lions 2026 coaching staff announcement."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Detroit (2021) was Campbell's first FULL-TIME NFL head coaching appointment; his 2015 Miami role was interim only and does not count per the coding rules."
+      },
+      "hc_tenure_yrs": {
+        "value": 6,
+        "confidence": "high",
+        "rationale": "Campbell hired before 2021 season = Year 1 in 2021; 2026 is therefore Year 6. Wikipedia confirms this is the sixth season under the Campbell/Holmes tandem."
+      },
+      "hc_background_tag": {
+        "value": "position_coach",
+        "confidence": "high",
+        "rationale": "Immediately before becoming Lions HC, Campbell was the Saints' assistant head coach/tight ends coach under Sean Payton (2016-2020) — a position coach role was his last official title."
+      },
+      "oc_id": {
+        "value": "drew-petzing",
+        "confidence": "high",
+        "rationale": "Drew Petzing was officially hired as Detroit Lions offensive coordinator in January 2026, confirmed by the Lions' official site and ESPN/NFL.com reports."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Petzing was hired in January 2026 (2026 offseason), making 2026 his first (Year 1) season as Lions OC."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Petzing spent 2023-2025 as Arizona Cardinals OC and has never previously been part of the Detroit Lions organization."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Only the OC slot changed in the 2026 offseason (Petzing hired Jan 2026 replacing John Morton); HC Dan Campbell and GM Brad Holmes are both returning incumbents with no change."
+      },
+      "source_urls": [
+        "https://www.detroitlions.com/news/lions-announce-2026-coaching-staff",
+        "https://www.si.com/nfl/lions/onsi/news/lions-finalize-2026-coaching-staff",
+        "https://www.detroitlions.com/news/lions-hire-drew-petzing-as-offensive-coordinator",
+        "https://www.nfl.com/news/lions-hiring-former-cardinals-offensive-coordinator-drew-petzing-as-their-new-oc",
+        "https://www.espn.com/nfl/story/_/id/47662766/sources-lions-finalizing-deal-hire-drew-petzing-as-new-oc",
+        "https://en.wikipedia.org/wiki/2026_Detroit_Lions_season",
+        "https://en.wikipedia.org/wiki/Dan_Campbell",
+        "https://www.detroitlions.com/team/coaches-roster/dan-campbell",
+        "https://sidelionreport.com/newly-hired-offensive-coordinator-drew-petzing-makes-sense-for-detroit-01kfejmq2fgt"
+      ],
+      "source_paragraphs": [
+        "SI.com (Feb 23 2026): 'Dan Campbell – Head Coach Drew Petzing – Offensive Coordinator... Drew Petzing was tabbed to lead the offense after the team moved on from John Morton earlier in the offseason.'",
+        "DetroitLions.com (Jan 26 2026): 'Petzing joins the Lions in 2026 after spending the previous three seasons (2023-25) as the Arizona Cardinals' offensive coordinator.'",
+        "Wikipedia 2026 Detroit Lions season: 'The 2026 season will be the Detroit Lions' 97th in the National Football League (NFL) and their sixth under the tandem of general manager Brad Holmes and head coach Dan Campbell.'",
+        "SideLionReport (Jan 21 2026): 'In the passing game, Petzing has prioritized under-center looks and high rates of play-action... Petzing's philosophy of blending the passing game with the running game, lining up under center and playing physically up front matches the identity that Campbell wants his offense to have.'"
+      ],
+      "extraction_notes": "hc_first_time_flag rationale: Campbell's 2015 Miami stint was INTERIM only; Detroit 2021 was his first permanent full-time HC seat, so flag is TRUE. hc_background_tag: Campbell's role immediately before Lions HC was 'assistant head coach/tight ends coach' with Saints (2016-2020); coded as position_coach since tight ends coach was his functional last title (assistant HC is a hybrid, but positional coaching was the operative role). scheme_tag: Petzing's stated philosophy is run-first, under-center, play-action heavy — no identifiable Shanahan/McVay/Reid/air_raid tree; pro_style is the best fit. No new GM (Brad Holmes retained). staff_novelty_composite = 1 (OC only)."
+    },
+    "GB": {
+      "extracted_at": "2026-05-27T20:24:47.245Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "LaFleur comes directly from the Kyle Shanahan/Sean McVay coaching tree (OC under McVay at Rams 2017, OC under Titans 2018), running wide-zone/outside-zone heavy offense with play-action off boot; described as a 'similar offensive system' to McVay/Shanahan/McDaniel branches by multiple beat writers."
+      },
+      "hc_id": {
+        "value": "matt-lafleur",
+        "confidence": "high",
+        "rationale": "Matt LaFleur confirmed as HC for the 2026 season; re-signed to a multiyear extension in January 2026 per ESPN."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "LaFleur has been Green Bay's HC since January 8, 2019; 2026 is his 8th season as an NFL head coach — not a first-timer."
+      },
+      "hc_tenure_yrs": {
+        "value": 8,
+        "confidence": "high",
+        "rationale": "LaFleur hired Jan 8, 2019 (Year 1 = 2019 season); 2026 season counts as Year 8. Wikipedia confirms '2026 will be their eighth under head coach Matt LaFleur.'"
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "LaFleur was offensive coordinator for the Tennessee Titans (2018) immediately before being hired as Green Bay HC in January 2019; also OC for the Rams (2017) under McVay."
+      },
+      "oc_id": {
+        "value": "adam-stenavich",
+        "confidence": "high",
+        "rationale": "Adam Stenavich confirmed returning as OC for 2026; ESPN, Acme Packing Company, roundtable.io all confirm 'offensive coordinator Adam Stenavich' on the 2026 staff."
+      },
+      "oc_tenure_yrs": {
+        "value": 5,
+        "confidence": "high",
+        "rationale": "Stenavich promoted to OC on Jan 31, 2022 (Year 1 = 2022 season); 2026 season counts as Year 5. He is also in his 8th year total with the Packers (joined in 2019)."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Stenavich has been with the Packers since January 2019 and has been OC since January 2022; this is not his first year with the team in any capacity."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "No new HC (LaFleur re-signed multiyear extension Jan 2026), no new OC (Stenavich returned), no new GM (Brian Gutekunst retained, his 9th year). New DC Jonathan Gannon was hired but DC is not counted in the {HC, OC, GM} trio."
+      },
+      "source_urls": [
+        "https://www.packers.com/news/packers-announce-coaching-staff-changes-march-19-2026",
+        "https://www.acmepackingcompany.com/green-bay-packers-news/80992/green-bay-packers-officially-announce-full-2026-coaching-staff",
+        "https://www.espn.com/nfl/story/_/id/48297335/green-bay-packers-coaching-staff-changes",
+        "https://roundtable.io/sports/nfl/packers/news/here-s-the-green-bay-packers-official-2026-coaching-staff",
+        "https://en.wikipedia.org/wiki/2026_Green_Bay_Packers_season",
+        "https://www.espn.com/nfl/story/_/id/47644339/sources-packers-bringing-back-matt-lafleur-multiyear-deal",
+        "https://en.wikipedia.org/wiki/Matt_LaFleur",
+        "https://www.packers.com/team/coaches-roster/adam-stenavich",
+        "https://en.wikipedia.org/wiki/Adam_Stenavich"
+      ],
+      "source_paragraphs": [
+        "\"LaFleur is still the play-caller, of course, and underneath him remains offensive coordinator Adam Stenavich, who does not call plays but is integral in the gameplanning on offense.\" — roundtable.io, March 19, 2026",
+        "\"The 2026 season will be the Green Bay Packers' 106th in the National Football League (NFL), their ninth under general manager Brian Gutekunst and their eighth under head coach Matt LaFleur.\" — Wikipedia, 2026 Green Bay Packers season",
+        "\"The Green Bay Packers are keeping Matt LaFleur as head coach, sources told ESPN on Saturday. He has signed a multiyear contract extension.\" — ESPN, January 18, 2026",
+        "\"Entering his ninth season as a coach in the NFL, Adam Stenavich begins his seventh year coaching with the Packers and his fourth season as offensive coordinator after being promoted on Jan. 31, 2022.\" — packers.com (note: this bio page predates 2026 but confirms OC promotion date; 2026 = Year 5 as OC)"
+      ],
+      "extraction_notes": "HC is Matt LaFleur (Year 8, retained on multiyear extension Jan 2026). OC is Adam Stenavich (Year 5 as OC; non-play-calling; LaFleur calls plays). GM is Brian Gutekunst (Year 9, retained). New DC Jonathan Gannon was hired this offseason but does not affect the {HC, OC, GM} novelty trio. Scheme is firmly Shanahan-tree: wide-zone/outside-zone run game with play-action, LaFleur was OC under both McVay (Rams 2017) and as Titans OC (2018) before joining GB. staff_novelty_composite = 0 (no new HC, OC, or GM in Jan–Aug 2026 offseason). LaFleur has never been an NFL HC at any team other than GB, but 2019 was his first HC job ever, so he is NOT a first-time HC in 2026 (hc_first_time_flag = false)."
+    },
+    "HOU": {
+      "extracted_at": "2026-05-27T20:25:35.363Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Nick Caley came directly from the LA Rams (McVay/Shanahan tree), described as 'the next stem from the Shanahan-style West Coast offense tree'; Texans offense runs outside zone, play-action, bootleg — canonical Shanahan system."
+      },
+      "hc_id": {
+        "value": "demeco-ryans",
+        "confidence": "high",
+        "rationale": "DeMeco Ryans is confirmed as Texans HC for 2026, his fourth season in the role."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Ryans had never been an NFL head coach before Houston; the Texans job in January 2023 was explicitly his first HC position."
+      },
+      "hc_tenure_yrs": {
+        "value": 4,
+        "confidence": "high",
+        "rationale": "Hired before 2023 season (Year 1=2023, Year 2=2024, Year 3=2025, Year 4=2026). Wikipedia confirms 'fourth under head coach DeMeco Ryans.'"
+      },
+      "hc_background_tag": {
+        "value": "defensive_coordinator",
+        "confidence": "high",
+        "rationale": "Ryans was the San Francisco 49ers' defensive coordinator (2021-22) immediately before being hired as Texans HC in January 2023."
+      },
+      "oc_id": {
+        "value": "nick-caley",
+        "confidence": "high",
+        "rationale": "Nick Caley is confirmed as Texans OC returning for his second season in 2026, per official team announcement and NBC Sports/SI reports."
+      },
+      "oc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Caley was hired in February 2025 (before 2025 season = Year 1); 2026 is Year 2 with the Texans."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Caley joined the Texans in February 2025 and is returning for his second season in 2026; he is NOT new to the team this offseason."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "No new HC (Ryans Year 4), no new OC (Caley Year 2), no new GM (Caserio Year 6) in the 2026 offseason. Only position-level assistants (e.g., TEs coach Jake Moreland) were replaced."
+      },
+      "source_urls": [
+        "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/texans-announce-2026-coaching-staff",
+        "https://www.houstontexans.com/news/houston-texans-announce-2026-coaching-staff",
+        "https://en.wikipedia.org/wiki/2026_Houston_Texans_season",
+        "https://www.si.com/nfl/texans/onsi/news/houston-texans-signal-confidence-oc-nick-caley-moving-forward",
+        "https://www.houstontexans.com/team/coaches-roster/nick-caley",
+        "https://www.houstontexans.com/news/houston-texans-hire-nick-caley-as-offensive-coordinator",
+        "https://en.wikipedia.org/wiki/DeMeco_Ryans",
+        "https://www.click2houston.com/sports/2025/02/03/sources-texans-hire-nick-caley-as-new-offensive-coordinator/",
+        "https://www.battleredblog.com/2025/2/3/24358078/breaking-news-houston-texans-hire-nick-caley-as-new-offensive-coordinator",
+        "https://www.si.com/nfl/texans/onsi/news/houston-texans-fire-three-assistant-coaches"
+      ],
+      "source_paragraphs": [
+        "'The Texans have announced DeMeco Ryans's coaching staff for the 2026 season. Offensive coordinator Nick Caley returns for his second season in Houston.' — NBC Sports, March 5, 2026",
+        "'The 2026 season will be the Houston Texans' 25th in the National Football League, their sixth under general manager Nick Caserio and their fourth under head coach DeMeco Ryans.' — Wikipedia, 2026 Houston Texans season",
+        "'Nick Caley joins the Houston Texans as the team's offensive coordinator in 2025 after spending two seasons with the Los Angeles Rams, most recently serving as the team's passing game coordinator/tight ends coach.' — HoustonTexans.com official bio",
+        "'Caley is the next stem from the Shanahan-style West Coast offense tree.' — Battle Red Blog, Feb 3, 2025"
+      ],
+      "extraction_notes": "Nick Caley's scheme lineage: hired from the LA Rams where he was passing game coordinator/TEs coach under Sean McVay; his offense is described by beat writers as the Shanahan-style West Coast/outside-zone system, making 'shanahan' the best-fit tag over 'mcvay' (Caley is not a direct McVay play-caller — McVay called plays himself in LA). DeMeco Ryans does NOT call offensive plays; Caley is the clear standalone OC/play-caller. GM Nick Caserio is in his 6th season with no change. Staff novelty = 0 as all three key leadership roles (HC, OC, GM) are holdovers."
+    },
+    "IND": {
+      "extracted_at": "2026-05-27T20:26:25.407Z",
+      "scheme_tag": {
+        "value": "spread",
+        "confidence": "high",
+        "rationale": "Steichen's offense is built on RPO plays, pre-snap motion, and spread shotgun concepts; the Colts ranked 3rd in NFL in RPO calls with Steichen's Eagles and have carried that RPO-motion identity to Indianapolis."
+      },
+      "hc_id": {
+        "value": "shane-steichen",
+        "confidence": "high",
+        "rationale": "Shane Steichen was hired as Colts HC on Feb 14, 2023 and was officially confirmed returning for the 2026 season by ownership."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Steichen had no prior NFL head coaching experience before the Colts; the Colts were his first head coaching job."
+      },
+      "hc_tenure_yrs": {
+        "value": 4,
+        "confidence": "high",
+        "rationale": "Steichen was hired before the 2023 season (Year 1=2023, Year 2=2024, Year 3=2025, Year 4=2026)."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Steichen was the Philadelphia Eagles' offensive coordinator in 2021-2022, immediately before being hired as Colts HC in February 2023."
+      },
+      "oc_id": {
+        "value": "jim-bob-cooter",
+        "confidence": "high",
+        "rationale": "Jim Bob Cooter is the named offensive coordinator returning for the 2026 season, confirmed in the Colts' official 2026 staff announcement."
+      },
+      "oc_tenure_yrs": {
+        "value": 4,
+        "confidence": "high",
+        "rationale": "Cooter was hired as Colts OC on Feb 20, 2023 (Year 1=2023, Year 2=2024, Year 3=2025, Year 4=2026); the official Colts site confirms he 'enters his fourth season as the team's offensive coordinator.'"
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Cooter has been with the Colts since 2023 and is entering his fourth season as OC, not his first year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "No new HC (Steichen retained), no new OC (Cooter retained), and no new GM (Ballard retained) in the 2026 offseason; Colts were one of the few teams to retain HC and all three coordinators."
+      },
+      "source_urls": [
+        "https://www.colts.com/team/coaches-roster/jim-bob-cooter",
+        "https://www.colts.com/news/colts-announce-2026-coaching-staff-marian-hobby-defensive-line-lou-anarumo",
+        "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/colts-announce-five-new-members-of-their-coaching-staff",
+        "https://www.nfl.com/news/colts-retain-head-coach-shane-steichen-general-manager-chris-ballard",
+        "https://en.wikipedia.org/wiki/Shane_Steichen",
+        "https://en.wikipedia.org/wiki/Jim_Bob_Cooter",
+        "https://www.profootballrumors.com/2026/03/colts-finalize-2026-coaching-staff",
+        "https://www.stampedeblue.com/indianapolis-colts-news/121703/colts-announce-2026-coaching-staff-additions"
+      ],
+      "source_paragraphs": [
+        "Cooter enters his fourth season as the team's offensive coordinator after previously serving three seasons (2009-2011) as an offensive assistant in Indianapolis. (colts.com, 2026)",
+        "Once it was announced earlier by team ownership that head coach Shane Steichen was coming back for the 2026 campaign (along with longtime general manager Chris Ballard), there wasn't expected to be much turnover... (Stampede Blue, Feb 23 2026)",
+        "The Colts were one of the few NFL teams to retain their head coach and all three coordinators this offseason... (Pro Football Rumors, March 28 2026)",
+        "He previously served as an assistant coach for the San Diego/Los Angeles Chargers from 2014 to 2019 and their offensive coordinator in 2020, and offensive coordinator for the Philadelphia Eagles in 2021 and 2022. (Wikipedia/Shane Steichen)"
+      ],
+      "extraction_notes": "Steichen calls plays himself as HC; Jim Bob Cooter is the named/titled OC who assists with game-planning but Steichen is the primary play-caller. OC id is jim-bob-cooter per official staff listing. The only meaningful 2026 offseason coaching hires were position/quality-control coaches (Marion Hobby as DL coach, plus 4 others) — none at coordinator level. GM Chris Ballard also retained. Scheme: Steichen's offense is spread/RPO-heavy with motion, no clear affiliation to Shanahan/McVay/Reid/Air Raid trees; best fits 'spread' (general spread shotgun, RPO-heavy). hc_first_time_flag=true because Indianapolis was his first-ever NFL HC job."
+    },
+    "JAX": {
+      "extracted_at": "2026-05-27T20:27:14.256Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Coen spent 4 years under McVay at the Rams (including as OC in 2022); his offense is explicitly described as McVay-Shanahan principled—heavy motion, formations, outside/wide-zone run game, play-action off boot; multiple sources confirm this tree."
+      },
+      "hc_id": {
+        "value": "liam-coen",
+        "confidence": "high",
+        "rationale": "Confirmed HC of Jacksonville Jaguars, hired January 24, 2025, entering his second season in 2026."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Jaguars.com and Wikipedia confirm this is Coen's first NFL head coaching position ever; no prior interim or full-time NFL HC stints."
+      },
+      "hc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Coen was hired January 24, 2025 (before the 2025 season = Year 1); 2026 season is Year 2."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Coen served as OC for the Tampa Bay Buccaneers in 2024 immediately before being hired as Jaguars HC in January 2025."
+      },
+      "oc_id": {
+        "value": "grant-udinski",
+        "confidence": "high",
+        "rationale": "Jaguars official site confirmed OC Grant Udinski was retained for the 2026 season on January 27, 2026, and NBC Sports confirmed he received a contract extension."
+      },
+      "oc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Udinski was hired as OC in February 2025 for the 2025 season (Year 1); 2026 is his second year with the team."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Udinski completed his first full year as Jaguars OC in 2025 and was retained via contract extension for 2026, making 2026 his second year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "All three tracked roles are returning incumbents: Coen (HC, Year 2), Udinski (OC, Year 2), Gladstone (GM hired Feb 21 2025, Year 2). No new hires in any of the three categories between Jan–Aug 2026."
+      },
+      "source_urls": [
+        "https://www.jaguars.com/team/coaches-roster/liam-coen",
+        "https://www.jaguars.com/news/k00022-jaguars-retain-offensive-coordinator-grant-udinski-defensive-coordinator-anthony-campanile",
+        "https://www.jaguars.com/news/k000174-official-james-gladstone-named-jaguars-general-manager",
+        "https://en.wikipedia.org/wiki/Liam_Coen",
+        "https://en.wikipedia.org/wiki/James_Gladstone_(American_football)",
+        "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/grant-udinski-i-was-honored-to-be-considered-for-head-coaching-opportunities",
+        "https://www.cbssports.com/nfl/news/49ers-robert-saleh-says-jaguars-have-really-advanced-sign-stealing-system-on-offense/",
+        "https://www.si.com/nfl/jaguars/onsi/jacksonville-travis-hunter-sean-mcvay-kyle-shanahan-liam-coen",
+        "https://www.profootballrumors.com/2026/02/offseason-outlook-jacksonville-jaguars-2",
+        "https://www.bigcatcountry.com/jacksonville-jaguars-rumors/81677/jaguars-2026-coaching-staff-tracker"
+      ],
+      "source_paragraphs": [
+        "\"The Jacksonville Jaguars have announced Offensive Coordinator Grant Udinski and Defensive Coordinator Anthony Campanile will remain with the team for the 2026 season.\" — Jaguars.com, Jan 27, 2026",
+        "\"Saleh noted that Jacksonville has a 'signal-stealing-type system' that is common with guys from Sean McVay's coaching tree -- such as first-year Jaguars coach Liam Coen.\" — CBS Sports, Sep 26, 2025",
+        "\"Coen's offense resembles the McVay-Shanahan principled offenses that involve a significant amount of detail and put wide receivers at the forefront of the unit.\" — SI.com/Jaguars",
+        "\"James Gladstone, previously the Los Angeles Rams' director of scouting strategy, on February 21, 2025 was named the Jaguars' general manager.\" — Jaguars.com"
+      ],
+      "extraction_notes": "Liam Coen is firmly in the McVay coaching tree (4 years under McVay at Rams, OC in 2022, then Tampa Bay OC 2024). Scheme is best tagged 'shanahan' as the broad McVay-Shanahan outside/wide-zone tree with play-action, heavy motion and formations. Grant Udinski was hired as OC in February 2025 (first OC job ever, coming from Vikings assistant OC/QB coach role) and retained via contract extension for 2026 — this is his second year with JAX so oc_first_year_with_team_flag=false. GM James Gladstone was hired February 21, 2025 (before 2025 season), so 2026 is Year 2 — NOT new in the 2026 offseason. staff_novelty_composite = 0 (no new HC, OC, or GM in Jan-Aug 2026 window)."
+    },
+    "LAC": {
+      "extracted_at": "2026-05-27T20:28:05.214Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Mike McDaniel is a direct Shanahan tree disciple who spent his entire coaching career in the Mike Shanahan/Kyle Shanahan outside-zone, wide-zone, motion-heavy, play-action system; Wikipedia and multiple sources confirm he is 'a branch of the Shanahan coaching tree' who followed Kyle Shanahan from Washington to Cleveland to Atlanta to SF before running his own version in Miami."
+      },
+      "hc_id": {
+        "value": "jim-harbaugh",
+        "confidence": "high",
+        "rationale": "Chargers official site (Feb 2026) and all major outlets consistently name Jim Harbaugh as the Chargers head coach for the 2026 season."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Harbaugh previously served as HC of the San Francisco 49ers from 2011-2014, so this is NOT his first NFL HC job; the Chargers role is his second NFL HC stint."
+      },
+      "hc_tenure_yrs": {
+        "value": 3,
+        "confidence": "high",
+        "rationale": "Harbaugh was hired January 24, 2024 (before the 2024 season = Year 1), coached 2024 (Year 1) and 2025 (Year 2), making 2026 his Year 3 with the Chargers."
+      },
+      "hc_background_tag": {
+        "value": "college",
+        "confidence": "high",
+        "rationale": "Immediately before being hired by the Chargers in January 2024, Harbaugh was head coach at the University of Michigan (2015-2023), where he won the CFP National Championship in January 2024."
+      },
+      "oc_id": {
+        "value": "mike-mcdaniel",
+        "confidence": "high",
+        "rationale": "ESPN and chargers.com both confirmed Mike McDaniel was officially hired as Chargers offensive coordinator on January 26, 2026, replacing fired OC Greg Roman."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "McDaniel was hired in January 2026 (the 2026 offseason), making 2026 his first (Year 1) season as OC with the Chargers."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "McDaniel was hired by the Chargers on January 26, 2026 — this is his first year with this team in any capacity."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Only the OC is new this 2026 offseason (McDaniel hired Jan 26, 2026). HC Harbaugh returns for Year 3. GM Joe Hortiz was hired in January 2024 and returns for his third year — no new GM in the 2026 offseason."
+      },
+      "source_urls": [
+        "https://www.espn.com/nfl/story/_/id/47735344/chargers-officially-hire-mike-mcdaniel-offensive-coordinator",
+        "https://www.chargers.com/news/announce-new-coaching-hires-2026",
+        "https://www.nfl.com/news/chargers-coach-jim-harbaugh-looking-for-fresh-start-on-offense-after-firing-oc-greg-roman",
+        "https://www.chargers.com/news/los-angeles-chargers-agree-to-terms-with-joe-hortiz-general-manager-2024",
+        "https://en.wikipedia.org/wiki/Mike_McDaniel",
+        "https://en.wikipedia.org/wiki/Jim_Harbaugh",
+        "https://www.si.com/nfl/chargers/onsi/nfl-hard-schedule-rank-analysis-chargers-jim-harbaugh",
+        "https://www.profootballrumors.com/2026/05/chargers-announce-coaching-promotions"
+      ],
+      "source_paragraphs": [
+        "'Former Dolphins coach Mike McDaniel is joining forces with Chargers coach Jim Harbaugh for the 2026 season as Los Angeles' new offensive coordinator.' — ESPN, January 26, 2026",
+        "'The Los Angeles Chargers today announced new hires to Head Coach Jim Harbaugh's 2026 coaching staff.' — chargers.com, February 20, 2026, confirming Harbaugh remains HC",
+        "'A branch of the Shanahan coaching tree, McDaniel began his NFL coaching career as an intern for the Denver Broncos in 2005.' — Wikipedia on Mike McDaniel",
+        "'On January 24, 2024, Harbaugh was hired by the Los Angeles Chargers as their head coach.' — Wikipedia on Jim Harbaugh (tenure start date for Year 3 calculation)"
+      ],
+      "extraction_notes": "HC Jim Harbaugh returning for Year 3 (hired Jan 2024, coached 2024 and 2025). OC Mike McDaniel is a first-year hire (Jan 26, 2026), replacing fired Greg Roman; he is a textbook Shanahan-tree OC (outside zone, wide zone, motion-heavy, play-action). GM Joe Hortiz hired Jan 30, 2024 — not new this offseason. Jesse Minter (former DC) left to become Baltimore Ravens HC; Chris O'Leary is the new DC but DC is not counted in the composite. Harbaugh came immediately from college (Michigan HC), is NOT a first-time NFL HC (was SF 49ers HC 2011-14). McDaniel called plays as Miami HC 2022-2025 before taking OC role. staff_novelty_composite=1 (new OC only)."
+    },
+    "LAR": {
+      "extracted_at": "2026-05-27T20:28:52.807Z",
+      "scheme_tag": {
+        "value": "mcvay",
+        "confidence": "high",
+        "rationale": "Sean McVay is the literal origin of the 'mcvay' tree — motion-heavy, 12-personnel, condensed splits, play-action off bootleg; the Rams are the prototypical McVay-scheme team entering Year 10 of his tenure."
+      },
+      "hc_id": {
+        "value": "sean-mcvay",
+        "confidence": "high",
+        "rationale": "Official Rams site and Wikipedia confirm Sean McVay is entering his 10th season as Rams HC in 2026."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "McVay has been Rams HC since January 2017; 2026 is his 10th season, not his first HC stint."
+      },
+      "hc_tenure_yrs": {
+        "value": 10,
+        "confidence": "high",
+        "rationale": "McVay hired January 2017; 2026 = Year 10 (2017=Y1, 2018=Y2, ..., 2026=Y10). Confirmed by official Rams site: 'McVay enters his 10th year as head coach.'"
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "McVay was the Washington Redskins' OC (2016) immediately before being hired as Rams HC in January 2017."
+      },
+      "oc_id": {
+        "value": "nate-scheelhaase",
+        "confidence": "high",
+        "rationale": "Officially promoted to offensive coordinator February 20, 2026, per Rams official site, ESPN, and NFL.com, succeeding Mike LaFleur."
+      },
+      "oc_tenure_yrs": {
+        "value": 3,
+        "confidence": "high",
+        "rationale": "Scheelhaase joined the Rams staff in 2024 (Year 1=2024, Year 2=2025, Year 3=2026); 2026 is his third season with the organization."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Scheelhaase has been on the Rams staff since 2024 (as offensive assistant, then pass game coordinator); he is a multi-year member of the organization promoted internally, not a new hire to the team."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "New OC (Scheelhaase promoted to OC title this offseason = counts as new OC). HC Sean McVay is returning (Year 10). GM Les Snead is returning (signed multi-year extension Feb 2026, with Rams since 2012). Score = 1."
+      },
+      "source_urls": [
+        "https://www.therams.com/news/rams-2026-coaching-staff-set (Feb 23, 2026)",
+        "https://en.wikipedia.org/wiki/2026_Los_Angeles_Rams_season (May 2026)",
+        "https://www.espn.com/nfl/story/_/id/47985549/rams-promote-nate-scheelhaase-oc-sources-say (Feb 20, 2026)",
+        "https://www.nfl.com/news/rams-promoting-nate-scheelhaase-to-offensive-coordinator (Feb 21, 2026)",
+        "https://www.therams.com/news/rams-sign-general-manager-les-snead-and-head-coach-sean-mcvay-to-multi-year-contract-extensions-2026 (Feb 2, 2026)",
+        "https://www.turfshowtimes.com/los-angeles-rams-news/135450/rams-2026-coaching-staff-sean-mcvay (Feb 23, 2026)",
+        "https://www.si.com/nfl/rams/onsi/los-angeles-finally-make-decision-naming-their-offensive-coordinator-2026 (Feb 20, 2026)",
+        "https://www.profootballrumors.com/2026/02/offseason-outlook-los-angeles-rams (Feb 25, 2026)"
+      ],
+      "source_paragraphs": [
+        "'McVay enters his 10th year as head coach of the Rams.' — therams.com, Feb 23 2026",
+        "'Nathan Scheelhaase, who had served as the Rams' pass game coordinator for two seasons, was elevated to offensive coordinator, succeeding the departed Mike LaFleur, on February 20, 2026.' — Wikipedia 2026 LAR season",
+        "'Before he was hired by the Rams in 2024, Scheelhaase was the offensive coordinator and quarterbacks coach at Iowa State.' — ESPN, Feb 20 2026",
+        "'Rams general manager Les Snead and head coach Sean McVay have signed multi-year contract extensions with the franchise.' — therams.com, Feb 2 2026"
+      ],
+      "extraction_notes": "OC note: Scheelhaase holds the sole OC title; Dave Ragone was named 'associate coordinator/QB coach' but is NOT a co-OC. Scheelhaase is the clear lead OC. GM note: Les Snead signed a new multi-year extension in February 2026 but has been continuously with the Rams since 2012 — he is NOT a new GM this offseason. staff_novelty_composite=1 counts only Scheelhaase's elevation to OC as a 'new OC this offseason' (internal promotion to a title he did not hold in 2025). HC McVay (Year 10) and GM Snead (14th year) are both returning incumbents. hc_background_tag: McVay was Washington Redskins OC in 2016 immediately before his first HC hire. oc_tenure_yrs=3 reflects his time on the Rams organizational staff (2024, 2025, 2026), not his tenure in the OC role specifically."
+    },
+    "LV": {
+      "extracted_at": "2026-05-27T20:29:42.949Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Kubiak explicitly deploys the Shanahan/Gary Kubiak outside-zone, play-action, bootleg system; multiple sources describe it as 'his version of Kyle Shanahan's West Coast offense' built on outside zone and under-center run game."
+      },
+      "hc_id": {
+        "value": "klint-kubiak",
+        "confidence": "high",
+        "rationale": "Officially named Head Coach of the Las Vegas Raiders in February 2026 per raiders.com and ESPN."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Multiple sources (SI, ESPN) refer to Kubiak as a 'first-time head coach'; he had no prior NFL HC stint."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Kubiak was hired in February 2026 (2026 offseason); 2026 is his first season as Raiders HC."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Kubiak was the Seattle Seahawks' offensive coordinator in 2025 (the season immediately before becoming Raiders HC)."
+      },
+      "oc_id": {
+        "value": "andrew-janocko",
+        "confidence": "high",
+        "rationale": "Raiders officially hired Andrew Janocko as offensive coordinator in February 2026 per NFL.com and raiders.com; notably Kubiak retains play-calling duties."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Janocko was hired as Raiders OC in February 2026; 2026 is his first season with Las Vegas."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Janocko came from the Seattle Seahawks (QB coach); 2026 is his first year with the Raiders organization."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "New HC (Kubiak, hired Feb 2026) + new OC (Janocko, hired Feb 2026) = 2; GM John Spytek was hired January 24, 2025 (before the 2025 season), not in the 2026 offseason, so he does not count."
+      },
+      "source_urls": [
+        "https://www.raiders.com/news/klint-kubiak-named-head-coach-of-the-las-vegas-raiders",
+        "https://www.nfl.com/news/raiders-set-to-hire-seahawks-qbs-coach-andrew-janocko-as-offensive-coordinator",
+        "https://www.espn.com/nfl/story/_/id/47882318/las-vegas-raiders-hired-klint-kubiak-meaning-offense-bowers-jeanty-draft-mendoza",
+        "https://www.raiders.com/news/raiders-announce-2026-coaching-staff",
+        "https://en.wikipedia.org/wiki/John_Spytek",
+        "https://www.espn.com/nfl/story/_/id/43522087/sources-raiders-hire-buccaneers-john-spytek-new-gm",
+        "https://www.espn.com/nfl/story/_/id/46367833/seattle-seahawks-new-offense-klint-kubiak-sam-darnold-cooper-kupp",
+        "https://www.seahawks.com/news/seahawks-offensive-coordinator-klint-kubiak-plans-to-build-a-balanced-smart-tough-physical-offense-in-seattle",
+        "https://www.si.com/nfl/raiders/onsi/las-vegas-2026-season-comes-down-these-5-players-coaches"
+      ],
+      "source_paragraphs": [
+        "'Klint Kubiak has been named Head Coach of the Las Vegas Raiders...joining the Silver and Black after serving as the offensive coordinator for the Seattle Seahawks' 2025 Championship campaign.' (raiders.com, Feb 10, 2026)",
+        "'The Las Vegas Raiders are set to hire Andrew Janocko, formerly the Seattle Seahawks quarterbacks coach, as their new offensive coordinator...This will mark Janocko's first time as an offensive coordinator. Kubiak, however, has previously noted that he will call plays for the Raiders.' (NFL.com, Feb 17, 2026)",
+        "'Kubiak is a student of the Shanahan scheme that is prevalent in the NFL, a variation of the West Coast Offense made popular by Mike Shanahan...key aspects Kubiak plans to bring...are strong fundamentals, the outside zone running scheme, and the balance that allows a team to win different ways.' (seahawks.com, Feb 2025)",
+        "'On January 24, 2025, the Las Vegas Raiders hired Spytek to be their general manager.' (Wikipedia/raiders.com, Jan 2025)"
+      ],
+      "extraction_notes": "Andrew Janocko holds the OC title but Kubiak explicitly retains play-calling duties; Janocko is effectively a passing game coordinator elevated to OC in name. oc_id is set to andrew-janocko (the named OC), not the HC, since a formal OC title exists. Spytek was hired January 24, 2025 (2025 offseason, before the 2025 season), confirmed by Wikipedia and multiple NFL.com/ESPN sources dated January 2025, so he does NOT count as new in the 2026 offseason for staff_novelty_composite. Kubiak's scheme is firmly in the Gary Kubiak/Mike Shanahan/Kyle Shanahan outside-zone, play-action, under-center tree — coded as 'shanahan'."
+    },
+    "MIA": {
+      "extracted_at": "2026-05-27T20:30:27.839Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Bobby Slowik spent 6 seasons at SF under Kyle Shanahan, was promoted to OC at Houston running Shanahan-tree wide-zone/play-action/bootleg offense; ESPN and multiple analysts explicitly describe his scheme as 'a version of Shanahan's West Coast offense.'."
+      },
+      "hc_id": {
+        "value": "jeff-hafley",
+        "confidence": "high",
+        "rationale": "Jeff Hafley was officially named the 12th head coach of the Miami Dolphins on January 19, 2026, per the official Dolphins team announcement and multiple confirmed sources."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "ESPN confirmed Hafley is 'a first-time head coach at the NFL level, marking the eighth consecutive first-time head coach the Dolphins have hired'; his BC stint was college, not NFL."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Hafley was hired January 19, 2026; 2026 is Year 1."
+      },
+      "hc_background_tag": {
+        "value": "defensive_coordinator",
+        "confidence": "high",
+        "rationale": "Hafley's most recent role immediately before the Dolphins HC job was defensive coordinator for the Green Bay Packers (2024-25)."
+      },
+      "oc_id": {
+        "value": "bobby-slowik",
+        "confidence": "high",
+        "rationale": "The official Dolphins 2026 coaching staff announcement (Feb 14, 2026) lists Bobby Slowik as offensive coordinator. Confirmed by NFL Network's Ian Rapoport on Jan 24, 2026."
+      },
+      "oc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Slowik joined the Dolphins in February 2025 as senior passing game coordinator; 2026 is his second season with the team regardless of title change."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Slowik joined the Dolphins on Feb 11, 2025; he was already on the roster before the 2026 offseason and was internally promoted to OC, making 2026 his second year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "New HC (Hafley, hired Jan 19, 2026) = +1; New GM (Jon-Eric Sullivan, hired Jan 9, 2026) = +1; OC (Slowik) was an internal promotion from existing staff, not a new outside hire = +0. Total = 2."
+      },
+      "source_urls": [
+        "https://www.miamidolphins.com/news/miami-dolphins-announce-2026-coaching-staff",
+        "https://www.miamidolphins.com/team/coaches-roster/",
+        "https://en.wikipedia.org/wiki/2026_Miami_Dolphins_season",
+        "https://en.wikipedia.org/wiki/Jeff_Hafley",
+        "https://en.wikipedia.org/wiki/Bobby_Slowik",
+        "https://www.espn.com/nfl/story/_/id/47663777/miami-dolphins-hire-jeff-hafley-head-coach-faq-means",
+        "https://www.espn.com/nfl/story/_/id/39241207/how-texans-oc-bobby-slowik-helped-cj-stroud-excel-rookie",
+        "https://www.si.com/nfl/dolphins/onsi/news/dolphins-coaching-staff-tracker-another-buffalo-addition-01kg56y8s8vf",
+        "https://www.nfl.com/news/nfl-coaching-gm-tracker-latest-news-interviews-developments-2026-hiring-cycle"
+      ],
+      "source_paragraphs": [
+        "The Miami Dolphins today announced the complete 2026 coaching staff under new Head Coach Jeff Hafley. Miami's staff features Bobby Slowik as offensive coordinator, Sean Duggan as defensive coordinator and Chris Tabor as special teams coordinator. (miamidolphins.com, Feb 14, 2026)",
+        "Jeff Hafley was named the 12th head coach of the Miami Dolphins on Jan. 19, 2026. Hafley most recently served as the defensive coordinator for the Green Bay Packers, a role he held for two seasons (2024-25). (miamidolphins.com/team/coaches-roster/)",
+        "Hafley is a first-time head coach at the NFL level, marking the eighth consecutive first-time head coach the Dolphins have hired. (ESPN, Jan 19, 2026)",
+        "The scheme is a version of Shanahan's West Coast offense that heavily emphasizes timing, anticipation, ball placement and footwork. (ESPN on Bobby Slowik/Texans offense, 2024)"
+      ],
+      "extraction_notes": "OC tenure clarification: Slowik joined MIA in Feb 2025 as senior passing game coordinator; promoted to OC by new HC Hafley in Jan 2026 — this is an internal promotion, so oc_first_year_with_team_flag=false and oc_tenure_yrs=2. HC background: Hafley went DC (Packers) → HC (Dolphins), so background_tag=defensive_coordinator. Scheme: Slowik is a pure Shanahan tree disciple (6 years at SF under Kyle Shanahan, then Texans OC) running wide-zone heavy, play-action, bootleg offense. staff_novelty_composite counts new HC + new GM but not the internal OC promotion."
+    },
+    "MIN": {
+      "extracted_at": "2026-05-27T20:31:12.702Z",
+      "scheme_tag": {
+        "value": "mcvay",
+        "confidence": "high",
+        "rationale": "Kevin O'Connell is a direct McVay disciple (Rams OC 2020-21); Wes Phillips was McVay's pass-game coordinator/TE coach in LA; the offense features wide-zone run game, play-action, 11-personnel spread, motion-heavy passing — textbook McVay tree."
+      },
+      "hc_id": {
+        "value": "kevin-oconnell",
+        "confidence": "high",
+        "rationale": "Kevin O'Connell named Vikings HC on Feb. 16, 2022; extended through 2029 in January 2025; confirmed returning for 2026."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Minnesota was O'Connell's first and only NFL HC job; he came directly from the Rams OC role with no prior HC experience."
+      },
+      "hc_tenure_yrs": {
+        "value": 5,
+        "confidence": "high",
+        "rationale": "O'Connell hired Feb. 2022 (Year 1 = 2022, Year 2 = 2023, Year 3 = 2024, Year 4 = 2025, Year 5 = 2026)."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "O'Connell served as offensive coordinator for the Los Angeles Rams (2020-21 seasons) immediately before being hired as Vikings HC."
+      },
+      "oc_id": {
+        "value": "wes-phillips",
+        "confidence": "high",
+        "rationale": "Wes Phillips confirmed as Vikings OC for 2026; listed as OC on the Feb. 24, 2026 full staff announcement; extended through 2026 in June 2025."
+      },
+      "oc_tenure_yrs": {
+        "value": 5,
+        "confidence": "high",
+        "rationale": "Phillips hired as Vikings OC on Feb. 20, 2022, alongside O'Connell; 2026 is his fifth year with the team (2022, 2023, 2024, 2025, 2026)."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Phillips has been the Vikings' OC continuously since February 2022; 2026 is his fifth consecutive year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "HC (O'Connell) returning Year 5 = 0; OC (Phillips) returning Year 5 = 0; GM Kwesi Adofo-Mensah fired late January 2026 with interim Rob Brzezinski installed = 1. Total = 1."
+      },
+      "source_urls": [
+        "https://www.vikings.com/news/2026-coaching-staff-updates-promotions-hires",
+        "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/vikings-announce-full-2026-coaching-staff",
+        "https://www.vikings.com/team/coaches-roster/kevin-o-connell",
+        "https://en.wikipedia.org/wiki/Wes_Phillips",
+        "https://www.vikings.com/team/coaches-roster/wes-phillips",
+        "https://www.dailynorseman.com/minnesota-vikings-2026-offseason/94763/minnesota-vikings-add-former-miami-dolphins-oc-to-coaching-staff-frank-smith",
+        "https://www.espn.com/nfl/story/_/id/48751518/nfl-minnesota-vikings-general-manager-search-brzezinski-kevin-oconnell-wilf",
+        "https://www.dailynorseman.com/minnesota-vikings-news/96892/minnesota-vikings-narrow-gm-list-final-five",
+        "https://www.si.com/nfl/vikings/news/vikings-reportedly-agree-to-contract-extension-with-key-assistant-coach"
+      ],
+      "source_paragraphs": [
+        "Vikings.com (Feb 24, 2026): 'O'Hara previously served as Minnesota's assistant QBs coach and will now support O'Connell and Offensive Coordinator Wes Phillips in multiple facets.'",
+        "NBC Sports PFT (Feb 24, 2026): 'Those coaches join...offensive coordinator Wes Phillips, assistant head coach Frank Smith...' — confirming full 2026 staff.",
+        "Vikings.com HC bio: 'Kevin O'Connell was named the 10th head coach in Minnesota Vikings history on Feb. 16, 2022, after serving as the offensive coordinator for the Los Angeles Rams during the 2020-21 seasons.'",
+        "Daily Norseman (Feb 1, 2026): 'After yesterday's big news of the firing of General Manager Kwesi Adofo-Mensah, the Minnesota Vikings continued making offseason moves...' — confirms new GM situation in Jan 2026."
+      ],
+      "extraction_notes": "O'Connell calls offensive plays himself; Wes Phillips is the titled OC but serves as a key game-planning partner rather than play-caller. Note coded as oc_id=wes-phillips since he holds the formal OC title. GM Adofo-Mensah fired late January 2026; Rob Brzezinski named interim GM; permanent GM search ongoing as of late May 2026 (narrowed to 5 finalists). The McVay scheme tag is appropriate: O'Connell was McVay's OC at the Rams; Phillips was McVay's pass-game coordinator/TE coach; the offense runs wide-zone, play-action, 11-personnel heavy motion concepts directly from the McVay tree. Frank Smith (new Asst. HC, ex-Dolphins OC under Mike McDaniel) was a notable hire from the Shanahan sub-tree, but the primary scheme identity remains McVay as set by O'Connell."
+    },
+    "NE": {
+      "extracted_at": "2026-05-27T20:32:05.567Z",
+      "scheme_tag": {
+        "value": "erhardt_perkins",
+        "confidence": "high",
+        "rationale": "Patriots.com analysis explicitly states 'The Pats will return to the Erhardt-Perkins system under McDaniels'; McDaniels is the Belichick-tree architect who ran this system across 13 prior seasons in New England."
+      },
+      "hc_id": {
+        "value": "mike-vrabel",
+        "confidence": "high",
+        "rationale": "Multiple official Patriots sources confirm Mike Vrabel is HC entering the 2026 season, including AP Coach of the Year awards article from February 2026."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Vrabel previously served as HC of the Tennessee Titans from 2018–2023, so New England is his second NFL HC job."
+      },
+      "hc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Vrabel was hired in January 2025 for the 2025 season (Year 1); 2026 is therefore Year 2 with the Patriots."
+      },
+      "hc_background_tag": {
+        "value": "other",
+        "confidence": "high",
+        "rationale": "Immediately before becoming Patriots HC, Vrabel spent the 2024 season as a coaching and personnel consultant with the Cleveland Browns — a non-coordinator, non-HC staff role."
+      },
+      "oc_id": {
+        "value": "josh-mcdaniels",
+        "confidence": "high",
+        "rationale": "Josh McDaniels was hired as Patriots OC in January 2025 and won 2025 AP Assistant Coach of the Year; confirmed returning for 2026 with no reported change."
+      },
+      "oc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "McDaniels was hired for the 2025 season (Year 1 of this current stint); 2026 is therefore Year 2 with this team in this role."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "McDaniels was hired in January 2025 and served a full season in 2025; 2026 is his second year with this team in this stint."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "No new HC (Vrabel in Year 2), no new OC (McDaniels in Year 2), no new GM (Eliot Wolf as EVP of Player Personnel is a holdover). DC Zak Kuhr was promoted internally from within the same staff and does not count."
+      },
+      "source_urls": [
+        "https://www.patriots.com/news/patriots-hc-mike-vrabel-name-ap-nfl-coach-of-the-year-oc-josh-mcdaniels-named-assistant-coach-of-the-year",
+        "https://www.newscentermaine.com/article/sports/nfl/patriots/josh-mcdaniels-patriots-mike-vrabel-coaches-coordinators-new-england/97-ee626981-8e97-416b-8cdc-24b3759f764c",
+        "https://www.patspulpit.com/new-england-patriots-coaching-staff/124237/announcement-news-terrell-williams-zak-kuhr",
+        "https://www.patspulpit.com/patriots-coaching-staff-tracker/122284/rumors-news-hires-departures-interviews-analysis-2026",
+        "https://www.patriots.com/news/analysis-breaking-down-the-patriots-full-coaching-staff-for-the-2025-season",
+        "https://www.yardbarker.com/nfl/articles/patriots_announce_2026_coaching_staff/s1_17039_43605681",
+        "https://www.foxsports.com/stories/nfl/2026-nfl-coaching-gm-tracker-interviews-rumors-personnel-changes",
+        "https://www.patriots.com/team/coaches-roster/mike-vrabel",
+        "https://en.wikipedia.org/wiki/Eliot_Wolf",
+        "https://www.profootballrumors.com/2025/01/patriots-to-hire-josh-mcdaniels-as-oc"
+      ],
+      "source_paragraphs": [
+        "'the Associated Press named head coach Mike Vrabel the Coach of the Year and offensive coordinator Josh McDaniels took home assistant coach of the year honors' — patriots.com, Feb 6 2026",
+        "'The New England Patriots have hired former Las Vegas Raiders and Denver Broncos head coach Josh McDaniels as their new offensive coordinator — his third stint in that role with the team' — newscentermaine.com, Jan 23 2025",
+        "'The Pats will return to the Erhardt-Perkins system under McDaniels, which speaks a different language than the West Coast offense.' — patriots.com analysis of 2025 coaching staff",
+        "'The most prominent among those are the previously confirmed promotion of Zak Kuhr to defensive coordinator as well as former DC Terrell Williams taking on a new role [as assistant head coach]' — patspulpit.com, Mar 16 2026"
+      ],
+      "extraction_notes": "Vrabel hired January 2025 for 2025 season; 2026 = Year 2 as Patriots HC. McDaniels hired January 2025 as OC for his third overall stint in this role with NE; 2026 = Year 2 of this current stint (oc_first_year_with_team_flag = false). Eliot Wolf is EVP of Player Personnel (de facto GM) and was already in place before 2026 offseason — no new GM hire. DC change: Zak Kuhr promoted internally from inside linebackers coach; Terrell Williams moved to assistant HC role — both internal moves. scheme_tag = erhardt_perkins per explicit patriots.com sourcing. hc_background_tag = \"other\" because Vrabel's immediate prior role was Browns consulting/personnel consultant (not coordinator or position coach title)."
+    },
+    "NO": {
+      "extracted_at": "2026-05-27T20:32:49.055Z",
+      "scheme_tag": {
+        "value": "west_coast",
+        "confidence": "medium",
+        "rationale": "Kellen Moore's offensive roots trace to the Mike McCarthy/Dallas Cowboys tree (Walsh-Holmgren West Coast lineage), featuring balanced run/pass, pre-snap motion, RPOs, and quick-game passing; analysts describe his scheme as West Coast-influenced with run-heavy tendencies adapted from his time with McCarthy."
+      },
+      "hc_id": {
+        "value": "kellen-moore",
+        "confidence": "high",
+        "rationale": "Kellen Moore was officially named the 19th head coach in Saints franchise history on Feb. 11, 2025, and is confirmed entering his 2nd season in 2026."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Moore had never been an NFL head coach prior to his Saints hire; he served exclusively as OC (Cowboys 2018-22, Chargers 2023, Eagles 2024) before becoming HC."
+      },
+      "hc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Moore was hired before the 2025 season (Feb. 2025), making 2026 his second year as Saints HC."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Moore came directly from serving as OC of the Philadelphia Eagles in 2024 (winning Super Bowl LIX) immediately before being hired as Saints HC."
+      },
+      "oc_id": {
+        "value": "doug-nussmeier",
+        "confidence": "high",
+        "rationale": "Doug Nussmeier is confirmed as the Saints' offensive coordinator entering his second season in 2026, per the official Saints coaches roster page."
+      },
+      "oc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Nussmeier was hired as OC before the 2025 season and is explicitly described as 'entering his second season as New Orleans' offensive coordinator in 2026' on the team's official site."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Nussmeier joined the Saints for the 2025 season; 2026 is his second year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "No new HC (Moore in year 2), no new OC (Nussmeier in year 2), and no new GM (Mickey Loomis is in his 14th year). Multiple sources from January 2026 confirm the Saints made no coaching staff changes in the 2026 offseason."
+      },
+      "source_urls": [
+        "https://www.neworleanssaints.com/team/coaches-roster/kellen-moore",
+        "https://www.neworleanssaints.com/team/coaches-roster/doug-nussmeier",
+        "https://en.wikipedia.org/wiki/2026_New_Orleans_Saints_season",
+        "https://www.nfl.com/news/kellen-moore-saints-eagles-oc-accepts-head-coaching-job",
+        "https://www.audacy.com/wwl/local-sports/saints/saints-unlikely-to-see-staff-changes-more-from-senior-bowl",
+        "https://www.louisianasports.net/2026/01/09/saints-offseason-not-marred-by-leadership-quarterback-change/latest-stories/",
+        "https://www.thedevyroyale.com/p/scheme-changes-that-will-impact-fantasy-1a4",
+        "https://www.si.com/nfl/saints/saints-news/saints-kellen-moore-expected-to-implement-play-used-heavily-with-eagles-colin3"
+      ],
+      "source_paragraphs": [
+        "'Doug Nussmeier enters his second season as New Orleans' offensive coordinator in 2026, marking his 11th season in the NFL coaching ranks.' — NewOrleansSaints.com",
+        "'The 2026 season will be the New Orleans Saints' 60th in the NFL, their 14th under general manager Mickey Loomis and their second under head coach Kellen Moore.' — Wikipedia",
+        "'Speaking from the Senior Bowl, Saints GM Mickey Loomis said the team is unlikely to make any staffing changes.' — WWL/Audacy, Jan 29 2026",
+        "'Moore doesn't stem from any one tree, though his time in Dallas with Mike McCarthy inspired many of his West Coast principles.' — The Devyr Royale scheme analysis"
+      ],
+      "extraction_notes": "Scheme tag is coded 'west_coast' with medium confidence: Moore's offensive DNA traces to the Mike McCarthy/Cowboys system (Walsh–Holmgren West Coast lineage) with heavy RPO usage, balanced run/pass, and pre-snap motion; no single analyst firmly plants him in one canonical tree, but 'west_coast' is the best fit among available enums given the McCarthy/Dallas lineage. 'pro_style' was considered but Moore's motion-heavy, RPO-centric approach is less traditional than that label implies. staff_novelty_composite = 0: all three tracked roles (HC, OC, GM) return unchanged from 2025 into 2026. Kellen Moore is confirmed as both HC AND the primary offensive play-caller influence, with Nussmeier as the named OC."
+    },
+    "NYG": {
+      "extracted_at": "2026-05-27T20:33:43.528Z",
+      "scheme_tag": {
+        "value": "reid",
+        "confidence": "high",
+        "rationale": "OC Matt Nagy is a direct Andy Reid disciple with 14 combined seasons under Reid (Eagles + Chiefs); pre-snap motion, screen-heavy, tight-end-focal West Coast/Reid tree offense explicitly described by analysts for the 2026 Giants."
+      },
+      "hc_id": {
+        "value": "john-harbaugh",
+        "confidence": "high",
+        "rationale": "Giants officially announced John Harbaugh as the 21st head coach on January 20, 2026, per giants.com and NFL.com."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Harbaugh was head coach of the Baltimore Ravens for 18 seasons (2008–2025) before joining NYG; well-established prior HC tenure."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Harbaugh was hired January 2026; 2026 NFL season counts as Year 1."
+      },
+      "hc_background_tag": {
+        "value": "other",
+        "confidence": "high",
+        "rationale": "Harbaugh's immediately prior role was NFL head coach (Baltimore Ravens, fired after 2025 Week 18); he is a retread HC, so 'other' applies per coding rules."
+      },
+      "oc_id": {
+        "value": "matt-nagy",
+        "confidence": "high",
+        "rationale": "Giants officially named Matt Nagy offensive coordinator on February 3, 2026, per NFL.com, giants.com, and multiple beat sources."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Nagy was hired in February 2026; 2026 season is his first with the Giants."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Nagy joined the Giants in February 2026, coming from the Kansas City Chiefs; this is his first year with NYG."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "New HC (Harbaugh, hired Jan 2026) = +1; new OC (Nagy, hired Feb 2026) = +1; GM Joe Schoen is returning (in his 5th year, recently extended) = +0. Total = 2."
+      },
+      "source_urls": [
+        "https://www.giants.com/news/john-harbaugh-announces-2026-coaching-staff-coordinators-matt-nagy-dennard-wilson-chris-horton (Feb 23, 2026)",
+        "https://www.giants.com/team/coaches-roster/ (Apr 1, 2026)",
+        "https://en.wikipedia.org/wiki/2026_New_York_Giants_season (May 2026)",
+        "https://www.nfl.com/news/giants-hire-matt-nagy-offensive-coordinator (Feb 4, 2026)",
+        "https://www.nfl.com/news/new-era-in-new-york-giants-expected-to-hire-john-harbaugh-as-head-coach",
+        "https://www.profootballrumors.com/2026/05/giants-gm-joe-schoen-agree-to-multi-year-extension (May 2026)",
+        "https://www.espn.com/nfl/story/_/id/47899611/new-york-giants-jaxson-dart-matt-nagy-leads-offensive-staff (Feb 13, 2026)",
+        "https://www.si.com/nfl/giants/onsi/big-blue-plus/what-ny-giants-would-be-getting-in-new-offensive-coordinator-matt-nagy-01kht8f988c0 (Feb 21, 2026)",
+        "https://evrimagaci.org/gpt/giants-name-matt-nagy-offensive-coordinator-in-strategic-harbaugh-move-526672 (Feb 3, 2026)"
+      ],
+      "source_paragraphs": [
+        "'John Harbaugh was named the 21st head coach of the New York Football Giants on January 20th, 2026.' — giants.com roster page",
+        "'On February 3, the Giants hired former Kansas City Chiefs offensive coordinator, Matt Nagy, as their new offensive coordinator.' — Wikipedia 2026 NYG season",
+        "'The 2026 season will be the New York Giants' 102nd in the NFL, their fifth under general manager Joe Schoen and their first season under head coach John Harbaugh.' — Wikipedia 2026 NYG season",
+        "'Harbaugh and Nagy share the common bond of the Andy Reid coaching tree... Their shared philosophy, particularly in favoring the West Coast offense and mobile quarterbacks, bodes well for the development of Jaxson Dart.' — evrimagaci.org (Feb 3, 2026)"
+      ],
+      "extraction_notes": "Nagy is confirmed as the offensive play-caller (per atozsports.com: 'He's expected to be the offensive play-caller for that staff'). Harbaugh began his NFL coaching career under Andy Reid in Philadelphia (1998–2007, special teams coordinator), and Nagy spent 14 seasons under Reid; both are firmly in the Reid tree. GM Joe Schoen is a returning GM in Year 5 (hired 2022), recently signed to a multiyear extension in May 2026 — he was NOT a new hire in the 2026 offseason. Todd Monken was originally expected to be OC but took the Cleveland Browns HC job, which opened the door for Nagy. Scheme is coded 'reid' rather than 'west_coast' because Nagy's system is directly and explicitly from the Andy Reid/Chiefs lineage (motion-heavy, RPO-adjacent, screen-heavy), not the Walsh west-coast tree."
+    },
+    "NYJ": {
+      "extracted_at": "2026-05-27T20:34:30.897Z",
+      "scheme_tag": {
+        "value": "pro_style",
+        "confidence": "medium",
+        "rationale": "Frank Reich's offenses are described as balanced and aggressive with no-huddle/tempo, historically using the run game to set up the pass — a traditional pro-style approach without clear Shanahan/McVay/Reid/air-raid lineage."
+      },
+      "hc_id": {
+        "value": "aaron-glenn",
+        "confidence": "high",
+        "rationale": "Aaron Glenn confirmed as Jets head coach entering the 2026 season (hired Jan 22, 2025), per Jets official site, ESPN, NFL.com, and Wikipedia."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "This is Glenn's first NFL head coaching position; he spent his entire pre-HC career as a player, scout, and defensive coordinator."
+      },
+      "hc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Glenn was hired before the 2025 season (January 2025), so 2026 is his second year as Jets HC."
+      },
+      "hc_background_tag": {
+        "value": "defensive_coordinator",
+        "confidence": "high",
+        "rationale": "Glenn was the Detroit Lions' defensive coordinator from 2021–2024 immediately before being hired as Jets HC in January 2025."
+      },
+      "oc_id": {
+        "value": "frank-reich",
+        "confidence": "high",
+        "rationale": "Frank Reich was officially hired as Jets offensive coordinator on February 4, 2026, replacing fired OC Tanner Engstrand, per Jets official site, ESPN, NFL.com, and Fox Sports."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Reich was hired in February 2026 (the 2026 offseason), making 2026 his first year (Year 1) as OC with the Jets."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Reich has no prior history with the Jets as a coach; hired February 4, 2026 — first year with this team."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Only the OC is new in the 2026 offseason (Frank Reich hired Feb 2026); HC Aaron Glenn is in Year 2 and GM Darren Mougey is also in Year 2, neither being a new hire this offseason."
+      },
+      "source_urls": [
+        "https://www.newyorkjets.com/news/frank-reich-jets-offensive-coordinator-02-04-2026",
+        "https://www.espn.com/nfl/story/_/id/47825789/jets-hire-frank-reich-offensive-coordinator",
+        "https://www.nfl.com/news/frank-reich-jets-hire-offensive-coordinator-former-colts-panthers-head-coach",
+        "https://www.newyorkjets.com/news/jets-offensive-assistant-coaches-announcement-02-10-2026",
+        "https://www.espn.com/nfl/story/_/id/47899429/new-york-jets-aaron-glenn-coaching-staff-changes-offseason",
+        "https://en.wikipedia.org/wiki/Aaron_Glenn",
+        "https://www.newyorkjets.com/team/coaches-roster/aaron-glenn",
+        "https://en.wikipedia.org/wiki/2026_New_York_Jets_season",
+        "https://jetsxfactor.com/2026/04/03/new-york-jets-2026-offseason-schedule/",
+        "https://www.newyorkjets.com/news/jets-general-manager-darren-mougey-jets-will-take-aggressive-approach-offseason-01-06-2026"
+      ],
+      "source_paragraphs": [
+        "Jets hire Frank Reich as OC (newyorkjets.com, Feb 4 2026): 'Most recently an adviser with Stanford University football, Reich was the Cardinal's interim head coach during the 2025 season...'",
+        "ESPN staff overhaul story (Feb 15 2026): 'Twelve of the 22 coaches on his initial staff are gone, including...offensive coordinator Tanner Engstrand -- an unusually high turnover for one year.'",
+        "Wikipedia / Aaron Glenn bio: 'On January 22, 2025, Glenn was hired as the head coach of the New York Jets.' Prior role: defensive coordinator for Detroit Lions (2021–24).",
+        "2026 NYJ season Wikipedia: 'The 2026 season will be the New York Jets' 57th in the National Football League...their second under general manager Darren Mougey and head coach Aaron Glenn.'"
+      ],
+      "extraction_notes": "Reich is the named OC and confirmed playcaller on offense; Glenn handles defensive play-calling per ESPN. No OC-by-committee situation. GM Darren Mougey was hired before the 2025 season (not new in 2026). Scheme tag 'pro_style' is medium confidence — Reich's system is historically balanced/pro-style (Colts, Chargers, Eagles lineage) but his exact 2026 scheme identity with the Jets is still being established at OTAs. Frank Reich's prior HC tenures (Colts, Panthers) confirm no specific Shanahan/McVay/Reid/air-raid tree."
+    },
+    "PHI": {
+      "extracted_at": "2026-05-27T20:35:18.593Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Sean Mannion's coaching roots come directly from the LaFleur/McVay/Kyle Shanahan ecosystem; he spent 2024-25 in Green Bay under Matt LaFleur and played under Sean McVay and Kevin O'Connell, bringing wide-zone, play-action, motion-heavy Shanahan-tree offense to Philadelphia."
+      },
+      "hc_id": {
+        "value": "nick-sirianni",
+        "confidence": "high",
+        "rationale": "Nick Sirianni is confirmed as Eagles head coach entering his sixth season (2026) per the team's official site and Wikipedia."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Sirianni's first-ever NFL head coaching job was with the Eagles in 2021; no prior HC seat at any level."
+      },
+      "hc_tenure_yrs": {
+        "value": 6,
+        "confidence": "high",
+        "rationale": "Sirianni was hired January 24, 2021 (Year 1 = 2021 season); 2026 season = Year 6."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Sirianni served as offensive coordinator of the Indianapolis Colts from 2018-2020 immediately before being hired as Eagles HC in January 2021."
+      },
+      "oc_id": {
+        "value": "sean-mannion",
+        "confidence": "high",
+        "rationale": "Sean Mannion was officially announced as Eagles offensive coordinator on January 29, 2026, replacing Kevin Patullo."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Mannion was hired in the 2026 offseason (January 29, 2026); 2026 season is Year 1 with the Eagles."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Mannion came from the Green Bay Packers (QBs coach) and has never previously been on the Eagles staff; 2026 is his first year with the team."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Only the OC is new this offseason (Mannion hired Jan 2026). HC Sirianni is returning for Year 6 and GM Howie Roseman is retained; no new HC or GM hire in the 2026 offseason."
+      },
+      "source_urls": [
+        "https://www.philadelphiaeagles.com/news/eagles-sean-mannion-offensive-coordinator-hire",
+        "https://en.wikipedia.org/wiki/2026_Philadelphia_Eagles_season",
+        "https://www.nbcsportsphiladelphia.com/nfl/philadelphia-eagles/coaching-staff-2026-nick-sirianni-jerrod-johnson-promotions-new-hires/720309/",
+        "https://www.nfl.com/news/eagles-hire-packers-qbs-coach-sean-mannion-as-new-offensive-coordinator",
+        "https://www.bleedinggreennation.com/philadelphia-eagles-analysis/169919/10-quick-thoughts-on-new-eagles-offensive-coordinator-sean-mannion",
+        "https://www.nbcsportsphiladelphia.com/nfl/philadelphia-eagles/sean-mannion-ready-eagles-offensive-coordinator-play-caller-2026-season-otas-green-bay/734275/",
+        "https://en.wikipedia.org/wiki/Nick_Sirianni",
+        "https://www.philadelphiaeagles.com/team/coaches/nick-sirianni",
+        "https://www.inquirer.com/eagles/adam-berry-assistant-general-manager-alec-halaby-20260506.html"
+      ],
+      "source_paragraphs": [
+        "'Mannion has a great deal of experience in the Shanahan offense both from his playing days and in his time working in Green Bay.' (philadelphiaeagles.com, Jan 29 2026)",
+        "'Mannion's coaching roots and football education come from the Sean McVay, Matt LaFleur, Kyle Shanahan ecosystem, not the Sirianni tree.' (bleedinggreennation.com, Jan 30 2026)",
+        "'On January 13, 2026, the Eagles parted ways with offensive coordinator Kevin Patullo... On January 29, Sean Mannion was named the team's new offensive coordinator, marking the team's fifth consecutive year with a new offensive coordinator.' (Wikipedia, 2026 PHI season)",
+        "'Sirianni previously served as an offensive coordinator for the Indianapolis Colts from 2018 to 2020.' (Wikipedia, Nick Sirianni)"
+      ],
+      "extraction_notes": "OC Sean Mannion is brand new — former GB Packers QBs coach with only 2 years of coaching experience total; this is his first OC role. The scheme pivot to Shanahan/LaFleur/McVay tree is a significant change from prior Eagles offenses. GM Howie Roseman is confirmed retained (no new GM). No co-OC situation; Mannion is sole play-caller. Josh Grizzard was hired as pass-game coordinator under Mannion (former Bucs OC), but Mannion is the named OC and play-caller."
+    },
+    "PIT": {
+      "extracted_at": "2026-05-27T20:36:01.934Z",
+      "scheme_tag": {
+        "value": "west_coast",
+        "confidence": "high",
+        "rationale": "McCarthy explicitly states 'I'm a believer in the tradition of the West Coast offense,' and multiple beat writers describe his scheme as a West Coast offense built around quarterback timing, rhythm routes, and the run-pass action game — consistent with his Green Bay and Dallas tenures."
+      },
+      "hc_id": {
+        "value": "mike-mccarthy",
+        "confidence": "high",
+        "rationale": "McCarthy was officially introduced as Pittsburgh's 17th head coach on January 27, 2026, per Steelers.com."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "McCarthy has 18 seasons of prior NFL head coaching experience with the Green Bay Packers (2006-18) and Dallas Cowboys (2020-24)."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "McCarthy was hired in January 2026; 2026 is his first year (Year 1) with Pittsburgh."
+      },
+      "hc_background_tag": {
+        "value": "other",
+        "confidence": "high",
+        "rationale": "McCarthy's immediately prior role was HC of the Dallas Cowboys (2020-24), making his background a prior NFL HC seat — coded 'other' per the rules."
+      },
+      "oc_id": {
+        "value": "brian-angelichio",
+        "confidence": "high",
+        "rationale": "Brian Angelichio was hired as offensive coordinator and is listed as OC on Steelers.com and Pro-Football-Reference. Note: McCarthy calls the plays himself per multiple sources; Angelichio holds the OC title but is not the play-caller."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Angelichio was hired to Pittsburgh in the 2026 offseason (February 2026); 2026 is Year 1 with this team."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Steelers.com explicitly states 'Brian Angelichio is in his first season as the Steelers' offensive coordinator in 2026,' having previously been TE/PGC with Minnesota Vikings."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "New HC (McCarthy, hired Jan 2026) = +1; New OC (Angelichio, hired Feb 2026) = +1; GM Omar Khan is NOT new (entered his 5th year in 2026) = +0. Total = 2."
+      },
+      "source_urls": [
+        "https://www.steelers.com/news/steelers-complete-2026-coaching-staff",
+        "https://www.steelers.com/team/coaches-roster/",
+        "https://www.steelers.com/news/mccarthy-named-17th-head-coach-in-steelers-history",
+        "https://www.pro-football-reference.com/teams/pit/2026.htm",
+        "https://sports.yahoo.com/articles/mike-mccarthy-tailor-offense-pittsburgh-160005559.html",
+        "https://www.steelers.com/news/mccarthy-outlines-vision-for-offense-defense-in-pittsburgh",
+        "https://www.steelernation.com/2026/04/29/steelers-new-upgraded-coaching-staff",
+        "https://www.steelcurtainnetwork.com/steelers-announce-full-2026-coaching-staff/",
+        "https://en.wikipedia.org/wiki/2026_Pittsburgh_Steelers_season"
+      ],
+      "source_paragraphs": [
+        "\"Brian Angelichio is in his first season as the Steelers' offensive coordinator in 2026. He most recently served as the tight ends coach/passing game coordinator for the Minnesota Vikings for four years.\" — Steelers.com coaches roster",
+        "\"The Steelers made it official on Tuesday, January 27, 2026, introducing Mike McCarthy as their 17th head coach in team history.\" — Steelers.com",
+        "\"McCarthy confirmed he'll call the plays for the Steelers\" and \"'I'm a believer in the tradition of the West Coast offense'\" — Steelers.com press conference recap",
+        "\"The 2026 season will be the Pittsburgh [Steelers'] ... their fifth under general manager Omar Khan, and their first under new head coach Mike McCarthy.\" — Wikipedia 2026 Pittsburgh Steelers season"
+      ],
+      "extraction_notes": "PLAY-CALLER NOTE: McCarthy explicitly confirmed he will call plays himself (Steelers.com, steelernation.com). Brian Angelichio holds the OC title but is NOT the play-caller; oc_id is coded as brian-angelichio (the named OC) per coding rules. SCHEME: McCarthy self-identifies as a 'West Coast offense believer' with rhythm/timing/run-action philosophy; coded west_coast. GM: Omar Khan is in Year 5 (hired 2022); not new in 2026. All of Tomlin's prior staff was released and the entire coaching staff is new in 2026."
+    },
+    "SEA": {
+      "extracted_at": "2026-05-27T20:37:33.879Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Brian Fleury spent 7 seasons under Kyle Shanahan with the 49ers; he explicitly stated the 2026 Seahawks offense 'looks very similar' to Kubiak's Super Bowl-winning scheme, which itself was drawn from the Shanahan wide-zone/West-Coast tree."
+      },
+      "hc_id": {
+        "value": "mike-macdonald",
+        "confidence": "high",
+        "rationale": "Mike Macdonald was named the ninth head coach in Seahawks history on January 31, 2024, confirmed by seahawks.com and Wikipedia's 2026 season page."
+      },
+      "hc_first_time_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Macdonald came directly from the Ravens DC role; 2024 was his first-ever NFL head coaching job (not interim)."
+      },
+      "hc_tenure_yrs": {
+        "value": 3,
+        "confidence": "high",
+        "rationale": "Hired before the 2024 season (Year 1=2024, Year 2=2025, Year 3=2026). Wikipedia confirms 2026 is 'their third under head coach Mike Macdonald'."
+      },
+      "hc_background_tag": {
+        "value": "defensive_coordinator",
+        "confidence": "high",
+        "rationale": "Multiple sources confirm Macdonald was the Baltimore Ravens' defensive coordinator immediately before being hired by Seattle."
+      },
+      "oc_id": {
+        "value": "brian-fleury",
+        "confidence": "high",
+        "rationale": "Brian Fleury was officially hired as Seahawks OC on February 19, 2026, confirmed by seahawks.com, ESPN, NBC Sports, and multiple beat writers."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Fleury was hired in the 2026 offseason (Feb 19, 2026); 2026 is his first season with Seattle, so Year 1."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Fleury joined Seattle from the 49ers in February 2026; this is his first year with the Seahawks."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Only the OC (Brian Fleury) is new in the 2026 offseason. HC Mike Macdonald is in Year 3 (not new). GM John Schneider is a long-tenured incumbent with no offseason change."
+      },
+      "source_urls": [
+        "https://www.seahawks.com/news/seattle-seahawks-finalize-2026-coaching-staff (April 13, 2026)",
+        "https://www.seahawks.com/news/seahawks-hire-offensive-coordinator-brian-fleury (February 19, 2026)",
+        "https://www.espn.com/nfl/story/_/id/47941623/sources-seahawks-expected-hire-49ers-brian-fleury-oc (February 15, 2026)",
+        "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/seahawks-announce-2026-coaching-staff (March 13, 2026)",
+        "https://sports.mynorthwest.com/nfl/seattle-seahawks/seattle-seahawks-coaching-staff-2026-what-we-know/1840339 (February 26, 2026)",
+        "https://www.fieldgulls.com/seattle-seahawks-coaching-staff/164607/seattle-seahawks-finalize-coaching-staff-nfl-2026 (March 13, 2026)",
+        "https://www.fox13seattle.com/sports/macdonald-decision-trust-fleury-new-seahawks-coordinator (February 20, 2026)",
+        "https://en.wikipedia.org/wiki/2026_Seattle_Seahawks_season",
+        "https://en.wikipedia.org/wiki/Brian_Fleury",
+        "https://www.yakimaherald.com/sports/professional_sports/seahawks/seahawks-introduce-new-offensive-coordinator-brian-fleury (February 20, 2026)"
+      ],
+      "source_paragraphs": [
+        "'While Seahawks coach Mike Macdonald was able to keep most of his Super Bowl winning coaching staff intact for 2026, there were several changes this offseason, most notably the hire of Brian Fleury as offensive coordinator.' — seahawks.com, April 13, 2026",
+        "'Fleury, who first joined Kyle Shanahan's coaching staff in 2019, is well versed in the version of the West Coast offense that Kubiak led in Seattle, one that stems from the offenses run by the previous generation of Shanahans and Kubiaks.' — seahawks.com OC hire announcement, Feb 19, 2026",
+        "'The 2026 season will be the Seattle Seahawks' 51st in the National Football League (NFL), their 17th under the leadership of general manager John Schneider and their third under head coach Mike Macdonald.' — Wikipedia, 2026 Seattle Seahawks season",
+        "'Like Kubiak, Fleury comes to Seattle well-versed in the system Kyle Shanahan runs with the 49ers, a scheme Kubiak cribbed liberally from this year in guiding the Seahawks to a team record in points (483) and a Super Bowl win.' — Yakima Herald, Feb 20, 2026"
+      ],
+      "extraction_notes": "Seahawks won Super Bowl LX in the 2025 season under Macdonald. OC Klint Kubiak left to become Raiders HC; Brian Fleury (ex-49ers TE coach/run game coordinator under Kyle Shanahan) was hired Feb 19, 2026 as replacement. GM John Schneider is unchanged (17th year). Scheme is unambiguously Shanahan-tree: both Kubiak and Fleury come from Shanahan's SF staff. Fleury is a first-time OC (never called offensive plays before). hc_first_time_flag=true because 2024 was Macdonald's first HC role ever. No new GM in 2026 offseason. staff_novelty_composite=1 (only new OC counts)."
+    },
+    "SF": {
+      "extracted_at": "2026-05-27T20:38:19.411Z",
+      "scheme_tag": {
+        "value": "shanahan",
+        "confidence": "high",
+        "rationale": "Kyle Shanahan IS the Shanahan tree — wide/outside zone run-heavy, play-action boot-leg passing scheme that defines this tag."
+      },
+      "hc_id": {
+        "value": "kyle-shanahan",
+        "confidence": "high",
+        "rationale": "Official 49ers site and Pro-Football-Reference confirm Kyle Shanahan as head coach for the 2026 season."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Shanahan was hired as 49ers HC on Feb 6, 2017; he is in his 10th season as an NFL head coach."
+      },
+      "hc_tenure_yrs": {
+        "value": 10,
+        "confidence": "high",
+        "rationale": "Shanahan hired Feb 2017 (Year 1 = 2017 season); 2026 is his 10th season."
+      },
+      "hc_background_tag": {
+        "value": "offensive_coordinator",
+        "confidence": "high",
+        "rationale": "Shanahan was OC for the Atlanta Falcons (2015-16) immediately before being named 49ers HC in February 2017."
+      },
+      "oc_id": {
+        "value": "klay-kubiak",
+        "confidence": "high",
+        "rationale": "Official 49ers.com roster page and Pro-Football-Reference list Klay Kubiak as offensive coordinator for 2026."
+      },
+      "oc_tenure_yrs": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "Kubiak was promoted to OC before the 2025 season (Feb 2025 per ESPN); 2025 = Year 1, 2026 = Year 2. He confirmed he will return for 2026 in January 2026."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Kubiak has been with the 49ers since 2021 (DQC → asst QB coach → passing game specialist → OC); his fifth season with the team in 2026."
+      },
+      "staff_novelty_composite": {
+        "value": 0,
+        "confidence": "high",
+        "rationale": "No new HC (Shanahan retained), no new OC (Kubiak retained from 2025), no new GM (John Lynch continues) in the 2026 offseason."
+      },
+      "source_urls": [
+        "https://www.49ers.com/team/coaches-roster/",
+        "https://www.pro-football-reference.com/teams/sfo/2026.htm",
+        "https://www.espn.com/nfl/story/_/id/44015081/klay-kubiak-promoted-offensive-coordinator-49ers",
+        "https://sports.yahoo.com/articles/49ers-klay-kubiak-removes-himself-185853998.html",
+        "https://www.profootballrumors.com/2026/04/49ers-finalize-2026-coaching-staff",
+        "https://www.49ers.com/news/49ers-announce-coaching-staff-moves-raheem-morris-matt-eberflus-roman-sapolu",
+        "https://sports.yahoo.com/articles/49ers-officially-announce-13-changes-180835830.html",
+        "https://49erscap.com/index.php/49ers-staff/"
+      ],
+      "source_paragraphs": [
+        "\"Klay Kubiak is in his fifth season with the 49ers and first as the team's offensive coordinator.\" — 49ers.com coaches roster (2026)",
+        "\"Kubiak, 37, joined the 49ers staff in 2021 as defensive quality control coach and took over as offensive coordinator in 2025.\" — Yahoo Sports / Niners Wire, Jan 24 2026",
+        "\"The 49ers made a number of coaching changes this offseason with defensive coordinator Robert Saleh accepting the Titans' head coaching job.\" — Pro Football Rumors, Apr 9 2026",
+        "Pro-Football-Reference 2026 49ers page: \"Coach: Kyle Shanahan | Offensive Coordinator: Klay Kubiak | Defensive Coordinator: Raheem Morris | GM: John Lynch\""
+      ],
+      "extraction_notes": "Kyle Shanahan calls offensive plays himself despite Kubiak holding the OC title — per ESPN: \"But Shanahan will continue as San Francisco's offensive playcaller.\" oc_id is coded as klay-kubiak (the named OC), not the HC, since Kubiak holds the formal OC title. New DC Raheem Morris was hired in 2026 offseason but DC is not counted in the staff_novelty_composite (which tracks HC, OC, GM only). Klay Kubiak's OC promotion was officially made before the 2025 season (ESPN article dated Feb 2025), so 2025 = Year 1, 2026 = Year 2 as OC; NOT a 2026-offseason hire."
+    },
+    "TB": {
+      "extracted_at": "2026-05-27T20:38:59.573Z",
+      "scheme_tag": {
+        "value": "mcvay",
+        "confidence": "high",
+        "rationale": "Zac Robinson is a direct product of Sean McVay's Rams staff (2019–2023), and multiple sources explicitly describe him as bringing 'a background in Sean McVay's Los Angeles Rams system' to Tampa Bay."
+      },
+      "hc_id": {
+        "value": "todd-bowles",
+        "confidence": "high",
+        "rationale": "Todd Bowles is confirmed as entering his fifth season as Buccaneers HC in 2026 per the official team roster page."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Bowles was previously the head coach of the New York Jets from 2015–2018, making this his second NFL HC stint."
+      },
+      "hc_tenure_yrs": {
+        "value": 5,
+        "confidence": "high",
+        "rationale": "Bowles was named Buccaneers HC on March 30, 2022; 2022=Y1, 2023=Y2, 2024=Y3, 2025=Y4, 2026=Y5. Confirmed by buccaneers.com 'enters his fifth season.'"
+      },
+      "hc_background_tag": {
+        "value": "defensive_coordinator",
+        "confidence": "high",
+        "rationale": "Bowles served as the Buccaneers' defensive coordinator from 2019–2021 immediately before being promoted to head coach in March 2022."
+      },
+      "oc_id": {
+        "value": "zac-robinson",
+        "confidence": "high",
+        "rationale": "Zac Robinson was officially hired as Buccaneers OC on January 22, 2026, confirmed by both buccaneers.com and NFL.com."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Robinson was hired in January 2026; 2026 is Year 1 with Tampa Bay."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Robinson's official team bio states he 'enters his first season as offensive coordinator with the Tampa Bay Buccaneers in 2026.'"
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Only the OC changed in the 2026 offseason (Zac Robinson hired Jan 2026, replacing fired Josh Grizzard). HC Todd Bowles was retained and GM Jason Licht has been in place since 2014."
+      },
+      "source_urls": [
+        "https://www.buccaneers.com/news/zac-robinson-hired-bucs-offensive-coordinator",
+        "https://www.buccaneers.com/team/coaches-roster/zac-robinson",
+        "https://www.buccaneers.com/team/coaches-roster/todd-bowles",
+        "https://www.buccaneers.com/news/buccaneers-make-changes-2026-coaching-staff",
+        "https://www.buccaneers.com/news/bucs-announce-additions-2026-coaching-staff",
+        "https://www.nfl.com/news/buccaneers-hire-zac-robinson-as-new-offensive-coordinator",
+        "https://en.wikipedia.org/wiki/Zac_Robinson",
+        "https://en.wikipedia.org/wiki/Todd_Bowles",
+        "https://www.espn.com/nfl/story/_/id/48506889/tampa-bay-buccaneers-gm-jason-licht-important-nfl-draft-2026",
+        "https://en.wikipedia.org/wiki/2026_Tampa_Bay_Buccaneers_season",
+        "https://www.pewterreport.com/zac-robinson-bucs-rams-blueprint-tampa-bay/"
+      ],
+      "source_paragraphs": [
+        "Robinson brings a background in Sean McVay's Los Angeles Rams system, a strong relationship with quarterback Baker Mayfield and two prolific seasons with the Falcons to his new post in Tampa. (buccaneers.com, Jan 24 2026)",
+        "Zac Robinson enters his first season as offensive coordinator with the Tampa Bay Buccaneers in 2026. (buccaneers.com team roster page)",
+        "Todd Bowles enters his fifth season as head coach of the Tampa Bay Buccaneers following his three seasons as the team's defensive coordinator from 2019-21. (buccaneers.com team roster page)",
+        "The 2026 season will be the Tampa Bay Buccaneers' 51st in the National Football League (NFL), their 13th under the leadership of general manager Jason Licht... their fifth under head coach Todd Bowles. (Wikipedia, 2026 TB Buccaneers season)"
+      ],
+      "extraction_notes": "Todd Bowles also serves as the defensive play-caller himself (no separate DC named), per ESPN/NFL.com sourcing. Zac Robinson handles offensive play-calling duties. GM Jason Licht has been with the team since 2014 — no GM change. Robinson is a McVay-tree OC: spent 2019–2023 with the Rams under McVay before two years as Falcons OC. Multiple sources (buccaneers.com, pewterreport.com, sportstalkflorida.com) explicitly describe him bringing 'McVay system' to Tampa. The scheme_tag 'mcvay' fits cleanly. Prior OC Josh Grizzard was fired January 8, 2026. Interim partial seasons (Bowles was 2-1 interim HC with Dolphins in 2011) not counted for hc_first_time_flag."
+    },
+    "TEN": {
+      "extracted_at": "2026-05-27T20:39:49.347Z",
+      "scheme_tag": {
+        "value": "erhardt_perkins",
+        "confidence": "high",
+        "rationale": "ESPN and multiple beat sources explicitly identify Daboll's system as Erhardt-Perkins (concept-based passing, run-to-set-up-pass), rooted in his Belichick/Patriots apprenticeship (2000-06, 2013-16)."
+      },
+      "hc_id": {
+        "value": "robert-saleh",
+        "confidence": "high",
+        "rationale": "Officially hired January 22, 2026 per Titans official site, NFL.com, ESPN, and Wikipedia."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Saleh previously served as Jets HC from 2021 through October 2024; this Tennessee role is his second NFL HC appointment."
+      },
+      "hc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Hired January 2026 (2026 offseason); 2026 season counts as Year 1."
+      },
+      "hc_background_tag": {
+        "value": "defensive_coordinator",
+        "confidence": "high",
+        "rationale": "Immediately before Titans hire, Saleh was San Francisco 49ers defensive coordinator in 2025 (his second DC stint there)."
+      },
+      "oc_id": {
+        "value": "brian-daboll",
+        "confidence": "high",
+        "rationale": "Officially announced January 27, 2026 as Titans OC; confirmed by official Titans site, NFL.com, ESPN, and Wikipedia."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Hired January 2026; 2026 season is his first year with Tennessee."
+      },
+      "oc_first_year_with_team_flag": {
+        "value": true,
+        "confidence": "high",
+        "rationale": "Daboll was previously NYG head coach (2022-25); 2026 is his first year as a Titan."
+      },
+      "staff_novelty_composite": {
+        "value": 2,
+        "confidence": "high",
+        "rationale": "New HC (Saleh, Jan 2026) = +1; New OC (Daboll, Jan 2026) = +1; GM Mike Borgonzi was hired in January 2025 (not the 2026 offseason) = +0. Total = 2."
+      },
+      "source_urls": [
+        "https://www.tennesseetitans.com/news/titans-finalize-coaching-staff-under-robert-saleh",
+        "https://en.wikipedia.org/wiki/2026_Tennessee_Titans_season",
+        "https://www.nfl.com/news/titans-expected-to-hire-49ers-defensive-coordinator-robert-saleh-as-head-coach",
+        "https://www.tennesseetitans.com/news/titans-hire-brian-daboll-as-offensive-coordinator",
+        "https://www.nfl.com/news/titans-hire-brian-daboll-offensive-coordinator",
+        "https://www.espn.com/nfl/story/_/id/47744971/sources-titans-set-hire-ex-giants-hc-brian-daboll-oc",
+        "https://www.espn.com/nfl/story/_/id/47768122/tennessee-titans-robert-saleh-hopeful-offense-came-ward-brian-daboll",
+        "https://en.wikipedia.org/wiki/Robert_Saleh",
+        "https://en.wikipedia.org/wiki/Brian_Daboll",
+        "https://www.tennesseetitans.com/news/it-s-official-titans-hire-robert-saleh-as-team-s-new-head-coach",
+        "https://atozsports.com/nfl/tennessee-titans-news/its-going-to-be-different-robert-saleh-explains-brian-daboll-titans-zig-rest-nfl-zags/",
+        "https://www.wsmv.com/2026/02/04/tennessee-titans-new-coaching-staff-takes-shape-shows-experience/",
+        "https://lastwordonsports.com/nfl/2026/05/26/titans-front-office-refreshed/"
+      ],
+      "source_paragraphs": [
+        "\"On January 22, 2026, Saleh was hired by the Tennessee Titans to be their head coach.\" (Wikipedia/Robert Saleh, Apr 2026)",
+        "\"On January 27, 2026, the Titans hired former New York Giants head coach Brian Daboll to be the team's offensive coordinator.\" (Wikipedia/2026 TEN season)",
+        "\"Daboll's time under Belichick and Charlie Weis with the New England Patriots helped him learn the Erhardt-Perkins system, which employs a concept-based passing scheme and runs to set up the pass.\" (ESPN, Jan 27 2026)",
+        "\"The 2026 season is the Tennessee Titans' second under general manager Mike Borgonzi, and their first under head coach Robert Saleh.\" (Wikipedia/2026 TEN season)"
+      ],
+      "extraction_notes": "Saleh is a retread HC (previously Jets 2021-24), so hc_first_time_flag=false. Immediately before Titans, he was SF 49ers DC in 2025. Daboll was NYG HC 2022-25, then hired as Titans OC Jan 27, 2026 — his prior role was HC, not OC; hc_background_tag for Daboll is irrelevant (he is OC). GM Borgonzi was hired January 2025 (before the 2025 season) and is in Year 2 with the team in 2026 — he does NOT count as a new 2026-offseason hire. The scheme_tag 'erhardt_perkins' is well-supported: ESPN and AtoZ Sports both explicitly name the Erhardt-Perkins system as Daboll's offensive identity, rooted in his long Belichick/Patriots apprenticeship. Staff novelty = 2 (new HC + new OC; no new GM)."
+    },
+    "WAS": {
+      "extracted_at": "2026-05-27T20:40:41.912Z",
+      "scheme_tag": {
+        "value": "pro_style",
+        "confidence": "medium",
+        "rationale": "Blough explicitly committed to moving Daniels under center more (Washington was dead last in under-center snaps in 2025), installing play-action and run-game-heavy concepts, drawing from Ben Johnson/Shanahan-style motion offense — a deliberate pivot away from Kingsbury's pure shotgun spread. No single clean tree (Ben Johnson, Shanahan, Kingsbury influences all cited), but the under-center, balanced run/pass, play-action framing fits pro_style best."
+      },
+      "hc_id": {
+        "value": "dan-quinn",
+        "confidence": "high",
+        "rationale": "Dan Quinn was hired as the 31st head coach in franchise history on February 3, 2024, per commanders.com official announcement."
+      },
+      "hc_first_time_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Quinn previously served as HC of the Atlanta Falcons from 2015-2020, making Washington his second NFL head coaching job."
+      },
+      "hc_tenure_yrs": {
+        "value": 3,
+        "confidence": "high",
+        "rationale": "Quinn hired before 2024 season (Year 1 = 2024, Year 2 = 2025, Year 3 = 2026). Wikipedia confirms 2026 is the third season under Quinn and GM Adam Peters."
+      },
+      "hc_background_tag": {
+        "value": "other",
+        "confidence": "high",
+        "rationale": "Quinn is a retread HC; per coding rules, prior NFL HC seat = 'other'. He came to Washington from the Dallas Cowboys DC role, but he had already been an NFL head coach (Falcons 2015-2020), so 'other' applies."
+      },
+      "oc_id": {
+        "value": "david-blough",
+        "confidence": "high",
+        "rationale": "David Blough was officially named offensive coordinator on January 10, 2026, per commanders.com press release, promoted from assistant quarterbacks coach."
+      },
+      "oc_tenure_yrs": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Blough was promoted to OC in the 2026 offseason (January 10, 2026). 2026 is Year 1 in the OC role. (He was with the org since 2024 as asst QB coach, but this is his first year as OC.)"
+      },
+      "oc_first_year_with_team_flag": {
+        "value": false,
+        "confidence": "high",
+        "rationale": "Blough joined Washington as assistant QB coach in February 2024, so 2026 is his third season with the organization, not his first. He is new to the OC title but NOT new to this team."
+      },
+      "staff_novelty_composite": {
+        "value": 1,
+        "confidence": "high",
+        "rationale": "Counting only {new HC, new OC, new GM}: HC Quinn is not new (Year 3); OC Blough was promoted in January 2026 = new OC (+1); GM Adam Peters is not new (Year 3, hired 2024). Composite = 1. Note: DC Daronte Jones was also new but DC is not part of the three-field composite."
+      },
+      "source_urls": [
+        "https://www.commanders.com/news/commanders-name-david-blough-offensive-coordinator",
+        "https://www.commanders.com/team/coaches-roster/",
+        "https://en.wikipedia.org/wiki/2026_Washington_Commanders_season",
+        "https://en.wikipedia.org/wiki/Dan_Quinn_(American_football)",
+        "https://en.wikipedia.org/wiki/David_Blough",
+        "https://www.espn.com/nfl/story/_/id/39569707/how-washington-commanders-hired-dan-quinn-head-coach",
+        "https://www.hogshaven.com/washington-commanders-news/397685/washington-commanders-2026-coaching-search",
+        "https://roundtable.io/sports/nfl/commanders/news/commanders-announce-several-additions-to-2026-coaching-staff",
+        "https://www.commanders.com/news/david-blough-builds-commanders-playbook",
+        "https://riggosrag.com/david-blough-just-made-his-bold-plans-for-commanders-offense-crystal-clear"
+      ],
+      "source_paragraphs": [
+        "Commanders.com (Jan 10, 2026): 'The Washington Commanders announced today they have named David Blough as the team's offensive coordinator. Blough is entering his third season with the organization.'",
+        "Wikipedia, 2026 WAS season: 'The 2026 season is the Washington Commanders' 95th...their third under the tandem of general manager Adam Peters and head coach Dan Quinn...Assistant quarterbacks coach David Blough was promoted to offensive coordinator and former Minnesota Vikings defensive pass game coordinator Daronte Jones was hired as defensive coordinator.'",
+        "Commanders.com playbook article (Feb 2026): 'Daniels will be under center more often in 2026...a stark contrast to how Daniels has operated over the last two seasons. The Commanders had a firm hold on last place in terms of snaps under center.'",
+        "ESPN (Feb 2024): 'Four years after being fired as the Atlanta Falcons head coach, and following a successful stint as Dallas Cowboys defensive coordinator from 2021 to 2023, Quinn believed the time was right to have a team of his own again.'"
+      ],
+      "extraction_notes": "Blough is an internal promotion (3rd year with org, 1st as OC), so oc_first_year_with_team_flag = false. Scheme is a deliberate pivot away from Kingsbury's shotgun-heavy air_raid to a more under-center, play-action, run-balanced system drawing from Ben Johnson / Shanahan / McVay influences — coded as pro_style given the explicit under-center emphasis, though some 'shanahan' concepts are present. hc_background_tag = 'other' because Quinn is a retread HC per coding rules. No new GM in 2026 offseason; Adam Peters is in Year 3. DC Daronte Jones is also new (hired Jan 2026, ex-Vikings) but that doesn't affect the three-field composite. Source profootballnews.net article appears AI-generated; primary sources (commanders.com, Wikipedia, ESPN, Hogs Haven, roundtable.io) are consistent and reliable."
+    }
+  }
+}

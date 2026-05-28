@@ -49,3 +49,8 @@ next-env.d.ts
 /.private/
 
 cohort.json
+
+# nflverse fetched CSVs (cached during derive-team-metrics.ts runs;
+# large, regeneratable, license requires attribution at the surface, not
+# repo-resident copy)
+/data/.cache/
