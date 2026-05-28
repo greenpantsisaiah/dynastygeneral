@@ -27,12 +27,43 @@
  *      band). The market expects year-1 production.
  *
  * When none trigger, the player is a genuine dev stash and taxi_advisable
- * mirrors taxi_eligible. Pure function; no fetch. Registered as the
- * canonical taxi-advisability read. Locked by evals/taxi-advisable.test.ts.
+ * mirrors taxi_eligible. Pure function; no fetch. Locked by
+ * evals/taxi-advisable.test.ts.
+ *
+ * ── INTERIM: TRACKED FORKED BUILD (converge in Phase D) ──────────────
+ * This is a KNOWN architectural exception, logged as C4a in
+ * MODEL_LIVE_PLAN.md. It deliberately reaches into raw opportunity +
+ * redraft ADP and applies ABSOLUTE thresholds, which violates two
+ * invariants: (1) the evaluation-engine contract "NO consumer reaches
+ * into raw signals; read EvaluationOutput" (src/lib/engine/evaluation),
+ * and (2) the roster-fit "rank-based, not absolute thresholds /
+ * no-hardcoded-number" rule (src/lib/engine/roster-fit.ts).
+ *
+ * Why it exists anyway: evaluate() cannot make the "near-term contributor"
+ * call yet (the player_signals opportunity columns it would read are 0%
+ * populated, per the Phase A4 truth audit), and the canonical startable
+ * tier is dynasty-VALUE ranked, so it misses low-value-but-ascending
+ * players like the Higgins case this signal exists to catch.
+ *
+ * CONVERGENCE CONTRACT: when Phase D adds a near-term contributor / year-1
+ * role signal to EvaluationOutput (working name `near_term_role`), delete
+ * the three thresholds below and have assessTaxiAdvisable consume that
+ * field (via EnrichedPlayer), so board + Coach + taxi share ONE
+ * "contributor this year" projection. Fail-loud tracked by
+ * evals/taxi-advisable-convergence.test.ts, which breaks CI the moment
+ * that field lands. The INTERIM-MARKER string below is asserted by that
+ * test; do not remove it without converging the consumer.
+ *
+ * INTERIM-MARKER: taxi-advisable-forked-build-C4a
  */
 
 import type { OpportunityProfile } from "@/lib/players/season-stats";
 import { readOpportunity } from "@/lib/players/opportunity-read";
+
+// INTERIM ABSOLUTE THRESHOLDS (see C4a above). These three constants are
+// the forked-build's hardcoded numbers. They are slated for deletion when
+// the near-term-contributor signal moves into evaluate(); until then they
+// are the deliberate, tracked exception to the no-hardcoded-number rule.
 
 // A 50%+ snap share last season is a real, startable role: the player was
 // on the field for most of his team's offensive snaps. Below that is a
