@@ -42,9 +42,7 @@ import {
   resolveInflections,
   type InflectionContext,
 } from "./inflection";
-import {
-  buildInflectionInputsFromHumanPlayer,
-} from "./inflection/build-inputs";
+import { resolveEnrichedPlayers } from "@/lib/players/enriched-player";
 import {
   analyzeLeagueRead,
   analyzeOpponentPickQuality,
@@ -260,37 +258,35 @@ export async function assembleContext(
     };
   }
 
-  // Inflection-window resolution for the user's roster. We pre-group
-  // ALL rostered players (across the league) by team+position so the
-  // successor / position-room saturation signals can fire correctly
-  // (a rookie RB on the user's team that displaces the veteran lives
-  // on the same NFL team but may not be on the user's roster).
+  // Inflection-window resolution for the user's roster. Routed through
+  // the canonical EnrichedPlayer resolver so this path consumes the
+  // same inflection_inputs build the hub does (closing the audit's
+  // Leak 4: the prior call passed only 2 args, leaving the other 8
+  // optional inflection inputs as null even when the underlying maps
+  // existed). Roster context = every rostered human across the league
+  // so the successor / position-room signals fire when a displacing
+  // rookie sits on a different fantasy roster.
   const allRosteredHumans = [...allIds]
     .map((id) => playersMap.get(id))
     .filter((p): p is SleeperPlayer => !!p)
     .map((p) => humanize(p));
-  const teamPosIndex = new Map<string, HumanPlayer[]>();
-  for (const p of allRosteredHumans) {
-    if (!p.team || !p.position) continue;
-    const key = `${p.team}:${p.position.toUpperCase()}`;
-    const arr = teamPosIndex.get(key) ?? [];
-    arr.push(p);
-    teamPosIndex.set(key, arr);
-  }
+  const myRosterIds = myRosterHumans.map((p) => p.id);
   const inflections: Record<string, InflectionContext> = {};
-  for (const player of myRosterHumans) {
-    if (!player.team || !player.position) continue;
-    const key = `${player.team}:${player.position.toUpperCase()}`;
-    const sameTeamSamePosition = (teamPosIndex.get(key) ?? []).filter(
-      (p) => p.id !== player.id,
-    );
-    const inputs = buildInflectionInputsFromHumanPlayer({
-      player,
-      sameTeamSamePosition,
+  if (myRosterIds.length > 0) {
+    const enrichedByPlayerId = await resolveEnrichedPlayers({
+      playerIds: myRosterIds,
+      playersMap,
+      rosterContext: allRosteredHumans,
+      // Decision-endpoint context does not have prev-season /stats or
+      // careerUsage wired today; the resolver flags those gaps in the
+      // EnrichedPlayer.missing list (graceful degrade).
     });
-    if (!inputs) continue;
-    const resolved = resolveInflections(inputs);
-    if (resolved) inflections[player.id] = resolved;
+    for (const id of myRosterIds) {
+      const enriched = enrichedByPlayerId.get(id);
+      if (!enriched?.inflection_inputs) continue;
+      const resolved = resolveInflections(enriched.inflection_inputs);
+      if (resolved) inflections[id] = resolved;
+    }
   }
 
   // League read: synthesize trade-leverage opportunities + structural

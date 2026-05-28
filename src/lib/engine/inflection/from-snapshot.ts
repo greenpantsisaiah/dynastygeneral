@@ -6,18 +6,17 @@
  */
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
-import type { Position } from "@/lib/strategy/archetypes/schema";
 import { humanize, type HumanPlayer } from "@/lib/players/cache";
 import type { SleeperPlayer } from "@/lib/sleeper/schemas";
-import {
-  buildOpportunityProfile,
-  type PlayerSeasonStats,
-} from "@/lib/players/season-stats";
+import type { PlayerSeasonStats } from "@/lib/players/season-stats";
 import { resolveInflections } from "./index";
-import { buildInflectionInputsFromHumanPlayer } from "./build-inputs";
+import {
+  resolveEnrichedPlayers,
+  type EnrichedPlayerOptions,
+} from "@/lib/players/enriched-player";
 import type { InflectionContext } from "./types";
 
-export function buildInflectionsFromSnapshot(args: {
+export async function buildInflectionsFromSnapshot(args: {
   snap: LeagueSnapshot;
   playersMap: Map<string, SleeperPlayer>;
   // Prior-season + season-before usage maps (Sleeper /stats, keyed by
@@ -36,7 +35,13 @@ export function buildInflectionsFromSnapshot(args: {
   // Lights up the rookie-debut card's "Draft capital" signal (Phase 3b);
   // null entries degrade gracefully to data_missing.
   draftPickByPlayerId?: Map<string, number>;
-}): InflectionContext[] {
+  // Optional pre-fetched canonical maps. The resolver itself short-
+  // circuits to the 24h cache in production; tests pass empty Maps
+  // to avoid the Supabase env-var requirement.
+  playerSignalsMap?: EnrichedPlayerOptions["playerSignalsMap"];
+  teamSignalsMap?: EnrichedPlayerOptions["teamSignalsMap"];
+  playerHealthMap?: EnrichedPlayerOptions["playerHealthMap"];
+}): Promise<InflectionContext[]> {
   const {
     snap,
     playersMap,
@@ -44,14 +49,17 @@ export function buildInflectionsFromSnapshot(args: {
     prevPrevSeasonStats,
     careerUsage,
     draftPickByPlayerId,
+    playerSignalsMap,
+    teamSignalsMap,
+    playerHealthMap,
   } = args;
   const myRoster = snap.rosters.find((r) => r.is_me);
   if (!myRoster) return [];
 
-  // Group all rostered players (across the league) by team+position so
-  // the successor / position-room saturation signals fire correctly:
-  // a rookie RB on the same NFL team but on another fantasy roster is
-  // still a successor signal.
+  // League-wide rostered humans become the resolver's roster context
+  // (drives same-team-same-position for successor / position-room
+  // signals: a rookie RB on the same NFL team but on another fantasy
+  // roster is still a successor signal).
   const allHumans: HumanPlayer[] = [];
   for (const r of snap.rosters) {
     for (const id of r.player_ids ?? []) {
@@ -59,57 +67,34 @@ export function buildInflectionsFromSnapshot(args: {
       if (sp) allHumans.push(humanize(sp));
     }
   }
-  const teamPosIndex = new Map<string, HumanPlayer[]>();
-  for (const p of allHumans) {
-    if (!p.team || !p.position) continue;
-    const key = `${p.team}:${p.position.toUpperCase()}`;
-    const arr = teamPosIndex.get(key) ?? [];
-    arr.push(p);
-    teamPosIndex.set(key, arr);
-  }
+
+  // Resolve the user's roster through the canonical EnrichedPlayer
+  // pipeline. The resolver builds inflection_inputs with the full
+  // 10-arg payload (prev-season usage + opportunity + career mileage +
+  // draft capital + compounding-news), closing the audit's Leak 4.
+  // When the caller did not provide a draftPickByPlayerId, default to
+  // an empty map so the resolver does not fetch a second copy of the
+  // canonical (the hub passes its own; tests pass empty).
+  const myIds = myRoster.player_ids ?? [];
+  if (myIds.length === 0) return [];
+  const enrichedByPlayerId = await resolveEnrichedPlayers({
+    playerIds: myIds,
+    playersMap,
+    prevSeasonStats,
+    prevPrevSeasonStats,
+    careerUsage,
+    draftPickByPlayerId: draftPickByPlayerId ?? new Map(),
+    rosterContext: allHumans,
+    playerSignalsMap,
+    teamSignalsMap,
+    playerHealthMap,
+  });
 
   const out: InflectionContext[] = [];
-  for (const id of myRoster.player_ids ?? []) {
-    const sp = playersMap.get(id);
-    if (!sp) continue;
-    const player = humanize(sp);
-    if (!player.team || !player.position) continue;
-    const positionRaw = (player.position ?? "").toUpperCase() as Position;
-    if (
-      positionRaw !== "QB" &&
-      positionRaw !== "RB" &&
-      positionRaw !== "WR" &&
-      positionRaw !== "TE"
-    ) {
-      continue;
-    }
-    const key = `${player.team}:${positionRaw}`;
-    const sameTeamSamePosition = (teamPosIndex.get(key) ?? []).filter(
-      (p) => p.id !== player.id,
-    );
-    const prevStat = prevSeasonStats?.get(player.id);
-    const prevPrevStat = prevPrevSeasonStats?.get(player.id);
-    const career = careerUsage?.get(player.id);
-    // Canonical opportunity read from the SAME stats maps (no extra
-    // fetch). Null when the player had no row that season so the
-    // opportunity signal degrades to data_missing gracefully.
-    const inputs = buildInflectionInputsFromHumanPlayer({
-      player,
-      sameTeamSamePosition,
-      prevSeasonCarries: prevStat?.carries ?? null,
-      prevSeasonTargets: prevStat?.targets ?? null,
-      prevPrevSeasonCarries: prevPrevStat?.carries ?? null,
-      prevPrevSeasonTargets: prevPrevStat?.targets ?? null,
-      prevSeasonOpportunity: prevStat ? buildOpportunityProfile(prevStat) : null,
-      prevPrevSeasonOpportunity: prevPrevStat
-        ? buildOpportunityProfile(prevPrevStat)
-        : null,
-      careerCarries: career?.carries ?? null,
-      careerTargets: career?.targets ?? null,
-      draftPickOverall: draftPickByPlayerId?.get(player.id) ?? null,
-    });
-    if (!inputs) continue;
-    const resolved = resolveInflections(inputs);
+  for (const id of myIds) {
+    const enriched = enrichedByPlayerId.get(id);
+    if (!enriched?.inflection_inputs) continue;
+    const resolved = resolveInflections(enriched.inflection_inputs);
     if (resolved) out.push(resolved);
   }
   return out;
