@@ -27,6 +27,14 @@ Vercel deploys production on every push to `main` and builds a preview URL for e
 
 NEVER run `git push origin main` directly. It bypasses this flow, races other sessions, and trips the safety classifier. Main advances only through merged PRs.
 
+## Tell the founder when a Warp tab is safe to close
+
+The founder now runs the product across several Warp terminal tabs (one tab per session/worktree) instead of one giant terminal thread, and wants to keep tab clutter down. Proactively tell them, in plain language, when the current tab is safe to close. Do not wait to be asked.
+
+- Give the all-clear ONLY when the tab is genuinely done: the work is merged (or there is no work in progress), the worktree has been retired, nothing is running in the background, and there is no uncommitted or unpushed work. State it directly, e.g. "This tab is safe to close."
+- Do NOT suggest closing when any of these are live: a background process you started (dev server, long-running task, a `run_in_background` job), an open PR that has not merged yet (they may want to review the preview), uncommitted or unpushed changes, or a question you are waiting on them to answer. In those cases say what is still pending and what closing would interrupt.
+- If you are unsure whether something is still running, say so rather than giving a false all-clear. A wrong "safe to close" can kill an in-flight deploy or lose work.
+
 ## Never (destructive)
 
 - Never `git push --force` / `--force-with-lease` to a shared branch or main.
