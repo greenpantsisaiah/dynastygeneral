@@ -23,10 +23,12 @@ import {
   type LeagueProfile,
   type TeamProfile,
 } from "./opponent";
+import { resolveDraftState } from "@/lib/sleeper/draft-state";
 import {
-  inferStrategyFromRoster,
-  type InferredStrategy,
-} from "@/lib/strategy/infer";
+  buildLeagueContext,
+  summarizeStrategy,
+  type StrategyRead,
+} from "./league-context";
 import { resolvePlayerValues, type PlayerValue } from "@/lib/players/values";
 import {
   buildFormatRulesFromRosterPositions,
@@ -83,7 +85,12 @@ export type DecisionContext = {
     roster_id: number | null;
     record: { wins: number; losses: number; ties: number; fpts: number } | null;
     standing_rank: number | null;
-    strategy: InferredStrategy;
+    // Strategy read from the CANONICAL engine outputs (computeWindows +
+    // rankArchetypes), derived by summarizeStrategy. Replaced the old
+    // inferStrategyFromRoster parallel heuristic so the decision
+    // endpoints read the same strategy the board and Coach do (closes
+    // Leak 2 in ARCHITECTURE_UNIFICATION_PLAN.md).
+    strategy: StrategyRead;
     roster: HumanPlayer[];
     starters: HumanPlayer[];
     headline: string[];
@@ -161,7 +168,49 @@ export async function assembleContext(
     totalRosters,
   });
 
-  const strategy = inferStrategyFromRoster(myRoster ?? undefined, totalRosters);
+  // Canonical strategy read. Build the SAME snapshot the hub and Coach
+  // build (real draft state, lastSeasonStats + projections enrichment),
+  // run the canonical strategy engine (rankArchetypes + computeWindows),
+  // and summarize. Replaces the inferStrategyFromRoster parallel
+  // heuristic that ran with currentPickNo: null (Leak 2 / Leak 3).
+  // Best-effort: a snapshot failure degrades to an undetermined read
+  // rather than failing the whole decision endpoint.
+  let strategy: StrategyRead = summarizeStrategy([], null);
+  let strategyContext: Awaited<ReturnType<typeof buildLeagueContext>> | null =
+    null;
+  try {
+    const draftState = await resolveDraftState(
+      leagueId,
+      me?.user_id ?? null,
+    );
+    strategyContext = await buildLeagueContext({
+      league,
+      rosters,
+      users,
+      draftState,
+      mySleeperUserId: me?.user_id ?? null,
+    });
+    strategy = summarizeStrategy(
+      strategyContext.ranked,
+      strategyContext.windows,
+    );
+  } catch (err) {
+    console.error(
+      "[assembleContext:strategy]",
+      err instanceof Error ? `${err.message}\n${err.stack}` : err,
+    );
+  }
+  // Draft-state-aware fields for the league read (closes the
+  // currentPickNo: null half of Leak 2). Null outside an active draft.
+  const snapDraft = strategyContext?.snapshot.draft ?? null;
+  const isActiveDraft =
+    snapDraft != null &&
+    (snapDraft.status === "drafting" || snapDraft.status === "paused");
+  const currentPickNo = isActiveDraft ? snapDraft.next_pick_no ?? null : null;
+  const userPicksRemaining = isActiveDraft
+    ? snapDraft.my_pick_schedule?.length ?? null
+    : null;
+  const draftRounds = snapDraft?.rounds ?? 0;
 
   const myRosterHumans = myRoster
     ? humansFrom(myRoster.players ?? [], playersMap)
@@ -389,9 +438,12 @@ export async function assembleContext(
     },
     myRosterId: myRoster?.roster_id ?? null,
     opponentRosters,
-    currentPickNo: null, // draft state lives in resolveDraftState; v2 plumb-through
+    // Real draft state from the canonical snapshot (closes the
+    // currentPickNo: null half of Leak 2). Null outside active draft.
+    currentPickNo,
+    userPicksRemaining,
     totalRosters,
-    rounds: 0,
+    rounds: draftRounds,
   });
 
   return {
@@ -615,7 +667,7 @@ export function renderContextForPrompt(ctx: DecisionContext): string {
     );
   }
   lines.push(
-    `- Inferred strategy: ${ctx.me.strategy.state} (${Math.round(
+    `- Strategy read (engine windows + archetype lean): ${ctx.me.strategy.state} (${Math.round(
       ctx.me.strategy.confidence * 100,
     )}% confidence)`,
   );

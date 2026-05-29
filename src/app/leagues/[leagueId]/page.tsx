@@ -26,8 +26,8 @@ import {
 } from "@/lib/sleeper";
 import { resolveDraftState, type DraftStatus } from "@/lib/sleeper/draft-state";
 import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
-import { buildLeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
-import { buildStrategySnapshot } from "@/lib/strategy/league-state/strategy-snapshot";
+import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
+import { buildLeagueContext } from "@/lib/engine/league-context";
 import {
   buildLeagueBriefing,
   type LeagueBriefing,
@@ -36,9 +36,8 @@ import { readProfileServer } from "@/lib/lab/profile-storage";
 import { deriveDoctrine, formatDoctrineLine } from "@/lib/lab/doctrine";
 import { detectDoctrineDrift } from "@/lib/lab/drift";
 import { loadEffectiveDials } from "@/lib/lab/league-doctrine";
-import { rankArchetypes } from "@/lib/strategy/ranking/rank";
 import { LiveStrategyBoard } from "@/components/league/live-strategy-board";
-import { computeWindows, type WindowsResult } from "@/lib/strategy/windows/compute";
+import type { WindowsResult } from "@/lib/strategy/windows/compute";
 import {
   computeLeagueOutlook,
   type LeagueOutlook,
@@ -53,7 +52,6 @@ import type { ResolvedPlayFromHere } from "@/lib/strategy/plays-from-here/types"
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import type { PickApproach as PickApproachData } from "@/lib/strategy/pick-approach/types";
 import { buildSurvivalResolver } from "@/lib/strategy/decision-synthesis/synthesize";
-import { buildPricedPool } from "@/lib/strategy/decision-synthesis/priced-pool";
 import { resolveStandingDecision } from "@/lib/strategy/decision-synthesis/decision-bundle";
 import {
   dialsForSynthesisFrom,
@@ -407,9 +405,12 @@ export default async function LeagueHubPage({
   let availablePlayers: Awaited<
     ReturnType<typeof getAvailableForRequest>
   > = [];
-  let leagueSnapshot:
-    | Awaited<ReturnType<typeof buildLeagueSnapshot>>
+  // Priced value map from the canonical buildLeagueContext, hoisted so
+  // hub children (draft-path projector) consume it instead of re-resolving.
+  let pricedValueMap:
+    | Map<string, import("@/lib/players/values").PlayerValue>
     | null = null;
+  let leagueSnapshot: LeagueSnapshot | null = null;
   let contenderOutlook: ContenderOutlook | null = null;
   let leagueOutlook: LeagueOutlook | null = null;
   let strategyLab: StrategyLabState | null = null;
@@ -449,16 +450,21 @@ export default async function LeagueHubPage({
   const tierState = await getTier();
   if (draftState) {
     try {
-      leagueSnapshot = await buildStrategySnapshot({
+      // Canonical per-request context: ONE snapshot + values + available
+      // pool + startable depth, identical to Coach and the decision
+      // endpoints. The priced pool is consumed below (see buildPricedPool
+      // note) from this same builder so no surface re-resolves it.
+      const leagueContext = await buildLeagueContext({
         league,
         rosters,
         users,
         draftState,
         mySleeperUserId: sleeperUser?.user_id ?? null,
       });
+      leagueSnapshot = leagueContext.snapshot;
       const snapshot = leagueSnapshot;
-      rankedArchetypes = rankArchetypes(snapshot);
-      windows = computeWindows(snapshot);
+      rankedArchetypes = leagueContext.ranked;
+      windows = leagueContext.windows;
       // Digested briefing object. Pre-bundles per-position room
       // health + emergent build trajectory + soundboard dial
       // overrides. Surfaced in ?diagnose=1 for tuning verification.
@@ -664,9 +670,13 @@ export default async function LeagueHubPage({
         ReturnType<typeof import("@/lib/players/values")["resolvePlayerValues"]>
       > | null = null;
       try {
-        const priced = await buildPricedPool(snapshot);
+        // Same priced pool the canonical builder already produced above
+        // (buildLeagueContext ran buildPricedPool and annotated startable
+        // depth on this snapshot in place). No second resolve.
+        const priced = leagueContext.pricedPool;
         availablePlayers = priced.available;
         valueMap = priced.valueMap;
+        pricedValueMap = priced.valueMap;
         playerValuesByIdJson = priced.playerValuesById;
         ktcOverallRanksByIdJson = priced.ktcOverallRanksById;
       } catch (err) {
@@ -1300,6 +1310,12 @@ export default async function LeagueHubPage({
                 myRosterId: myRoster.roster_id,
                 dials: whyDials,
                 classStrength,
+                // Consume the canonical priced pool instead of re-resolving.
+                // Hand it down only when populated so a failed priced pool
+                // still lets the projector self-fetch (prior behavior).
+                available:
+                  availablePlayers.length > 0 ? availablePlayers : undefined,
+                valueMap: pricedValueMap ?? undefined,
               });
             } catch (err) {
               console.error("[hub:draft-paths]", err);

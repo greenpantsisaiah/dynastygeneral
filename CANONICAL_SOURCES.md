@@ -215,6 +215,16 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Canonical**: `getAvailablePlayers(...)` (filtered by `picks_made` during active draft, by `roster.players` union otherwise) + KTC harmonization across the FULL pool
 - **Anti-pattern**: filtering by `team != null`. Pre-NFL-draft rookies have `team: null`; the filter silently excludes them. Lint rule "no team!=null player-pool filter" enforces this.
 
+### Per-request league context (one snapshot + strategy + priced pool)
+
+- **Canonical**: `buildLeagueContext(args)` in `src/lib/engine/league-context.ts`
+- **Returns**: `{ snapshot, ranked, windows, pricedPool }`. Composes the existing canonicals once per request: `buildStrategySnapshot` (snapshot, ALWAYS enriched with `lastSeasonStats + projections` so the enrichment is structural, not per-caller discipline) -> `rankArchetypes` -> `computeWindows` -> `buildPricedPool` (which annotates startable / stable depth on the snapshot in place).
+- **Inputs**: `{ league, rosters, users, draftState, mySleeperUserId }` (identical to `buildStrategySnapshot`).
+- **Companion**: `summarizeStrategy(ranked, windows)` returns the prompt-facing `StrategyRead` (`{ state, confidence, signals }`) derived from the SAME windows + archetype lean the board renders. It replaced the retired `inferStrategyFromRoster` heuristic.
+- **Consumers**: the hub board (`leagues/[leagueId]/page.tsx`), Coach (`api/coach/[leagueId]/route.ts`), and the decision endpoints via `assembleContext` (`engine/context.ts`, used by `/pick` `/trade` `/strategy`). All three read one builder, so the snapshot, values, and depth cannot diverge between surfaces.
+- **Anti-pattern**: a surface that calls `buildLeagueSnapshot` directly to re-derive strategy / a priced pool, or runs a parallel strategy engine (the retired `inferStrategyFromRoster`). Lint rule "no direct buildLeagueSnapshot call (use buildLeagueContext)" enforces this; the bootstrap / standalone callers (snapshot definition, the `buildStrategySnapshot` wrapper, scout per-team, after-action, briefings, debug, league adapters) are the allowlist.
+- **Bug class avoided**: ARCHITECTURE_UNIFICATION_PLAN.md Leak 2 (the `/pick` `/trade` `/strategy` endpoints ran `inferStrategyFromRoster` with `currentPickNo: null`, a second strategy engine that was draft-blind) and Leak 3 (Coach building a snapshot without `lastSeasonStats + projections`). One builder closes both structurally.
+
 ### Priced decision pool (the synthesize prelude)
 
 - **Canonical**: `buildPricedPool(snap)` in `src/lib/strategy/decision-synthesis/priced-pool.ts`

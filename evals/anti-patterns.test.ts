@@ -106,6 +106,38 @@ const RULES: Rule[] = [
       join(SRC, "lib", "strategy", "decision-synthesis", "decision-bundle.ts"),
     ],
   },
+  // One snapshot + strategy per request. Surfaces consume the canonical
+  // buildLeagueContext (engine/league-context.ts), which runs the snapshot
+  // (always lastSeasonStats + projections enriched) + rankArchetypes +
+  // computeWindows + buildPricedPool once. A surface that calls
+  // buildLeagueSnapshot directly can re-derive strategy independently and
+  // run blind to draft state, the Leak 2 / Leak 3 bug class from
+  // ARCHITECTURE_UNIFICATION_PLAN.md. Only the snapshot definition, the
+  // lastSeasonStats/projections wrapper (buildStrategySnapshot), and the
+  // bootstrap / standalone callers that legitimately need a raw snapshot
+  // (scout per-team, after-action, briefings, debug, league adapters) may
+  // name it with a call paren. A `typeof buildLeagueSnapshot` type
+  // reference (no paren) is fine and not matched.
+  {
+    name: "no direct buildLeagueSnapshot call (use buildLeagueContext)",
+    why: "Per-request snapshot + strategy must come from buildLeagueContext (engine/league-context.ts) so hub, Coach, and the decision endpoints read one snapshot + values + depth. A direct buildLeagueSnapshot call reintroduces the parallel-strategy / draft-blind leaks. Per CANONICAL_SOURCES.md + ARCHITECTURE_UNIFICATION_PLAN.md Phase 1.",
+    pattern: /buildLeagueSnapshot\(/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      // The canonical definition.
+      join(SRC, "lib", "strategy", "league-state", "snapshot.ts"),
+      // The lastSeasonStats + projections wrapper buildLeagueContext uses.
+      join(SRC, "lib", "strategy", "league-state", "strategy-snapshot.ts"),
+      // Bootstrap / standalone consumers that legitimately build a raw
+      // snapshot for their own purpose (not the decision pipeline).
+      join(SRC, "lib", "scout", "score.ts"),
+      join(SRC, "lib", "leagues", "sleeper-adapter.ts"),
+      join(SRC, "app", "leagues", "[leagueId]", "aar", "page.tsx"),
+      join(SRC, "app", "api", "briefings", "run", "[leagueId]", "route.ts"),
+      join(SRC, "app", "api", "debug-snapshot", "[leagueId]", "route.ts"),
+    ],
+  },
   // Roster identity must go through isRosterOwnedBy, which checks
   // co_owners. Resolving "is this my roster" by owner_id alone silently
   // mis-identifies co-owned teams, a trust-breaking bug class
@@ -433,6 +465,7 @@ const STRATEGY_SNAPSHOT = resolve(
   "league-state",
   "strategy-snapshot.ts",
 );
+const LEAGUE_CONTEXT = resolve(SRC, "lib", "engine", "league-context.ts");
   const REQUIRED_IN_COACH = [
     "system_decision",
     "board_candidates",
@@ -526,6 +559,7 @@ const STRATEGY_SNAPSHOT = resolve(
     let coachContent = "";
     let hubContent = "";
     let helperContent = "";
+    let builderContent = "";
     try {
       coachContent = readFileSync(COACH_ROUTE, "utf-8");
     } catch {
@@ -541,14 +575,29 @@ const STRATEGY_SNAPSHOT = resolve(
     } catch {
       helperContent = "";
     }
-    const hubBuildsStrategySnapshot = /buildStrategySnapshot\(/.test(hubContent);
-    const coachBuildsStrategySnapshot = /buildStrategySnapshot\(/.test(coachContent);
+    try {
+      builderContent = readFileSync(LEAGUE_CONTEXT, "utf-8");
+    } catch {
+      builderContent = "";
+    }
+    // Both surfaces now consume the ONE canonical builder
+    // (buildLeagueContext, engine/league-context.ts), which composes the
+    // snapshot + strategy + priced pool once. The parity that used to be
+    // hand-enforced (matching direct calls in two routes) is now
+    // structural: one builder, two consumers.
+    const hubUsesLeagueContext = /buildLeagueContext\(/.test(hubContent);
+    const coachUsesLeagueContext = /buildLeagueContext\(/.test(coachContent);
+    const builderComposesPipeline =
+      /buildStrategySnapshot\(/.test(builderContent) &&
+      /rankArchetypes\(/.test(builderContent) &&
+      /computeWindows\(/.test(builderContent) &&
+      /buildPricedPool\(/.test(builderContent);
     const helperEnrichesSnapshot =
       /getSeasonStats\(/.test(helperContent) &&
       /getProjections\(/.test(helperContent) &&
       /buildLeagueSnapshot\(/.test(helperContent);
-    const hubUsesPricedPool = /buildPricedPool\(\s*snapshot\s*\)/.test(hubContent);
-    const coachUsesPricedPool = /buildPricedPool\(\s*snapshot\s*\)/.test(coachContent);
+    const hubUsesPricedPool = /leagueContext\.pricedPool/.test(hubContent);
+    const coachUsesPricedPool = /leagueContext\.pricedPool/.test(coachContent);
     const hubPickApproachUsesAvailable = /buildPickApproach\(\s*snapshot,\s*rankedArchetypes,\s*availablePlayers\s*,?\s*\)/s.test(
       hubContent,
     );
@@ -565,33 +614,38 @@ const STRATEGY_SNAPSHOT = resolve(
       coachContent,
     );
 
-    const hubPricedPoolIdx = hubContent.indexOf("buildPricedPool(snapshot)");
+    // Ordering: the builder must run before the pick approach consumes
+    // the priced available pool on each surface.
+    const hubContextIdx = hubContent.indexOf("buildLeagueContext(");
     const hubPickApproachIdx = hubContent.indexOf("buildPickApproach(");
-    const coachAvailableIdx = coachContent.indexOf(
-      "const available = pricedPool.available",
-    );
+    const coachContextIdx = coachContent.indexOf("buildLeagueContext(");
     const coachPickApproachIdx = coachContent.indexOf(
       "buildPickApproach(snapshot, ranked, available)",
     );
     const hubOrderingOk =
-      hubPricedPoolIdx >= 0 &&
+      hubContextIdx >= 0 &&
       hubPickApproachIdx >= 0 &&
-      hubPickApproachIdx > hubPricedPoolIdx;
+      hubPickApproachIdx > hubContextIdx;
     const coachOrderingOk =
-      coachAvailableIdx >= 0 &&
+      coachContextIdx >= 0 &&
       coachPickApproachIdx >= 0 &&
-      coachPickApproachIdx > coachAvailableIdx;
+      coachPickApproachIdx > coachContextIdx;
 
     const failures: string[] = [];
-    if (!hubBuildsStrategySnapshot)
-      failures.push("hub route does not call buildStrategySnapshot");
-    if (!coachBuildsStrategySnapshot)
-      failures.push("coach route does not call buildStrategySnapshot");
+    if (!hubUsesLeagueContext)
+      failures.push("hub route does not call buildLeagueContext");
+    if (!coachUsesLeagueContext)
+      failures.push("coach route does not call buildLeagueContext");
+    if (!builderComposesPipeline)
+      failures.push(
+        "buildLeagueContext does not compose buildStrategySnapshot + rankArchetypes + computeWindows + buildPricedPool",
+      );
     if (!helperEnrichesSnapshot)
       failures.push("strategy-snapshot helper is missing season-stats/projections enrichment");
-    if (!hubUsesPricedPool) failures.push("hub route does not call buildPricedPool(snapshot)");
+    if (!hubUsesPricedPool)
+      failures.push("hub route does not consume leagueContext.pricedPool");
     if (!coachUsesPricedPool)
-      failures.push("coach route does not call buildPricedPool(snapshot)");
+      failures.push("coach route does not consume leagueContext.pricedPool");
     if (!hubPickApproachUsesAvailable)
       failures.push("hub pick approach is not built from the priced available pool");
     if (!coachCapturesAvailable)
@@ -599,18 +653,18 @@ const STRATEGY_SNAPSHOT = resolve(
     if (!coachPickApproachUsesAvailable)
       failures.push("coach pick approach is not built from the priced available pool");
     if (!hubNoDirectBuildLeagueSnapshot)
-      failures.push("hub route calls buildLeagueSnapshot directly (should use buildStrategySnapshot)");
+      failures.push("hub route calls buildLeagueSnapshot directly (should use buildLeagueContext)");
     if (!coachNoDirectBuildLeagueSnapshot)
-      failures.push("coach route calls buildLeagueSnapshot directly (should use buildStrategySnapshot)");
+      failures.push("coach route calls buildLeagueSnapshot directly (should use buildLeagueContext)");
     if (!hubOrderingOk)
-      failures.push("hub ordering drifted: buildPricedPool should run before buildPickApproach");
+      failures.push("hub ordering drifted: buildLeagueContext should run before buildPickApproach");
     if (!coachOrderingOk)
-      failures.push("coach ordering drifted: available from pricedPool should feed buildPickApproach");
+      failures.push("coach ordering drifted: buildLeagueContext should run before buildPickApproach");
 
     if (failures.length === 0) {
       passed++;
       console.log(
-        "  ✓ hub and coach both use the shared strategy snapshot + priced-pool pipeline",
+        "  ✓ hub and coach both consume the canonical buildLeagueContext (snapshot + priced-pool) pipeline",
       );
     } else {
       failed++;

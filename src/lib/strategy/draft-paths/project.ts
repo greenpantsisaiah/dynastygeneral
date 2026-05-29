@@ -25,7 +25,7 @@
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
 import type { AvailablePlayer } from "@/lib/players/available";
-import { resolvePlayerValues } from "@/lib/players/values";
+import { resolvePlayerValues, type PlayerValue } from "@/lib/players/values";
 import { resolvePlayers } from "@/lib/players/cache";
 import type { WhyDials } from "@/lib/rankings/why-breakdown";
 import type {
@@ -677,6 +677,16 @@ export async function projectDraftPaths(args: {
   dials: WhyDials;
   classStrength: ClassStrength;
   numPicksAhead?: number;
+  // Handed-down priced pool from the canonical buildLeagueContext. When
+  // provided, the projector consumes the SAME available pool + value map
+  // the hub board already built instead of re-fetching getAvailableForRequest
+  // + resolvePlayerValues (the redundant re-resolution the architecture
+  // audit flagged). The handed-down value map covers all rosters + the
+  // available pool (a superset of what this projector resolved on its own),
+  // so roster-context anchors get values too. Falls back to self-resolution
+  // when absent (e.g. callers without a prebuilt context).
+  available?: AvailablePlayer[];
+  valueMap?: Map<string, PlayerValue>;
 }): Promise<DraftPathProjection | null> {
   const { snap, myRosterId, dials, classStrength } = args;
   const numPicks = args.numPicksAhead ?? DEFAULT_PICKS_AHEAD;
@@ -693,17 +703,21 @@ export async function projectDraftPaths(args: {
   }));
   if (mySlots.length === 0) return null;
 
-  // Build the available pool with player values attached.
-  const availableRaw = await getAvailableForRequest(snap).catch(() => []);
+  // Build the available pool with player values attached. Prefer the
+  // handed-down priced pool (canonical buildLeagueContext) over a second
+  // resolution; fall back to self-resolution only when not provided.
+  const availableRaw =
+    args.available ?? (await getAvailableForRequest(snap).catch(() => []));
   if (availableRaw.length === 0) return null;
-  const ids = availableRaw.map((p) => p.id);
-  const valueMap = await resolvePlayerValues({
-    ids,
-    isSuperflex: snap.format === "superflex" || snap.format === "2qb",
-    isPpr: snap.scoring.includes("PPR"),
-    isHalfPpr: snap.scoring.includes("half-PPR"),
-    isTePremium: snap.scoring.includes("TE-premium"),
-  });
+  const valueMap =
+    args.valueMap ??
+    (await resolvePlayerValues({
+      ids: availableRaw.map((p) => p.id),
+      isSuperflex: snap.format === "superflex" || snap.format === "2qb",
+      isPpr: snap.scoring.includes("PPR"),
+      isHalfPpr: snap.scoring.includes("half-PPR"),
+      isTePremium: snap.scoring.includes("TE-premium"),
+    }));
   const availableWithValue = availableRaw.map((p) => ({
     ...p,
     value: valueMap.get(p.id)?.value ?? null,
