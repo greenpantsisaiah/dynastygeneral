@@ -1,0 +1,48 @@
+◇ injected env (13) from .env.local // tip: ⌘ override existing { override: true }
+[evidence-check] players=1925 teams=33 sleeper=12190
+[evidence-check] LIVE rubric read of newly-written team_signals. NOT a historical backtest.
+
+## WR on a pass-heavy scheme (high pass_rate_neutral)
+  player=Trent Sherfield (WR, ARI, age 30)
+  team_signals: scheme=mcvay pass_rate=0.5937 p12=0.2904 oc_tenure=1 oc_first_year=true hc_first=true
+  point_estimate=69.12 band=[61.1, 77.1] confidence=0.77
+  evidence_stack:
+    [intrinsic] ktc_value: contribution=38.50 weight=0.55 (WR market prior)
+    [intrinsic] age_curve: contribution=-0.70 weight=0.10 (WR age=30, mult=0.90 (post-peak decline). Reception Perception cohort.)
+    [situation] aging_wr_sustaining: contribution=0.80 weight=0.40 (30+ WR sustaining elite market value)
+    [macro] scheme_pass_heavy: contribution=1.20 weight=0.40 (mcvay scheme lifts WRs)  <-- NEW team signal
+    [macro] pass_rate_neutral: contribution=0.16 weight=0.30 (Neutral pass rate 0.59)  <-- NEW team signal
+  >> 2 team-signal evidence row(s); 2 with non-zero contribution.
+
+## QB on a stable-OC team (oc_tenure_yrs >= 3)
+  player=Andy Dalton (QB, CAR, age 38)
+  team_signals: scheme=shanahan pass_rate=0.4638 p12=0.1998 oc_tenure=3 oc_first_year=false hc_first=false
+  point_estimate=57.11 band=[53.1, 61.1] confidence=0.91
+  evidence_stack:
+    [intrinsic] ktc_value: contribution=42.00 weight=0.60 (QB market prior (Tier 2))
+    [intrinsic] qb_tier_conditional_aging: contribution=-8.58 weight=0.35 (QB age=38, Tier 2 decline, mult=0.65. PFF QB Bayesian.)
+    [situation] oc_continuity: contribution=1.20 weight=0.40 (Stable OC (3 yrs) supports QB)  <-- NEW team signal
+  >> 1 team-signal evidence row(s); 1 with non-zero contribution.
+
+## QB on a rookie-HC team (hc_first_time_flag = true), tier 1
+  player=Jacoby Brissett (QB, ARI, age 33)
+  team_signals: scheme=mcvay pass_rate=0.5937 p12=0.2904 oc_tenure=1 oc_first_year=true hc_first=true
+  point_estimate=90.01 band=[81.5, 98.5] confidence=0.76
+  evidence_stack:
+    [intrinsic] ktc_value: contribution=54.01 weight=0.60 (QB market prior (Tier 1))
+    [intrinsic] qb_tier_conditional_aging: contribution=0.00 weight=0.00 (QB age=33, Tier 1 peak, mult=1.00. PFF QB Bayesian.)
+    [variance] oc_first_year: contribution=0.00 weight=1.00 (First-year OC widens band)  <-- NEW team signal
+    [variance] first_time_hc_tier1_qb: contribution=0.00 weight=1.00 (Elite QB with first-time HC)  <-- NEW team signal
+  >> 2 team-signal evidence row(s); 0 with non-zero contribution.
+
+## TE on a high-12-personnel team (e.g. CLE)
+  player=Feleipe Franks (TE, ATL, age 28)
+  team_signals: scheme=shanahan pass_rate=0.4817 p12=0.3812 oc_tenure=1 oc_first_year=true hc_first=false
+  point_estimate=52.07 band=[41.1, 63.1] confidence=0.67
+  evidence_stack:
+    [intrinsic] ktc_value: contribution=25.00 weight=0.50 (TE market prior)
+    [intrinsic] age_curve: contribution=0.00 weight=0.00 (TE age=28, mult=1.00 (post-breakout peak). PFF TE breakout cohort.)
+    [macro] personnel_12_rate: contribution=2.72 weight=0.50 (12-personnel rate 38.1% (corpus: load-bearing TE signal))  <-- NEW team signal
+    [variance] oc_first_year_te_penalty: contribution=-2.00 weight=1.00 (First-year OC widens TE band, penalizes)  <-- NEW team signal
+  >> 2 team-signal evidence row(s); 2 with non-zero contribution.
+

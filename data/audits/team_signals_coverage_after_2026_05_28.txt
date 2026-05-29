@@ -1,0 +1,36 @@
+=== team_signals (all 32 teams) (33 rows) ===
+[###################.]  97.0%  ol_continuity_score                       32/33  [0.7176 .. 0.875 .. 1]
+[....................]   0.0%  ol_grade_run                              0/33
+[....................]   0.0%  ol_grade_pass                             0/33
+[####################] 100.0%  rookie_ol_starters_count                  33/33  [0 .. 0 .. 0]
+[....................]   0.0%  rookie_ol_position_breakdown              0/33
+[###################.]  97.0%  hc_id                                     32/33  distinct=33 (<null>:1 mike-lafleur:1 kevin-stefanski:1 jesse-minter:1)
+[###################.]  97.0%  hc_first_time_flag                        32/33  distinct=3 (false:26 true:6 <null>:1)
+[###################.]  97.0%  hc_tenure_yrs                             32/33  [1 .. 3 .. 14]
+[###################.]  97.0%  hc_background_tag                         32/33  distinct=6 (offensive_coordinator:15 other:7 defensive_coordinator:7 position_coach:2)
+[###################.]  97.0%  oc_id                                     32/33  distinct=33 (<null>:1 nathaniel-hackett:1 tommy-rees:1 declan-doyle:1)
+[###################.]  97.0%  oc_tenure_yrs                             32/33  [1 .. 1 .. 5]
+[###################.]  97.0%  oc_first_year_with_team_flag              32/33  distinct=3 (true:16 false:16 <null>:1)
+[###################.]  97.0%  scheme_tag                                32/33  distinct=8 (shanahan:12 pro_style:6 mcvay:5 west_coast:3)
+[####################] 100.0%  staff_novelty_composite                   33/33  [0 .. 1 .. 3]
+[###################.]  97.0%  scheme_pace                               32/33  [54.88 .. 61 .. 64.24]
+[###################.]  97.0%  pass_rate_neutral                         32/33  [0.4171 .. 0.5027 .. 0.5937]
+[###################.]  97.0%  personnel_12_rate                         32/33  [0.0584 .. 0.2265 .. 0.412]
+[####################] 100.0%  source_attribution                        33/33
+[####################] 100.0%  updated_by                                33/33  distinct=2 (ingest-team-signals@2026-05-27:32 ingest-player-signals:1)
+
+=== player_health (0 rows) ===
+[....................]   0.0%  games_missed_3yr                          0/0
+[....................]   0.0%  injury_history                            0/0
+[....................]   0.0%  chronic_flag                              0/0  distinct=0 ()
+[....................]   0.0%  current_status                            0/0  distinct=0 ()
+[....................]   0.0%  off_field_flag                            0/0  distinct=0 ()
+[....................]   0.0%  holdout_flag                              0/0  distinct=0 ()
+
+=== historical_signal_codes: 728 rows (backtest-only) ===
+=== historical_outcomes: 3877 rows (backtest-only) ===
+
+=== SUMMARY ===
+player_signals: 1925 rows
+team_signals:   33 rows
+player_health:  0 rows
