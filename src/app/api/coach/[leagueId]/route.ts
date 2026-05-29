@@ -39,8 +39,7 @@ import {
   getUserByUsername,
 } from "@/lib/sleeper";
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
-import { buildStrategySnapshot } from "@/lib/strategy/league-state/strategy-snapshot";
-import { rankArchetypes } from "@/lib/strategy/ranking/rank";
+import { buildLeagueContext } from "@/lib/engine/league-context";
 import {
   buildOpponentReadout,
   orderOpponentRosters,
@@ -55,10 +54,8 @@ import {
   buildInflectionsFromSnapshot,
   rosterHasAgingRb,
 } from "@/lib/engine/inflection";
-import { computeWindows } from "@/lib/strategy/windows/compute";
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { resolveStandingDecision } from "@/lib/strategy/decision-synthesis/decision-bundle";
-import { buildPricedPool } from "@/lib/strategy/decision-synthesis/priced-pool";
 import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
 import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
@@ -981,16 +978,19 @@ export async function POST(
     leagueId,
     sleeperUser?.user_id ?? null,
   );
-  const snapshot = await buildStrategySnapshot({
+  // Canonical per-request context: ONE snapshot + values + available pool
+  // + startable depth, identical to the hub board and the decision
+  // endpoints. The board and Coach reading the same builder is what keeps
+  // the standing call from diverging between surfaces.
+  const leagueContext = await buildLeagueContext({
     league,
     rosters,
     users,
     draftState,
     mySleeperUserId: sleeperUser?.user_id ?? null,
   });
-  const ranked = rankArchetypes(snapshot);
+  const { snapshot, ranked, windows } = leagueContext;
   const opponents = buildOpponentReadout(snapshot);
-  const windows = computeWindows(snapshot);
 
   // Counterparty-stated-plans: persistent notes the user logs about
   // opponents (stated plans, trade intent, trigger conditions, psych
@@ -1024,7 +1024,7 @@ export async function POST(
   // user's own startable counts and flips the fill_starter gate. That
   // was the 2026-05-24 Jaylin-Noel (board) vs Adonai-Mitchell (Coach)
   // divergence: Coach priced only me + available here.
-  const pricedPool = await buildPricedPool(snapshot);
+  const pricedPool = leagueContext.pricedPool;
   const available = pricedPool.available;
   const pickApproach = buildPickApproach(snapshot, ranked, available);
   const coachPlayerValues: Record<string, number> | undefined =
