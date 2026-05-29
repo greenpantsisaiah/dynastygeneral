@@ -112,6 +112,60 @@ controls the calendar. The plan does NOT compress quality for speed.
 
 ---
 
+## Progress log (orchestrator-owned, live)
+
+Updated 2026-05-29. Append-only running status so a fresh session
+sees what shipped without reconstructing it from git.
+
+- **Phase A (truth audit): DONE.** #50 (A4 per-position backtests),
+  #52 (plan + TRUTH_AUDIT). Standing finding: 3 of 4 rubrics were
+  market+age only in prod because their signal columns were 0%
+  populated; the rubric loses to market on all four positions with
+  current data. team_signals is a 2026-only snapshot, so it enriches
+  LIVE reads but cannot validate the historical backtest; the Phase D
+  "beats market" gate needs vintage team_signals coding.
+- **Phase B #1 (sig-scheme32): DONE + LIVE.** #56 wrote the 32-row
+  team coaching/scheme signals (~97% coverage on scheme_tag /
+  oc_tenure / oc_first_year / hc_first_time / pass_rate_neutral /
+  personnel_12, 100% staff_novelty). Data-integrity follow-up closed
+  2026-05-29: a split Rams row (orphan "LA" carrying ol_continuity
+  vs reachable "LAR" carrying coaching/scheme) was consolidated via
+  #58 plus a founder-authorized prod --write. team_signals is back to
+  32 rows, scheme_tag 100%, LAR now carries ol_continuity_score
+  0.9053. Low-priority eyeball item: oc_first_year_with_team_flag is
+  true for 16/32 teams.
+- **Phase C2 (EnrichedPlayer resolver): DONE.** #51 (closed audit
+  Leak 4).
+- **Phase C1 (one LeagueContext per request): DONE.** #59.
+  buildLeagueContext (src/lib/engine/league-context.ts) runs snapshot
+  + values + available pool + startable depth once per request; hub,
+  Coach, and assembleContext (/pick /trade /strategy) all consume it;
+  inferStrategyFromRoster deleted; assembleContext now passes a real
+  currentPickNo. A "no direct buildLeagueSnapshot" lint locks the
+  boundary. Closes Leaks 2 + 3.
+- **Phase C3 (one age-curve canonical): DONE.** #60. ageRetention
+  (src/lib/players/age-curve.ts) is the one position-conditioned core;
+  four drifted impls collapse to one core + three adapters. The
+  standing call is provably unchanged at neutral dials (the signed
+  curve only enters synthesize at |youth| >= 5). Gates passed:
+  dynasty-canon-keeper CRITIQUE Defensible/USE (RB 28->29 retention
+  24.0% vs Northwestern 25.2%; WR sigmaOld tightened 2.4 -> 2.15),
+  dynasty-assumption-auditor no Indefensible flags. Two Weak items
+  PARKED for Phase D6: (a) AGE_FACTOR_DECLINE 1.76 is RB-calibrated
+  and inherited by WR/TE/QB, confirm the inherited bands in the D6
+  snapshot-diff; (b) floorYoung + the 0.55/0.60 youth boost are
+  internal heuristics.
+- **Phase C4 (Coach mirror object-parity): NEXT, unblocked by C1.**
+  Scope sharpened 2026-05-29: Coach already mirrors active_plays and
+  inflections. The gaps are the Value-vs-ADP (ev_bank) readout, an
+  upgrade of REQUIRED_IN_COACH (evals/anti-patterns.test.ts) from
+  string-presence to object-parity, and verifying Coach reads the
+  buildLeagueContext output object rather than a forked build.
+- **Remaining:** C4, then D (Forward Production), E (decision-engine
+  re-cast), F (validation + scoreboard), G (cleanup + lockdown).
+
+---
+
 ## Phase A: Truth audit (one session, 2-3 days)
 
 The blocker that hides everything else: we do not have honest, current
