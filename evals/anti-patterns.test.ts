@@ -323,6 +323,20 @@ const RULES: Rule[] = [
       "score: <literal>",
     ],
   },
+  {
+    name: "no local ageCurveSignedFor (use canonical ageCurveSigned)",
+    why: "The signed age curve is the canonical ageCurveSigned in @/lib/players/age-curve (Phase C3). A local ageCurveSignedFor was the stepwise bin curve that drifted from the rubric + rank curves. Import the canonical; do not redefine.",
+    pattern: /ageCurveSignedFor/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [EVALS],
+  },
+  {
+    name: "no re-defined ageMultiplier (use @/lib/players/age-curve)",
+    why: "ageMultiplier is the canonical production-multiplier adapter in @/lib/players/age-curve (Phase C3). Defining a second one (the old stepwise bins lived in engine/evaluation/util.ts) reintroduces the four-curve drift. Import or re-export the canonical.",
+    pattern: /function\s+ageMultiplier\s*\(/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [EVALS, join(SRC, "lib", "players", "age-curve.ts")],
+  },
 ];
 
 function walk(dir: string, exts: string[], out: string[] = []): string[] {
