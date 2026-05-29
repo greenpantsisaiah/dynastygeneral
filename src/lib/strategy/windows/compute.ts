@@ -27,6 +27,7 @@ import {
   resolveRookieRounds,
   totalFuturePickValue,
 } from "@/lib/players/future-picks";
+import { winNowAgeSignal, futureAgeSignal } from "@/lib/players/age-curve";
 
 const SCORING_POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
 
@@ -60,63 +61,28 @@ function clamp01(n: number): number {
 // Component scorers. each returns 0..1
 // =====================================================================
 
-// Win-now age signal. Skew-Gaussian peak curve, smooth everywhere.
-// No piecewise breakpoints (which cause slope discontinuities at age
-// boundaries: a 22.99 vs 23.01 roster reading meaningfully different
-// is a calibration artifact, not real signal). Per founder analysis
-// 2026-04-26: smooth is the natural shape.
-//
-// Parameters:
-//   peakAge 27       proven prime production
-//   sigmaLeft 3.5    steeper ramp up (rookies prove themselves fast)
-//   sigmaRight 5.5   gentler decline (vets retain win-now value)
-//   baseline 0.2     floor for very young (unproven) rosters
-//   peak 1.0         maximum at peakAge
-//
-// Sample values: 22→0.49, 25→0.86, 27→1.00, 30→0.89, 33→0.65, 36→0.36.
-// Continuous in value AND derivative everywhere.
+// Win-now age signal. The smooth skew-Gaussian peak curve is the
+// canonical `winNowAgeSignal` in @/lib/players/age-curve (relocated
+// there 2026-05-29 so all age math lives in one tunable module; math
+// unchanged). This wrapper supplies the roster-level age: STARTER avg
+// age, not whole-roster avg, because the win-now question is "how
+// strong is the lineup you actually deploy on Sundays?" Bench depth
+// (where rookie stashes live) belongs in the future signal. Bug
+// 2026-04-29: a prior version used me.avg_age and pulled win-now low
+// for users who built proven-veteran starters then stashed rookies on
+// the bench. Falls back to avg_age for rosters too thin to have a
+// starter pool yet (pre-draft).
 function ageWinNowSignal(me: RosterSnapshot | null): number {
-  // Use STARTER avg age, not whole-roster avg. The win-now question
-  // is "how strong is the lineup you actually deploy on Sundays?"
-  // Bench depth (where rookie stashes live) belongs in the future
-  // signal. Bug 2026-04-29: prior version used me.avg_age which
-  // pulled win-now low for users who built proven-veteran starters
-  // early then stashed rookies on the bench. Falls back to avg_age
-  // for rosters too thin to have a starter pool yet (pre-draft).
-  const age = me?.starter_avg_age ?? me?.avg_age ?? null;
-  if (age == null) return 0.5;
-  const peakAge = 27;
-  const sigma = age < peakAge ? 3.5 : 5.5;
-  const baseline = 0.2;
-  const peak = 1.0;
-  const distance = age - peakAge;
-  const gaussian = Math.exp(
-    -(distance * distance) / (2 * sigma * sigma),
-  );
-  return baseline + (peak - baseline) * gaussian;
+  return winNowAgeSignal(me?.starter_avg_age ?? me?.avg_age ?? null);
 }
 
-// Future age signal. Logistic decline, monotonically decreasing.
-// Smooth everywhere. Replaces a linear (28-age)/4 + clamp + piecewise
-// hybrid that had slope discontinuities at the breakpoints.
-//
-// Parameters:
-//   midAge 28       inflection point (sigmoid centerline)
-//   k 2.5           transition sharpness
-//   floor 0.1       residual future value for very-old rosters (rebuild
-//                   via trades + rookie picks remains an option)
-//   peak 1.0        maximum at very young
-//
-// Sample values: 22→0.92, 25→0.79, 28→0.55, 31→0.27, 34→0.14.
+// Future-value age signal. The smooth logistic-decline curve is the
+// canonical `futureAgeSignal` in @/lib/players/age-curve (relocated
+// 2026-05-29; math unchanged). This wrapper supplies the whole-roster
+// avg age.
 function ageFutureSignal(me: RosterSnapshot | null): number {
   if (!me || me.avg_age == null) return 0.5;
-  const age = me.avg_age;
-  const midAge = 28;
-  const k = 2.5;
-  const floor = 0.1;
-  const peak = 1.0;
-  const sigmoid = 1 / (1 + Math.exp((age - midAge) / k));
-  return floor + (peak - floor) * sigmoid;
+  return futureAgeSignal(me.avg_age);
 }
 
 function positionCompleteness(me: RosterSnapshot | null): number {

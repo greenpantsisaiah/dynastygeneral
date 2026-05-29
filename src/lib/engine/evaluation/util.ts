@@ -89,82 +89,19 @@ export function searchRankToScore(
 }
 
 /**
- * Position-specific age curves. Returns the SINGLE-SEASON production
- * multiplier (not a dynasty horizon premium).
+ * Position-specific age curve. SINGLE-SEASON production multiplier
+ * (not a dynasty-horizon premium), centered on 1.0 at peak.
  *
- * Curves are flat-peak-shelf, not gradients. Cohort production data
- * shows year-over-year variance within peak windows is statistical
- * noise, not a meaningful age effect. The cliff is sharp.
- *
- * Citations:
- * - RB: Mass 2018 RB cliff studies + Apex peak-age series. Peak shelf
- *   23-26 is flat; cliff begins at 27. Harstad career-touch framework
- *   provides the why (touches accumulate, not years).
- * - WR: peak shelf 25-29; gradual decline (target_share-conditioned).
- * - TE: pre-breakout discount through year 2; peak shelf 24-30.
- * - QB: tier-conditional, handled in qb.ts (Tier-1 ages well past 35;
- *   Tier-2/3 declines at 33+).
- *
- * Why no "youth premium" for a 24yo over a 26yo at RB: the production
- * data does not support one. Dynasty horizon premium is a SEPARATE
- * concern (sum of remaining peak seasons, discounted) and is not
- * implemented here because KTC already encodes it in the prior; adding
- * it again would double-count. Phase 2 backtest will tell us whether
- * a horizon premium ABOVE KTC is empirically justified.
+ * Consolidated 2026-05-29 (Phase C3): this was a stepwise flat-peak
+ * shelf with hard breakpoints at integer ages. It is now the canonical
+ * smooth `ageMultiplier` from `@/lib/players/age-curve` (a flat 1.0
+ * shelf with C1-smooth Gaussian shoulders, position-conditioned), so
+ * the rubrics, the player pool, the scout, the contender forecast, and
+ * the youth dial all read one age curve. Citations and per-position
+ * grounding live in that module. QB still uses its tier-conditional
+ * curve in qb.ts and does not call this.
  */
-export function ageMultiplier(
-  position: string,
-  age: number | null,
-): number {
-  if (age == null) return 1.0;
-  switch (position) {
-    case "RB":
-      if (age < 22) return 0.95; // rookie ramp
-      if (age < 23) return 0.98; // year 2 ramp
-      if (age < 27) return 1.0; // peak shelf 23-26 (flat)
-      if (age < 28) return 0.85; // cliff begins at 27
-      if (age < 29) return 0.72;
-      if (age < 30) return 0.58;
-      return 0.45;
-    case "WR":
-      // Calibration update 2026-05-08 (diagnostic #3): the prior
-      // 30-31 = 0.90 / 32-33 = 0.75 schedule was too gentle. Tyreek
-      // Hill 31, Cooper Kupp 32, Brandon Aiyuk 28 (post-injury at
-      // age 26 effectively), DeVonta Smith 26 (mid), and the broader
-      // 2024 aging-WR cohort all DG-bullish-then-bust. Sharper cliff
-      // between 31-33 brings the curve closer to the actual outcome
-      // distribution at the WR aging window. Per corpus: WR peak
-      // shelf is 25-29, so 30+ is decline territory.
-      if (age < 23) return 0.92; // rookie/year-2 ramp
-      if (age < 25) return 0.98;
-      if (age < 30) return 1.0; // peak shelf 25-29
-      if (age < 31) return 0.9;  // year 30: gentle dip, still WR1-eligible
-      if (age < 32) return 0.78; // year 31: cliff begins (Tyreek 2024 case)
-      if (age < 34) return 0.62; // years 32-33 (Cooper Kupp 2024 case)
-      return 0.45;
-    case "TE":
-      // Calibration update 2026-05-08: prior 28-30 = 1.00 /
-      // 31-32 = 0.85 was too gentle. Mark Andrews 30 was DG-bullish
-      // in 2024 and busted; corpus says TE peak shelf 24-30 ends
-      // AT 30, so 30 should already be on the cliff edge, not in
-      // the peak. Tightened to start the decline at age 30.
-      if (age < 23) return 0.78; // strong pre-breakout discount
-      if (age < 24) return 0.88; // late pre-breakout
-      if (age < 28) return 1.02; // breakout window 24-27
-      if (age < 30) return 1.0;  // late peak 28-29
-      if (age < 31) return 0.88; // year 30: cliff edge (Andrews 2024 case)
-      if (age < 33) return 0.72; // years 31-32: clear decline
-      return 0.5;
-    case "QB":
-      // Default curve; tier-1 override applied in qb.ts
-      if (age < 26) return 0.9;
-      if (age < 33) return 1.0;
-      if (age < 36) return 0.85;
-      return 0.65;
-    default:
-      return 1.0;
-  }
-}
+export { ageMultiplier } from "@/lib/players/age-curve";
 
 /**
  * Variance band from base point estimate + position-specific width +

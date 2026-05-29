@@ -27,6 +27,7 @@ import type {
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { WindowsResult } from "../windows/compute";
 import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
+import { ageCurveSigned } from "@/lib/players/age-curve";
 import {
   buildPositionRoomHealth,
   getHardStarterReqs as effectiveStarterReqs,
@@ -849,48 +850,11 @@ export function buildSurvivalResolver(
   };
 }
 
-/**
- * Per-candidate age-curve component in signed [-1, +1] space. Positive
- * for young end of position's peak; negative for past-peak. Matches
- * the curve used on the public /rankings page so the same dial moves
- * the same direction across surfaces.
- */
-function ageCurveSignedFor(
-  position: Position,
-  age: number | null,
-): number {
-  if (age == null) return 0;
-  switch (position) {
-    case "RB":
-      if (age <= 22) return 1;
-      if (age <= 24) return 0.7;
-      if (age <= 26) return 0.3;
-      if (age <= 28) return -0.2;
-      if (age <= 30) return -0.7;
-      return -1;
-    case "WR":
-      if (age <= 23) return 1;
-      if (age <= 25) return 0.7;
-      if (age <= 28) return 0.2;
-      if (age <= 30) return -0.2;
-      if (age <= 32) return -0.7;
-      return -1;
-    case "TE":
-      if (age <= 24) return 1;
-      if (age <= 26) return 0.5;
-      if (age <= 29) return 0.1;
-      if (age <= 31) return -0.4;
-      return -1;
-    case "QB":
-      if (age <= 24) return 1;
-      if (age <= 27) return 0.6;
-      if (age <= 31) return 0.2;
-      if (age <= 34) return -0.3;
-      return -1;
-    default:
-      return 0;
-  }
-}
+// Per-candidate age-curve component in signed [-1, +1] space is the
+// canonical `ageCurveSigned` from @/lib/players/age-curve (positive for
+// the young, upside-tilted end; negative past-peak; smooth tanh). The
+// youth_weight dial below scales it. One curve across the board,
+// /rankings, and Coach (Phase C3, 2026-05-29).
 
 const DIAL_NOISE_FLOOR = 1.5; // contributions below this aren't surfaced
 
@@ -943,7 +907,7 @@ function computeDialDeltas(args: {
   }
 
   if (Math.abs(dials.youth) >= 5) {
-    const y = ageCurveSignedFor(position, player.age ?? null);
+    const y = ageCurveSigned(position, player.age ?? null);
     const c = (dials.youth / 100) * 18 * y;
     record(
       "youth_weight",
