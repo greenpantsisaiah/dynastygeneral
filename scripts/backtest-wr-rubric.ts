@@ -1,95 +1,35 @@
 /**
- * WR rubric backtest. Read-only. Does feeding the WR rubric the free
- * signals we can ingest (age curve, prior-year usage, draft-year-derived
- * is_rookie) grade WRs BETTER than the market prior (KTC) alone? First-
- * time backtest per MODEL_LIVE_PLAN Phase A4.
+ * WR rubric backtest. Read-only. Does feeding the WR rubric the signals we
+ * can ingest (age curve, prior-year usage, and now the per-season team
+ * coaching/scheme row from team_signals_history) grade WRs BETTER than the
+ * market prior (KTC) alone?
  *
- * Cohort + helpers shared with the TE / QB backtests via
- * src/lib/signals/position-cohort.ts (one data path, one shape). Outcome
- * = realized season-Y PPR points-per-game. Decision years 2023 + 2024.
+ * Phase B sig-history upgrade: this now runs the cohort twice per year (A4
+ * baseline with no team signals, then rubric + historical scheme) and
+ * prints both lifts plus the scheme marginal, so the scheme signal's effect
+ * is isolated. One data path via runPositionBacktest; outcome = realized
+ * season-Y PPR PPG; decision years 2023 + 2024.
  *
  *   npx tsx --tsconfig tsconfig.json scripts/backtest-wr-rubric.ts
  *
- * Phase A truth audit predicts ~zero lift: the WR rubric's load-bearing
- * branches (scheme_tag, pass_rate_neutral, oc_tenure) read empty
- * team_signals columns in production, so the rubric reduces to market
- * prior + age + a rookie band-modifier. This script confirms or refutes
- * that prediction in numbers.
+ * Before team_signals_history is ingested the two rubric columns are
+ * identical and the harness says so. After the founder-authorized ingest,
+ * re-run to read the real scheme marginal.
  */
 
 import { config as loadEnv } from "dotenv";
 import { resolve } from "node:path";
 loadEnv({ path: resolve(process.cwd(), ".env.local") });
 import { createClient } from "@supabase/supabase-js";
-import { loadCrosswalk } from "../src/lib/signals/nflverse";
-import {
-  buildPositionCohort,
-  rank,
-  spearman,
-  bootstrapLiftCI,
-} from "../src/lib/signals/position-cohort";
+import { runPositionBacktest } from "../src/lib/signals/position-backtest";
 import { evaluateWr } from "../src/lib/engine/evaluation";
-
-const DECISION_YEARS = [2023, 2024];
 
 async function main() {
   const sb = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
-  const xwalk = await loadCrosswalk();
-  const pooled = { rubric: [] as number[], market: [] as number[], outcome: [] as number[] };
-
-  for (const Y of DECISION_YEARS) {
-    const { records, snapshotDate, format } = await buildPositionCohort(sb, xwalk, Y, "WR");
-    const rubric: number[] = [];
-    const market: number[] = [];
-    const outcome: number[] = [];
-    const bullish: boolean[] = [];
-    for (const rec of records) {
-      const out = evaluateWr(rec.ctx);
-      rubric.push(out.point_estimate);
-      market.push(rec.market);
-      outcome.push(rec.outcomePPG);
-      bullish.push(out.market_delta > 3);
-    }
-    const outRanks = rank(outcome);
-    const n = outcome.length;
-    const bullPctiles: number[] = [];
-    for (let i = 0; i < n; i++) if (bullish[i]) bullPctiles.push(outRanks[i] / n);
-    const bullMean = bullPctiles.length
-      ? bullPctiles.reduce((s, x) => s + x, 0) / bullPctiles.length
-      : null;
-
-    const sRub = spearman(rubric, outcome);
-    const sMkt = spearman(market, outcome);
-    console.log(
-      `\n=== ${Y} (KTC ${String(snapshotDate).slice(0, 10)}, fmt=${format}, n=${n} WRs) ===`,
-    );
-    console.log(`  market (KTC) Spearman vs ${Y} PPG: ${sMkt.toFixed(3)}`);
-    console.log(`  rubric       Spearman vs ${Y} PPG: ${sRub.toFixed(3)}`);
-    console.log(`  LIFT (rubric - market):           ${(sRub - sMkt).toFixed(3)}`);
-    console.log(
-      `  rubric-bullish WRs: ${bullPctiles.length} | mean outcome pctile: ${
-        bullMean != null ? bullMean.toFixed(3) : "n/a"
-      } (>0.5 = right-pointing)`,
-    );
-    pooled.rubric.push(...rubric);
-    pooled.market.push(...market);
-    pooled.outcome.push(...outcome);
-  }
-
-  const pRub = spearman(pooled.rubric, pooled.outcome);
-  const pMkt = spearman(pooled.market, pooled.outcome);
-  const ci = bootstrapLiftCI(pooled.rubric, pooled.market, pooled.outcome);
-  console.log(`\n=== POOLED (n=${pooled.rubric.length}) ===`);
-  console.log(`  market (KTC) Spearman: ${pMkt.toFixed(3)}`);
-  console.log(`  rubric       Spearman: ${pRub.toFixed(3)}`);
-  console.log(`  LIFT:                  ${(pRub - pMkt).toFixed(3)}`);
-  console.log(`  95% CI of lift:        [${ci.lo.toFixed(3)}, ${ci.hi.toFixed(3)}]`);
-  console.log(
-    `\nReading: positive lift = the rubric's free signals rank WRs' realized production better than KTC alone. CI excluding zero = statistically meaningful.\n`,
-  );
+  await runPositionBacktest({ sb, position: "WR", evaluate: evaluateWr });
 }
 
 main().catch((e) => {
