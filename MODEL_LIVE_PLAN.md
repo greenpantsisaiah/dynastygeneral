@@ -155,14 +155,30 @@ sees what shipped without reconstructing it from git.
   and inherited by WR/TE/QB, confirm the inherited bands in the D6
   snapshot-diff; (b) floorYoung + the 0.55/0.60 youth boost are
   internal heuristics.
-- **Phase C4 (Coach mirror object-parity): NEXT, unblocked by C1.**
-  Scope sharpened 2026-05-29: Coach already mirrors active_plays and
-  inflections. The gaps are the Value-vs-ADP (ev_bank) readout, an
-  upgrade of REQUIRED_IN_COACH (evals/anti-patterns.test.ts) from
-  string-presence to object-parity, and verifying Coach reads the
-  buildLeagueContext output object rather than a forked build.
-- **Remaining:** C4, then D (Forward Production), E (decision-engine
-  re-cast), F (validation + scoreboard), G (cleanup + lockdown).
+- **Phase C4 (Coach mirror object-parity): DONE.** #62. Coach already
+  read the buildLeagueContext output + resolveStandingDecision (C1, not
+  re-derived); C4 added the Value-vs-ADP (ev_bank) readout to the
+  mirror (analyzeLeagueEvBank fed by the same buildPricedPool value map
+  + canonical pickAdpFromVariants the hub uses, cited in the
+  SYSTEM_PROMPT as draft-timing arbitrage with an honest null rule) and
+  UPGRADED the REQUIRED_IN_COACH lint (evals/anti-patterns.test.ts)
+  from string-presence to object-parity: each mirrored field is paired
+  with the canonical that must derive it, so a fork (field emitted
+  without its canonical called) now fails CI. C4a (taxi_advisable)
+  tripwire left intact.
+- **Phase C COMPLETE (2026-05-30): C1 + C2 + C3 + C4 all shipped.**
+  Every consumer of snapshot / strategy / value / age / Coach-mirror
+  reads from one canonical, lint-locked. C4a remains the one tracked
+  interim until Phase D exposes near_term_role. The architecture can
+  now support Phase D wiring without divergence.
+- **Remaining:** D (Forward Production), E (decision-engine re-cast),
+  F (validation + scoreboard), G (cleanup + lockdown). Phase D is the
+  converging, all-four-positions-or-none build; its D1 founder decision
+  (horizon, output shape, position conditioning, update cadence) must
+  be logged before D2 starts, and its "beats market" gate needs
+  historical/vintage team_signals (the current 2026-only snapshot
+  enriches live reads but cannot validate the temporal-blinded
+  backtest).
 
 ---
 
