@@ -14,6 +14,8 @@ import {
   coerceGrade,
   loadHistoricalOlGrades,
   normalizePffGrade,
+  normalizeTeam,
+  olMapFromRows,
   OL_GRADE_PASS_SIGNAL,
   OL_GRADE_RUN_SIGNAL,
 } from "../src/lib/signals/historical-ol-grades";
@@ -152,6 +154,31 @@ async function run() {
   console.log("\n── loadHistoricalOlGrades: empty result ──");
   const empty = await loadHistoricalOlGrades(stubClient([]), 2023, "2023-09-15");
   check("no rows -> empty map (honest no-data path)", empty.size === 0);
+
+  console.log("\n── normalizeTeam (legacy aliases) ──");
+  check("LA -> LAR", normalizeTeam("LA") === "LAR");
+  check("OAK -> LV", normalizeTeam("oak") === "LV");
+  check("plain team passes through", normalizeTeam("phi") === "PHI");
+
+  console.log("\n── olMapFromRows (FREE-check file path) ──");
+  const fileRows = [
+    { team: "LA", season: 2022, ol_grade_run: 0.4, ol_grade_pass: 0.32 },
+    { team: "PHI", season: 2022, ol_grade_run: 0.9, ol_grade_pass: 0.84 },
+    { team: "PHI", season: 2023, ol_grade_run: 0.7, ol_grade_pass: 0.71 },
+  ];
+  // season-S enriches decision year S+1, so 2023 reads only season-2022 rows.
+  const m2023 = olMapFromRows(fileRows, 2023);
+  check(
+    "2023 decision reads season-2022 rows, LA aliased to LAR",
+    m2023.size === 2 &&
+      m2023.get("LAR")?.ol_grade_pass === 0.32 &&
+      m2023.get("PHI")?.ol_grade_pass === 0.84,
+  );
+  const m2024 = olMapFromRows(fileRows, 2024);
+  check(
+    "2024 decision reads season-2023 rows only",
+    m2024.size === 1 && m2024.get("PHI")?.ol_grade_pass === 0.71,
+  );
 
   console.log(`\n${passed} passed · ${failed} failed`);
   if (failed > 0) process.exit(1);

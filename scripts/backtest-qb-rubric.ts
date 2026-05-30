@@ -43,9 +43,11 @@ import {
 } from "../src/lib/signals/position-cohort";
 import {
   loadHistoricalOlGrades,
+  olMapFromRows,
   type HistoricalOlGrade,
 } from "../src/lib/signals/historical-ol-grades";
 import { evaluateQb } from "../src/lib/engine/evaluation";
+import { readFileSync } from "node:fs";
 
 const DECISION_YEARS = [2023, 2024];
 
@@ -108,8 +110,17 @@ function pooledReport(label: string, p: Pooled): void {
   );
 }
 
+function argValue(name: string): string | null {
+  const i = process.argv.indexOf(name);
+  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : null;
+}
+
 async function main() {
   const withOl = process.argv.includes("--with-ol");
+  // --ol-file <path>: load free OL grades from a local JSON file (the
+  // validate-first FREE check), so the backtest never reads/writes the DB
+  // for OL. Without it, --with-ol reads historical_signal_codes.
+  const olFile = argValue("--ol-file");
   const sb = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -117,7 +128,7 @@ async function main() {
   const xwalk = await loadCrosswalk();
 
   if (withOl) {
-    await runWithOlComparison(sb, xwalk);
+    await runWithOlComparison(sb, xwalk, olFile);
     return;
   }
 
@@ -149,19 +160,38 @@ async function main() {
 }
 
 /**
- * Validate-first comparison: baseline (free signals) vs +PFF OL grades.
- * The delta in pooled lift is the PFF grade's marginal contribution to
- * the QB rubric's rank correlation. This is the number that decides
- * whether the paid feed earns its keep (per Phase B6 decision framework).
+ * Validate-first comparison: baseline (free signals) vs +OL grades. The
+ * delta in pooled lift is the OL grade's marginal contribution to the QB
+ * rubric's rank correlation. This is the number that decides whether OL
+ * data earns its keep (per Phase B6 decision framework). The OL source is
+ * the DB (historical_signal_codes) by default, or a local JSON file when
+ * --ol-file is passed (the FREE check, zero DB writes).
  */
-async function runWithOlComparison(sb: SupabaseClient, xwalk: Crosswalk) {
+async function runWithOlComparison(
+  sb: SupabaseClient,
+  xwalk: Crosswalk,
+  olFile: string | null,
+) {
   const base: Pooled = { rubric: [], market: [], outcome: [] };
   const ol: Pooled = { rubric: [], market: [], outcome: [] };
   let totalOlHits = 0;
   let totalRecords = 0;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fileRows: any[] | null = null;
+  if (olFile) {
+    fileRows = JSON.parse(readFileSync(olFile, "utf8"));
+    console.log(
+      `OL source: local file ${olFile} (${fileRows?.length ?? 0} team-season rows) [FREE check, no DB OL read].`,
+    );
+  } else {
+    console.log("OL source: historical_signal_codes (DB).");
+  }
+
   for (const Y of DECISION_YEARS) {
-    const grades = await loadHistoricalOlGrades(sb, Y, knowledgeCutoff(Y));
+    const grades = fileRows
+      ? olMapFromRows(fileRows, Y)
+      : await loadHistoricalOlGrades(sb, Y, knowledgeCutoff(Y));
     const b = await scoreYear(sb, xwalk, Y);
     const o = await scoreYear(sb, xwalk, Y, grades);
     totalOlHits += o.olHits;
@@ -181,8 +211,8 @@ async function runWithOlComparison(sb: SupabaseClient, xwalk: Crosswalk) {
     ol.outcome.push(...o.outcome);
   }
 
-  pooledReport("BASELINE (free signals)", base);
-  pooledReport("+PFF OL grades", ol);
+  pooledReport("BASELINE (no OL)", base);
+  pooledReport("+OL grades", ol);
 
   const baseLift = spearman(base.rubric, base.outcome) - spearman(base.market, base.outcome);
   const olLift = spearman(ol.rubric, ol.outcome) - spearman(ol.market, ol.outcome);
@@ -193,11 +223,11 @@ async function runWithOlComparison(sb: SupabaseClient, xwalk: Crosswalk) {
   console.log(`  marginal OL lift:      ${(olLift - baseLift).toFixed(3)}`);
   if (totalOlHits === 0) {
     console.log(
-      `\nNo PFF OL grades ingested for the decision years yet. The +OL pass is identical to the baseline by construction. Ingest a vintage sample (scripts/ingest-pff-ol-grades.ts) before reading the delta as evidence. NEVER claim lift from a current-only snapshot.\n`,
+      `\nNo OL grades joined for the decision years. The +OL pass is identical to the baseline by construction. Provide grades (--ol-file for the free check, or ingest a vintage sample) before reading the delta. NEVER claim lift from a current-only snapshot.\n`,
     );
   } else {
     console.log(
-      `\nReading: a marginal OL lift that is positive AND whose CI excludes zero is the validate-first signal that PFF ol_grade_pass earns its ongoing cost for QB. A marginal lift at/below zero is a money-saving negative result: keep the free ol_continuity proxy.\n`,
+      `\nReading: a marginal OL lift that is positive AND meaningfully sized is the validate-first signal that the OL grade earns its place for QB. A marginal lift at/below zero is the money-saving negative result: this OL source does not beat the rubric's existing signals, so do not pay for it (and, if free, do not wire it).\n`,
     );
   }
 }

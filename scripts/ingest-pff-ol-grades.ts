@@ -64,22 +64,14 @@ loadEnv({ path: resolve(process.cwd(), ".env.local") });
 import { createClient } from "@supabase/supabase-js";
 import { NFL_TEAMS } from "../src/lib/signals/schema";
 import {
+  normalizeTeam,
+  normalizePffGrade,
   OL_GRADE_PASS_SIGNAL,
   OL_GRADE_RUN_SIGNAL,
-  normalizePffGrade,
 } from "../src/lib/signals/historical-ol-grades";
 
 const CHUNK = 200;
 const VALID_TEAMS = new Set<string>(NFL_TEAMS);
-// Legacy / relocation aliases seen in older PFF exports.
-const TEAM_ALIAS: Record<string, string> = {
-  LA: "LAR",
-  STL: "LAR",
-  SD: "LAC",
-  OAK: "LV",
-  WSH: "WAS",
-  JAC: "JAX",
-};
 
 type RawRow = {
   team: string;
@@ -119,8 +111,7 @@ function parseArgs(argv: readonly string[]): Args {
 }
 
 function normTeam(raw: string): string | null {
-  const t = raw.trim().toUpperCase();
-  const aliased = TEAM_ALIAS[t] ?? t;
+  const aliased = normalizeTeam(raw);
   return VALID_TEAMS.has(aliased) ? aliased : null;
 }
 

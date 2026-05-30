@@ -108,3 +108,43 @@ export function normalizePffGrade(native: number | null): number | null {
   if (native < 0 || native > 100) return null;
   return Number((native / 100).toFixed(4));
 }
+
+/** Legacy / relocation team aliases. nflverse pbp uses LA for the Rams. */
+export const TEAM_ALIAS: Record<string, string> = {
+  LA: "LAR",
+  STL: "LAR",
+  SD: "LAC",
+  OAK: "LV",
+  WSH: "WAS",
+  JAC: "JAX",
+};
+
+export function normalizeTeam(raw: string): string {
+  const t = (raw ?? "").trim().toUpperCase();
+  return TEAM_ALIAS[t] ?? t;
+}
+
+/**
+ * Build the per-decision-year OL map directly from in-memory file rows
+ * (team, season, ol_grade_run, ol_grade_pass on the 0..1 scale), no DB.
+ * Used by the validate-first FREE check so the backtest never writes to
+ * production. A season-S row enriches decision year S+1, the same
+ * convention the ingest uses (a grade earned in S is knowable preseason
+ * S+1). Returns the map for the requested prediction year only.
+ */
+export function olMapFromRows(
+  rows: { team: string; season: number; ol_grade_run?: number | null; ol_grade_pass?: number | null }[],
+  predictionYear: number,
+): Map<string, HistoricalOlGrade> {
+  const out = new Map<string, HistoricalOlGrade>();
+  for (const r of rows) {
+    if (r.season + 1 !== predictionYear) continue;
+    const team = normalizeTeam(r.team);
+    if (!team) continue;
+    out.set(team, {
+      ol_grade_run: coerceGrade(r.ol_grade_run ?? null),
+      ol_grade_pass: coerceGrade(r.ol_grade_pass ?? null),
+    });
+  }
+  return out;
+}

@@ -52,6 +52,10 @@ next-env.d.ts
 /data/pff-ol-grades.json
 /data/pff/
 
+# Derived free OL proxy (regenerable from nflverse via
+# scripts/derive-free-ol-grades.ts). Not source; do not commit.
+/data/free-ol-grades.json
+
 # Private founder artifacts (legal correspondence templates, etc.)
 /.private/
 
