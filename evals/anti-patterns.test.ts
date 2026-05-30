@@ -466,26 +466,85 @@ const STRATEGY_SNAPSHOT = resolve(
   "strategy-snapshot.ts",
 );
 const LEAGUE_CONTEXT = resolve(SRC, "lib", "engine", "league-context.ts");
-  const REQUIRED_IN_COACH = [
-    "system_decision",
-    "board_candidates",
-    "league_position_context",
-    "build_vs_league",
-    "format_rules",
-    "pricing",
-    "posture",
-    // Recoverability slack (analyzeLeagueRead -> structural_constraints:
-    // picks_remaining vs total_starter_gap) is the league-size lever for
-    // the chase-vs-skip-a-run calibration; Coach cites it by name.
-    "league_read",
-    // Per-player opportunity read (snap share / targets / aDOT / RZ role)
-    // must be computed via the canonical buildOpportunityProfile, not a
-    // re-derived inline snap-share math, so chat and the inflection cards
-    // cite identical numbers. Asserting the canonical call (not just a
-    // field name) is the stronger "same computed object" check.
-    "buildOpportunityProfile",
+  // Object-parity contract (upgraded 2026-05-30, Phase C4). The old
+  // check only asserted each field-name STRING appeared in the coach
+  // surface, which passes even when Coach computed the value from a
+  // PARALLEL build. The strengthened check pairs each mirrored field
+  // with the canonical source that MUST produce it: the field is emitted
+  // in the payload AND the canonical builder/helper that derives it is
+  // called in the coach surface. So a fork (Coach emitting `ev_bank` but
+  // computing it from its own roster walk instead of analyzeLeagueEvBank,
+  // or a `system_decision` re-derived without resolveStandingDecision)
+  // now FAILS the lint. `field` is the payload key; `derivedFrom` is the
+  // canonical that must appear; `note` explains the binding.
+  const REQUIRED_IN_COACH: Array<{
+    field: string;
+    derivedFrom: string;
+    note: string;
+  }> = [
+    {
+      field: "system_decision",
+      derivedFrom: "resolveStandingDecision",
+      note: "the standing call must come from the single production decision door, not a re-synthesis",
+    },
+    {
+      field: "board_candidates",
+      derivedFrom: "decision.quadrant_candidates",
+      note: "the surfaced candidate set is the board's, value-sorted; Coach ranks within it",
+    },
+    {
+      field: "league_position_context",
+      derivedFrom: "decision.league_position_context",
+      note: "per-position scarcity must be the decision's, not a Coach re-read of the rosters",
+    },
+    {
+      field: "build_vs_league",
+      derivedFrom: "decision.build_vs_league",
+      note: "the with/against-the-grain verdict is the decision's, not re-derived",
+    },
+    {
+      field: "format_rules",
+      derivedFrom: "opContext.format_rules",
+      note: "format rules come from the canonical buildOperationalContext",
+    },
+    {
+      field: "pricing",
+      derivedFrom: "opContext.pricing",
+      note: "the trade-pricing block is the canonical operational pricing, not a Coach-local price map",
+    },
+    {
+      field: "posture",
+      derivedFrom: "classifyRosterPosture",
+      note: "posture mirrors the hub PostureBanner via the canonical classifier",
+    },
+    {
+      // Recoverability slack (analyzeLeagueRead -> structural_constraints:
+      // picks_remaining vs total_starter_gap) is the league-size lever for
+      // the chase-vs-skip-a-run calibration; Coach cites it by name.
+      field: "league_read",
+      derivedFrom: "buildLeagueReadFromSnapshot",
+      note: "structural_constraints come from the canonical league-read builder",
+    },
+    {
+      // Per-player opportunity read (snap share / targets / aDOT / RZ role)
+      // must be computed via the canonical buildOpportunityProfile, not a
+      // re-derived inline snap-share math, so chat and the inflection cards
+      // cite identical numbers.
+      field: "players",
+      derivedFrom: "buildOpportunityProfile",
+      note: "the named-roster opportunity read is the canonical profile, not inline snap-share math",
+    },
+    {
+      // Value-vs-ADP (ev_bank) leaderboard. The hub renders the identical
+      // readout (Track Record surface + companion Checkpoint beat); Coach
+      // must read the same analyzeLeagueEvBank output fed by the same
+      // priced value map, never its own per-roster Value-vs-ADP walk.
+      field: "ev_bank",
+      derivedFrom: "analyzeLeagueEvBank",
+      note: "the Value-vs-ADP standing is the canonical league ev-bank readout, not a Coach-local roster walk",
+    },
   ];
-  console.log("\n── coach mirrors the canonical engine outputs ──");
+  console.log("\n── coach mirrors the canonical engine outputs (object-parity) ──");
   {
     let coachContent = "";
     try {
@@ -507,17 +566,36 @@ const LEAGUE_CONTEXT = resolve(SRC, "lib", "engine", "league-context.ts");
       coachHelperContent = "";
     }
     const coachSurface = coachContent + "\n" + coachHelperContent;
-    const missing = coachContent
-      ? REQUIRED_IN_COACH.filter((f) => !coachSurface.includes(f))
-      : ["(route unreadable)"];
-    if (missing.length === 0) {
+    // Object-parity: a field passes only when BOTH its payload key is
+    // emitted AND the canonical that derives it is called. A field that
+    // appears without its canonical is a FORK (Coach computed it itself).
+    const violations: string[] = [];
+    if (!coachContent) {
+      violations.push("(route unreadable)");
+    } else {
+      for (const { field, derivedFrom, note } of REQUIRED_IN_COACH) {
+        const fieldPresent = coachSurface.includes(field);
+        const canonicalPresent = coachSurface.includes(derivedFrom);
+        if (!fieldPresent && !canonicalPresent) {
+          violations.push(`${field}: neither the field nor its canonical (${derivedFrom}) is present`);
+        } else if (!fieldPresent) {
+          violations.push(`${field}: canonical ${derivedFrom} is called but the field is not emitted to Coach`);
+        } else if (!canonicalPresent) {
+          violations.push(
+            `${field}: emitted to Coach but NOT derived from the canonical ${derivedFrom} (a fork). ${note}`,
+          );
+        }
+      }
+    }
+    if (violations.length === 0) {
       passed++;
-      console.log("  ✓ all canonical fields present in the coach context");
+      console.log("  ✓ all canonical fields mirrored AND derived from their canonical (object-parity)");
     } else {
       failed++;
-      console.log(`  ✗ coach context missing canonical field(s): ${missing.join(", ")}`);
+      console.log(`  ✗ coach object-parity violation(s):`);
+      for (const v of violations) console.log(`    - ${v}`);
       console.log(
-        "    why: Coach must consume the engine's canonical outputs, not re-derive. Mirror every user-visible decision field. Per INVARIANTS.md.",
+        "    why: Coach must consume the engine's canonical outputs, not re-derive. Each mirrored field must come from its canonical builder so chat and board cannot diverge. Per INVARIANTS.md.",
       );
     }
   }
