@@ -88,6 +88,44 @@ export function evaluateTe(ctx: EvaluationContext): RubricOutput {
     );
   }
 
+  // Route participation in passing sets (MODEL_CARD 4.4 weight 0.15,
+  // the load-bearing TE usage signal). PFF: top-3 fantasy TEs averaged
+  // 84% route rate; below a ~60% floor TE production is structurally
+  // capped (a blocking / rotational TE rarely produces). Free nflverse
+  // pbp_participation proxy. Below the floor is a hard discount; above
+  // it, a graduated lift centered on the floor.
+  const ROUTE_FLOOR = 0.6;
+  const routeRate = ctx.route_participation;
+  if (routeRate != null) {
+    if (routeRate < ROUTE_FLOOR) {
+      // Structural cap: scale the penalty by how far below the floor.
+      const effect = (routeRate - ROUTE_FLOOR) * 40;
+      estimate = clamp(estimate + effect);
+      bandModifier += 4;
+      stack.push(
+        evidence(
+          "situation",
+          "route_participation_floor",
+          0.15,
+          effect,
+          `Route participation ${(routeRate * 100).toFixed(0)}% below the ~60% floor; production structurally capped`,
+        ),
+      );
+    } else {
+      const effect = (routeRate - ROUTE_FLOOR) * 25;
+      estimate = clamp(estimate + effect);
+      stack.push(
+        evidence(
+          "situation",
+          "route_participation",
+          0.15,
+          effect,
+          `Route participation ${(routeRate * 100).toFixed(0)}% of team dropbacks (full-time pass-game role)`,
+        ),
+      );
+    }
+  }
+
   // OC tenure (TE production is heavily scheme-coupled)
   const ocTenure = ctx.team?.oc_tenure_yrs;
   if (ocTenure != null) {
