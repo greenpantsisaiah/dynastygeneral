@@ -19,12 +19,19 @@
  *
  * Compounding-news signal is RB-only in historical_signal_codes (per
  * truth audit 2026-05-26), so WR / TE / QB records leave it at 0.
+ *
+ * Optional PFF OL grades (Phase B6): pass an `olGrades` map (from
+ * `loadHistoricalOlGrades`, keyed by upper-cased team) to set
+ * `team.ol_grade_run` / `team.ol_grade_pass` per record. Omit it (the
+ * default) and both stay null, so the cohort is unchanged on free
+ * signals. The map itself is vintage-blinded by the loader.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EvaluationContext } from "@/lib/engine/evaluation";
 import type { PlayerSignalsRow, TeamSignalsRow } from "@/lib/signals/schema";
 import { buildSeasonSignals, type Crosswalk } from "@/lib/signals/nflverse";
+import type { HistoricalOlGrade } from "@/lib/signals/historical-ol-grades";
 
 const GP_FLOOR = 6;
 
@@ -43,6 +50,7 @@ export async function buildPositionCohort(
   xwalk: Crosswalk,
   year: number,
   position: CohortPosition,
+  olGrades?: Map<string, HistoricalOlGrade>,
 ): Promise<{
   records: BacktestRecord[];
   snapshotDate: string | null;
@@ -118,11 +126,12 @@ export async function buildPositionCohort(
     } as PlayerSignalsRow;
 
     const teamSig = sig.team ? teams.get(sig.team) : null;
+    const ol = sig.team ? olGrades?.get(sig.team.toUpperCase()) : undefined;
     const team = {
       team: sig.team ?? "",
       ol_continuity_score: teamSig?.ol_continuity_score ?? null,
-      ol_grade_run: null,
-      ol_grade_pass: null,
+      ol_grade_run: ol?.ol_grade_run ?? null,
+      ol_grade_pass: ol?.ol_grade_pass ?? null,
       rookie_ol_starters_count: 0,
       rookie_ol_position_breakdown: {},
       hc_id: null,
