@@ -22,7 +22,8 @@ import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
 import { isPlanAvailable } from "@/lib/stripe/client";
 import { humanize, resolvePlayers } from "@/lib/players/cache";
-import { getProjections } from "@/lib/players/projections";
+import { getProjections, pickAdpFromVariants } from "@/lib/players/projections";
+import { analyzeLeagueEvBank } from "@/lib/strategy/ev-bank";
 import {
   buildMyRosterForCoach,
   type CoachMyRosterPlayer,
@@ -187,6 +188,29 @@ an EDGE while the user's starters there are covered (let them overpay),
 and only becomes a mistake when they fall below the starter requirement.
 Do not tell the user to chase a run their starter coverage does not
 require.
+
+### Value vs ADP standing (cite the board's numbers, never your own)
+
+\`<current_state>.ev_bank\` is the user's Value-vs-ADP bank, the same
+readout the board renders as the Track Record surface and the companion
+Checkpoint beat. It carries \`my_rank\` (the user's rank among rosters
+with a resolved bank), \`ranked_count\` (the denominator, "1st of N"),
+\`league_avg\` (the mean banked Value vs ADP across resolved rosters),
+\`my_percentile\`, and \`my_total\` (the user's banked total with its
+\`range_low\`/\`range_high\` confidence envelope and resolved-pick count).
+When the user asks "how am I doing," "where do I stand," "is my draft
+going well," or "how does my value compare," LEAD with these numbers:
+"Your Value vs ADP is +10.8 (range +6 to +15), 1st of 12, league average
++1.2." Cite \`my_rank\` of \`ranked_count\` and \`league_avg\` exactly as
+given; the board shows the identical figures, so an estimate that
+disagrees reads as the two surfaces contradicting. Banked Value vs ADP
+measures draft-timing arbitrage (value relative to ADP at the pick you
+took), NOT roster strength or a win-now/contender read; do not present a
+high bank as "you are the best team" or a low bank as "you are losing."
+When \`ev_bank\` is null (pre-draft, or no roster resolved a bank yet),
+do not invent a standing; say the bank has not resolved any picks yet.
+Never use the bare word "EV" in your phrasing; say "Value vs ADP" or
+"vsADP."
 
 ### Did going against a run pay off? (two questions, honest split)
 
@@ -1083,6 +1107,15 @@ export async function POST(
   // the context.
   let leagueRead: ReturnType<typeof buildLeagueReadFromSnapshot> | null = null;
   let inflectionItems: Awaited<ReturnType<typeof buildInflectionsFromSnapshot>> = [];
+  // Value-vs-ADP (ev_bank) leaderboard. The hub renders this as the
+  // Track Record / "how you stand relatively" surface AND as the
+  // companion Checkpoint milestone beat ("Value vs ADP +10.8, 1st of
+  // 12"). Coach must read the SAME computed readout so the chat cites
+  // the identical rank-of-N + league average the board shows, not its
+  // own estimate. Built best-effort inside the try below from the same
+  // canonical inputs the hub passes (the priced value map +
+  // pickAdpFromVariants). Null when synthesis can't resolve a bank.
+  let leagueEvBank: ReturnType<typeof analyzeLeagueEvBank> | null = null;
   // Hoisted so the named-roster mirror below can attach each player's
   // prior-season opportunity read from the same (24h-cached) /stats map
   // the inflection cards use. Empty until the try populates it.
@@ -1161,6 +1194,44 @@ export async function POST(
       prevPrevSeasonStats,
       careerUsage,
       draftPickByPlayerId,
+    });
+
+    // Value-vs-ADP (ev_bank) readout, mirroring the hub. Same canonical
+    // (analyzeLeagueEvBank) fed by the same inputs the hub passes: the
+    // priced value map (lrValueMap, derived from buildPricedPool's
+    // playerValuesById, the all-rosters priced map) and a format-aware
+    // ADP closure (pickAdpFromVariants, the canonical that prefers the
+    // rookie variant first). getProjections is 24h-cached, already
+    // pulled upstream for the snapshot's starter_talent_score, so this
+    // is a warm map read. Coach now states the identical rank-of-N +
+    // league average the board shows; cited by name in COACH_CONTRACT.
+    const evBankProjections = await getProjections(snapshot.season).catch(
+      () => ({ byPlayerId: new Map() }),
+    );
+    const evBankAdpFmt = {
+      isSuperflex:
+        snapshot.format === "superflex" || snapshot.format === "2qb",
+      isPpr: snapshot.scoring.includes("PPR"),
+      isHalfPpr: snapshot.scoring.includes("half-PPR"),
+      isTePremium: snapshot.scoring.includes("TE-premium"),
+      isRookie: false,
+    };
+    const getEvBankAdp = (id: string): number | null => {
+      const adpRaw = evBankProjections.byPlayerId.get(id);
+      if (!adpRaw) return null;
+      const sp = playersMap.get(id);
+      const isRookie = sp?.years_exp === 0;
+      const { value } = pickAdpFromVariants(adpRaw, {
+        ...evBankAdpFmt,
+        isRookie,
+        position: sp?.position ?? null,
+      });
+      return value;
+    };
+    leagueEvBank = analyzeLeagueEvBank({
+      snap: snapshot,
+      playerValueMap: lrValueMap,
+      getAdp: getEvBankAdp,
     });
   } catch (err) {
     console.error("[coach:league-read+inflections]", err);
@@ -1781,6 +1852,33 @@ export async function POST(
     // rule (mandatory bimodal framing for aging-cliff / rookie-debut
     // / post-injury players).
     inflections: inflectionItems,
+    // Value-vs-ADP (ev_bank) readout: per-roster banked Value vs ADP,
+    // the user's rank among resolved rosters, league average, and
+    // percentile. Same canonical (analyzeLeagueEvBank) the hub renders
+    // as the Track Record surface AND the companion Checkpoint beat.
+    // Coach cites my_rank / ranked_count / league_avg from here, never
+    // its own estimate. Null when no roster resolved a bank (no values
+    // or ADPs), e.g. a pre-draft snapshot.
+    ev_bank: leagueEvBank
+      ? {
+          my_rank: leagueEvBank.my_rank,
+          ranked_count: leagueEvBank.ranked_count,
+          my_percentile: leagueEvBank.my_percentile,
+          league_avg: leagueEvBank.league_avg,
+          my_total: (() => {
+            const mine = leagueEvBank.rosters.find((r) => r.is_me);
+            return mine
+              ? {
+                  total: mine.total_ev,
+                  range_low: mine.range_low,
+                  range_high: mine.range_high,
+                  resolved_picks: mine.resolved_picks,
+                  total_picks: mine.total_picks,
+                }
+              : null;
+          })(),
+        }
+      : null,
     nfl_draft_live: isNflDraftWindowActive(),
   };
 
