@@ -30,6 +30,7 @@ import type {
 // widening.
 type PlayerSignalsRowWide = PlayerSignalsRow & {
   snap_share_prior_year?: number | null;
+  route_participation_prior_year?: number | null;
   target_share_prior_year?: number | null;
   rush_share_prior_year?: number | null;
   draft_round?: number | null;

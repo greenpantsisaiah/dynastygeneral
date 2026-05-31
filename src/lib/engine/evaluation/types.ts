@@ -53,6 +53,14 @@ export type EvaluationContext = {
   age?: number | null;
   is_rookie?: boolean;
   years_exp?: number | null;
+  /**
+   * Prior-season route participation (0..1) for WR / TE: dropback plays
+   * the player was on the field for, over his team's dropbacks in those
+   * games. Free nflverse pbp_participation proxy (see
+   * `buildRouteParticipation`). Volume floor for WR; hard threshold for
+   * TE (MODEL_CARD 4.4: production structurally capped below ~60%).
+   */
+  route_participation?: number | null;
 };
 
 export type RubricOutput = Pick<
