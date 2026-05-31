@@ -1,0 +1,34 @@
+◇ injected env (13) from .env.local // tip: ⌘ enable debugging { debug: true }
+
+=== 2023 (KTC 2023-03-16, fmt=1qb, n=64 RBs; LLM-coded 38) ===
+  [full cohort] market 0.742 | snap 0.695 | LLM(+snap fb) 0.672
+  [paired only ] market 0.463 | snap 0.455 | LLM 0.450
+
+=== 2024 (KTC 2024-09-08, fmt=1qb, n=65 RBs; LLM-coded 36) ===
+  [full cohort] market 0.694 | snap 0.692 | LLM(+snap fb) 0.679
+  [paired only ] market 0.501 | snap 0.436 | LLM 0.430
+
+
+========================= POOLED RESULTS =========================
+LLM tier coverage of the cohort: 74/129 (57.4%). The rest fall back to the snap tier in the LLM(+snap fb) variant.
+
+--- FULL COHORT (n=129), vs market (KTC) ---
+  market (KTC) Spearman:                 0.717
+  rubric + SNAP tier (A4 baseline):      0.691  lift -0.027  CI [-0.065, +0.011]
+  rubric + LLM tier (+snap fallback):    0.675  lift -0.042  CI [-0.086, +0.002]
+  rubric + LLM tier (no snap fallback):  0.675  lift -0.042  CI [-0.086, +0.001]
+
+--- PAIRED (only RBs both sources code, n=74), vs market (KTC) ---
+  market (KTC) Spearman:        0.464
+  rubric + SNAP tier:           0.418  lift -0.046  CI [-0.144, +0.040]
+  rubric + LLM tier:            0.411  lift -0.053  CI [-0.155, +0.037]
+
+  HEAD-TO-HEAD (LLM tier - SNAP tier), paired bootstrap:
+    Spearman diff: -0.007  95% CI [-0.051, +0.040]
+
+========================= DECISION =========================
+  Does ANY tier source lift the rubric over the market with CI excluding zero? NO
+  LEAN: SNAP tier (point estimate higher or tied) but the paired CI straddles zero. Not statistically separable on this cohort.
+
+Reading: lift = rubric Spearman minus market Spearman. Positive lift with a 95% CI excluding zero means the tier source's rubric ranks realized RB production better than KTC alone. NEVER claim lift from a current-only snapshot; this is a temporal-blinded historical backtest (decision years 2023 + 2024).
+
