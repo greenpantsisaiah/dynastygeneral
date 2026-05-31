@@ -24,12 +24,19 @@
  *
  * Compounding-news signal is RB-only in historical_signal_codes (per
  * truth audit 2026-05-26), so WR / TE / QB records leave it at 0.
+ *
+ * Optional OL grades (Phase B6): pass `opts.olGrades` (a map keyed by
+ * upper-cased team, from `loadHistoricalOlGrades` or `olMapFromRows`) to
+ * set `team.ol_grade_run` / `team.ol_grade_pass` per record. Omit it (the
+ * default) and both stay null, so the cohort is unchanged. The map is
+ * vintage-blinded by its builder.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EvaluationContext } from "@/lib/engine/evaluation";
 import type { PlayerSignalsRow, TeamSignalsRow } from "@/lib/signals/schema";
 import { buildSeasonSignals, type Crosswalk } from "@/lib/signals/nflverse";
+import type { HistoricalOlGrade } from "@/lib/signals/historical-ol-grades";
 import { getTeamSignalsHistoryForSeason } from "@/lib/signals/team-signals-history";
 
 const GP_FLOOR = 6;
@@ -49,7 +56,11 @@ export async function buildPositionCohort(
   xwalk: Crosswalk,
   year: number,
   position: CohortPosition,
-  opts?: { withRoute?: boolean; includeTeamSignals?: boolean },
+  opts?: {
+    withRoute?: boolean;
+    includeTeamSignals?: boolean;
+    olGrades?: Map<string, HistoricalOlGrade>;
+  },
 ): Promise<{
   records: BacktestRecord[];
   snapshotDate: string | null;
@@ -144,6 +155,7 @@ export async function buildPositionCohort(
     } as PlayerSignalsRow;
 
     const teamSig = sig.team ? teams.get(sig.team) : null;
+    const ol = sig.team ? opts?.olGrades?.get(sig.team.toUpperCase()) : undefined;
     // Historical coaching/scheme row for this team in season Y (may be
     // absent pre-ingest; the rubric branches then read null, the A4
     // baseline behavior). ol_continuity_score always comes from the
@@ -152,8 +164,8 @@ export async function buildPositionCohort(
     const team = {
       team: sig.team ?? "",
       ol_continuity_score: teamSig?.ol_continuity_score ?? null,
-      ol_grade_run: null,
-      ol_grade_pass: null,
+      ol_grade_run: ol?.ol_grade_run ?? null,
+      ol_grade_pass: ol?.ol_grade_pass ?? null,
       rookie_ol_starters_count: 0,
       rookie_ol_position_breakdown: {},
       hc_id: hist?.hc_id ?? null,
