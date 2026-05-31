@@ -1,33 +1,36 @@
 /**
- * QB rubric backtest. Read-only. Does the QB rubric grade QBs better
- * than the market prior (KTC)? First-time backtest per MODEL_LIVE_PLAN
- * Phase A4.
+ * QB rubric backtest. Read-only. Does the QB rubric grade QBs better than
+ * the market prior (KTC)?
  *
- * Cohort + helpers shared via src/lib/signals/position-cohort.ts.
- * Outcome = realized season-Y PPR points-per-game. Decision years
+ * Phase B sig-history upgrade: by default runs the cohort twice per year
+ * (A4 baseline with no team signals, then rubric + historical scheme) via
+ * the shared runPositionBacktest harness and prints both lifts plus the
+ * scheme marginal. The QB rubric's team branches are scheme_tag,
+ * oc_tenure_yrs, oc_first_year_with_team_flag, and hc_first_time_flag.
+ * One data path; outcome = realized season-Y PPR PPG; decision years
  * 2023 + 2024.
  *
  *   npx tsx --tsconfig tsconfig.json scripts/backtest-qb-rubric.ts
  *
- * Phase A truth audit predicts ~zero lift: the QB rubric's load-bearing
- * branches (scheme_tag, oc_tenure_yrs, ol_grade_pass, hc_first_time_flag)
- * read empty team_signals columns in production, so the rubric reduces
- * to market prior + tier classification + tier-conditional age curve.
- * The tier-age branch can still fire (KTC is populated, birth year is
- * in the xwalk), so QB lift may differ from WR.
+ * Before team_signals_history is ingested the two rubric columns are
+ * identical and the harness says so.
  *
- * Phase B6 (sig-ol-grade) validate-first OL comparison:
+ * Phase B6 (sig-ol-grade) validate-first OL comparison (separate axis):
  *
+ *   # free check, no DB writes:
+ *   npx tsx --tsconfig tsconfig.json scripts/backtest-qb-rubric.ts \
+ *     --with-ol --ol-file data/free-ol-grades.json
+ *   # or read vintage OL from historical_signal_codes:
  *   npx tsx --tsconfig tsconfig.json scripts/backtest-qb-rubric.ts --with-ol
  *
- * With --with-ol the cohort is run TWICE per year: once on free signals
- * only (the A4 baseline), once with vintage PFF `ol_grade_pass` joined
- * from historical_signal_codes (the only QB rubric branch that reads an
- * OL grade). The script prints both pooled lifts and the delta the PFF
- * grade contributes. The OL grades are temporal-blinded to preseason Y
- * (coded_with_knowledge_through <= Sep 15 of Y), matching the KTC
- * snapshot vintage. With no OL rows ingested the +OL pass is identical to
- * the baseline and the script says so (the honest no-data path).
+ * With --with-ol the cohort is run twice per year: once with no OL grade,
+ * once with `ol_grade_pass` joined (the only QB rubric branch that reads
+ * an OL grade). It prints both pooled lifts and the marginal OL delta. OL
+ * grades are temporal-blinded to preseason Y (a season-S grade enriches
+ * decision year S+1). With no OL joined the +OL pass equals the baseline
+ * and the script says so (the honest no-data path). This OL axis holds
+ * team scheme signals OFF (includeTeamSignals: false) so the only moving
+ * part is the OL grade.
  */
 
 import { config as loadEnv } from "dotenv";
@@ -41,6 +44,7 @@ import {
   spearman,
   bootstrapLiftCI,
 } from "../src/lib/signals/position-cohort";
+import { runPositionBacktest } from "../src/lib/signals/position-backtest";
 import {
   loadHistoricalOlGrades,
   olMapFromRows,
@@ -57,11 +61,36 @@ const knowledgeCutoff = (year: number) => `${year}-09-15`;
 
 type Pooled = { rubric: number[]; market: number[]; outcome: number[] };
 
+function argValue(name: string): string | null {
+  const i = process.argv.indexOf(name);
+  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : null;
+}
+
+async function main() {
+  const withOl = process.argv.includes("--with-ol");
+  // --ol-file <path>: load free OL grades from a local JSON file (the
+  // validate-first FREE check), so the backtest never reads/writes the DB
+  // for OL. Without it, --with-ol reads historical_signal_codes.
+  const olFile = argValue("--ol-file");
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+
+  if (withOl) {
+    const xwalk = await loadCrosswalk();
+    await runWithOlComparison(sb, xwalk, olFile);
+    return;
+  }
+
+  await runPositionBacktest({ sb, position: "QB", evaluate: evaluateQb });
+}
+
 /**
- * Score the QB cohort for one decision year, optionally with vintage OL
- * grades joined. Returns per-year rubric / market / outcome vectors and
- * how many records actually received a non-null ol_grade_pass (so the
- * caller can report whether OL data was present at all).
+ * Score the QB cohort for one decision year, optionally with OL grades
+ * joined. Team scheme signals are held OFF so the only moving part across
+ * the baseline vs +OL comparison is the OL grade. Returns the vectors plus
+ * how many records received a non-null ol_grade_pass.
  */
 async function scoreYear(
   sb: SupabaseClient,
@@ -81,7 +110,7 @@ async function scoreYear(
     xwalk,
     Y,
     "QB",
-    olGrades,
+    { includeTeamSignals: false, olGrades },
   );
   const rubric: number[] = [];
   const market: number[] = [];
@@ -110,61 +139,12 @@ function pooledReport(label: string, p: Pooled): void {
   );
 }
 
-function argValue(name: string): string | null {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : null;
-}
-
-async function main() {
-  const withOl = process.argv.includes("--with-ol");
-  // --ol-file <path>: load free OL grades from a local JSON file (the
-  // validate-first FREE check), so the backtest never reads/writes the DB
-  // for OL. Without it, --with-ol reads historical_signal_codes.
-  const olFile = argValue("--ol-file");
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-  const xwalk = await loadCrosswalk();
-
-  if (withOl) {
-    await runWithOlComparison(sb, xwalk, olFile);
-    return;
-  }
-
-  const pooled: Pooled = { rubric: [], market: [], outcome: [] };
-  for (const Y of DECISION_YEARS) {
-    const { rubric, market, outcome, snapshotDate, format } = await scoreYear(
-      sb,
-      xwalk,
-      Y,
-    );
-    const sRub = spearman(rubric, outcome);
-    const sMkt = spearman(market, outcome);
-    console.log(
-      `\n=== ${Y} (KTC ${String(snapshotDate).slice(0, 10)}, fmt=${format}, n=${
-        outcome.length
-      } QBs) ===`,
-    );
-    console.log(`  market (KTC) Spearman vs ${Y} PPG: ${sMkt.toFixed(3)}`);
-    console.log(`  rubric       Spearman vs ${Y} PPG: ${sRub.toFixed(3)}`);
-    console.log(`  LIFT (rubric - market):           ${(sRub - sMkt).toFixed(3)}`);
-    pooled.rubric.push(...rubric);
-    pooled.market.push(...market);
-    pooled.outcome.push(...outcome);
-  }
-  pooledReport("", pooled);
-  console.log(
-    `\nReading: positive lift = the rubric's free signals rank QBs' realized production better than KTC alone. CI excluding zero = statistically meaningful.\n`,
-  );
-}
-
 /**
- * Validate-first comparison: baseline (free signals) vs +OL grades. The
- * delta in pooled lift is the OL grade's marginal contribution to the QB
- * rubric's rank correlation. This is the number that decides whether OL
- * data earns its keep (per Phase B6 decision framework). The OL source is
- * the DB (historical_signal_codes) by default, or a local JSON file when
+ * Validate-first comparison: baseline (no OL) vs +OL grades. The delta in
+ * pooled lift is the OL grade's marginal contribution to the QB rubric's
+ * rank correlation, the number that decides whether OL data earns its
+ * keep (Phase B6 decision framework). The OL source is the DB
+ * (historical_signal_codes) by default, or a local JSON file when
  * --ol-file is passed (the FREE check, zero DB writes).
  */
 async function runWithOlComparison(
