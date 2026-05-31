@@ -159,6 +159,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: re-deriving an opportunity direction inline in a resolver, or re-implementing the snap-share / target trend (use `readOpportunity`). One signal builder, consumed by every aging window.
 - **Bug class avoided**: aging-cliff cards that rendered `data_missing` for role even though the snap-share / target data was sitting in the `/stats` feed we already fetch (the "data right" Stage 1 gap). Locked by `evals/inflection.test.ts`.
 
+### Route participation (WR / TE, per-season nflverse proxy)
+
+- **Canonical**: `buildRouteParticipation(season, xwalk)` (fetch + aggregate) and `aggregateRouteParticipation(rows, xwalk, minTeamDropbacks?)` (the pure half) in `src/lib/signals/nflverse.ts`.
+- **Returns**: `Map<sleeper_id, RouteParticipation>` (`{ route_rate 0..1, position, team, dropbacks_on_field, team_dropbacks }`). Route rate = dropback plays the player was on the field for (a dropback is a play with non-null `time_to_throw`) over his team's dropbacks in those games. WR / TE only (RB pass-block snaps would inflate the read). Mid-season trades attribute each game's denominator to the team the player lined up for that week. GP floor `MIN_TEAM_DROPBACKS` (100) guards the denominator. Capped at 1.0.
+- **Inputs**: a season string and the DynastyProcess `Crosswalk`. Sourced from nflverse `pbp_participation` (CC-BY-4.0), per-season (2021-2024+), so the value is temporally blinded by construction: the backtest reads year-(Y-1), the live ingest reads the latest completed season.
+- **Consumers**: `buildSeasonSignals` writes `route_participation_prior_year` on `ComputedPlayerSignal` (so the WR/TE backtest cohort and the live ingest both read one compute). The WR rubric (`rubrics/wr.ts`, volume floor, MODEL_CARD 4.3 weight 0.07) and TE rubric (`rubrics/te.ts`, ~60% hard threshold, MODEL_CARD 4.4 weight 0.15) read it via `EvaluationContext.route_participation`. The live ingest is `scripts/ingest-route-participation.ts` -> `player_signals.route_participation_prior_year`.
+- **Anti-pattern**: a surface that re-aggregates `pbp_participation` inline, or charts per-player routes from the `route` column (it is the targeted receiver's route only, NOT a per-player flag). One compute, one proxy definition.
+- **Validation**: backtest INCONCLUSIVE (directionally correct, not significant): WR +0.009 over the A4 baseline (CI includes 0), TE +0.004 (CI includes 0); see `negative-results.md` and `scripts/backtest-route-participation.ts`. The signal is a volume FLOOR collinear with target share / market value, so a small marginal lift on top of KTC is the expected shape. Locked by `evals/route-participation.test.ts`.
+
 ### Draft capital (`draft_pick_overall`)
 
 - **Canonical**: `getDraftPickMap()` in `src/lib/players/draft-capital.ts`

@@ -121,6 +121,27 @@ export function evaluateWr(ctx: EvaluationContext): RubricOutput {
     );
   }
 
+  // Route participation (volume floor; MODEL_CARD 4.3 weight 0.07).
+  // A WR who is not on the field for a healthy share of his team's
+  // dropbacks has a structurally capped target ceiling. Free nflverse
+  // pbp_participation proxy. Centered at 0.75 (a starter's baseline);
+  // a 0.95 route-rate WR earns a modest lift, a 0.50 rotational WR a
+  // modest discount, scaled by the corpus weight.
+  const routeRate = ctx.route_participation;
+  if (routeRate != null) {
+    const effect = (routeRate - 0.75) * 14;
+    estimate = clamp(estimate + effect);
+    stack.push(
+      evidence(
+        "situation",
+        "route_participation",
+        0.07,
+        effect,
+        `Route participation ${(routeRate * 100).toFixed(0)}% of team dropbacks (volume floor)`,
+      ),
+    );
+  }
+
   // Rookie WR year-1 breakout (corpus: ~25% hit rate baseline; flag
   // only when conditions favor)
   const isRookie = ctx.is_rookie === true;

@@ -49,12 +49,17 @@ export async function buildPositionCohort(
   xwalk: Crosswalk,
   year: number,
   position: CohortPosition,
-  opts?: { includeTeamSignals?: boolean },
+  opts?: { withRoute?: boolean; includeTeamSignals?: boolean },
 ): Promise<{
   records: BacktestRecord[];
   snapshotDate: string | null;
   format: string | null;
 }> {
+  // Route participation is on by default; the WR/TE backtest passes
+  // withRoute=false to reproduce the A4 (no-route) baseline so the lift
+  // from the route signal is measured against the SAME cohort. Nulling
+  // it here (not refetching the cohort) keeps the A/B perfectly paired.
+  const withRoute = opts?.withRoute ?? true;
   // includeTeamSignals defaults true: join the historical coaching/scheme
   // row. Pass false to reproduce the A4 baseline (rubric with no team
   // signals) for the side-by-side lift table.
@@ -178,6 +183,9 @@ export async function buildPositionCohort(
         position,
         is_rookie: isRookie,
         years_exp: yearsExp,
+        route_participation: withRoute
+          ? sig.route_participation_prior_year
+          : null,
       },
       market: k,
       outcomePPG: o,
