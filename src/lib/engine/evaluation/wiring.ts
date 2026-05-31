@@ -52,6 +52,8 @@ export function evaluateForPlayer(args: {
     age: args.age ?? args.player_signals?.age ?? null,
     is_rookie: args.years_exp === 0,
     years_exp: args.years_exp ?? null,
+    route_participation:
+      args.player_signals?.route_participation_prior_year ?? null,
   };
   return evaluate(ctx);
 }

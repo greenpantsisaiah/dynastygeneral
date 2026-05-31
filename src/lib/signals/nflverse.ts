@@ -170,6 +170,7 @@ export type ComputedPlayerSignal = {
   position: string | null;
   team: string | null;
   snap_share_prior_year: number | null;
+  route_participation_prior_year: number | null;
   target_share_prior_year: number | null;
   rush_share_prior_year: number | null;
   rb_role_tier: RbRoleTier | null;
@@ -184,6 +185,150 @@ export type ComputedTeamSignal = {
   team: string;
   ol_continuity_score: number | null;
 };
+
+/**
+ * Route participation for WR / TE from nflverse pbp_participation
+ * (CC-BY-4.0; available per season 2021-2024). The file lists every
+ * player on the field per play but does NOT chart per-player routes,
+ * so route participation here is the well-established free proxy:
+ *
+ *   route_participation = (dropback plays the player was on the field)
+ *                       / (his team's dropback plays in those games)
+ *
+ * A "dropback" is a play with a non-null `time_to_throw` (the QB
+ * dropped back to pass). A WR / TE on the field for a dropback is
+ * presumed to have run a route; the denominator is the team's dropback
+ * total in the same game so a player who misses games is not penalized
+ * for snaps he was never present for. Mid-season trades are handled by
+ * crediting each game to the team the player actually lined up for that
+ * week (the possession_team on the plays he appears in). RB pass-block
+ * snaps inflate RB participation, so this is computed for WR / TE only;
+ * the RB rubric reads role tier, not route rate.
+ *
+ * Validated 2026-05-30 against 2023: the top route-rate WR/TE are the
+ * expected full-time receivers (DeVonta Smith 98.5%, Garrett Wilson,
+ * Keenan Allen, Amon-Ra St. Brown, George Kittle), no value exceeds
+ * 100%, GP-floored at MIN_TEAM_DROPBACKS so a one-game cameo cannot
+ * masquerade as a full-season read.
+ *
+ * Per-season by construction (one file per year), so the backtest reads
+ * the prior season's rate (temporally blinded) and the live ingest
+ * reads the latest completed season's rate.
+ */
+export type RouteParticipation = {
+  player_id: string; // Sleeper id
+  position: string; // WR | TE (primary, from on-field positions)
+  team: string | null; // primary team that season
+  route_rate: number; // 0..1 dropbacks-on-field / team dropbacks
+  dropbacks_on_field: number;
+  team_dropbacks: number;
+};
+
+const MIN_TEAM_DROPBACKS = 100; // GP floor: ignore cameo-only seasons
+
+function pbpParticipationUrl(season: string): string {
+  return `${NFLVERSE}/pbp_participation/pbp_participation_${season}.csv`;
+}
+
+export async function buildRouteParticipation(
+  season: string,
+  xwalk: Crosswalk,
+): Promise<Map<string, RouteParticipation>> {
+  let rows: Record<string, string>[];
+  try {
+    rows = await fetchCsv(pbpParticipationUrl(season));
+  } catch {
+    return new Map(); // season file absent -> signal degrades to null
+  }
+  return aggregateRouteParticipation(rows, xwalk);
+}
+
+/**
+ * Pure aggregation half of route participation: takes already-fetched
+ * pbp_participation rows and the crosswalk, returns the per-player route
+ * rate map. Split out from the fetch so it is unit-testable without a
+ * network call. `minTeamDropbacks` is the GP floor (defaults to the
+ * production MIN_TEAM_DROPBACKS; tests pass a small value).
+ */
+export function aggregateRouteParticipation(
+  rows: Record<string, string>[],
+  xwalk: Crosswalk,
+  minTeamDropbacks: number = MIN_TEAM_DROPBACKS,
+): Map<string, RouteParticipation> {
+  const { gsisToSleeper, posBySleeper } = xwalk;
+  // team-game dropback totals, player on-field dropbacks, the team a
+  // player lined up for per game, and the player's on-field position mix.
+  const teamGameDb = new Map<string, number>(); // `${team}|${game}` -> count
+  const playerGameTeam = new Map<string, Map<string, string>>(); // gsis -> game -> team
+  const playerDb = new Map<string, number>(); // gsis -> dropbacks on field
+  const playerPos = new Map<string, Map<string, number>>(); // gsis -> pos -> count
+
+  for (const r of rows) {
+    const isDb = num(r.time_to_throw) != null; // QB dropped back to pass
+    const team = r.possession_team ?? "";
+    const game = r.nflverse_game_id ?? "";
+    if (isDb && team && game) {
+      const k = `${team}|${game}`;
+      teamGameDb.set(k, (teamGameDb.get(k) ?? 0) + 1);
+    }
+    const offIds = (r.offense_players ?? "").split(";").filter(Boolean);
+    const offPos = (r.offense_positions ?? "").split(";").filter(Boolean);
+    for (let j = 0; j < offIds.length; j++) {
+      const gsis = offIds[j];
+      if (!gsis) continue;
+      const pgt = playerGameTeam.get(gsis) ?? new Map<string, string>();
+      if (game) pgt.set(game, team);
+      playerGameTeam.set(gsis, pgt);
+      const pos = offPos[j];
+      if (pos) {
+        const pp = playerPos.get(gsis) ?? new Map<string, number>();
+        pp.set(pos, (pp.get(pos) ?? 0) + 1);
+        playerPos.set(gsis, pp);
+      }
+      if (isDb) playerDb.set(gsis, (playerDb.get(gsis) ?? 0) + 1);
+    }
+  }
+
+  const out = new Map<string, RouteParticipation>();
+  for (const [gsis, db] of playerDb) {
+    const sleeper = gsisToSleeper.get(gsis);
+    if (!sleeper) continue;
+    // On-field position takes precedence; fall back to crosswalk.
+    const posMix = playerPos.get(gsis);
+    const onFieldPos = posMix
+      ? [...posMix.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      : null;
+    const pos = (onFieldPos ?? posBySleeper.get(sleeper) ?? "").toUpperCase();
+    if (pos !== "WR" && pos !== "TE") continue;
+    const pgt = playerGameTeam.get(gsis);
+    let denom = 0;
+    let lastTeam: string | null = null;
+    const teamCount = new Map<string, number>();
+    if (pgt) {
+      for (const [game, team] of pgt) {
+        denom += teamGameDb.get(`${team}|${game}`) ?? 0;
+        if (team) {
+          teamCount.set(team, (teamCount.get(team) ?? 0) + 1);
+          lastTeam = team;
+        }
+      }
+    }
+    if (denom < minTeamDropbacks) continue;
+    const primaryTeam =
+      teamCount.size > 0
+        ? [...teamCount.entries()].sort((a, b) => b[1] - a[1])[0][0]
+        : lastTeam;
+    out.set(sleeper, {
+      player_id: sleeper,
+      position: pos,
+      team: primaryTeam,
+      route_rate: Number(Math.min(1, db / denom).toFixed(4)),
+      dropbacks_on_field: db,
+      team_dropbacks: denom,
+    });
+  }
+  return out;
+}
 
 /**
  * Build all player + team signals for a season from nflverse, joined to
@@ -208,6 +353,7 @@ export async function buildSeasonSignals(
         position: null,
         team: null,
         snap_share_prior_year: null,
+        route_participation_prior_year: null,
         target_share_prior_year: null,
         rush_share_prior_year: null,
         rb_role_tier: null,
@@ -313,6 +459,19 @@ export async function buildSeasonSignals(
       team,
       ol_continuity_score: pairs > 0 ? Number((sum / pairs).toFixed(4)) : null,
     });
+  }
+
+  // route participation (WR / TE) from pbp_participation, same season.
+  try {
+    const routes = await buildRouteParticipation(season, xwalk);
+    for (const [sleeper, rp] of routes) {
+      const row = get(sleeper);
+      row.route_participation_prior_year = rp.route_rate;
+      row.position = row.position ?? rp.position;
+      row.team = row.team ?? rp.team;
+    }
+  } catch {
+    /* degrade */
   }
 
   // draft_picks (all years).

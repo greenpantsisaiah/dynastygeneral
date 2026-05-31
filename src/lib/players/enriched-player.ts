@@ -545,6 +545,21 @@ function flagPlayerSignalNulls(
     }
   }
 
+  // Route participation: WR volume floor (weight 0.07) / TE hard
+  // threshold (weight 0.15, ~60% floor). Null = rubric carries no
+  // usage-floor signal for this player.
+  if (
+    (position === "WR" || position === "TE") &&
+    row.route_participation_prior_year == null
+  ) {
+    note(
+      "route_participation_prior_year",
+      position === "TE"
+        ? "TE rubric: ~60% route-rate floor cannot apply; production-cap signal absent"
+        : "WR rubric: route-participation volume floor renders neutral",
+    );
+  }
+
   // Compounding-news count is read by every position rubric as an
   // arbitrage trigger. The audit found the value populated everywhere
   // but always 0 (default), so absence here is rare; we flag a null

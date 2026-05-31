@@ -45,6 +45,17 @@ next-env.d.ts
 # and are subject to FP terms of service. Keep server-side only.
 /data/fantasypros/
 
+# PFF OL-grade exports (Phase B6). Licensed paid feed; raw bulk data is
+# never committed. The ingest lands NORMALIZED values in the DB; the
+# source export stays out of git. See scripts/ingest-pff-ol-grades.ts.
+/data/pff-ol-grades.csv
+/data/pff-ol-grades.json
+/data/pff/
+
+# Derived free OL proxy (regenerable from nflverse via
+# scripts/derive-free-ol-grades.ts). Not source; do not commit.
+/data/free-ol-grades.json
+
 # Private founder artifacts (legal correspondence templates, etc.)
 /.private/
 

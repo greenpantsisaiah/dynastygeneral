@@ -15,16 +15,29 @@
  * Temporal blinding (VALIDATION_PLAN.md section 4): signals reflect
  * state KNOWN as of preseason Y (prior season's snap counts, market
  * snapshot dated <= Sep 15 of Y, draft year known). The outcome is
- * Y itself.
+ * Y itself. Team coaching/scheme signals come from team_signals_history
+ * keyed on season Y (the staff coded as-of-preseason-Y); the derived
+ * game-script rates on that row are the Y-1 realized rates per the ingest
+ * script's temporal-blinding decision. When the history table is empty
+ * (pre-ingest), the team scheme branches read null and the rubric reduces
+ * to the market+age path the A4 baseline measured.
  *
  * Compounding-news signal is RB-only in historical_signal_codes (per
  * truth audit 2026-05-26), so WR / TE / QB records leave it at 0.
+ *
+ * Optional OL grades (Phase B6): pass `opts.olGrades` (a map keyed by
+ * upper-cased team, from `loadHistoricalOlGrades` or `olMapFromRows`) to
+ * set `team.ol_grade_run` / `team.ol_grade_pass` per record. Omit it (the
+ * default) and both stay null, so the cohort is unchanged. The map is
+ * vintage-blinded by its builder.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EvaluationContext } from "@/lib/engine/evaluation";
 import type { PlayerSignalsRow, TeamSignalsRow } from "@/lib/signals/schema";
 import { buildSeasonSignals, type Crosswalk } from "@/lib/signals/nflverse";
+import type { HistoricalOlGrade } from "@/lib/signals/historical-ol-grades";
+import { getTeamSignalsHistoryForSeason } from "@/lib/signals/team-signals-history";
 
 const GP_FLOOR = 6;
 
@@ -43,12 +56,36 @@ export async function buildPositionCohort(
   xwalk: Crosswalk,
   year: number,
   position: CohortPosition,
+  opts?: {
+    withRoute?: boolean;
+    includeTeamSignals?: boolean;
+    olGrades?: Map<string, HistoricalOlGrade>;
+  },
 ): Promise<{
   records: BacktestRecord[];
   snapshotDate: string | null;
   format: string | null;
 }> {
+  // Route participation is on by default; the WR/TE backtest passes
+  // withRoute=false to reproduce the A4 (no-route) baseline so the lift
+  // from the route signal is measured against the SAME cohort. Nulling
+  // it here (not refetching the cohort) keeps the A/B perfectly paired.
+  const withRoute = opts?.withRoute ?? true;
+  // includeTeamSignals defaults true: join the historical coaching/scheme
+  // row. Pass false to reproduce the A4 baseline (rubric with no team
+  // signals) for the side-by-side lift table.
+  const includeTeamSignals = opts?.includeTeamSignals !== false;
   const { players, teams } = await buildSeasonSignals(String(year - 1), xwalk);
+
+  // Historical team coaching/scheme signals for the decision year, coded
+  // as-of-preseason-Y (temporal-blinded). The live `getTeamSignalsMap` is
+  // unchanged; this is the season-aware backtest reader over
+  // team_signals_history. When the table is empty (pre-ingest), this map is
+  // empty and the rubric reads the same nulls the A4 baseline did, so the
+  // backtest degrades cleanly to the market+age path.
+  const teamHistory = includeTeamSignals
+    ? await getTeamSignalsHistoryForSeason(sb, year)
+    : new Map<string, TeamSignalsRow>();
 
   // Market prior: latest KTC snapshot at/before mid-September Y.
   const latest = await sb
@@ -118,25 +155,31 @@ export async function buildPositionCohort(
     } as PlayerSignalsRow;
 
     const teamSig = sig.team ? teams.get(sig.team) : null;
+    const ol = sig.team ? opts?.olGrades?.get(sig.team.toUpperCase()) : undefined;
+    // Historical coaching/scheme row for this team in season Y (may be
+    // absent pre-ingest; the rubric branches then read null, the A4
+    // baseline behavior). ol_continuity_score always comes from the
+    // per-season nflverse snap-counts pass, never the history row.
+    const hist = sig.team ? teamHistory.get(sig.team) : null;
     const team = {
       team: sig.team ?? "",
       ol_continuity_score: teamSig?.ol_continuity_score ?? null,
-      ol_grade_run: null,
-      ol_grade_pass: null,
+      ol_grade_run: ol?.ol_grade_run ?? null,
+      ol_grade_pass: ol?.ol_grade_pass ?? null,
       rookie_ol_starters_count: 0,
       rookie_ol_position_breakdown: {},
-      hc_id: null,
-      hc_first_time_flag: null,
-      hc_tenure_yrs: null,
-      hc_background_tag: null,
-      oc_id: null,
-      oc_tenure_yrs: null,
-      oc_first_year_with_team_flag: null,
-      scheme_tag: null,
-      staff_novelty_composite: 0,
-      scheme_pace: null,
-      pass_rate_neutral: null,
-      personnel_12_rate: null,
+      hc_id: hist?.hc_id ?? null,
+      hc_first_time_flag: hist?.hc_first_time_flag ?? null,
+      hc_tenure_yrs: hist?.hc_tenure_yrs ?? null,
+      hc_background_tag: hist?.hc_background_tag ?? null,
+      oc_id: hist?.oc_id ?? null,
+      oc_tenure_yrs: hist?.oc_tenure_yrs ?? null,
+      oc_first_year_with_team_flag: hist?.oc_first_year_with_team_flag ?? null,
+      scheme_tag: hist?.scheme_tag ?? null,
+      staff_novelty_composite: hist?.staff_novelty_composite ?? 0,
+      scheme_pace: hist?.scheme_pace ?? null,
+      pass_rate_neutral: hist?.pass_rate_neutral ?? null,
+      personnel_12_rate: hist?.personnel_12_rate ?? null,
       last_updated: "",
       updated_by: null,
     } as TeamSignalsRow;
@@ -152,6 +195,9 @@ export async function buildPositionCohort(
         position,
         is_rookie: isRookie,
         years_exp: yearsExp,
+        route_participation: withRoute
+          ? sig.route_participation_prior_year
+          : null,
       },
       market: k,
       outcomePPG: o,
@@ -228,4 +274,48 @@ export function bootstrapLiftCI(
   const lo = diffs[Math.floor(iters * 0.025)];
   const hi = diffs[Math.floor(iters * 0.975)];
   return { lo, hi };
+}
+
+/**
+ * Two-sided bootstrap p-value for "lift (rubric - market) differs from 0",
+ * computed from the same resampling machinery as bootstrapLiftCI. p =
+ * 2 x min(share of resampled lifts <= 0, share >= 0), clamped to [0, 1].
+ * A small p with a positive observed lift = the rubric ranks outcomes
+ * better than the market by more than resampling noise.
+ */
+export function bootstrapLiftPValue(
+  rubric: number[],
+  market: number[],
+  outcome: number[],
+  iters = 1000,
+  seed = 42,
+): number {
+  const n = rubric.length;
+  if (n === 0) return 1;
+  let s = seed >>> 0;
+  const rand = () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const rBoot = new Array<number>(n);
+  const mBoot = new Array<number>(n);
+  const oBoot = new Array<number>(n);
+  let leZero = 0;
+  let geZero = 0;
+  for (let it = 0; it < iters; it++) {
+    for (let i = 0; i < n; i++) {
+      const j = Math.floor(rand() * n);
+      rBoot[i] = rubric[j];
+      mBoot[i] = market[j];
+      oBoot[i] = outcome[j];
+    }
+    const d = spearman(rBoot, oBoot) - spearman(mBoot, oBoot);
+    if (d <= 0) leZero++;
+    if (d >= 0) geZero++;
+  }
+  const p = 2 * Math.min(leZero / iters, geZero / iters);
+  return Math.min(1, p);
 }
