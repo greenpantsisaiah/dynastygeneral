@@ -181,3 +181,51 @@ offensive-line grades, we tested whether a FREE pass-protection proxy
   proxy conflates OL with QB time-to-throw and scramble tendency (a mobile
   QB lowers his own sack rate), so it is a noisier OL measure than PFF
   charting. Both caveats argue for HOLDING, not for buying on hope.
+
+## 2026-06-04 · Second free OL proxy (ESPN PBWR/RBWR) corroborates: still no QB lift
+
+**Phase B6 (sig-ol-grade), free-alternative check #2.** The founder asked
+to validate a free OL proxy before spending on PFF. A FIRST free proxy
+(inverse sack rate, above) already landed at noise. This is a SECOND,
+construct-independent free proxy: ESPN team Pass-Block / Run-Block Win Rate
+(PBWR / RBWR), a charted win-rate share, closer to PFF's construct than
+sack rate is.
+
+- **Signal:** `ol_grade_pass` = team PBWR (share of pass-block reps won),
+  `ol_grade_run` = team RBWR, scraped from ESPN's annual win-rate articles
+  for 2021-2024 (`scripts/scrape-espn-block-winrate.ts`), normalized
+  pct/100 to the rubric's 0..1 scale. The QB rubric's only OL branch reads
+  `ol_grade_pass`. Full cross-team spread each season (e.g. 2024 PBWR
+  ranges ~0.56-0.74), so the proxy is real and varying.
+- **Method:** `scripts/backtest-qb-rubric.ts --with-ol --ol-file
+  data/free-ol-grades.json`, temporal-blinded (season-S grade enriches
+  decision year S+1, so 2022/2023 ESPN feed decision years 2023/2024).
+  Baseline (no OL) vs +OL, Spearman of rubric vs realized next-year PPR
+  PPG. Decision years 2023 + 2024, pooled n=70, OL joined for 62/70.
+- **Result:**
+
+  | | market (KTC) | rubric | lift | 95% CI |
+  |---|---:|---:|---:|---|
+  | baseline (no OL) | 0.781 | 0.709 | -0.072 | [-0.222, 0.012] |
+  | +ESPN OL win-rate | 0.781 | 0.711 | -0.070 | [-0.223, 0.015] |
+
+  **Marginal OL lift: +0.002** (noise-level on n=70).
+
+- **Reading:** two construct-INDEPENDENT free OL proxies (sack-rate -0.004,
+  win-rate +0.002) both land at zero marginal lift on the same n=70 QB
+  cohort. Convergent evidence that OL is not a QB-RANKING lever at this
+  cohort size on top of the rubric's tier + age + market signals, not an
+  artifact of one noisy proxy. The rubric still loses to the market in both
+  passes regardless of OL.
+- **Decision:** do NOT buy PFF OL grades for QB on this evidence, and do
+  NOT wire the ESPN proxy. For PFF to be worth paying it would have to turn
+  a ~zero result from two free proxies into a positive lift on n=70, an
+  implausible ask. The PFF pipeline (#65) stays built but unfired; revisit
+  OL only when (a) the QB cohort is larger, or (b) the RB rubric wires
+  `ol_grade_run` as a variance-band modifier (a band-calibration test, not
+  this point-estimate Spearman). The scraper is kept as a free, repeatable
+  OL source if a future, larger-cohort test wants it.
+- **Process note:** the first backtest pass returned n=0 (a flaked nflverse
+  fetch under concurrent-job network contention). A clean re-run gave the
+  n=70 numbers above. A 0-joined OL pass is a fetch failure, never a real
+  verdict; re-run before recording.
