@@ -85,8 +85,11 @@ async function main(): Promise<void> {
   const xwalk = await loadCrosswalk();
   const { players } = await buildSeasonSignals(season, xwalk);
 
-  // Stamp ISO date without Date (forbidden in tooling); derive from season.
   const updatedBy = `ingest-rb-role-tier@snap-derived:${season}`;
+  // last_updated is a timestamptz column, so it must be a real ISO instant
+  // (matches ingest-unlock-signals / ingest-route-participation). The
+  // derivation season lives in source_attribution.rb_role_tier.season.
+  const now = new Date().toISOString();
   const rows: TierRow[] = [];
   const dist: Record<string, number> = {};
   for (const p of players.values()) {
@@ -111,7 +114,7 @@ async function main(): Promise<void> {
         rb_role_tier:
           p.snap_share_prior_year != null ? "validated" : "partial",
       },
-      last_updated: `${season}-season-final`,
+      last_updated: now,
       updated_by: updatedBy,
     });
   }

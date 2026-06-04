@@ -114,7 +114,7 @@ controls the calendar. The plan does NOT compress quality for speed.
 
 ## Progress log (orchestrator-owned, live)
 
-Updated 2026-05-29. Append-only running status so a fresh session
+Updated 2026-06-03. Append-only running status so a fresh session
 sees what shipped without reconstructing it from git.
 
 - **Phase A (truth audit): DONE.** #50 (A4 per-position backtests),
@@ -171,6 +171,60 @@ sees what shipped without reconstructing it from git.
   reads from one canonical, lint-locked. C4a remains the one tracked
   interim until Phase D exposes near_term_role. The architecture can
   now support Phase D wiring without divergence.
+- **Phase B sig-history (#63): DONE (gate-unblocker, table NOT yet
+  ingested).** Migration 0018 adds `team_signals_history` keyed
+  `(team, season)`, a parallel table so the live `getTeamSignalsMap()`
+  snapshot reader is untouched. Per-season scheme/coaching coding +
+  Y-1 derived pbp rates (temporally blinded per VALIDATION_PLAN s4),
+  joined into `buildPositionCohort` via the season-aware
+  `team-signals-history.ts` reader; one shared harness
+  (`position-backtest.ts`) runs A4 vs rubric+scheme. HONEST STATE: the
+  history table is empty (migration + founder-authorized `--write`
+  pending), so the harness reproduces the A4 market+age baseline and
+  REFUSES to claim scheme lift from an empty table. FOUNDER ACTION:
+  review the per-season LLM coding JSON, authorize the
+  `ingest-team-signals-history.ts --write`, then re-run the WR/QB/TE
+  backtests to read the real per-position scheme marginal.
+- **Phase B #3 (route participation): DONE + backtested INCONCLUSIVE.**
+  #66. WR/TE route rate from free nflverse `pbp_participation`, one
+  canonical compute (`buildRouteParticipation`), per-season so the
+  cohort + live ingest read the same function. Wired into the WR
+  (volume floor, weight 0.07) + TE (~60% hard threshold, weight 0.15)
+  rubrics + the EnrichedPlayer missing-field contract; null is NEUTRAL.
+  Backtest (pooled 2023+2024, temporally blinded): WR +0.009 vs A4
+  (CI [-0.001, 0.020]), TE +0.004 (CI [-0.040, 0.046]). Right
+  direction, neither CI excludes zero, still does NOT clear the market
+  by a meaningful margin: DOES NOT meet the Phase D3 gate. Expected
+  shape (route is a volume floor collinear with target share / value).
+  Logged in `negative-results.md`. FOUNDER ACTION: authorize the
+  `ingest-route-participation.ts --write` (dry-run validated, 336
+  WR/TE rows on 2025) to populate the live column; until then the
+  signal reads null in prod.
+- **Phase B6 (PFF OL grades): pipeline DONE, NO buy, NO write.** #65.
+  Validate-first pipeline, QB-scoped (QB is the only rubric with a
+  live OL consumer, `ol_grade_pass`; RB reads the FREE continuity
+  proxy and WR reads no OL signal, so RB/WR OL wiring is deferred to
+  the Phase D rubric rewrite). New canonical
+  `loadHistoricalOlGrades` reads vintage PFF from
+  `historical_signal_codes`, temporal-blinded, normalized 0..100 ->
+  0..1 at ingest. `backtest-qb-rubric.ts --with-ol` ready;
+  `ingest-pff-ol-grades.ts` dry-run-default reads a founder-EXPORTED
+  file (no scripted pull until ToS + creds confirmed). Licensed bulk
+  data gitignored. FOUNDER DECISION: confirm the exact PFF product +
+  cost (~160 team-season rows, sales-quoted API tier), then
+  sample-validate the QB lift BEFORE the multi-season license.
+- **Phase B2 (rb_role_tier bake-off): DONE, snap-derived WINS.** #64.
+  The RB rubric HARD GATE (MODEL_CARD 4.2). Snap-derived (incumbent,
+  A4 baseline) vs LLM-coded tier, temporally blinded, decision years
+  2023+2024. No source clears the market (bottleneck is the missing
+  load-bearing RB signals: weighted-opportunity, OL run grade, not the
+  tier source); the LLM tier does not beat snap (paired CI straddles
+  zero) and covers only top-N RBs. Snap stays the live source; LLM
+  tier recorded in `negative-results.md`, rows kept for the harness,
+  NOT promoted, no weight change. FOUNDER ACTION (optional):
+  `ingest-rb-role-tier.ts --write` re-derives the winning snap source
+  per completed season (dry-run validated on 2025, 523 RBs); only
+  refreshes the existing live column, not strictly required.
 - **Remaining:** D (Forward Production), E (decision-engine re-cast),
   F (validation + scoreboard), G (cleanup + lockdown). Phase D is the
   converging, all-four-positions-or-none build; its D1 founder decision
