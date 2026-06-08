@@ -114,7 +114,7 @@ controls the calendar. The plan does NOT compress quality for speed.
 
 ## Progress log (orchestrator-owned, live)
 
-Updated 2026-06-03. Append-only running status so a fresh session
+Updated 2026-06-08. Append-only running status so a fresh session
 sees what shipped without reconstructing it from git.
 
 - **Phase A (truth audit): DONE.** #50 (A4 per-position backtests),
@@ -171,20 +171,26 @@ sees what shipped without reconstructing it from git.
   reads from one canonical, lint-locked. C4a remains the one tracked
   interim until Phase D exposes near_term_role. The architecture can
   now support Phase D wiring without divergence.
-- **Phase B sig-history (#63): DONE (gate-unblocker, table NOT yet
-  ingested).** Migration 0018 adds `team_signals_history` keyed
-  `(team, season)`, a parallel table so the live `getTeamSignalsMap()`
-  snapshot reader is untouched. Per-season scheme/coaching coding +
-  Y-1 derived pbp rates (temporally blinded per VALIDATION_PLAN s4),
-  joined into `buildPositionCohort` via the season-aware
-  `team-signals-history.ts` reader; one shared harness
-  (`position-backtest.ts`) runs A4 vs rubric+scheme. HONEST STATE: the
-  history table is empty (migration + founder-authorized `--write`
-  pending), so the harness reproduces the A4 market+age baseline and
-  REFUSES to claim scheme lift from an empty table. FOUNDER ACTION:
-  review the per-season LLM coding JSON, authorize the
-  `ingest-team-signals-history.ts --write`, then re-run the WR/QB/TE
-  backtests to read the real per-position scheme marginal.
+- **Phase B sig-history (#63): DONE + INGESTED + BACKTESTED (2026-06-08).**
+  Migration 0018 adds `team_signals_history` keyed `(team, season)`, a
+  parallel table so the live `getTeamSignalsMap()` snapshot reader is
+  untouched. Per-season scheme/coaching coding + Y-1 derived pbp rates
+  (temporally blinded per VALIDATION_PLAN s4), joined into
+  `buildPositionCohort` via the season-aware `team-signals-history.ts`
+  reader; one shared harness (`position-backtest.ts`) runs A4 vs
+  rubric+scheme. INGESTED 2026-06-08: 128 rows written (32 teams × 4
+  seasons 2021-2024), all four seasons 32/32, zero null fields. The
+  initial #63 corpus was partial (2022 13/32, 2023 28/32); the 23
+  missing team-seasons were backfilled (Sonnet 4.6 + web_search,
+  founder-validated) before the founder-authorized `--write`.
+  BACKTESTED: the scheme marginal does NOT clear the market for any
+  position (WR +0.002, QB -0.008, TE -0.004; all within noise of zero,
+  scheme_tag populated counts confirm the cohort read the live rows so
+  this is a real verdict, not an empty-table artifact). No rubric weight
+  changes; hold the prior. Logged in `negative-results.md`
+  (2026-06-08 entry). The Phase D "beats market" gate now has a real,
+  temporally-blinded historical team-signals store to validate against,
+  which was the purpose of the migration.
 - **Phase B #3 (route participation): DONE + backtested INCONCLUSIVE.**
   #66. WR/TE route rate from free nflverse `pbp_participation`, one
   canonical compute (`buildRouteParticipation`), per-season so the

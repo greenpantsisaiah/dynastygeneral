@@ -229,3 +229,63 @@ sack rate is.
   fetch under concurrent-job network contention). A clean re-run gave the
   n=70 numbers above. A 0-joined OL pass is a fetch failure, never a real
   verdict; re-run before recording.
+
+## 2026-06-08 · Historical scheme/coaching signal: no per-position lift (sig-history ingested)
+
+**Phase B sig-history (#63), the gate-unblocker, now CLOSED.** The
+`team_signals_history` table (migration 0018) was empty through #63, so the
+WR/QB/TE backtests reproduced the A4 market+age baseline and REFUSED to read
+a scheme marginal. This entry records the result now that the table is
+populated.
+
+- **Data migration:** 128 rows written to `team_signals_history` (32 teams ×
+  4 seasons 2021-2024), keyed `(team, season)`. Coaching/scheme fields coded
+  per season by Claude Sonnet 4.6 + web_search, anchored to preseason-known
+  state per the VALIDATION_PLAN section 4 temporal-blinding protocol
+  (`extract-team-coaching-scheme-history.ts`, founder-validated). Derived
+  game-script rates (`pass_rate_neutral`, `personnel_12_rate`,
+  `scheme_pace`) attach the PRIOR season's realized values as the
+  preseason-known proxy (`derive-team-metrics.ts --season`, nflverse
+  CC-BY-4.0), merged by `ingest-team-signals-history.ts --write`. The
+  2022 (19 teams) and 2023 (4 teams) codings that were missing from the
+  initial #63 corpus were backfilled before the write so all four seasons
+  are 32/32, zero null fields, zero low-confidence fields.
+- **Method:** `scripts/backtest-{wr,qb,te}-rubric.ts`, each running the
+  cohort twice per decision year (A4 baseline with no team signals, then
+  rubric + historical scheme) and reporting the scheme marginal. Spearman
+  of the rubric vs realized next-year PPR PPG. Decision years 2023 + 2024,
+  temporally blinded (a season-S coding enriches decision year S+1).
+- **Result (pooled scheme marginal = scheme-rubric Spearman minus A4-rubric
+  Spearman):**
+
+  | position | n | market (KTC) | A4 rubric | rubric + scheme | A4 lift vs market | scheme marginal |
+  |---|---:|---:|---:|---:|---:|---:|
+  | WR | 220 | 0.744 | 0.743 | 0.744 | -0.001 (CI [-0.012, 0.010]) | +0.002 |
+  | QB | 70 | 0.781 | 0.709 | 0.701 | -0.072 (CI [-0.222, 0.012]) | -0.008 |
+  | TE | 94 | 0.728 | 0.732 | 0.728 | +0.004 (CI [-0.037, 0.043]) | -0.004 |
+
+- **Reading:** the historical coaching/scheme signal does NOT clear the
+  market for any of WR, QB, or TE. All three scheme marginals are within
+  noise of zero (WR +0.002, QB -0.008, TE -0.004); none of the underlying
+  rubric-vs-market CIs exclude zero. This is the same shape as the other
+  Phase B signals (route participation, rb_role_tier, OL grades all
+  inconclusive): a coaching/scheme tag is largely collinear with the market
+  prior the rubric already consumes, so it adds no marginal ranking edge on
+  top of KTC + age. The scheme_tag populated counts (WR 95/86, QB 31/31,
+  TE 41/38 across the two years) confirm the cohort read the freshly
+  written history rows, so the zero marginal is a real verdict, not an
+  empty-table artifact.
+- **Decision:** do NOT change any rubric weight; hold the prior (the canon
+  rule when a CI straddles zero). The signal stays wired and the table
+  stays populated (it now enriches LIVE reads via the snapshot `team_signals`
+  twin and remains available for the Phase D rubric rewrite, where scheme may
+  matter as a variance-band or projection modifier rather than a point-estimate
+  ranking signal). The Phase D "beats market" gate now has a real,
+  temporally-blinded historical team-signals store to validate against,
+  which was the entire purpose of the migration.
+- **Caveats:** QB n=70 is below the 100 floor; its CI is wide. The
+  decision-year window is two seasons (2023, 2024) because the derived Y-1
+  proxy needs a prior-season pbp file and the coding corpus runs 2021-2024.
+  A wider window (more KTC snapshot dates, more coded seasons) would tighten
+  the CIs but is unlikely to move a ~zero marginal to gate-relevant given
+  the collinearity.

@@ -1,0 +1,428 @@
+{
+  "season": 2023,
+  "generated_at": "2026-06-04T18:51:52.223Z",
+  "source": {
+    "pbp": "https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_2023.csv",
+    "participation": "https://github.com/nflverse/nflverse-data/releases/download/pbp_participation/pbp_participation_2023.csv",
+    "license": "CC-BY-4.0 (nflverse)"
+  },
+  "neutral_filter": "season_type=REG, down 1-2, |score_differential|<=10, qtr<=4, exclude H2<=5min, exclude qb_kneel/qb_spike",
+  "metrics": [
+    {
+      "team": "ARI",
+      "pass_rate_neutral": 0.438,
+      "scheme_pace": 63.06,
+      "personnel_12_rate": 0.1998,
+      "sample": {
+        "neutral_attempts": 484,
+        "regulation_offensive_plays": 1072,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1081,
+        "participation_personnel_12": 216
+      }
+    },
+    {
+      "team": "ATL",
+      "pass_rate_neutral": 0.4656,
+      "scheme_pace": 63.71,
+      "personnel_12_rate": 0.4133,
+      "sample": {
+        "neutral_attempts": 640,
+        "regulation_offensive_plays": 1083,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1096,
+        "participation_personnel_12": 453
+      }
+    },
+    {
+      "team": "BAL",
+      "pass_rate_neutral": 0.4967,
+      "scheme_pace": 62,
+      "personnel_12_rate": 0.1206,
+      "sample": {
+        "neutral_attempts": 602,
+        "regulation_offensive_plays": 1054,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1078,
+        "participation_personnel_12": 130
+      }
+    },
+    {
+      "team": "BUF",
+      "pass_rate_neutral": 0.5492,
+      "scheme_pace": 63.59,
+      "personnel_12_rate": 0.1761,
+      "sample": {
+        "neutral_attempts": 590,
+        "regulation_offensive_plays": 1081,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1119,
+        "participation_personnel_12": 197
+      }
+    },
+    {
+      "team": "CAR",
+      "pass_rate_neutral": 0.4853,
+      "scheme_pace": 64.35,
+      "personnel_12_rate": 0.0928,
+      "sample": {
+        "neutral_attempts": 546,
+        "regulation_offensive_plays": 1094,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1099,
+        "participation_personnel_12": 102
+      }
+    },
+    {
+      "team": "CHI",
+      "pass_rate_neutral": 0.4463,
+      "scheme_pace": 64.06,
+      "personnel_12_rate": 0.2234,
+      "sample": {
+        "neutral_attempts": 531,
+        "regulation_offensive_plays": 1089,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1101,
+        "participation_personnel_12": 246
+      }
+    },
+    {
+      "team": "CIN",
+      "pass_rate_neutral": 0.6032,
+      "scheme_pace": 59.65,
+      "personnel_12_rate": 0.1201,
+      "sample": {
+        "neutral_attempts": 567,
+        "regulation_offensive_plays": 1014,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1049,
+        "participation_personnel_12": 126
+      }
+    },
+    {
+      "team": "CLE",
+      "pass_rate_neutral": 0.5211,
+      "scheme_pace": 69.47,
+      "personnel_12_rate": 0.1054,
+      "sample": {
+        "neutral_attempts": 570,
+        "regulation_offensive_plays": 1181,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1196,
+        "participation_personnel_12": 126
+      }
+    },
+    {
+      "team": "DAL",
+      "pass_rate_neutral": 0.5685,
+      "scheme_pace": 64.94,
+      "personnel_12_rate": 0.1508,
+      "sample": {
+        "neutral_attempts": 482,
+        "regulation_offensive_plays": 1104,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1127,
+        "participation_personnel_12": 170
+      }
+    },
+    {
+      "team": "DEN",
+      "pass_rate_neutral": 0.506,
+      "scheme_pace": 58.94,
+      "personnel_12_rate": 0.1926,
+      "sample": {
+        "neutral_attempts": 496,
+        "regulation_offensive_plays": 1002,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1023,
+        "participation_personnel_12": 197
+      }
+    },
+    {
+      "team": "DET",
+      "pass_rate_neutral": 0.5053,
+      "scheme_pace": 65.76,
+      "personnel_12_rate": 0.2082,
+      "sample": {
+        "neutral_attempts": 564,
+        "regulation_offensive_plays": 1118,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1143,
+        "participation_personnel_12": 238
+      }
+    },
+    {
+      "team": "GB",
+      "pass_rate_neutral": 0.5118,
+      "scheme_pace": 61.24,
+      "personnel_12_rate": 0.3283,
+      "sample": {
+        "neutral_attempts": 549,
+        "regulation_offensive_plays": 1041,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1057,
+        "participation_personnel_12": 347
+      }
+    },
+    {
+      "team": "HOU",
+      "pass_rate_neutral": 0.4876,
+      "scheme_pace": 63.12,
+      "personnel_12_rate": 0.1083,
+      "sample": {
+        "neutral_attempts": 564,
+        "regulation_offensive_plays": 1073,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1090,
+        "participation_personnel_12": 118
+      }
+    },
+    {
+      "team": "IND",
+      "pass_rate_neutral": 0.5091,
+      "scheme_pace": 62.88,
+      "personnel_12_rate": 0.192,
+      "sample": {
+        "neutral_attempts": 552,
+        "regulation_offensive_plays": 1069,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1099,
+        "participation_personnel_12": 211
+      }
+    },
+    {
+      "team": "JAX",
+      "pass_rate_neutral": 0.5368,
+      "scheme_pace": 64.41,
+      "personnel_12_rate": 0.2348,
+      "sample": {
+        "neutral_attempts": 557,
+        "regulation_offensive_plays": 1095,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1120,
+        "participation_personnel_12": 263
+      }
+    },
+    {
+      "team": "KC",
+      "pass_rate_neutral": 0.5798,
+      "scheme_pace": 62.06,
+      "personnel_12_rate": 0.284,
+      "sample": {
+        "neutral_attempts": 614,
+        "regulation_offensive_plays": 1055,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1081,
+        "participation_personnel_12": 307
+      }
+    },
+    {
+      "team": "LAC",
+      "pass_rate_neutral": 0.5478,
+      "scheme_pace": 64.29,
+      "personnel_12_rate": 0.224,
+      "sample": {
+        "neutral_attempts": 628,
+        "regulation_offensive_plays": 1093,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1107,
+        "participation_personnel_12": 248
+      }
+    },
+    {
+      "team": "LAR",
+      "pass_rate_neutral": 0.5417,
+      "scheme_pace": 63.53,
+      "personnel_12_rate": 0.0527,
+      "sample": {
+        "neutral_attempts": 600,
+        "regulation_offensive_plays": 1080,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1100,
+        "participation_personnel_12": 58
+      }
+    },
+    {
+      "team": "LV",
+      "pass_rate_neutral": 0.509,
+      "scheme_pace": 58.65,
+      "personnel_12_rate": 0.141,
+      "sample": {
+        "neutral_attempts": 501,
+        "regulation_offensive_plays": 997,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1014,
+        "participation_personnel_12": 143
+      }
+    },
+    {
+      "team": "MIA",
+      "pass_rate_neutral": 0.5556,
+      "scheme_pace": 60.94,
+      "personnel_12_rate": 0.0806,
+      "sample": {
+        "neutral_attempts": 513,
+        "regulation_offensive_plays": 1036,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1055,
+        "participation_personnel_12": 85
+      }
+    },
+    {
+      "team": "MIN",
+      "pass_rate_neutral": 0.5585,
+      "scheme_pace": 62.24,
+      "personnel_12_rate": 0.2155,
+      "sample": {
+        "neutral_attempts": 607,
+        "regulation_offensive_plays": 1058,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1072,
+        "participation_personnel_12": 231
+      }
+    },
+    {
+      "team": "NE",
+      "pass_rate_neutral": 0.5077,
+      "scheme_pace": 59.76,
+      "personnel_12_rate": 0.3904,
+      "sample": {
+        "neutral_attempts": 522,
+        "regulation_offensive_plays": 1016,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1022,
+        "participation_personnel_12": 399
+      }
+    },
+    {
+      "team": "NO",
+      "pass_rate_neutral": 0.5115,
+      "scheme_pace": 64.82,
+      "personnel_12_rate": 0.1369,
+      "sample": {
+        "neutral_attempts": 520,
+        "regulation_offensive_plays": 1102,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1125,
+        "participation_personnel_12": 154
+      }
+    },
+    {
+      "team": "NYG",
+      "pass_rate_neutral": 0.46,
+      "scheme_pace": 61.53,
+      "personnel_12_rate": 0.2139,
+      "sample": {
+        "neutral_attempts": 450,
+        "regulation_offensive_plays": 1046,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1061,
+        "participation_personnel_12": 227
+      }
+    },
+    {
+      "team": "NYJ",
+      "pass_rate_neutral": 0.4912,
+      "scheme_pace": 61.41,
+      "personnel_12_rate": 0.176,
+      "sample": {
+        "neutral_attempts": 452,
+        "regulation_offensive_plays": 1044,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1057,
+        "participation_personnel_12": 186
+      }
+    },
+    {
+      "team": "PHI",
+      "pass_rate_neutral": 0.5303,
+      "scheme_pace": 63.88,
+      "personnel_12_rate": 0.2127,
+      "sample": {
+        "neutral_attempts": 611,
+        "regulation_offensive_plays": 1086,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1114,
+        "participation_personnel_12": 237
+      }
+    },
+    {
+      "team": "PIT",
+      "pass_rate_neutral": 0.4171,
+      "scheme_pace": 59.29,
+      "personnel_12_rate": 0.1793,
+      "sample": {
+        "neutral_attempts": 537,
+        "regulation_offensive_plays": 1008,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1032,
+        "participation_personnel_12": 185
+      }
+    },
+    {
+      "team": "SEA",
+      "pass_rate_neutral": 0.5318,
+      "scheme_pace": 57.35,
+      "personnel_12_rate": 0.2244,
+      "sample": {
+        "neutral_attempts": 581,
+        "regulation_offensive_plays": 975,
+        "regulation_games": 17,
+        "participation_offensive_plays": 998,
+        "participation_personnel_12": 224
+      }
+    },
+    {
+      "team": "SF",
+      "pass_rate_neutral": 0.5104,
+      "scheme_pace": 58.59,
+      "personnel_12_rate": 0.1328,
+      "sample": {
+        "neutral_attempts": 531,
+        "regulation_offensive_plays": 996,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1024,
+        "participation_personnel_12": 136
+      }
+    },
+    {
+      "team": "TB",
+      "pass_rate_neutral": 0.5141,
+      "scheme_pace": 60.53,
+      "personnel_12_rate": 0.236,
+      "sample": {
+        "neutral_attempts": 568,
+        "regulation_offensive_plays": 1029,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1051,
+        "participation_personnel_12": 248
+      }
+    },
+    {
+      "team": "TEN",
+      "pass_rate_neutral": 0.4764,
+      "scheme_pace": 56.29,
+      "personnel_12_rate": 0.2562,
+      "sample": {
+        "neutral_attempts": 529,
+        "regulation_offensive_plays": 957,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1003,
+        "participation_personnel_12": 257
+      }
+    },
+    {
+      "team": "WAS",
+      "pass_rate_neutral": 0.6208,
+      "scheme_pace": 62.18,
+      "personnel_12_rate": 0.1701,
+      "sample": {
+        "neutral_attempts": 509,
+        "regulation_offensive_plays": 1057,
+        "regulation_games": 17,
+        "participation_offensive_plays": 1064,
+        "participation_personnel_12": 181
+      }
+    }
+  ]
+}
