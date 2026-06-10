@@ -219,6 +219,17 @@ sees what shipped without reconstructing it from git.
   data gitignored. FOUNDER DECISION: confirm the exact PFF product +
   cost (~160 team-season rows, sales-quoted API tier), then
   sample-validate the QB lift BEFORE the multi-season license.
+  UPDATE 2026-06-10: the FREE ESPN win-rate proxy (#68) is now ingested
+  to the DB path. New `ingest-espn-ol-grades.ts` wrote 256 codes (128
+  team-seasons 2021-2024, normalized 0..1) to `historical_signal_codes`
+  under `coded_by=ingest:espn-ol-winrate:v1` (honest ESPN provenance,
+  separate from PFF rows). `backtest-qb-rubric.ts --with-ol` now reads
+  the DB path (OL joined 62/70) and confirms the no-buy verdict: marginal
+  OL lift +0.002 (noise), identical to the `--ol-file` check and the
+  third construct-independent free proxy to land at zero (sack-rate
+  -0.004, ESPN-file +0.002, ESPN-DB +0.002). PFF spend NOT justified for
+  QB; the ESPN rows stay (free, re-runnable) for a future larger-cohort
+  test. Logged in `negative-results.md` (2026-06-10).
 - **Phase B2 (rb_role_tier bake-off): DONE, snap-derived WINS.** #64.
   The RB rubric HARD GATE (MODEL_CARD 4.2). Snap-derived (incumbent,
   A4 baseline) vs LLM-coded tier, temporally blinded, decision years
