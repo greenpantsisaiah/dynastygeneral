@@ -114,7 +114,7 @@ controls the calendar. The plan does NOT compress quality for speed.
 
 ## Progress log (orchestrator-owned, live)
 
-Updated 2026-06-08. Append-only running status so a fresh session
+Updated 2026-06-12. Append-only running status so a fresh session
 sees what shipped without reconstructing it from git.
 
 - **Phase A (truth audit): DONE.** #50 (A4 per-position backtests),
@@ -219,6 +219,17 @@ sees what shipped without reconstructing it from git.
   data gitignored. FOUNDER DECISION: confirm the exact PFF product +
   cost (~160 team-season rows, sales-quoted API tier), then
   sample-validate the QB lift BEFORE the multi-season license.
+  UPDATE 2026-06-10: the FREE ESPN win-rate proxy (#68) is now ingested
+  to the DB path. New `ingest-espn-ol-grades.ts` wrote 256 codes (128
+  team-seasons 2021-2024, normalized 0..1) to `historical_signal_codes`
+  under `coded_by=ingest:espn-ol-winrate:v1` (honest ESPN provenance,
+  separate from PFF rows). `backtest-qb-rubric.ts --with-ol` now reads
+  the DB path (OL joined 62/70) and confirms the no-buy verdict: marginal
+  OL lift +0.002 (noise), identical to the `--ol-file` check and the
+  third construct-independent free proxy to land at zero (sack-rate
+  -0.004, ESPN-file +0.002, ESPN-DB +0.002). PFF spend NOT justified for
+  QB; the ESPN rows stay (free, re-runnable) for a future larger-cohort
+  test. Logged in `negative-results.md` (2026-06-10).
 - **Phase B2 (rb_role_tier bake-off): DONE, snap-derived WINS.** #64.
   The RB rubric HARD GATE (MODEL_CARD 4.2). Snap-derived (incumbent,
   A4 baseline) vs LLM-coded tier, temporally blinded, decision years
@@ -231,14 +242,34 @@ sees what shipped without reconstructing it from git.
   `ingest-rb-role-tier.ts --write` re-derives the winning snap source
   per completed season (dry-run validated on 2025, 523 RBs); only
   refreshes the existing live column, not strictly required.
-- **Remaining:** D (Forward Production), E (decision-engine re-cast),
-  F (validation + scoreboard), G (cleanup + lockdown). Phase D is the
-  converging, all-four-positions-or-none build; its D1 founder decision
-  (horizon, output shape, position conditioning, update cadence) must
-  be logged before D2 starts, and its "beats market" gate needs
-  historical/vintage team_signals (the current 2026-only snapshot
-  enriches live reads but cannot validate the temporal-blinded
-  backtest).
+- **Phase B6 ESPN OL (DB path): DONE + INGESTED + BACKTESTED
+  (2026-06-10).** #70. The FREE ESPN win-rate OL proxy is now in
+  `historical_signal_codes` (256 codes, 128 team-seasons 2021-2024,
+  `coded_by=ingest:espn-ol-winrate:v1`, honest provenance separate from
+  PFF). `backtest-qb-rubric.ts --with-ol` reads the DB path (62/70
+  joined) and confirms the no-buy verdict: marginal OL lift +0.002
+  (noise), the third construct-independent free proxy to land at zero.
+  No PFF buy for QB, no OL wiring into the live read. Logged in
+  `negative-results.md` (2026-06-10). With this, EVERY Phase B signal
+  (route participation, rb_role_tier, scheme/coaching, OL grades) is
+  sourced, wired, and backtested, and NONE clears the market on top of
+  KTC + age. Phase B is exhausted; the edge must come from Phase D
+  (Forward Production), a different output shape, not more ranking
+  signals. This is the plan's own thesis, now proven to the last signal.
+- **Phase D1 (founder decision): LOGGED 2026-06-12.** Recorded in
+  `FORWARD_EV_PLAN.md` "Stage 3a DECISION" and the Phase D section
+  below. Horizon = multi-year cumulative (Y1/Y1+Y2/Y1-Y3) headline with
+  rest-of-season as the Y1 component; cadence = weekly Y1 recompute +
+  event-driven Y2/Y3; output = P50 headline + P25/P75 band (Principle
+  0); per-position rubrics (MODEL_CARD s4 prior); ship gate = all four
+  positions clear D3 or no ship. Phase D2 (build the rubrics over
+  EnrichedPlayer) may now start.
+- **Remaining:** D (Forward Production, D2 now unblocked), E
+  (decision-engine re-cast), F (validation + scoreboard), G (cleanup +
+  lockdown). Phase D is the converging, all-four-positions-or-none
+  build. Its "beats market" D3 gate runs against the now-populated
+  vintage `team_signals_history` (#69) + `historical_signal_codes`
+  (#70) stores.
 
 ---
 
@@ -467,16 +498,22 @@ position needs (per A4 backtest), and C has shipped the
 LeagueContext + EnrichedPlayer + Coach mirror. Phase D is itself a
 multi-position parallel build with ONE CONVERGING SHIP.
 
-- **D1. Founder decision: Stage 3a of `FORWARD_EV_PLAN.md`.** Record:
-  - Horizon. Rest-of-season vs full-season vs multi-year cumulative.
-  - Output shape. Point estimate + variance band (P25, P50, P75)
-    expected per Principle 0; founder confirms band width and whether
-    a probability distribution ships too.
-  - Position conditioning. Confirm one rubric per position with the
-    MODEL_CARD section 4 weights as the starting prior.
-  - Update cadence. Daily / weekly post-Sunday-games / both.
-  Recorded in this file or in a follow-up locked decision file. D2
-  does not start until logged.
+- **D1. Founder decision: Stage 3a of `FORWARD_EV_PLAN.md`. LOGGED
+  2026-06-12.** The full locked decision lives in `FORWARD_EV_PLAN.md`
+  under "Stage 3a DECISION." Summary:
+  - Horizon: MULTI-YEAR cumulative (Y1, Y1+Y2, Y1-Y3) is the headline;
+    rest-of-season is the Y1 component inside it, not a separate metric.
+  - Cadence: component-matched. Y1 recomputes weekly post-Sunday; Y2/Y3
+    recompute event-driven (injury / depth chart / offseason). The
+    cumulative number moves whenever any component moves. D2 builds a
+    weekly Y1 batch + event-triggered outer-year recompute, not one
+    fixed-clock job.
+  - Output shape: P50 headline + P25/P75 inline band (Principle 0); no
+    full distribution in v1.
+  - Position conditioning: one rubric per position, MODEL_CARD s4
+    weights as the prior.
+  - Ship gate: all four positions clear D3's three gates or no ship.
+  D2 may now start.
 - **D2. Build position rubrics over the EnrichedPlayer resolver
   (Stage 3b).** Four parallel streams, one per position:
   - D2-QB

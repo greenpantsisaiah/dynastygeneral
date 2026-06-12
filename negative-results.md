@@ -289,3 +289,57 @@ populated.
   A wider window (more KTC snapshot dates, more coded seasons) would tighten
   the CIs but is unlikely to move a ~zero marginal to gate-relevant given
   the collinearity.
+
+## 2026-06-10 · Free ESPN OL proxy ingested to the DB path: still no QB lift (third confirm)
+
+**Phase B6 (sig-ol-grade), DB-path confirmation.** Two prior free OL checks
+(inverse sack rate -0.004, and the ESPN win-rate via the backtest's
+`--ol-file` shortcut +0.002) both landed at noise. This entry confirms the
+result through the PRODUCTION DB path the live rubric would read, not the
+file shortcut, by ingesting the ESPN proxy into `historical_signal_codes`.
+
+- **Why a DB-path run mattered:** before this, `backtest-qb-rubric.ts
+  --with-ol` (no `--ol-file`) joined 0/70 records because
+  `historical_signal_codes` had no ESPN OL rows; the OL pass was identical
+  to baseline by construction and the script correctly refused to read a
+  delta. The `--ol-file` check proved the proxy's rank value but not that
+  the live DB read path produces the same number.
+- **Ingest:** new `scripts/ingest-espn-ol-grades.ts` writes the scraper's
+  `data/free-ol-grades.json` (128 team-seasons 2021-2024, win rate
+  normalized pct/100 to the rubric 0..1 scale) into
+  `historical_signal_codes` as 256 signal codes (`ol_grade_run` +
+  `ol_grade_pass`), temporally blinded (a season-S grade writes
+  `prediction_year = S+1`, `coded_with_knowledge_through = ${S+1}-09-15`),
+  stamped with honest ESPN provenance and a distinct
+  `coded_by = ingest:espn-ol-winrate:v1` so the audit trail never confuses
+  the FREE win-rate share with a PFF charted grade. Idempotent
+  delete-then-insert scoped to that `coded_by`, so PFF rows are untouched.
+- **Method:** `scripts/backtest-qb-rubric.ts --with-ol` (DB path, no
+  `--ol-file`). `OL source: historical_signal_codes (DB)`. Decision years
+  2023 + 2024, pooled n=70, OL joined 62/70.
+- **Result:**
+
+  | | market (KTC) | rubric | lift | 95% CI |
+  |---|---:|---:|---:|---|
+  | baseline (no OL) | 0.781 | 0.709 | -0.072 | [-0.222, 0.012] |
+  | +ESPN OL (DB path) | 0.781 | 0.711 | -0.070 | [-0.223, 0.015] |
+
+  **Marginal OL lift: +0.002** (noise-level on n=70), identical to the
+  `--ol-file` check.
+
+- **Reading:** three construct-independent free OL reads (sack-rate -0.004,
+  ESPN win-rate via file +0.002, ESPN win-rate via DB +0.002) all land at
+  zero marginal on the same n=70 QB cohort, now confirmed through the exact
+  read path the live rubric uses. The rubric still loses to the market in
+  both passes. The PFF spend would have to turn a ~zero result from three
+  free proxies into a positive lift on n=70, an implausible ask.
+- **Decision:** do NOT buy PFF OL grades for QB; do NOT wire any OL signal
+  into the live QB read on this evidence. The ESPN ingest + rows STAY (free,
+  honest provenance, re-runnable) so a future larger-cohort test reads the
+  DB path with zero setup. The PFF pipeline (#65) stays built but unfired.
+  Revisit OL only when (a) the QB cohort is larger, or (b) the RB rubric
+  wires `ol_grade_run` as a variance-band modifier (a band-calibration test,
+  not this point-estimate Spearman).
+- **Caveats:** n=70 below the 100 floor; CI wide. ESPN PBWR/RBWR is a
+  win-rate share, a construct-distinct proxy for a PFF charted grade, so this
+  is a rank-correlation test, not a like-for-like PFF stand-in.
