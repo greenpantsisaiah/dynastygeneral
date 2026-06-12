@@ -191,6 +191,47 @@ Before any code on the broader surface, founder records:
 Gate: founder decision recorded in this doc or in a follow-up
 locked decision file. Stage 3b does not start without it.
 
+### Stage 3a DECISION (locked 2026-06-12 by founder)
+
+The broader-surface gate is now recorded. Stage 3b / Phase D2 may
+start.
+
+- **Horizon: multi-year cumulative is the headline.** Forward
+  Production projects cumulative PPR points over Y1, Y1+Y2, Y1-Y3.
+  Rest-of-season is NOT a separate metric; it is the current-season
+  (Y1) component that rolls up into the cumulative number. Rationale:
+  dynasty is a multi-year game; a rest-of-season-only metric reads
+  redraft-flavored to a dynasty user. The cost (multi-year is the
+  noisier, harder projection, and FantasyCalc already prices
+  multi-year value well) is accepted because the cumulative view is
+  the one the brand promises and the one the in-season + scoreboard
+  surfaces ultimately need.
+- **Cadence: component-matched, not a single clock.** The Y1
+  component recomputes WEEKLY post-Sunday-games as games resolve. The
+  Y2/Y3 outer years recompute EVENT-DRIVEN (injury, depth-chart move,
+  offseason transition), since a single week is ~2% of a 3-year
+  window and a strict weekly clock would render a near-static
+  headline number (a "weekly fresh" promise that does not visibly
+  hold). The cumulative number updates whenever ANY component moves.
+  D2 builds a weekly Y1 batch + an event-triggered outer-year
+  recompute, NOT a single fixed-clock job over the whole horizon.
+- **Output shape: point + band.** P50 median is the headline number;
+  P25/P75 is the inline confidence band, visible by default per
+  Principle 0 (non-negotiable on the flagship metric). No full
+  probability distribution in v1; the three quantiles carry the
+  uncertainty the UI needs.
+- **Position conditioning: one rubric per position.** QB/RB/WR/TE
+  each keep their own rubric with the MODEL_CARD section 4 weights as
+  the starting prior and the backtest as the truth. No unified model
+  (it would blur the position-specific signals that matter).
+- **Ship gate: all four positions or none.** D3's three gates
+  (temporal-blinded backtest with CI excluding zero + dynasty-canon-
+  keeper CRITIQUE Defensible + dynasty-assumption-auditor no
+  Indefensible) must pass for ALL of QB/RB/WR/TE before any public
+  ship. The "no half-the-product" founder rule holds; a position that
+  cannot clear after Phase B's signal investment becomes a
+  release-blocker decision, not a ship-around-it.
+
 ## Stage 3b: Build the Forward Production projection · PARTIAL (rookie slice shipped)
 
 PR #41 + #42 + #44 wired the rubric pipeline live for one specific
