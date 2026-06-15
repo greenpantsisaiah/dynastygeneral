@@ -34,19 +34,66 @@ import { rerankByConsensus } from "@/lib/players/rerank";
 import { annotateStartableDepth } from "@/lib/engine/roster-fit";
 import { resolvePlayers } from "@/lib/players/cache";
 import { normalizePosition } from "@/lib/strategy/archetypes/schema";
+import { resolveEnrichedPlayers } from "@/lib/players/enriched-player";
+import {
+  evaluateForPlayer,
+  isRubricPriorDriven,
+} from "@/lib/engine/evaluation/wiring";
 import type { LeagueSnapshot } from "../league-state/snapshot";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { PlayerValue } from "@/lib/players/values";
+import type { EvaluationOutput } from "@/lib/engine/evaluation/types";
+
+/**
+ * The value the priced pool uses for SCORING (rerank + startable depth +
+ * synthesize). The whole product reads one number through this one seam.
+ *
+ *   - "market": return the FantasyCalc value byte-identically (the shadow
+ *     mode). The number that reaches rerank / depth / synthesize is exactly
+ *     what it was before this seam existed, so the snapshot-diff is empty.
+ *   - "rubric": return `evaluate().point_estimate`, the model's blended
+ *     projection (falls back to the market prior when signals are absent,
+ *     so it is never garbage). Flipping the mode is the ONLY number-changing
+ *     step; it ships as its own gated PR (canon-keeper + assumption-auditor
+ *     + snapshot-diff fixtures + founder eyeball). See MODEL_LIVE_PLAN
+ *     Phase D / FORWARD_EV_PLAN Stage 3a.
+ *
+ * Shadow-first is locked: VALUE_MODE stays "market" until the gated flip.
+ */
+export type ValueMode = "market" | "rubric";
+export const VALUE_MODE: ValueMode = "market";
+
+/**
+ * Select the scoring value for one player through the seam. The market
+ * branch returns `v.value` LITERALLY (ignores `out`, no arithmetic), so it
+ * is float-identical to the pre-seam value; the rubric branch returns the
+ * rubric point estimate, falling back to the market value when the rubric
+ * produced nothing (unknown position).
+ */
+export function scoringValueFor(
+  v: PlayerValue,
+  out: EvaluationOutput | null,
+  mode: ValueMode,
+): number {
+  if (mode === "market") return v.value;
+  return out?.point_estimate ?? v.value;
+}
 
 export interface PricedPool {
   /** Reranked realistic pool, consensus-cascade ordered. */
   available: AvailablePlayer[];
   /** Full FantasyCalc value map (all rosters + available). */
   valueMap: Map<string, PlayerValue>;
-  /** Convenience record: id -> normalized 0-100 value. */
+  /** Convenience record: id -> scoring value (market in shadow, rubric on flip). */
   playerValuesById: Record<string, number>;
   /** Convenience record: id -> KTC overall rank (when present). */
   ktcOverallRanksById: Record<string, number>;
+  /** Full rubric output per priced id (carried for the honesty badge + the flip). */
+  evaluationById: Record<string, EvaluationOutput>;
+  /** id -> isRubricPriorDriven(out): true when the read leans on the market prior. */
+  priorDrivenById: Record<string, boolean>;
+  /** Which value the pool scored on (audit trail; "market" in shadow). */
+  valueMode: ValueMode;
 }
 
 /**
@@ -71,6 +118,8 @@ export async function buildPricedPool(
   let valueMap = new Map<string, PlayerValue>();
   const playerValuesById: Record<string, number> = {};
   const ktcOverallRanksById: Record<string, number> = {};
+  const evaluationById: Record<string, EvaluationOutput> = {};
+  const priorDrivenById: Record<string, boolean> = {};
 
   try {
     const valueIds: string[] = [];
@@ -91,8 +140,46 @@ export async function buildPricedPool(
       isHalfPpr: snap.scoring.includes("half-PPR"),
       isTePremium: snap.scoring.includes("TE-premium"),
     });
+
+    // Resolve the rubric inputs (signals + team_signals + meta) for the same
+    // ids, handing down the value map we just fetched so there is NO second
+    // FantasyCalc round-trip. The pool then runs evaluate() per player and
+    // routes the SCORING number through the one seam. In shadow mode
+    // (VALUE_MODE === "market") the number is byte-identical to v.value, so
+    // rerank / startable depth / synthesize are unchanged; the rubric output
+    // rides alongside for the honesty badge and the eventual flip.
+    const enriched = await resolveEnrichedPlayers({
+      playerIds: valueIds,
+      valueMap,
+    }).catch((err) => {
+      // Best-effort: if enrichment fails, fall back to market-only scoring so
+      // the pool degrades exactly as it did before this seam existed.
+      console.error(
+        "[priced-pool:enriched]",
+        err instanceof Error ? `${err.message}\n${err.stack}` : err,
+      );
+      return new Map<string, never>();
+    });
+
     for (const [id, v] of valueMap.entries()) {
-      playerValuesById[id] = v.value;
+      const e = enriched.get(id);
+      const out = e
+        ? evaluateForPlayer({
+            player_signals: e.signals,
+            team_signals: e.team_signals,
+            ktc_value: e.ktc_value,
+            adp: e.adp,
+            search_rank: e.search_rank,
+            position: e.position,
+            age: e.age,
+            years_exp: e.years_exp,
+          })
+        : null;
+      playerValuesById[id] = scoringValueFor(v, out, VALUE_MODE);
+      if (out) {
+        evaluationById[id] = out;
+        priorDrivenById[id] = isRubricPriorDriven(out);
+      }
       if (typeof v.overall_rank === "number") {
         ktcOverallRanksById[id] = v.overall_rank;
       }
@@ -130,5 +217,13 @@ export async function buildPricedPool(
     }
   }
 
-  return { available, valueMap, playerValuesById, ktcOverallRanksById };
+  return {
+    available,
+    valueMap,
+    playerValuesById,
+    ktcOverallRanksById,
+    evaluationById,
+    priorDrivenById,
+    valueMode: VALUE_MODE,
+  };
 }
