@@ -8,7 +8,8 @@
  *   RESEND_API_KEY  - Resend API key
  *   EMAIL_FROM      - From address (verified sending domain)
  *   FEEDBACK_NOTIFY_TO - Comma-separated recipients (defaults to
- *                       first entry of ADMIN_EMAILS when not set)
+ *                       first entry of ADMIN_EMAILS, then a founder
+ *                       fallback, when not set)
  *
  * When env is missing the helper returns `{ ok: false, reason }` and
  * the caller logs it without failing the request.
@@ -30,6 +31,8 @@ export type FeedbackNotifyResult =
   | { ok: true }
   | { ok: false; reason: string };
 
+const FALLBACK_FEEDBACK_RECIPIENT = "isaiah@greenpantsstudio.com";
+
 function resolveRecipients(): string[] {
   const explicit = (process.env.FEEDBACK_NOTIFY_TO ?? "")
     .split(",")
@@ -40,7 +43,8 @@ function resolveRecipients(): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  return admins.length > 0 ? [admins[0]!] : [];
+  if (admins.length > 0) return [admins[0]!];
+  return [FALLBACK_FEEDBACK_RECIPIENT];
 }
 
 export async function sendFeedbackNotification(
