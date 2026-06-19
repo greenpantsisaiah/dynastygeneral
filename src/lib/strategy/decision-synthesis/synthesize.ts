@@ -239,9 +239,11 @@ function toDecisionCandidate(
   p: AvailablePlayer,
   playerValues: Record<string, number>,
   ktcOverallRanks: Record<string, number>,
+  priorDriven: Record<string, boolean>,
 ): DecisionCandidate {
   const v = playerValues[p.id];
   const r = ktcOverallRanks[p.id];
+  const pd = priorDriven[p.id];
   return {
     player_id: p.id,
     name: p.name,
@@ -255,6 +257,7 @@ function toDecisionCandidate(
     is_rookie: p.is_rookie,
     value: typeof v === "number" ? Math.round(v) : null,
     ktc_overall_rank: typeof r === "number" ? r : null,
+    prior_driven: typeof pd === "boolean" ? pd : undefined,
   };
 }
 
@@ -1868,6 +1871,13 @@ export function synthesizeDecision(args: {
   // on Top 3 cards alongside ADP so the user sees both signals when
   // they diverge. Drives the trust-hierarchy callout in WHY THIS LEAN.
   ktc_overall_ranks?: Record<string, number>;
+  // Per-id honesty flag from `buildPricedPool.priorDrivenById`:
+  // true when the rubric read leans on the market prior, not live
+  // evidence (`isRubricPriorDriven`). Optional; empty record leaves
+  // `candidate.prior_driven` undefined on every card. Display-only:
+  // it labels honesty, it never moves the value or the standing call
+  // (the value seam stays in shadow until the gated VALUE_MODE flip).
+  prior_driven_by_id?: Record<string, boolean>;
   // User's tuned doctrine from the Rankings Lab. Optional; defaults
   // to neutral (no effect on scoring) so existing eval fixtures pass
   // unchanged. When dials are non-default, each candidate gets a
@@ -1883,6 +1893,7 @@ export function synthesizeDecision(args: {
     picks_until_me,
     player_values: playerValues = {},
     ktc_overall_ranks: ktcOverallRanks = {},
+    prior_driven_by_id: priorDrivenById = {},
     dials = NEUTRAL_SYNTHESIS_DIALS,
   } = args;
   const schedule = snap.draft.my_pick_schedule;
@@ -2157,7 +2168,12 @@ export function synthesizeDecision(args: {
     // bug class where text said "fragile-to-gone" and badge said 50%.
     const availability_next_pick = availabilityFromPct(survival_pct);
     return {
-      ...toDecisionCandidate(c.player, playerValues, ktcOverallRanks),
+      ...toDecisionCandidate(
+        c.player,
+        playerValues,
+        ktcOverallRanks,
+        priorDrivenById,
+      ),
       dial_influences: c.dial_influences,
       primary_reason: c.primary_reason,
       rule: c.rule,
@@ -2277,7 +2293,12 @@ export function synthesizeDecision(args: {
     });
     const availability_next_pick = availabilityFromPct(survival_pct);
     return {
-      ...toDecisionCandidate(q.player, playerValues, ktcOverallRanks),
+      ...toDecisionCandidate(
+        q.player,
+        playerValues,
+        ktcOverallRanks,
+        priorDrivenById,
+      ),
       primary_reason: q.primary_reason,
       rule: q.rule,
       timeline_lane: classifyLane({
@@ -2358,7 +2379,12 @@ export function synthesizeDecision(args: {
     picks_until_me,
     density: current.density_kind,
     recommendation: {
-      ...toDecisionCandidate(winner.player, playerValues, ktcOverallRanks),
+      ...toDecisionCandidate(
+        winner.player,
+        playerValues,
+        ktcOverallRanks,
+        priorDrivenById,
+      ),
       dial_influences: winner.dial_influences,
       primary_reason: winner.primary_reason,
       rule: winner.rule,

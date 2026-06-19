@@ -1055,6 +1055,12 @@ export async function POST(
     pricedPool.playerValuesById;
   const coachKtcOverallRanks: Record<string, number> | undefined =
     pricedPool.ktcOverallRanksById;
+  // Per-id honesty flag (isRubricPriorDriven) from the same priced
+  // pool the hub reads, so the Decision candidates Coach mirrors carry
+  // the identical "leaning on the market" caveat the board renders.
+  // Display-only; the value seam is in shadow.
+  const coachPriorDriven: Record<string, boolean> | undefined =
+    pricedPool.priorDrivenById;
 
   // Compose the system's official per-pick recommendation so coach can
   // confirm or contradict with full awareness. Don't fail the whole
@@ -1092,6 +1098,7 @@ export async function POST(
         picksUntilMe: pickApproach?.picks_until_me ?? 0,
         playerValues: coachPlayerValues ?? {},
         ktcOverallRanks: coachKtcOverallRanks ?? {},
+        priorDrivenById: coachPriorDriven ?? {},
         dials: dialsForSynthesisFrom(effectiveDialsForCoach),
       });
     }

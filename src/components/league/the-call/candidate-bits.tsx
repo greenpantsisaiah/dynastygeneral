@@ -141,6 +141,20 @@ export function CandidateBlock({
         </p>
       )}
 
+      {/* Honesty caveat: the rubric read for this player leans on the
+          market prior, not live evidence (isRubricPriorDriven). Mirrors
+          the inflection panel's prior-driven framing so the value reads
+          as market-anchored, not yet evidence-backed. The value itself
+          is unchanged (the value seam is in shadow). */}
+      {!compact && candidate.prior_driven && (
+        <div
+          className="mt-2 rounded-sm border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] leading-snug text-warning"
+          title="The model read for this player leans on the market value, not yet on live signals. The value shown is the market prior."
+        >
+          Leaning on the market, not yet evidence-backed.
+        </div>
+      )}
+
       {!compact && isStandingCall && (
         <DialInfluenceChip
           influences={candidate.dial_influences ?? []}
