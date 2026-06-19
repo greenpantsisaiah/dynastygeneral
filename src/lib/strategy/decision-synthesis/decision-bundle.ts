@@ -31,6 +31,14 @@ export function resolveStandingDecision(args: {
   playerValues: Record<string, number>;
   /** From buildPricedPool: id -> KTC overall rank. */
   ktcOverallRanks: Record<string, number>;
+  /**
+   * From buildPricedPool: id -> isRubricPriorDriven flag. Optional so
+   * existing callers and fixtures compile unchanged; when present it
+   * threads the honesty caveat onto each candidate card. Display-only,
+   * never moves the value or the standing call (value seam stays in
+   * shadow until the gated VALUE_MODE flip).
+   */
+  priorDrivenById?: Record<string, boolean>;
   dials: SynthesisDials;
 }): Decision | null {
   if (args.available.length === 0) return null;
@@ -42,6 +50,7 @@ export function resolveStandingDecision(args: {
     picks_until_me: args.picksUntilMe,
     player_values: args.playerValues,
     ktc_overall_ranks: args.ktcOverallRanks,
+    prior_driven_by_id: args.priorDrivenById,
     dials: args.dials,
   });
 }

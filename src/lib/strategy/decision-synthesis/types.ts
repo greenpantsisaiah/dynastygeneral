@@ -182,6 +182,16 @@ export type DecisionCandidate = {
    * alignment chip next to the rule label.
    */
   dial_influences?: DialInfluence[];
+  /**
+   * True when the rubric read for this player is dominated by the
+   * market prior, not live evidence (`isRubricPriorDriven`, evidence
+   * stack < 1.0). Surfaced as the "leaning on the market, not yet
+   * evidence-backed" honesty caveat on the candidate card. Sourced
+   * from `buildPricedPool.priorDrivenById`. Shadow-safe: it does NOT
+   * move the value or the standing call, it only labels honesty.
+   * Undefined when no rubric output existed for the id.
+   */
+  prior_driven?: boolean;
 };
 
 // A single line item in the next-picks-plan view. Target is the

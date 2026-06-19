@@ -421,6 +421,12 @@ export default async function LeagueHubPage({
   // that needs cross-position value comparison. Cached server-side
   // (24h FantasyCalc fetch). Best-effort; non-fatal if it fails.
   let playerValuesByIdJson: Record<string, number> = {};
+  // Per-id honesty flag from the priced pool: true when the rubric
+  // read leans on the market prior, not live evidence. Threads onto
+  // each Decision candidate as the "leaning on the market, not yet
+  // evidence-backed" caveat. Display-only; the value seam stays in
+  // shadow, so this never moves the value or the standing call.
+  let priorDrivenByIdJson: Record<string, boolean> = {};
   // Multi-position tier map: scarcity + cliff signals across RB / WR /
   // TE / QB. Powers the Tier Map panel rendered during active drafts.
   // Built from the engine's variance-band overlap method (see
@@ -678,6 +684,7 @@ export default async function LeagueHubPage({
         valueMap = priced.valueMap;
         pricedValueMap = priced.valueMap;
         playerValuesByIdJson = priced.playerValuesById;
+        priorDrivenByIdJson = priced.priorDrivenById;
         ktcOverallRanksByIdJson = priced.ktcOverallRanksById;
       } catch (err) {
         captureError(issues, "hub:priced-pool", err);
@@ -866,6 +873,7 @@ export default async function LeagueHubPage({
             picksUntilMe: pickApproach?.picks_until_me ?? 0,
             playerValues: playerValuesByIdJson,
             ktcOverallRanks: ktcOverallRanksByIdJson,
+            priorDrivenById: priorDrivenByIdJson,
             dials: dialsForSynthesisFrom(effectiveDials),
           });
         } catch (err) {

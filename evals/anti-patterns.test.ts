@@ -543,6 +543,17 @@ const LEAGUE_CONTEXT = resolve(SRC, "lib", "engine", "league-context.ts");
       derivedFrom: "analyzeLeagueEvBank",
       note: "the Value-vs-ADP standing is the canonical league ev-bank readout, not a Coach-local roster walk",
     },
+    {
+      // Per-candidate honesty flag (isRubricPriorDriven). The hub renders
+      // the identical "leaning on the market, not yet evidence-backed"
+      // caveat on the standing call + candidate cards; Coach must thread
+      // the SAME priorDrivenById from buildPricedPool into the standing
+      // decision, never its own prior-vs-evidence guess. Display-only: it
+      // labels honesty, it does not move the value (value seam in shadow).
+      field: "priorDrivenById",
+      derivedFrom: "pricedPool.priorDrivenById",
+      note: "the prior-driven honesty flag is the canonical priced-pool field, not a Coach-local re-derivation",
+    },
   ];
   console.log("\n── coach mirrors the canonical engine outputs (object-parity) ──");
   {
