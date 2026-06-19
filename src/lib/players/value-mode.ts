@@ -31,7 +31,18 @@ import {
 import type { EvaluationOutput } from "@/lib/engine/evaluation/types";
 
 export type ValueMode = "market" | "rubric";
-export const VALUE_MODE: ValueMode = "market";
+// FLIPPED to "rubric" 2026-06-19 (the value-pipe Phase 4 gate). The live
+// board value is now `evaluate().point_estimate`: the four position
+// rubrics blended with the FantasyCalc market prior at DEFAULT_PRIOR_WEIGHT
+// (0.55, market-dominant). FantasyCalc remains the internal prior; it is no
+// longer the leaf value any surface reads. Gated by: the value-flip diff
+// (scripts/value-flip-diff.ts, founder-eyeballed, movers compressed after
+// the prior-weight + TE-noise + cliff-breaker adjustments), dynasty-canon-
+// keeper CRITIQUE (GO-with-adjustments), and dynasty-assumption-auditor
+// (GO-with-adjustments). To revert in an incident, set this back to
+// "market": the seam returns `v.value` byte-identically (the shadow path
+// is still wired and tested).
+export const VALUE_MODE: ValueMode = "rubric";
 
 /**
  * Select the scoring value for one player through the seam. The market

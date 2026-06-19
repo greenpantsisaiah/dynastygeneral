@@ -100,6 +100,13 @@ type Row = {
   delta: number;
   priorDriven: boolean | null;
   confidence: number | null;
+  // RB cliff-breaker diagnostic (Phase 4 audit rider b): for an aging
+  // RB the corpus names as a cliff-breaker (Henry), did the
+  // rb_cliff_breaker flag actually fire, and what role tier did the
+  // engine read? If the tier is null the flag never fires and the
+  // engine docks the full age penalty.
+  roleTier: string | null;
+  cliffBreaker: boolean | null;
 };
 
 function round1(n: number): number {
@@ -188,6 +195,12 @@ async function runFixture(fx: Fixture): Promise<void> {
       delta: round1(rubric - market),
       priorDriven: out ? isRubricPriorDriven(out) : null,
       confidence: out ? round1(out.confidence) : null,
+      roleTier:
+        (e?.signals as { rb_role_tier?: string | null } | undefined)
+          ?.rb_role_tier ?? null,
+      cliffBreaker: out
+        ? out.arbitrage_flags.includes("rb_cliff_breaker")
+        : null,
     });
   }
 
@@ -239,6 +252,35 @@ async function runFixture(fx: Fixture): Promise<void> {
       `\n  tier-jump check: clean (no sub-${REPLACEMENT_VALUE_MAX} market ` +
         `player lifted to >= ${STARTABLE_TIER_VALUE_MIN})`,
     );
+  }
+
+  // 6b) RB cliff-breaker check (Phase 4 audit rider b). The corpus names
+  //     Henry-class aging bellcows as cliff-breakers; the rb_cliff_breaker
+  //     +4 override only fires when rb_role_tier === strict_bellcow. If
+  //     the tier is null, the override never fires and the engine docks
+  //     the full age penalty on the very players the corpus says beat it.
+  //     List every aging RB (age >= 27) with its role tier and whether
+  //     the flag fired, sorted by largest down-move.
+  const agingRbs = rows
+    .filter((r) => r.position === "RB" && r.age != null && r.age >= 27)
+    .sort((a, b) => a.delta - b.delta);
+  if (agingRbs.length > 0) {
+    const docked = agingRbs.filter(
+      (r) => r.cliffBreaker === false && r.delta <= -3,
+    );
+    console.log(
+      `\n  aging-RB cliff-breaker check: ${agingRbs.length} RB(s) age >= 27 · ` +
+        `${docked.length} docked >= 3 pts WITHOUT the cliff-breaker flag:`,
+    );
+    for (const r of agingRbs.slice(0, 10)) {
+      const tier = r.roleTier ?? "null";
+      const flag = r.cliffBreaker ? "CLIFF-BREAKER" : "no flag";
+      console.log(
+        `      ${r.name.slice(0, 22).padEnd(23)} age ${String(r.age).padEnd(3)} ` +
+          `market ${String(r.market).padStart(5)} -> rubric ${String(r.rubric).padStart(5)} ` +
+          `(${r.delta >= 0 ? "+" : ""}${r.delta})  tier ${tier.padEnd(14)} ${flag}`,
+      );
+    }
   }
 
   // 7) Top movers table.

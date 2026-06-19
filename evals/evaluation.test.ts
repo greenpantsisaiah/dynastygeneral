@@ -333,9 +333,13 @@ console.log("\n  TE 12-personnel + early breakout:");
       team: emptyTeam({ personnel_12_rate: 0.10 }),
     }),
   );
+  // The surviving 12-personnel gap scales with (1 - prior weight). At the
+  // market-dominant DEFAULT_PRIOR_WEIGHT (0.55, raised from 0.4 in the
+  // 2026-06-19 value-flip), the ~7.5-pt pre-blend spread survives as ~3.4.
+  // The direction must hold and the gap must remain material (> 3).
   check(
     "TE in high 12-personnel scheme outranks low",
-    high12.point_estimate > low12.point_estimate + 4,
+    high12.point_estimate > low12.point_estimate + 3,
     `high=${high12.point_estimate} low=${low12.point_estimate}`,
   );
 }
