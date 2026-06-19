@@ -29,7 +29,7 @@ import {
   summarizeStrategy,
   type StrategyRead,
 } from "./league-context";
-import { resolvePlayerValues, type PlayerValue } from "@/lib/players/values";
+import { scoringValueByIds } from "@/lib/players/value-mode";
 import {
   buildFormatRulesFromRosterPositions,
   enumerateAllLeaguePicks,
@@ -291,17 +291,28 @@ export async function assembleContext(
   const isTePremium = scoringHighlights.some((s) =>
     /TE.?premium|TEP/i.test(s),
   );
-  const playerValueMap = await resolvePlayerValues({
-    ids: [...allIds],
-    isSuperflex,
-    isPpr,
-    isHalfPpr,
-    isTePremium,
-  });
+  // Trade-pricing player_values through the ONE value seam. Reuse the priced
+  // pool's value map (a superset of allIds) when the strategy context built,
+  // so there is no second FantasyCalc fetch and the price the LLM quotes is
+  // the same scoring value the board ranks on. The scalar `value` flows
+  // through `scoringValueFor` (market in shadow, rubric on flip); the market
+  // RANK fields (overall_rank / position_rank) stay FantasyCalc because they
+  // are a market-structure read, not the scoring scalar.
+  const { valueById: tradeValueById, valueMap: playerValueMap } =
+    await scoringValueByIds({
+      ids: [...allIds],
+      valueMap: strategyContext?.pricedPool.valueMap,
+      isSuperflex,
+      isPpr,
+      isHalfPpr,
+      isTePremium,
+    });
   const playerValuesRecord: TradePricing["player_values"] = {};
-  for (const [id, v] of playerValueMap.entries()) {
+  for (const id of allIds) {
+    const v = playerValueMap.get(id);
+    if (!v) continue;
     playerValuesRecord[id] = {
-      value: v.value,
+      value: tradeValueById[id] ?? v.value,
       overall_rank: v.overall_rank,
       position_rank: v.position_rank,
     };

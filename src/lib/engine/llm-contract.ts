@@ -24,7 +24,7 @@ import {
   SUPERFLEX_PICK_MULTIPLIER,
   startupPickValue,
 } from "@/lib/players/future-picks";
-import { resolvePlayerValues } from "@/lib/players/values";
+import { scoringValueByIds } from "@/lib/players/value-mode";
 
 /**
  * Operational rules the LLM consults before making any
@@ -400,18 +400,23 @@ export async function buildTradePricing(args: {
   const isSF = snap.format === "superflex" || snap.format === "2qb";
   const sfMult = isSF ? SUPERFLEX_PICK_MULTIPLIER : 1.0;
 
+  // Coach trade-pricing player_values through the ONE value seam. The scalar
+  // `value` flows through `scoringValueFor` (market in shadow, rubric on flip)
+  // so the price Coach quotes is the same scoring value the board ranks on;
+  // the market RANK fields (overall_rank / position_rank) stay FantasyCalc.
   const valueIds = new Set<string>(pickIds);
-  const playerValueMap = await resolvePlayerValues({
-    ids: [...valueIds],
-    isSuperflex: isSF,
-    isPpr: snap.scoring.includes("PPR"),
-    isHalfPpr: snap.scoring.includes("half-PPR"),
-    isTePremium: snap.scoring.includes("TE-premium"),
-  });
+  const { valueById: tradeValueById, valueMap: playerValueMap } =
+    await scoringValueByIds({
+      ids: [...valueIds],
+      isSuperflex: isSF,
+      isPpr: snap.scoring.includes("PPR"),
+      isHalfPpr: snap.scoring.includes("half-PPR"),
+      isTePremium: snap.scoring.includes("TE-premium"),
+    });
   const player_values: TradePricing["player_values"] = {};
   for (const [id, v] of playerValueMap.entries()) {
     player_values[id] = {
-      value: v.value,
+      value: tradeValueById[id] ?? v.value,
       overall_rank: v.overall_rank,
       position_rank: v.position_rank,
     };

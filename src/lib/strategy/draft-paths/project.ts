@@ -25,7 +25,8 @@
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { getAvailableForRequest } from "@/lib/strategy/player-suggestions/enrich";
 import type { AvailablePlayer } from "@/lib/players/available";
-import { resolvePlayerValues, type PlayerValue } from "@/lib/players/values";
+import { type PlayerValue } from "@/lib/players/values";
+import { scoringValueByIds } from "@/lib/players/value-mode";
 import { resolvePlayers } from "@/lib/players/cache";
 import type { WhyDials } from "@/lib/rankings/why-breakdown";
 import type {
@@ -709,18 +710,22 @@ export async function projectDraftPaths(args: {
   const availableRaw =
     args.available ?? (await getAvailableForRequest(snap).catch(() => []));
   if (availableRaw.length === 0) return null;
-  const valueMap =
-    args.valueMap ??
-    (await resolvePlayerValues({
-      ids: availableRaw.map((p) => p.id),
-      isSuperflex: snap.format === "superflex" || snap.format === "2qb",
-      isPpr: snap.scoring.includes("PPR"),
-      isHalfPpr: snap.scoring.includes("half-PPR"),
-      isTePremium: snap.scoring.includes("TE-premium"),
-    }));
+  // Attach the scoring value through the ONE value seam. Reuse the handed-down
+  // priced-pool value map (canonical buildLeagueContext) when present so there
+  // is no second FantasyCalc fetch; otherwise the seam fetches. The value is
+  // market in shadow, rubric on flip, so the path projection flips with the
+  // board instead of diverging on the available-only fallback path.
+  const { valueById, valueMap } = await scoringValueByIds({
+    ids: availableRaw.map((p) => p.id),
+    valueMap: args.valueMap,
+    isSuperflex: snap.format === "superflex" || snap.format === "2qb",
+    isPpr: snap.scoring.includes("PPR"),
+    isHalfPpr: snap.scoring.includes("half-PPR"),
+    isTePremium: snap.scoring.includes("TE-premium"),
+  });
   const availableWithValue = availableRaw.map((p) => ({
     ...p,
-    value: valueMap.get(p.id)?.value ?? null,
+    value: valueById[p.id] ?? null,
   }));
 
   // Build context derived signals: position-run multiplier from
