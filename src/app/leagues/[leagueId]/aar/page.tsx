@@ -22,7 +22,7 @@ import {
   pickAdpFromVariants,
 } from "@/lib/players/projections";
 import { resolvePlayers, __dumpAllPlayers, humanize } from "@/lib/players/cache";
-import { resolvePlayerValues } from "@/lib/players/values";
+import { scoringValueByIds } from "@/lib/players/value-mode";
 import {
   aggregateRosterIdentity,
   identityMoves,
@@ -489,13 +489,25 @@ export default async function AarPage({ params, searchParams }: PageProps) {
     for (const r of snapshot.rosters) {
       for (const id of r.player_ids) valueIds.push(id);
     }
-    const valueMap = await resolvePlayerValues({
+    // Lane identity reads value through the ONE value seam (market in shadow,
+    // rubric on flip) so the after-action lane membership reflects the same
+    // model the board ranks on. `lane_identity`/`comparators` consume a
+    // `Map<id, {value}>`, so wrap the seam's `valueById` scalar.
+    const { valueById, valueMap: marketMap } = await scoringValueByIds({
       ids: valueIds,
       isSuperflex,
       isPpr,
       isHalfPpr,
       isTePremium,
     });
+    // lane-identity wants { value, overall_rank }: the scoring value through
+    // the seam, the market rank from the same fetch.
+    const valueMap = new Map<string, { value: number; overall_rank: number | null }>(
+      Object.entries(valueById).map(([id, value]) => [
+        id,
+        { value, overall_rank: marketMap.get(id)?.overall_rank ?? null },
+      ]),
+    );
     const allPlayers = await __dumpAllPlayers();
     const playerMetaById = new Map<string, LanePlayerMeta>();
     for (const p of allPlayers) {

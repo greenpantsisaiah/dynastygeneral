@@ -22,8 +22,14 @@
 import {
   VALUE_MODE,
   scoringValueFor,
+  scoringValueByIds as ppScoringValueByIds,
   type ValueMode,
 } from "../src/lib/strategy/decision-synthesis/priced-pool";
+import {
+  VALUE_MODE as vmVALUE_MODE,
+  scoringValueFor as vmScoringValueFor,
+  scoringValueByIds as vmScoringValueByIds,
+} from "../src/lib/players/value-mode";
 import type { PlayerValue } from "../src/lib/players/values";
 import type { EvaluationOutput } from "../src/lib/engine/evaluation/types";
 
@@ -117,6 +123,18 @@ check(
 check(
   "rubric falls back to v.value when out is null",
   Object.is(scoringValueFor(mkValue(40), null, rubricMode), 40),
+);
+
+console.log("── the seam is re-exported from the light value-mode module ──");
+// The Phase 2 sites import the seam from the light `players/value-mode`
+// module to avoid the priced-pool -> roster-fit -> llm-contract cycle. Assert
+// both export points resolve to the SAME function (identity), so priced-pool's
+// re-export and the direct import never drift.
+check("value-mode exports scoringValueByIds", typeof vmScoringValueByIds === "function");
+check("value-mode VALUE_MODE is market", vmVALUE_MODE === "market");
+check(
+  "priced-pool re-export is the same scoringValueFor",
+  ppScoringValueByIds === vmScoringValueByIds && scoringValueFor === vmScoringValueFor,
 );
 
 console.log(`\n${passed} passed · ${failed} failed`);

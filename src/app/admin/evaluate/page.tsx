@@ -121,6 +121,13 @@ export default async function AdminEvaluatePage({
   const nflState = await getNflState();
   const season = nflState?.season ?? new Date().getFullYear().toString();
 
+  // PRINCIPLED EXCEPTION to the one-value-seam migration: this debug surface
+  // FEEDS the raw FantasyCalc value INTO evaluate() as the KTC prior and
+  // renders market-vs-rubric divergence side by side. Routing it through
+  // `scoringValueByIds` would be CIRCULAR (the rubric reading its own output
+  // as its prior) and would destroy the surface's purpose. It stays on raw
+  // `resolvePlayerValues` on purpose; the Phase G lockdown lint allowlists
+  // this call site (see MODEL_LIVE_PLAN Phase G2).
   const [valuesMap, projectionsEntry, teamSignalsResult] = await Promise.all([
     resolvePlayerValues({
       ids: broadIds,

@@ -44,40 +44,21 @@ import type { AvailablePlayer } from "@/lib/players/available";
 import type { PlayerValue } from "@/lib/players/values";
 import type { EvaluationOutput } from "@/lib/engine/evaluation/types";
 
-/**
- * The value the priced pool uses for SCORING (rerank + startable depth +
- * synthesize). The whole product reads one number through this one seam.
- *
- *   - "market": return the FantasyCalc value byte-identically (the shadow
- *     mode). The number that reaches rerank / depth / synthesize is exactly
- *     what it was before this seam existed, so the snapshot-diff is empty.
- *   - "rubric": return `evaluate().point_estimate`, the model's blended
- *     projection (falls back to the market prior when signals are absent,
- *     so it is never garbage). Flipping the mode is the ONLY number-changing
- *     step; it ships as its own gated PR (canon-keeper + assumption-auditor
- *     + snapshot-diff fixtures + founder eyeball). See MODEL_LIVE_PLAN
- *     Phase D / FORWARD_EV_PLAN Stage 3a.
- *
- * Shadow-first is locked: VALUE_MODE stays "market" until the gated flip.
- */
-export type ValueMode = "market" | "rubric";
-export const VALUE_MODE: ValueMode = "market";
-
-/**
- * Select the scoring value for one player through the seam. The market
- * branch returns `v.value` LITERALLY (ignores `out`, no arithmetic), so it
- * is float-identical to the pre-seam value; the rubric branch returns the
- * rubric point estimate, falling back to the market value when the rubric
- * produced nothing (unknown position).
- */
-export function scoringValueFor(
-  v: PlayerValue,
-  out: EvaluationOutput | null,
-  mode: ValueMode,
-): number {
-  if (mode === "market") return v.value;
-  return out?.point_estimate ?? v.value;
-}
+// The value seam lives in the light `players/value-mode` module so low-level
+// callers (the LLM trade-pricing contract) can read it without a circular
+// import through this module's `roster-fit` -> `llm-contract` chain. Re-export
+// here so the existing priced-pool importers + the shadow test are unchanged.
+export {
+  VALUE_MODE,
+  scoringValueFor,
+  scoringValueByIds,
+  type ValueMode,
+} from "@/lib/players/value-mode";
+import {
+  VALUE_MODE,
+  scoringValueFor,
+  type ValueMode,
+} from "@/lib/players/value-mode";
 
 export interface PricedPool {
   /** Reranked realistic pool, consensus-cascade ordered. */

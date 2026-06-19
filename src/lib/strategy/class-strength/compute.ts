@@ -26,7 +26,7 @@
  */
 
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
-import { resolvePlayerValues } from "@/lib/players/values";
+import { scoringValueByIds } from "@/lib/players/value-mode";
 import { __dumpAllPlayers } from "@/lib/players/cache";
 
 export type ClassStrengthPosition = "QB" | "RB" | "WR" | "TE";
@@ -124,21 +124,22 @@ export async function computeClassStrength(args: {
 
   // Walk the all-players cache for rookie identification. FantasyCalc
   // values don't carry years_exp, so we join through the Sleeper
-  // players cache. resolvePlayerValues returns a flat
-  // Map<player_id, PlayerValue>; no inner byPlayerId field.
-  let valuesById: Awaited<ReturnType<typeof resolvePlayerValues>>;
+  // players cache. The scoring value flows through the ONE value seam
+  // (market in shadow, rubric on flip), so rookie class strength reflects
+  // the same model the board ranks on. `valueById[id]` is the seam scalar.
+  let valueById: Record<string, number>;
   let allSleeper: Awaited<ReturnType<typeof __dumpAllPlayers>>;
   try {
     allSleeper = await __dumpAllPlayers();
-    // Pass every Sleeper player id; resolvePlayerValues will return
-    // the intersection that FantasyCalc knows about.
+    // Pass every Sleeper player id; the seam returns the intersection that
+    // FantasyCalc knows about.
     const allIds = allSleeper.map((p) => p.player_id);
-    valuesById = await resolvePlayerValues({
+    ({ valueById } = await scoringValueByIds({
       ids: allIds,
       isSuperflex: numQbs === 2,
       isPpr: ppr === 1,
       isHalfPpr: ppr === 0.5,
-    });
+    }));
   } catch (err) {
     console.error("[class-strength:compute]", err);
     return neutralClassStrength(season);
@@ -156,7 +157,7 @@ export async function computeClassStrength(args: {
     if (sp.years_exp !== 0) continue;
     const positionRaw = (sp.position ?? "").toUpperCase();
     if (!POSITIONS.includes(positionRaw as ClassStrengthPosition)) continue;
-    const value = valuesById.get(sp.player_id)?.value;
+    const value = valueById[sp.player_id];
     if (typeof value !== "number" || value <= 0) continue;
     rookiesByPosition[positionRaw as ClassStrengthPosition].push({
       player_id: sp.player_id,
