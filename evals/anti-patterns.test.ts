@@ -106,6 +106,46 @@ const RULES: Rule[] = [
       join(SRC, "lib", "strategy", "decision-synthesis", "decision-bundle.ts"),
     ],
   },
+  // The leaf player value has ONE door now that VALUE_MODE is flipped to
+  // "rubric" (Phase 4, 2026-06-19): every surface reads the rubric point
+  // estimate through buildPricedPool / the value-mode seam / the
+  // EnrichedPlayer resolver, NOT a raw FantasyCalc passthrough. A new
+  // surface that calls resolvePlayerValues directly reintroduces the
+  // FantasyCalc-passthrough parallel value path the model-live plan spent
+  // four phases consolidating (MODEL_LIVE_PLAN Phase G2). The pattern bans
+  // the CALL paren only: `import { resolvePlayerValues }`, a
+  // `typeof ...["resolvePlayerValues"]` type reference, and prose
+  // mentioning the name (no paren) are all fine and unmatched. The
+  // allow-list is the canonical boundary plus the ONE documented circular
+  // exception (admin/evaluate feeds its raw value INTO evaluate() as the
+  // prior, so it cannot route through the seam without reading its own
+  // output). When a surface needs a player value, it builds the priced
+  // pool (buildPricedPool) or calls the seam (scoringValueByIds) / the
+  // EnrichedPlayer resolver; it never reaches the raw FantasyCalc fetch.
+  {
+    name: "no direct resolvePlayerValues call (use buildPricedPool / the value seam / EnrichedPlayer)",
+    why: "The leaf player value reads the rubric point estimate through the canonical boundary (buildPricedPool, value-mode seam, EnrichedPlayer resolver), not a raw FantasyCalc passthrough. A direct resolvePlayerValues call reintroduces the parallel FantasyCalc value path the value-flip retired. Per CANONICAL_SOURCES.md 'Priced decision pool' + MODEL_LIVE_PLAN.md Phase G2.",
+    pattern: /resolvePlayerValues\(/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      // The canonical definition.
+      join(SRC, "lib", "players", "values.ts"),
+      // The value seam (scoringValueFor / scoringValueByIds) that owns the
+      // VALUE_MODE flip; it fetches FantasyCalc as the prior input.
+      join(SRC, "lib", "players", "value-mode.ts"),
+      // The EnrichedPlayer resolver (the other canonical boundary).
+      join(SRC, "lib", "players", "enriched-player.ts"),
+      // The priced decision pool (the load-bearing canonical the hub +
+      // Coach build their synthesize inputs through).
+      join(SRC, "lib", "strategy", "decision-synthesis", "priced-pool.ts"),
+      // The ONE principled exception: admin/evaluate feeds its raw value
+      // INTO evaluate() as the KTC prior and renders market-vs-rubric
+      // divergence. Routing it through the seam is circular (the rubric
+      // would read its own output as its prior).
+      join(SRC, "app", "admin", "evaluate", "page.tsx"),
+    ],
+  },
   // One snapshot + strategy per request. Surfaces consume the canonical
   // buildLeagueContext (engine/league-context.ts), which runs the snapshot
   // (always lastSeasonStats + projections enriched) + rankArchetypes +
