@@ -19,6 +19,7 @@ import type { RubricOutput } from "../types";
 import {
   ageMultiplier,
   blendWithPrior,
+  DEFAULT_PRIOR_WEIGHT,
   clamp,
   evidence,
   ktcToScore,
@@ -273,9 +274,14 @@ export function evaluateRb(ctx: EvaluationContext): RubricOutput {
     );
   }
 
-  // Final blend with KTC prior. Hard gate defeats the blend so
-  // market love can't undo the structural cap on committee/uncertain.
-  const priorWeight = hardGateActive ? 0 : 0.3;
+  // Final blend with KTC prior. Hard gate defeats the blend (weight 0)
+  // so market love can't undo the structural cap on committee/uncertain.
+  // Otherwise the market-dominant default applies (raised from 0.3 to
+  // the documented 0.55 per the Phase 4 audits 2026-06-19: with no
+  // Phase B ranking signal clearing the market, the age curve nudges
+  // rather than re-ranks, which compresses the aging-RB movers like
+  // Derrick Henry toward the market's own discount).
+  const priorWeight = hardGateActive ? 0 : DEFAULT_PRIOR_WEIGHT;
   const blended = blendWithPrior(estimate, prior, priorWeight);
   const final = hardGateActive
     ? Math.min(blended.final, RB_HARD_GATE_CAP)

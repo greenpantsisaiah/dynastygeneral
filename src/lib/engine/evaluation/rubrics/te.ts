@@ -16,6 +16,7 @@ import type { EvaluationContext, RubricOutput } from "../types";
 import {
   ageMultiplier,
   blendWithPrior,
+  DEFAULT_PRIOR_WEIGHT,
   clamp,
   evidence,
   ktcToScore,
@@ -92,38 +93,31 @@ export function evaluateTe(ctx: EvaluationContext): RubricOutput {
   // the load-bearing TE usage signal). PFF: top-3 fantasy TEs averaged
   // 84% route rate; below a ~60% floor TE production is structurally
   // capped (a blocking / rotational TE rarely produces). Free nflverse
-  // pbp_participation proxy. Below the floor is a hard discount; above
-  // it, a graduated lift centered on the floor.
+  // pbp_participation proxy. ONE continuous slope through the floor:
+  // the prior split (penalty * 40 below, lift * 25 above) crossed zero
+  // at 0.60 but kinked the slope there, manufacturing visible swings on
+  // TEs sitting near the floor (dynasty-assumption-auditor 2026-06-19,
+  // the rookie-TE noise the value-flip diff surfaced). A single slope
+  // keeps "below is worse, above is better" without the discontinuity.
   const ROUTE_FLOOR = 0.6;
+  const ROUTE_SLOPE = 30;
   const routeRate = ctx.route_participation;
   if (routeRate != null) {
-    if (routeRate < ROUTE_FLOOR) {
-      // Structural cap: scale the penalty by how far below the floor.
-      const effect = (routeRate - ROUTE_FLOOR) * 40;
-      estimate = clamp(estimate + effect);
-      bandModifier += 4;
-      stack.push(
-        evidence(
-          "situation",
-          "route_participation_floor",
-          0.15,
-          effect,
-          `Route participation ${(routeRate * 100).toFixed(0)}% below the ~60% floor; production structurally capped`,
-        ),
-      );
-    } else {
-      const effect = (routeRate - ROUTE_FLOOR) * 25;
-      estimate = clamp(estimate + effect);
-      stack.push(
-        evidence(
-          "situation",
-          "route_participation",
-          0.15,
-          effect,
-          `Route participation ${(routeRate * 100).toFixed(0)}% of team dropbacks (full-time pass-game role)`,
-        ),
-      );
-    }
+    const belowFloor = routeRate < ROUTE_FLOOR;
+    const effect = (routeRate - ROUTE_FLOOR) * ROUTE_SLOPE;
+    estimate = clamp(estimate + effect);
+    if (belowFloor) bandModifier += 4;
+    stack.push(
+      evidence(
+        "situation",
+        belowFloor ? "route_participation_floor" : "route_participation",
+        0.15,
+        effect,
+        belowFloor
+          ? `Route participation ${(routeRate * 100).toFixed(0)}% below the ~60% floor; production structurally capped`
+          : `Route participation ${(routeRate * 100).toFixed(0)}% of team dropbacks (full-time pass-game role)`,
+      ),
+    );
   }
 
   // OC tenure (TE production is heavily scheme-coupled)
@@ -209,7 +203,21 @@ export function evaluateTe(ctx: EvaluationContext): RubricOutput {
     );
   }
 
-  const blended = blendWithPrior(estimate, prior, 0.4);
+  // Rookie / year-1 TEs lean harder on the market prior. The TE rubric
+  // stacks the most situational scalars (12-personnel, route floor,
+  // early-breakout, flat rookie penalty) on the position with the
+  // thinnest individual signal and the lowest year-1 hit rate, which
+  // produced outsized point-estimate swings on sub-20-value rookie TEs
+  // in the value-flip diff (dynasty-assumption-auditor 2026-06-19).
+  // A higher prior weight for years_exp <= 1 keeps those swings from
+  // reading as confident calls the data does not support; the wide TE
+  // band still carries the genuine uncertainty.
+  const ROOKIE_TE_PRIOR_WEIGHT = 0.7;
+  const tePriorWeight =
+    ctx.years_exp != null && ctx.years_exp <= 1
+      ? ROOKIE_TE_PRIOR_WEIGHT
+      : DEFAULT_PRIOR_WEIGHT;
+  const blended = blendWithPrior(estimate, prior, tePriorWeight);
   return {
     point_estimate: clamp(blended.final),
     evidence_stack: stack,

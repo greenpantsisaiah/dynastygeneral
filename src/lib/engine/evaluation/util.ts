@@ -151,8 +151,25 @@ export function bandToConfidence(band: {
 }
 
 /**
+ * Default market-prior weight for the rubric blend, per MODEL_CARD
+ * section 8.1: posterior = w_prior * ktc + (1 - w_prior) * rubric.
+ * 0.55 anchors hard on the market consensus while letting the rubric
+ * differ. This is the value the model card documents, and the value
+ * the value-flip (VALUE_MODE = "rubric") ships at. Locked 2026-06-19
+ * after the Phase 4 dynasty-canon-keeper + dynasty-assumption-auditor
+ * audits flagged the prior 0.3/0.4 call-site literals as a silent
+ * divergence from the card (and below its own 0.35 floor): with no
+ * Phase B ranking signal clearing the market, the defensible posture
+ * is market-dominant, so the age curve nudges rather than re-ranks.
+ * Soundboard "Market Anchor" / consensus_lean tunes it within
+ * [0.35, 0.75]; this is the neutral default.
+ */
+export const DEFAULT_PRIOR_WEIGHT = 0.55;
+
+/**
  * Combine rubric output with the KTC prior into a final point
- * estimate. priorWeight ∈ [0, 1] from Soundboard "Market Anchor" dial.
+ * estimate. priorWeight ∈ [0, 1] from Soundboard "Market Anchor" dial,
+ * defaulting to DEFAULT_PRIOR_WEIGHT.
  *
  * If neither KTC nor ADP is available, return the rubric output
  * directly with reduced confidence (handled by caller).

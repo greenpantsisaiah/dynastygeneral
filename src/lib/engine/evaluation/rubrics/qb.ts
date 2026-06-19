@@ -15,6 +15,7 @@
 import type { EvaluationContext, RubricOutput } from "../types";
 import {
   blendWithPrior,
+  DEFAULT_PRIOR_WEIGHT,
   clamp,
   evidence,
   ktcToScore,
@@ -198,7 +199,7 @@ export function evaluateQb(ctx: EvaluationContext): RubricOutput {
     );
   }
 
-  const blended = blendWithPrior(estimate, prior, 0.4);
+  const blended = blendWithPrior(estimate, prior, DEFAULT_PRIOR_WEIGHT);
   return {
     point_estimate: clamp(blended.final),
     evidence_stack: stack,

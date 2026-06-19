@@ -1,17 +1,21 @@
 /**
- * Priced-pool shadow-equality regression. Locks the guarantee behind the
+ * Priced-pool seam regression. Locks the value-pipe seam behind the
  * value-pipe architecture migration (MODEL_LIVE_PLAN Phase D / FORWARD_EV
- * Stage 3a): wiring every surface through the rubric pipe must NOT move any
- * number while VALUE_MODE === "market".
+ * Stage 3a). VALUE_MODE flipped to "rubric" 2026-06-19 (the Phase 4 gate),
+ * so the live default is the rubric point estimate. This test still proves
+ * BOTH modes: the shadow path ("market") must return the FantasyCalc value
+ * byte-identically (the revert path), and the live path ("rubric") must
+ * return the point estimate. The market-mode assertions are the guarantee
+ * that flipping back to "market" in an incident restores the exact pre-flip
+ * numbers.
  *
  *   npx tsx --tsconfig tsconfig.json evals/priced-pool-shadow.test.ts
  *
  * The seam (`scoringValueFor`) selects the value that reaches rerank +
- * startable depth + synthesize. In shadow ("market") mode it must return
- * the FantasyCalc value LITERALLY (float-identical, ignoring the rubric
- * output entirely), so a snapshot-diff between pre-seam and post-seam is
- * empty. In "rubric" mode it returns the rubric point estimate, falling
- * back to the market value only when the rubric produced nothing.
+ * startable depth + synthesize. In "market" mode it returns the FantasyCalc
+ * value LITERALLY (float-identical, ignoring the rubric output entirely);
+ * in "rubric" mode (the live default) it returns the rubric point estimate,
+ * falling back to the market value only when the rubric produced nothing.
  *
  * This test exercises the pure seam directly (no network), which is the
  * load-bearing equality contract. It does NOT call buildPricedPool (that
@@ -70,8 +74,12 @@ function mkEval(point_estimate: number): EvaluationOutput {
   };
 }
 
-console.log("── shadow guarantee: VALUE_MODE is 'market' until the gated flip ──");
-check("VALUE_MODE default is market", VALUE_MODE === "market", VALUE_MODE);
+console.log("── live mode: VALUE_MODE flipped to 'rubric' (Phase 4, 2026-06-19) ──");
+// The flip is the one number-changing step (gated by the value-flip diff +
+// canon-keeper + assumption-auditor + founder eyeball). The seam still
+// supports market mode (the revert path), proven by the explicit-mode
+// assertions below; this asserts the LIVE default is the rubric.
+check("VALUE_MODE default is rubric", VALUE_MODE === "rubric", VALUE_MODE);
 
 console.log("── market mode returns v.value byte-identically, ignoring the rubric ──");
 // A spread of values including float-heavy ones that would drift under any
@@ -131,7 +139,7 @@ console.log("── the seam is re-exported from the light value-mode module ─
 // both export points resolve to the SAME function (identity), so priced-pool's
 // re-export and the direct import never drift.
 check("value-mode exports scoringValueByIds", typeof vmScoringValueByIds === "function");
-check("value-mode VALUE_MODE is market", vmVALUE_MODE === "market");
+check("value-mode VALUE_MODE is rubric", vmVALUE_MODE === "rubric");
 check(
   "priced-pool re-export is the same scoringValueFor",
   ppScoringValueByIds === vmScoringValueByIds && scoringValueFor === vmScoringValueFor,
