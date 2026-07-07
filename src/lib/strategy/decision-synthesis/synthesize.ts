@@ -878,6 +878,14 @@ const DIAL_NOISE_FLOOR = 1.5; // contributions below this aren't surfaced
  *     fill_starter rules when negative. The retired window-constraint
  *     penalty is replaced by an additive horizon term on the rules
  *     most-aligned with the direction.
+ *   - consensus_lean (market): scales the ADP-gap signal. Market (+)
+ *     rewards a candidate the room has let slide past his ADP (buying
+ *     below consensus); Contrarian (-) rewards taking a player before
+ *     consensus. Same gap the rule scoring reads, so the dial amplifies
+ *     an existing signal rather than inventing one.
+ *   - risk_tolerance (risk): scales a per-candidate swing proxy from
+ *     positional rank. Gambler (+) rewards the deeper, higher-variance
+ *     upside bet; Chalk (-) rewards the safe top-of-position anchor.
  *
  * Continuity weight is intentionally not in this helper. The team-
  * signals calibration is mid-flight; we don't wire a dial that
@@ -890,8 +898,10 @@ function computeDialDeltas(args: {
   dials: SynthesisDials;
   /** Position rank within the available pool. 1-indexed; lower = better. */
   positionRank: number;
+  /** Live pick number, for the market (consensus_lean) ADP-gap read. */
+  currentPickNo: number;
 }): { delta: number; influences: DialInfluence[] } {
-  const { player, position, rule, dials, positionRank } = args;
+  const { player, position, rule, dials, positionRank, currentPickNo } = args;
   const influences: DialInfluence[] = [];
   let delta = 0;
 
@@ -966,6 +976,44 @@ function computeDialDeltas(args: {
     }
   }
 
+  if (Math.abs(dials.market) >= 10 && player.adp != null) {
+    // Market anchor scales the SAME ADP-gap the rule scoring already
+    // reads (currentPickNo - adp, normalized by the adpGapModifier clamp
+    // of 15). Positive dial = "trust the market": reward a player who
+    // has slid past his ADP (gap > 0, below consensus). Negative dial =
+    // "go contrarian": reward taking him before consensus (gap < 0). The
+    // gap is clamped to the adpGapModifier envelope so one extreme ADP
+    // outlier can't dominate.
+    const rawGap = currentPickNo - player.adp;
+    const gap = Math.max(-12, Math.min(15, rawGap));
+    const c = (dials.market / 100) * 12 * (gap / 15);
+    record(
+      "consensus_lean",
+      c,
+      `Market ${dials.market > 0 ? "+" : ""}${dials.market}`,
+    );
+  }
+
+  if (Math.abs(dials.risk) >= 10) {
+    // Risk tolerance scales a swing proxy from positional rank: the deeper
+    // the candidate sits, the higher his variance (bench-tier upside bet).
+    // Gambler (+) rewards the deep swing; Chalk (-) rewards the safe
+    // top-of-position anchor. Mirrors the bellcow rank-band shape but
+    // signed the opposite way (depth = upside, not downgrade).
+    let swing = 0;
+    if (positionRank <= 6) swing = -1;
+    else if (positionRank <= 12) swing = -0.4;
+    else if (positionRank <= 24) swing = 0.2;
+    else if (positionRank <= 40) swing = 0.6;
+    else swing = 1;
+    const c = (dials.risk / 100) * 14 * swing;
+    record(
+      "risk_tolerance",
+      c,
+      `Risk ${dials.risk > 0 ? "+" : ""}${dials.risk}`,
+    );
+  }
+
   // Sort influences by absolute magnitude so the dominant dial leads.
   influences.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   return { delta, influences };
@@ -1021,6 +1069,7 @@ function buildCandidates(
       rule: raw.rule,
       dials,
       positionRank: positionPoolRank.get(raw.player.id) ?? 999,
+      currentPickNo,
     });
     candidates.push({
       player: raw.player,

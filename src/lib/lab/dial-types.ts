@@ -150,11 +150,11 @@ export const DIAL_SPECS: DialSpec[] = [
     default: 0,
     icon: "risk",
     surface: [
-      "Tier-crunch detector reads ADP volatility per slot",
-      "5-pick-deep plan + opponent gap analysis informs swing tolerance",
-      "Stored. Engine wiring pending.",
+      "Shifts each candidate's standing-call score by its swing tier",
+      "Gambler rewards deep-pool upside; Chalk rewards top-of-position anchors",
+      "Surfaces as a Risk influence chip on the Decision card",
     ],
-    wired: false,
+    wired: true,
   },
   {
     id: "trade_aggression",
@@ -178,11 +178,11 @@ export const DIAL_SPECS: DialSpec[] = [
     default: 0,
     icon: "consensus",
     surface: [
-      "Weights KTC majority signal in ranking cascade",
-      "Counter-view detector tightens or loosens accordingly",
-      "Stored. Engine wiring pending.",
+      "Scales each candidate's ADP-gap in the standing-call score",
+      "Market rewards players sliding past ADP; Contrarian rewards taking before consensus",
+      "Surfaces as a Market influence chip on the Decision card",
     ],
-    wired: false,
+    wired: true,
   },
 ];
 

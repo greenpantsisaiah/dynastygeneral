@@ -33,6 +33,42 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-06-19",
+    title: "The board value now runs on the engine, and it tells you when it is leaning on the market",
+    summary:
+      "Every value you see on the board, on The Call, in trade math, and in Coach now comes through one door: the position rubrics blended with the market price. The number moved only slightly, on purpose, and each read that leans on the market instead of its own signal now says so.",
+    changes: [
+      {
+        tag: "ONE VALUE, ONE DOOR",
+        text: "Until now the value on every surface was the raw FantasyCalc market price. It now runs through the engine: the four position rubrics (age, role, situation) blended with that market price as the anchor. The board, The Call candidate cards, trade pricing, and Coach all read the same one number, so they can no longer disagree with each other. The blend is deliberately market-anchored, so most values moved only a point or two; nothing on your board should look unfamiliar.",
+      },
+      {
+        tag: "IT SAYS WHEN IT IS GUESSING",
+        text: "When the engine has real signal on a player, it uses it. When it does not, it leans on the market price rather than inventing a number, and now it tells you: a candidate whose read is carried by the market wears a quiet 'leaning on the market' note instead of posing as a confident independent call. Honest-first, the same rule the companion follows. This is the opposite of a black box that always sounds certain.",
+      },
+      {
+        tag: "REVERSIBLE BY DESIGN",
+        text: "The whole value pipe is one switch. If a blended value ever looks wrong in the wild, the engine flips back to the exact market price it showed before, to the decimal. That safety net is why the change could ship without risking your board.",
+      },
+    ],
+  },
+  {
+    version: "2026-05-28",
+    title: "Coach knows your taxi squad, and it stops guessing at things it cannot see",
+    summary:
+      "Coach now reasons about which players belong on your taxi squad versus your active roster, and it refuses to speculate about Sleeper surfaces it has not actually read instead of confidently making something up.",
+    changes: [
+      {
+        tag: "TAXI, THE FOOTBALL QUESTION",
+        text: "Coach separates two different questions: is a player taxi-ELIGIBLE by your league rules, and SHOULD he sit on the taxi squad. A rookie whose role is rising or already established is a contributor this year, so Coach keeps him active rather than telling you to stash him. Eligible-but-ascending players steer to your active roster, not the taxi.",
+      },
+      {
+        tag: "NO CONFIDENT GUESSING",
+        text: "When Coach has not read a specific Sleeper surface, it now says so plainly instead of fabricating a confident answer. Paired with a fix to how your named roster is built, so Coach reliably has your actual players in front of it. Fewer 'I do not have that' dead ends, and no more made-up specifics.",
+      },
+    ],
+  },
+  {
     version: "2026-05-27",
     title: "Plays remember on your account, and they show what you have built",
     summary:

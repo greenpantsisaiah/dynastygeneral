@@ -172,7 +172,7 @@ function run() {
       available: [bijan, wr1],
       windows: emptyWindows,
       picks_until_me: 12,
-      dials: { youth: 0, bellcow: 0, rookie: 0, horizon: 0 },
+      dials: { youth: 0, bellcow: 0, rookie: 0, horizon: 0, market: 0, risk: 0 },
     });
     check(
       "neutral default reproduces explicit neutral",
@@ -211,7 +211,7 @@ function run() {
       available: [topRb, cmtRb],
       windows: emptyWindows,
       picks_until_me: 12,
-      dials: { youth: 0, bellcow: 60, rookie: 0, horizon: 0 },
+      dials: { youth: 0, bellcow: 60, rookie: 0, horizon: 0, market: 0, risk: 0 },
     });
     const rec = decision?.recommendation;
     const hasBellcow =
@@ -255,7 +255,7 @@ function run() {
       available: [rookie, vet],
       windows: emptyWindows,
       picks_until_me: 12,
-      dials: { youth: 0, bellcow: 0, rookie: 60, horizon: 0 },
+      dials: { youth: 0, bellcow: 0, rookie: 60, horizon: 0, market: 0, risk: 0 },
     });
     const allTop = decision?.top_candidates ?? [];
     const rookieEntry = allTop.find((c) => c.is_rookie);
@@ -285,7 +285,7 @@ function run() {
       available: [topRb],
       windows: emptyWindows,
       picks_until_me: 12,
-      dials: { youth: 2, bellcow: 3, rookie: 0, horizon: 0 },
+      dials: { youth: 2, bellcow: 3, rookie: 0, horizon: 0, market: 0, risk: 0 },
     });
     const rec = decision?.recommendation;
     check(
@@ -294,6 +294,100 @@ function run() {
         (rec?.dial_influences?.length ?? 0) === 0,
       `influences=${JSON.stringify(rec?.dial_influences)}`,
     );
+  }
+
+  // Case 5: Market (consensus_lean) +60 records an influence when a
+  // candidate has slid past his ADP (currentPickNo - adp > 0).
+  {
+    const snap = makeSnapshot(40, 52); // live pick 40, so an ADP-8 player has slid 32 picks
+    const slider = makePlayer({
+      name: "Slid WR",
+      position: "WR",
+      age: 24,
+      adp: 8,
+      search_rank: 10,
+    });
+    const decision = synthesizeDecision({
+      snap,
+      ranked: emptyArchetypes,
+      available: [slider],
+      windows: emptyWindows,
+      picks_until_me: 12,
+      dials: { youth: 0, bellcow: 0, rookie: 0, horizon: 0, market: 60, risk: 0 },
+    });
+    const rec = decision?.recommendation;
+    const market = rec?.dial_influences?.find((d) => d.dial === "consensus_lean");
+    check(
+      "Market +60 records a consensus_lean influence on a slid player",
+      market != null && market.delta > 0,
+      `influences=${JSON.stringify(rec?.dial_influences)}`,
+    );
+    check(
+      "Market influence label carries the dial value",
+      typeof market?.label === "string" && market.label.includes("+60"),
+      `label=${market?.label}`,
+    );
+  }
+
+  // Case 6: Risk (risk_tolerance) +60 rewards a deep-pool swing over a
+  // top-of-position anchor, recording a risk_tolerance influence.
+  {
+    const snap = makeSnapshot(5, 17);
+    const anchor = makePlayer({
+      name: "Anchor WR",
+      position: "WR",
+      age: 25,
+      adp: 5,
+      search_rank: 3,
+    });
+    const swing = makePlayer({
+      name: "Deep Swing WR",
+      position: "WR",
+      age: 23,
+      adp: 70,
+      search_rank: 90,
+    });
+    // A deep pool (30 filler WRs) so the swing genuinely lands past rank
+    // 24 in the available pool and reads as the high-variance tier.
+    const fillers = Array.from({ length: 30 }, (_, i) =>
+      makePlayer({
+        name: `Filler WR ${i}`,
+        position: "WR",
+        age: 25,
+        adp: 8 + i,
+        search_rank: 4 + i,
+      }),
+    );
+    const runRisk = (risk: number) =>
+      synthesizeDecision({
+        snap,
+        ranked: emptyArchetypes,
+        available: [anchor, ...fillers, swing],
+        windows: emptyWindows,
+        picks_until_me: 12,
+        dials: { youth: 0, bellcow: 0, rookie: 0, horizon: 0, market: 0, risk },
+      });
+    const gambler = runRisk(60);
+    const allTop = gambler?.top_candidates ?? [];
+    const anyRisk = allTop
+      .flatMap((c) => c.dial_influences ?? [])
+      .filter((d) => d.dial === "risk_tolerance");
+    check(
+      "Risk +60 records a risk_tolerance influence on the board",
+      anyRisk.length > 0,
+      `risk influences=${JSON.stringify(anyRisk)}`,
+    );
+    const swingEntry = allTop.find((c) => c.name === "Deep Swing WR");
+    if (swingEntry) {
+      const swingRisk = swingEntry.dial_influences?.find(
+        (d) => d.dial === "risk_tolerance",
+      );
+      check(
+        "the deep swing's risk influence is positive under Gambler (rewards depth)",
+        swingRisk == null || swingRisk.delta > 0,
+        `swing influences=${JSON.stringify(swingEntry.dial_influences)}`,
+      );
+    }
   }
 
   console.log(`\n${passed} passed · ${failed} failed`);

@@ -90,6 +90,10 @@ export type SynthesisDials = {
   bellcow: number;
   rookie: number;
   horizon: number;
+  /** consensus_lean · Contrarian (-) vs Market (+). Scales the ADP-gap term. */
+  market: number;
+  /** risk_tolerance · Chalk (-) vs Gambler (+). Scales a per-candidate swing proxy. */
+  risk: number;
 };
 
 export const NEUTRAL_SYNTHESIS_DIALS: SynthesisDials = {
@@ -97,6 +101,8 @@ export const NEUTRAL_SYNTHESIS_DIALS: SynthesisDials = {
   bellcow: 0,
   rookie: 0,
   horizon: 0,
+  market: 0,
+  risk: 0,
 };
 
 /**
@@ -122,6 +128,8 @@ export function dialsForSynthesisFrom(
     bellcow: num("bellcow_pref"),
     rookie: num("rookie_tilt"),
     horizon: num("horizon"),
+    market: num("consensus_lean"),
+    risk: num("risk_tolerance"),
   };
 }
 
@@ -135,7 +143,13 @@ export function dialsForSynthesisFrom(
  * doesn't surface tiny influences.
  */
 export type DialInfluence = {
-  dial: "youth_weight" | "bellcow_pref" | "rookie_tilt" | "horizon";
+  dial:
+    | "youth_weight"
+    | "bellcow_pref"
+    | "rookie_tilt"
+    | "horizon"
+    | "consensus_lean"
+    | "risk_tolerance";
   /** Human-readable label, e.g. "Bellcow +50". */
   label: string;
   /** Signed contribution to the candidate's score, in score units. */
