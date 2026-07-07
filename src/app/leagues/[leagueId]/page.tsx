@@ -18,6 +18,7 @@ import {
   getLeague,
   getLeagueUsers,
   getLeaguesForUser,
+  getMatchups,
   getNflState,
   getRosters,
   getUserByUsername,
@@ -84,8 +85,10 @@ import { CompanionCheckIn } from "@/components/league/companion-check-in";
 import {
   classifyBeats,
   buildPickResolutions,
+  buildMatchupResolutions,
   reconcileExpectations,
   expectationFromPickDeviation,
+  expectationFromMatchup,
 } from "@/lib/strategy/companion/classify";
 import { reconstructPickDebate } from "@/lib/strategy/companion/debate";
 import {
@@ -1744,11 +1747,125 @@ export default async function LeagueHubPage({
             const existingBetIds = new Set(allBets.map((b) => b.bet_id));
             companionOpenBets = allBets.filter((b) => !b.resolved);
 
-            // Reconcile the bets whose value race has separated decisively.
-            const resolutions = buildPickResolutions({
-              openBets: companionOpenBets,
-              valueOf: companionValueOf,
-            });
+            // In-season matchup loop: identify this week's opponent (to log a
+            // pregame bet) and pull final scores for any prior week that still
+            // has an open matchup bet (to resolve it). Best-effort: a fetch
+            // failure degrades to the value-race path below.
+            const isInSeason =
+              companionStage === "in_season" &&
+              nflState?.season_type === "regular" &&
+              typeof nflState?.week === "number" &&
+              nflState.week >= 1;
+            const currentWeek = isInSeason ? nflState!.week : null;
+
+            // Season points-per-game per roster (grounded favored signal).
+            const ppgByRosterId = new Map<number, number>();
+            for (const r of rosters) {
+              const s = (r.settings ?? {}) as Record<string, unknown>;
+              const wins = num(s.wins);
+              const losses = num(s.losses);
+              const ties = num(s.ties);
+              const games = wins + losses + ties;
+              const fpts = num(s.fpts) + num(s.fpts_decimal) / 100;
+              if (games > 0) ppgByRosterId.set(r.roster_id, fpts / games);
+            }
+
+            // Fetch matchups for the current week plus any open-matchup-bet
+            // week, dedup the fetches, and index by (week -> roster_id).
+            const matchupResultByBetId = new Map<
+              string,
+              { myPoints: number; oppPoints: number }
+            >();
+            let currentOpponentLabel: string | null = null;
+            let currentOppPpg: number | null = null;
+            if (currentWeek != null && myRoster) {
+              const openBetWeeks = new Set<number>();
+              for (const b of companionOpenBets) {
+                if (
+                  b.kind === "matchup" &&
+                  b.created_at_week != null &&
+                  b.created_at_week < currentWeek
+                ) {
+                  openBetWeeks.add(b.created_at_week);
+                }
+              }
+              const weeksToFetch = new Set<number>([currentWeek, ...openBetWeeks]);
+              const season = nflState!.season;
+              const byWeek = new Map<number, Awaited<ReturnType<typeof getMatchups>>>();
+              await Promise.all(
+                [...weeksToFetch].map(async (w) => {
+                  byWeek.set(w, await getMatchups(leagueId, w));
+                }),
+              );
+              // Helper: find my entry + the opponent entry in a week's matchups.
+              const opponentIn = (
+                entries: Awaited<ReturnType<typeof getMatchups>>,
+              ): {
+                mine: (typeof entries)[number] | null;
+                opp: (typeof entries)[number] | null;
+              } => {
+                const mine =
+                  entries.find((e) => e.roster_id === myRoster.roster_id) ?? null;
+                if (!mine || mine.matchup_id == null)
+                  return { mine, opp: null };
+                const opp =
+                  entries.find(
+                    (e) =>
+                      e.matchup_id === mine.matchup_id &&
+                      e.roster_id !== myRoster.roster_id,
+                  ) ?? null;
+                return { mine, opp };
+              };
+              // Current-week opponent, for the pregame write.
+              const cur = byWeek.get(currentWeek);
+              if (cur) {
+                const { opp } = opponentIn(cur);
+                if (opp) {
+                  const oppRoster = rosters.find(
+                    (r) => r.roster_id === opp.roster_id,
+                  );
+                  currentOpponentLabel =
+                    (oppRoster &&
+                      leagueSnapshot.rosters.find(
+                        (sr) => sr.roster_id === opp.roster_id,
+                      )?.owner_name) ||
+                    `roster ${opp.roster_id}`;
+                  currentOppPpg = ppgByRosterId.get(opp.roster_id) ?? null;
+                }
+              }
+              // Prior-week results, for resolution.
+              for (const w of openBetWeeks) {
+                const entries = byWeek.get(w);
+                if (!entries) continue;
+                const { mine, opp } = opponentIn(entries);
+                if (
+                  mine?.points != null &&
+                  opp?.points != null &&
+                  mine.matchup_id != null
+                ) {
+                  matchupResultByBetId.set(`matchup-${season}-${w}`, {
+                    myPoints: mine.points,
+                    oppPoints: opp.points,
+                  });
+                }
+              }
+            }
+
+            // Reconcile: value-race separations (pick bets) AND decided
+            // weekly matchups feed the same honest-first trio.
+            const resolutions = [
+              ...buildPickResolutions({
+                openBets: companionOpenBets,
+                valueOf: companionValueOf,
+              }),
+              ...(currentWeek != null
+                ? buildMatchupResolutions({
+                    openBets: companionOpenBets,
+                    currentWeek,
+                    resultByBetId: matchupResultByBetId,
+                  })
+                : []),
+            ];
             if (resolutions.length > 0) {
               const reconciled = reconcileExpectations(
                 companionOpenBets,
@@ -1785,6 +1902,32 @@ export default async function LeagueHubPage({
               });
               if (newBet && !existingBetIds.has(newBet.bet_id)) {
                 await upsertExpectation({ userId: authUser.id, record: newBet });
+              }
+            }
+
+            // Write side (in-season): log this week's matchup as a pregame
+            // bet so its result reconciles into a vindication / bad-beat beat.
+            // Idempotent on the week-keyed bet id; the ppg edge is the
+            // grounded favored signal (no fabricated win-prob model).
+            if (
+              currentWeek != null &&
+              myRoster &&
+              currentOpponentLabel &&
+              nflState?.season
+            ) {
+              const matchupBet = expectationFromMatchup({
+                leagueId,
+                season: nflState.season,
+                week: currentWeek,
+                opponentLabel: currentOpponentLabel,
+                myPpg: ppgByRosterId.get(myRoster.roster_id) ?? null,
+                oppPpg: currentOppPpg,
+              });
+              if (matchupBet && !existingBetIds.has(matchupBet.bet_id)) {
+                await upsertExpectation({
+                  userId: authUser.id,
+                  record: matchupBet,
+                });
               }
             }
           } catch (err) {

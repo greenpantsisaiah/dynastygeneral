@@ -33,6 +33,26 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-07-07",
+    title: "The companion reckons with your week, honestly",
+    summary:
+      "The check-in no longer goes quiet after the draft. Each week it logs your matchup, then tells you the truth when it resolves: a win it called, a bad beat you did not deserve, and nothing manufactured in between.",
+    changes: [
+      {
+        tag: "IT REMEMBERS THE WEEK",
+        text: "Before your games kick off, the companion logs the matchup with a grounded read of whether your roster went in favored, based on your season scoring against your opponent's. No fabricated win probability, just the record. It writes one bet per week, keyed to the week, so it never double-logs.",
+      },
+      {
+        tag: "AND RECKONS WHEN IT RESOLVES",
+        text: "Once the week is final, the companion reads the score and reacts honestly. Won a game you were favored in: it calls it. Lost a close one you should have won: a bad beat, named with the margin, with nothing in the call second-guessed. Lost a game you were the underdog in: no beat, because there is no drama to manufacture in an expected result. This is the same honest-first discipline the draft companion uses, now live all season.",
+      },
+      {
+        tag: "NO ALWAYS-ON GUILT TRIP",
+        text: "A weekly matchup is not a decision you made, so the companion never critiques you for losing one. It commiserates only when you were genuinely ahead and variance took it, and it celebrates only a result you can own. The reckoning shows up on the hub check-in and hands off to Coach when you want to talk it through.",
+      },
+    ],
+  },
+  {
     version: "2026-06-19",
     title: "The board value now runs on the engine, and it tells you when it is leaning on the market",
     summary:
