@@ -264,12 +264,53 @@ sees what shipped without reconstructing it from git.
   0); per-position rubrics (MODEL_CARD s4 prior); ship gate = all four
   positions clear D3 or no ship. Phase D2 (build the rubrics over
   EnrichedPlayer) may now start.
+- **Value-pipe plumbing + the VALUE_MODE flip (#71-77): SHIPPED as a
+  DELIBERATE DEVIATION from Phase D's D3 gate. READ THIS before
+  marketing the model.** Between #71 and #77 a separate "value-pipe"
+  track (not authored as a phase in this file at the time) folded every
+  value-consuming surface onto one seam (`src/lib/players/value-mode.ts`)
+  and then FLIPPED `VALUE_MODE` to `"rubric"` (#76), so the live leaf
+  value is now `evaluate().point_estimate` instead of the raw FantasyCalc
+  passthrough. A Phase G lockdown lint (#77) bans any surface from
+  re-forking a raw FantasyCalc read.
+  - **What this is:** an ARCHITECTURE win. One value door, reversible
+    byte-for-byte (`VALUE_MODE = "market"` restores the exact pre-flip
+    numbers, locked by `priced-pool-shadow.test.ts`), and prior-driven
+    reads are honestly badged in chrome (`isRubricPriorDriven`, #74).
+  - **What this is NOT:** evidence the model beats the market. The flip
+    did NOT satisfy Phase D's D3 "beats KTC by an operationally
+    meaningful margin, CI excluding zero" gate for any position. Phase B
+    proved the opposite (RB lift negative; WR/QB/TE marginals inside
+    noise of zero; see `negative-results.md`). The blend weight was
+    RAISED to 0.55 (market-dominant) PRECISELY because nothing beat the
+    market, so the rubric nudges rather than re-ranks. At |Δ| mean 1.8 on
+    a 0-100 scale (PR #76 diff), the live board is essentially the market
+    value with a small perturbation, and the product labels most reads
+    prior-driven.
+  - **Why it shipped anyway (the honest reconciliation):** the flip was
+    gated on SAFETY (canon-keeper + assumption-auditor GO-with-
+    adjustments + a founder-eyeballed snapshot diff: "the numbers barely
+    move, so nothing breaks"), NOT on VALIDITY (the D3 gate: "the model
+    earns the value scale by beating the market"). Those are different
+    bars. Shipping the one-door architecture on the safety bar is
+    defensible and useful. Claiming "the live board beats the market"
+    on the back of it is NOT; `negative-results.md` and PR #76's own body
+    ("with no Phase B ranking signal beating the market") contradict it.
+  - **Consequence for Phase D:** D3's "all four positions clear the
+    beats-market backtest or no ship" gate is STILL UNMET and still the
+    bar for any "beats the market / beats MIT" claim. The flip did not
+    retire it. Phase D (Forward Production, a different OUTPUT SHAPE, not
+    more ranking signals) remains the path to earning that claim. Until a
+    position clears D3, the honest public framing is MODEL_CARD 9.7's
+    "higher-conviction calls than consensus, mixed per-year," not "beats
+    the market."
 - **Remaining:** D (Forward Production, D2 now unblocked), E
   (decision-engine re-cast), F (validation + scoreboard), G (cleanup +
   lockdown). Phase D is the converging, all-four-positions-or-none
   build. Its "beats market" D3 gate runs against the now-populated
   vintage `team_signals_history` (#69) + `historical_signal_codes`
-  (#70) stores.
+  (#70) stores. NOTE: the #76 VALUE_MODE flip did NOT clear this gate
+  (see the value-pipe deviation entry above); it stays the bar.
 
 ---
 

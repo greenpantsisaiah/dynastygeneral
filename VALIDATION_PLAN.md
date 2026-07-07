@@ -171,7 +171,7 @@ where applicable. Per-game weight applied for partial seasons.
 - `validation/scoreboard_2026_07.csv` (one row per (year, position, model, metric))
 - `validation/calibration_plot.png` (variance band coverage)
 - `validation/per_position_rmse.csv`
-- One-page summary in MODEL_CARD.md section 12 (validation results)
+- One-page summary in MODEL_CARD.md section 9.7 (validation results; the earlier "section 12" pointer predates the results landing in 9.7, which is now the canonical results section. Section 12 is "Caveats and recommendations.")
 
 ## 6. Test B: simulation spec
 

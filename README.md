@@ -32,10 +32,18 @@ npm run lint
 | `/` | Static | Landing: hero, problem, insight, solution, benefits, differentiation, preview, waitlist, FAQ |
 | `/connect?username=...` | Dynamic | Sleeper lookup → list of dynasty leagues |
 | `/leagues/[leagueId]` | Dynamic | **Decision Hub**: strategy snapshot + four action entry points |
-| `/leagues/[leagueId]/pick` | Dynamic | Pick decision (WIP: shell in place, engine next) |
-| `/leagues/[leagueId]/trade?mode=...` | Dynamic | Incoming or outbound trade (WIP) |
+| `/leagues/[leagueId]/pick` | Dynamic | Pick decision (engine wired) |
+| `/leagues/[leagueId]/trade?mode=...` | Dynamic | Incoming or outbound trade (engine wired) |
 | `/leagues/[leagueId]/strategy` | Dynamic | Strategy snapshot with inference signals |
+| `/leagues/[leagueId]/coach` | Dynamic | Coach chat with full named-roster context |
 | `/api/waitlist` | POST | Validated waitlist insert (Supabase if configured, stdout otherwise) |
+
+> This Routes table is a partial, historical view. The shipped product has
+> moved well past it (the Decision Hub now carries Plays, the Companion
+> check-in, the value pipe, per-opponent dossiers, AAR, a public
+> `/scoreboard` and `/pricing`, and Stripe billing scaffolding gated behind
+> `BETA_OPEN_MODE`). For the current surface, run the app; for the current
+> plan, read `MODEL_LIVE_PLAN.md`. Last reconciled 2026-07-06.
 
 ## Source layout
 
@@ -64,6 +72,12 @@ supabase/migrations/0001_init.sql : profiles, leagues, strategies (+history),
 ```
 
 ## Phase roadmap
+
+> Historical. This Phase 1-4 roadmap is superseded by the current
+> orchestration plan in `MODEL_LIVE_PLAN.md` (Phases A-G, the model-live
+> push). Phases 3-4 below describe an earlier framing; auth, persistence,
+> and much of the leverage/creator work have since shipped or been
+> re-scoped there. Kept for provenance. Last reconciled 2026-07-06.
 
 - **Phase 1 (done)**: scaffold, landing, Sleeper sync, connect flow, decision
   hub shell, strategy inference (lightweight), Supabase schema, waitlist.
