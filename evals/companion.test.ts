@@ -25,9 +25,11 @@ import {
   classifyRosterTalentBeat,
   classifyCallbackBeats,
   buildPickResolutions,
+  buildMatchupResolutions,
   reconcileExpectation,
   reconcileExpectations,
   expectationFromPickDeviation,
+  expectationFromMatchup,
 } from "../src/lib/strategy/companion/classify";
 import {
   reconstructPickDebate,
@@ -712,6 +714,155 @@ function run() {
     "the still-close bet stays open (no resolution)",
     recon.records.find((r) => r.bet_id === "c1")?.resolved === false,
   );
+
+  // ---- In-season matchup loop (Pillar 1A) ----
+  console.log("\nIn-season matchup loop\n");
+
+  // Write: favored roster (higher ppg) logs a points bet the classifier
+  // reads as favored.
+  const favBet = expectationFromMatchup({
+    leagueId: "L",
+    season: "2026",
+    week: 9,
+    opponentLabel: "Saquonatraitor",
+    myPpg: 118.4,
+    oppPpg: 102.1,
+  });
+  check("matchup write returns a bet", favBet != null);
+  check(
+    "matchup bet is keyed by season+week (idempotent)",
+    favBet?.bet_id === "matchup-2026-9",
+  );
+  check(
+    "favored roster: my ppg in expected_value, opp in alternative_value",
+    favBet?.expected_value === 118.4 && favBet?.alternative_value === 102.1,
+  );
+  check(
+    "matchup bet carries the named opponent + week label",
+    favBet?.subject_label === "Week 9 vs Saquonatraitor" &&
+      favBet?.kind === "matchup" &&
+      favBet?.horizon === "this_week",
+  );
+  check(
+    "bye week (null opp ppg) logs nothing, not a garbage bet",
+    expectationFromMatchup({
+      leagueId: "L",
+      season: "2026",
+      week: 9,
+      opponentLabel: "bye",
+      myPpg: 110,
+      oppPpg: null,
+    }) === null,
+  );
+
+  // Resolve: only prior weeks resolve; the current week stays open.
+  {
+    const week9Fav = expectationFromMatchup({
+      leagueId: "L",
+      season: "2026",
+      week: 9,
+      opponentLabel: "Opp",
+      myPpg: 120,
+      oppPpg: 100,
+    })!;
+    const currentWeekBet = expectationFromMatchup({
+      leagueId: "L",
+      season: "2026",
+      week: 10,
+      opponentLabel: "Opp",
+      myPpg: 120,
+      oppPpg: 100,
+    })!;
+    const res = buildMatchupResolutions({
+      openBets: [week9Fav, currentWeekBet],
+      currentWeek: 10,
+      resultByBetId: new Map([
+        ["matchup-2026-9", { myPoints: 95.2, oppPoints: 99.4 }],
+      ]),
+    });
+    check("only the prior-week bet resolves (current stays open)", res.length === 1);
+    const r9 = res.find((r) => r.bet_id === "matchup-2026-9");
+    check("favored roster lost -> good is false", r9?.good === false);
+    check(
+      "favored close loss -> variance flagged with a margin",
+      r9?.variance_flag === true && typeof r9?.flipped_by === "string",
+    );
+
+    // The full trio: favored close loss reconciles to a bad_beat.
+    const badBeat = reconcileExpectation(week9Fav, res[0]);
+    check(
+      "favored close loss -> bad_beat (commiserate)",
+      badBeat.beat?.kind === "bad_beat" && badBeat.beat?.tone === "commiserate",
+    );
+
+    // Favored win -> vindication.
+    const winRes = buildMatchupResolutions({
+      openBets: [week9Fav],
+      currentWeek: 10,
+      resultByBetId: new Map([
+        ["matchup-2026-9", { myPoints: 121.0, oppPoints: 100.0 }],
+      ]),
+    });
+    const vindication = reconcileExpectation(week9Fav, winRes[0]);
+    check(
+      "favored win -> vindication (win)",
+      vindication.beat?.kind === "vindication" &&
+        vindication.beat?.tone === "win",
+    );
+
+    // Favored blowout loss (outside the variance margin) -> not variance,
+    // and an expected-side loss for a favorite is not a manufactured beat.
+    const blowoutRes = buildMatchupResolutions({
+      openBets: [week9Fav],
+      currentWeek: 10,
+      resultByBetId: new Map([
+        ["matchup-2026-9", { myPoints: 80.0, oppPoints: 130.0 }],
+      ]),
+    });
+    check(
+      "blowout loss is not flagged variance (was the better team on the day)",
+      blowoutRes[0]?.variance_flag === false,
+    );
+
+    // Honest-first: an underdog who loses a game they were projected to
+    // lose gets NO beat. A matchup is not a chosen contrarian position, so
+    // it must never produce a critique (that is the always-critique trap).
+    const underdogBet = expectationFromMatchup({
+      leagueId: "L",
+      season: "2026",
+      week: 9,
+      opponentLabel: "Opp",
+      myPpg: 98,
+      oppPpg: 121,
+    })!;
+    const underdogLossRes = buildMatchupResolutions({
+      openBets: [underdogBet],
+      currentWeek: 10,
+      resultByBetId: new Map([
+        ["matchup-2026-9", { myPoints: 95.0, oppPoints: 120.0 }],
+      ]),
+    });
+    const underdogLoss = reconcileExpectation(underdogBet, underdogLossRes[0]);
+    check(
+      "underdog loss -> no beat (a matchup is not a critiqueable choice)",
+      underdogLoss.beat === null,
+      underdogLoss.record.outcome ?? "",
+    );
+
+    // Underdog who wins close -> vindication (the gamble cashed).
+    const underdogWinRes = buildMatchupResolutions({
+      openBets: [underdogBet],
+      currentWeek: 10,
+      resultByBetId: new Map([
+        ["matchup-2026-9", { myPoints: 118.0, oppPoints: 115.0 }],
+      ]),
+    });
+    const underdogWin = reconcileExpectation(underdogBet, underdogWinRes[0]);
+    check(
+      "underdog win -> vindication",
+      underdogWin.beat?.kind === "vindication",
+    );
+  }
 
   console.log(`\n${passed} passed ${"·"} ${failed} failed`);
   if (failed > 0) process.exit(1);

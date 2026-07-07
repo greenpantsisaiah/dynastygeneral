@@ -49,6 +49,20 @@ const ANTICIPATION_MAX_SURVIVAL = 75;
  * hair.
  */
 const DECISIVE_VALUE_GAP = 12;
+/**
+ * Weekly points margin (fantasy points) at or below which a decided matchup
+ * counts as a coin-flip that turned on variance rather than a clean result.
+ * A favored roster that loses inside this margin, or an underdog that wins
+ * inside it, is flagged variance so the honest-first bad-beat / vindication
+ * copy reads correctly. Grounded in typical weekly fantasy scoring spread;
+ * a blowout outside this margin was the better team, not variance.
+ */
+const MATCHUP_VARIANCE_MARGIN = 12;
+
+/** Round to one decimal (fantasy points carry a tenth). */
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
 
 // ---------------------------------------------------------------------------
 // Orchestrator
@@ -475,6 +489,97 @@ export function expectationFromPickDeviation(args: {
   };
 }
 
+/**
+ * Log an in-season weekly matchup as an expectation (the investment phase
+ * of the season-long loop). Written pregame for the CURRENT week so the
+ * later result reconciles into a vindication / bad-beat beat.
+ *
+ * The honest-first "favored" signal is grounded, not a fabricated win-prob
+ * model: `expected_value` is the user's season points-per-game and
+ * `alternative_value` is the opponent's. `wasFavored` (points path) then
+ * reads `myPpg >= oppPpg`, and `tookContrarian` reads `myPpg < oppPpg`
+ * (the user went in as the underdog). Both fall out of the existing
+ * classifier with no special case.
+ *
+ * Returns null when there is no opponent this week (bye) or the ppg inputs
+ * are missing, so a thin week logs nothing rather than a garbage bet.
+ */
+export function expectationFromMatchup(args: {
+  leagueId: string;
+  season: string;
+  week: number;
+  opponentLabel: string;
+  myPpg: number | null;
+  oppPpg: number | null;
+  betId?: string;
+}): ExpectationRecord | null {
+  if (args.myPpg == null || args.oppPpg == null) return null;
+  return {
+    bet_id: args.betId ?? `matchup-${args.season}-${args.week}`,
+    league_id: args.leagueId,
+    kind: "matchup",
+    created_at_pick_no: null,
+    created_at_week: args.week,
+    subject_player_id: null,
+    subject_label: `Week ${args.week} vs ${args.opponentLabel}`,
+    expected_metric: "points",
+    expected_value: round1(args.myPpg),
+    alternative_label: args.opponentLabel,
+    alternative_value: round1(args.oppPpg),
+    alternative_player_id: null,
+    thesis: null,
+    resolution_condition: `Week ${args.week} result vs ${args.opponentLabel}`,
+    horizon: "this_week",
+    resolved: false,
+  };
+}
+
+/**
+ * Resolve prior-week matchup bets from their final scores. A week's games
+ * are final once the league has advanced past it, so this only resolves
+ * bets whose `created_at_week` is strictly before the current week; the
+ * current week's bet stays open until next week.
+ *
+ * `good` = the user won. `variance_flag` is set when the result was a
+ * coin-flip that turned on variance: a favored roster lost inside
+ * MATCHUP_VARIANCE_MARGIN, or an underdog won inside it. `flipped_by`
+ * carries the human-readable margin for the bad-beat copy.
+ */
+export function buildMatchupResolutions(args: {
+  openBets: ExpectationRecord[];
+  currentWeek: number;
+  /** bet_id -> { myPoints, oppPoints } for a decided week. */
+  resultByBetId: Map<string, { myPoints: number; oppPoints: number }>;
+}): ExpectationResolution[] {
+  const out: ExpectationResolution[] = [];
+  for (const bet of args.openBets) {
+    if (bet.resolved || bet.kind !== "matchup") continue;
+    if (bet.created_at_week == null || bet.created_at_week >= args.currentWeek)
+      continue;
+    const result = args.resultByBetId.get(bet.bet_id);
+    if (!result) continue;
+    const margin = round1(result.myPoints - result.oppPoints);
+    const good = margin > 0;
+    // Favored pregame = my season ppg (expected_value) >= opponent's
+    // (alternative_value), the same signal wasFavored reads.
+    const wasFav = bet.expected_value >= (bet.alternative_value ?? 0);
+    // Variance when the outcome contradicted the pregame lean by a hair:
+    // a favorite that lost close, or an underdog that won close.
+    const closeGame = Math.abs(margin) <= MATCHUP_VARIANCE_MARGIN;
+    const varianceFlag = closeGame && wasFav !== good;
+    out.push({
+      bet_id: bet.bet_id,
+      resolved_value: result.myPoints,
+      good,
+      variance_flag: varianceFlag,
+      flipped_by: varianceFlag
+        ? `A ${Math.abs(margin).toFixed(1)}-point swing`
+        : null,
+    });
+  }
+  return out;
+}
+
 /** Reconcile a batch of records against their resolutions. */
 export function reconcileExpectations(
   records: ExpectationRecord[],
@@ -541,6 +646,12 @@ function wasFavored(r: ExpectationRecord): boolean {
 }
 
 function tookContrarian(r: ExpectationRecord): boolean {
+  // Only a CHOSEN position can be contrarian (a pick taken over the call).
+  // A weekly matchup is not a choice: you do not pick your opponent, so an
+  // underdog losing a game they were projected to lose is an expected
+  // result, never a "process error" worth critiquing. Scoping this to pick
+  // bets keeps the honest-first rule intact (no manufactured critique).
+  if (r.kind !== "pick") return false;
   return r.alternative_value != null && r.expected_value < r.alternative_value;
 }
 
