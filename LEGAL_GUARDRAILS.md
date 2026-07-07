@@ -36,7 +36,7 @@ The raw FP CSVs / PNGs / HTML in `web/data/fantasypros/` are research notes from
 - Filesystem-only on the founder's machine + Supabase via `historical_consensus_rankings`
 - NEVER behind any deployed web route, even authenticated
 
-Post-Phase-2 transition: when the calibration locks (target 2026-07-01), archive `web/data/fantasypros/` to an offline encrypted tarball, delete the working copies, retain only the derived metrics in Supabase. Document the transition in MODEL_CARD §12.
+Post-Phase-2 transition: when the calibration locks (target 2026-07-01), archive `web/data/fantasypros/` to an offline encrypted tarball, delete the working copies, retain only the derived metrics in Supabase. Document the transition in MODEL_CARD §9.7 (the canonical validation-results section; the earlier "§12" pointer predates the results landing in 9.7. §12 is "Caveats and recommendations").
 
 ### 4. No FP logo, mark, or trade dress
 

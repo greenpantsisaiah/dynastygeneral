@@ -232,6 +232,24 @@ start.
   cannot clear after Phase B's signal investment becomes a
   release-blocker decision, not a ship-around-it.
 
+### Stage 3a note: the VALUE_MODE flip (#76) did NOT satisfy this gate
+
+`src/lib/players/value-mode.ts` and `CANONICAL_SOURCES.md` cite
+"FORWARD_EV_PLAN Stage 3a" as the flip's authorization. That citation
+is imprecise and is corrected here. Stage 3a decided the FORWARD
+PRODUCTION shape (horizon, cadence, output, position conditioning, ship
+gate). It did NOT authorize flipping the live board value to the rubric
+absent the D3 "beats market" backtest. The #71-77 value-pipe track
+flipped `VALUE_MODE` to `"rubric"` on SAFETY gates (audits +
+snapshot-diff: the numbers barely move) with the blend weight raised to
+0.55 (market-dominant) precisely because no Phase B signal beat the
+market. That is a defensible ARCHITECTURE ship (one reversible value
+door) but NOT a validity ship: the "ship gate: all four positions or
+none" above remains UNMET and remains the bar for any "beats the market"
+claim. Full reconciliation is logged in MODEL_LIVE_PLAN.md's progress
+log under the value-pipe deviation entry. Do not read the flip as
+Stage 3b/D2 being done; it is not.
+
 ## Stage 3b: Build the Forward Production projection · PARTIAL (rookie slice shipped)
 
 PR #41 + #42 + #44 wired the rubric pipeline live for one specific

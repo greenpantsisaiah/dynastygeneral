@@ -79,7 +79,9 @@ export default function PricingPage() {
             <p className="mt-12 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
               Calibration receipt · engine v1 averages Spearman 0.421
               across 2022 to 2024 dynasty cumulative outcomes (KTC
-              0.346, FantasyPros 0.365).
+              0.346, FantasyPros 0.365). The average win is real and it
+              is mixed year to year: the scoreboard shows where it wins,
+              where it trails, and the sample sizes.
             </p>
           </div>
         </section>

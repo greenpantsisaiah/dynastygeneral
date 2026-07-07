@@ -56,7 +56,7 @@ Brier score on probabilistic outputs (breakout odds, hit-rate ranges, decision c
 
 ### 1.7 Performance metrics
 
-To be populated after the v1 backtest. Until then, the model's performance is asserted against expert intuition and the published research, not validated. Section 9 specifies the validation framework.
+The v1 backtest has run. Results live in **section 9.7** (not section 12; the "§12" pointer in VALIDATION_PLAN.md and LEGAL_GUARDRAILS.md predates the results landing in 9.7). Honest one-line read: Dynasty General v1 wins on AVERAGE across 2022-2024 (Spearman 0.421 vs KTC 0.346, FantasyPros ECR 0.365), but the win is a cross-position lift driven by bullish elite-QB calls and the 2024 injury-collapse year; WITHIN-position DG loses to FantasyPros on QB and RB, the average win is fragile (dataset-dependent on a few QB bets), and the 8% stretch bar is NOT met. See 9.7 for the full table, per-year picture, and known weaknesses. Section 9 specifies the validation framework. NOTE: the live board's value scale is market-dominant (FantasyCalc prior at weight 0.55) by design, because no per-position ranking signal has yet beaten the market (Phase B, `negative-results.md`); the 9.7 average-win result is a cross-position backtest metric, not a claim that each surfaced value beats the market.
 
 ## 2. Factors
 

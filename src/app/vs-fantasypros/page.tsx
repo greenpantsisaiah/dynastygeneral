@@ -16,7 +16,7 @@ export default function VsFantasyProsPage() {
       <main className="flex-1 bg-background">
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24 sm:pb-16">
-            <Ticker label="Comparison · public product observation as of 2026-05-06" />
+            <Ticker label="Comparison · public product observation as of 2026-07-06" />
             <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
               FantasyPros gives you a hundred opinions. Dynasty General gives you one decision.
             </h1>
@@ -41,6 +41,17 @@ export default function VsFantasyProsPage() {
               of 0.399 averaged across 2022-2024 dynasty cumulative
               outcomes. The named consensus baselines we tested against
               landed at 0.346 to 0.365 in the same window.
+            </p>
+            <p className="mt-3 text-base leading-relaxed text-muted">
+              The honest read, published in full on the scoreboard: that
+              average win is a cross-position result, and it is mixed year
+              to year. In 2024 we dominated because consensus rankings
+              collapsed on injury-driven busts. On the 2022 and 2023 longer
+              horizons FantasyPros edged us by 0.02 to 0.06, and
+              within-position FantasyPros still ranks QBs and RBs at least
+              as well as we do. Sample sizes are 60 to 90 pairs per cell,
+              so the confidence band is roughly 0.05 to 0.10. We show the
+              wins and the losses, with units.
             </p>
             <p className="mt-3 text-base leading-relaxed text-muted">
               FantasyPros has internal expert-accuracy data (we can see it
