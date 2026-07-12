@@ -100,6 +100,9 @@ export function classifyPlayBrokenBeats(args: {
         kind: "play_broken",
         tone: "commiserate",
         stage,
+        // The pivot is a Coach conversation (trade for the piece or
+        // reshape the play), so offer the handoff.
+        prompts_handoff: true,
         source: {
           signal: "active_play_sniped",
           detail: `${snipe.player_name}, a follow-through target of the committed play "${c.play_name}" (${c.archetype}), was drafted by ${snipe.drafted_by_owner ?? "another manager"} at pick ${snipe.pick_no}`,

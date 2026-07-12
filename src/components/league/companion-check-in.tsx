@@ -93,10 +93,20 @@ function talkThrough(beat: Beat, override?: (b: Beat) => void): void {
     typeof v.alternative === "string" ? v.alternative : undefined;
   const evDelta = typeof v.ev_delta === "number" ? v.ev_delta : undefined;
   const thesis = typeof v.thesis === "string" ? v.thesis : undefined;
-  const prompt =
-    chosen && alternative
-      ? `Talk me through ${chosen} over ${alternative}. Lay out the case both ways and give me your honest read for my window.`
-      : `Talk me through this: ${beat.headline}`;
+  const play = typeof v.play_name === "string" ? v.play_name : undefined;
+  const sniped = typeof v.sniped === "string" ? v.sniped : undefined;
+  const holder = typeof v.holder === "string" ? v.holder : undefined;
+  let prompt: string;
+  if (beat.kind === "play_broken" && play && sniped) {
+    // The pivot ask: reshape the play or trade for the sniped piece.
+    prompt = holder
+      ? `My ${play} play just broke: ${holder} drafted ${sniped}. Should I pivot the play or trade ${holder} for ${sniped}? Give me a concrete pivot or a fair offer.`
+      : `My ${play} play just broke: ${sniped} is off the board. Should I pivot the play or trade for ${sniped}? Give me a concrete pivot or a fair offer.`;
+  } else if (chosen && alternative) {
+    prompt = `Talk me through ${chosen} over ${alternative}. Lay out the case both ways and give me your honest read for my window.`;
+  } else {
+    prompt = `Talk me through this: ${beat.headline}`;
+  }
   seedCoachWithBeat(prompt, {
     kind: beat.kind,
     headline: beat.headline,

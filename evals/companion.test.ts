@@ -438,6 +438,10 @@ function run() {
     broken[0]?.tone === "commiserate",
   );
   check(
+    "play_broken offers a Coach handoff (the pivot is a conversation)",
+    broken[0]?.prompts_handoff === true,
+  );
+  check(
     "play_broken carries grounded source",
     (broken[0]?.source.signal?.length ?? 0) > 0,
     broken[0]?.source.signal,
