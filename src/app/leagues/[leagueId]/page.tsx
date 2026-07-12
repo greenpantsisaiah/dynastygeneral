@@ -106,6 +106,7 @@ import type { WhatIfReadout } from "@/lib/strategy/decision-synthesis/whatif";
 import {
   buildPlanPlayerIds,
   detectPlanDisruption,
+  type PlanSnipe,
 } from "@/lib/last-visit/plan-disruption";
 import { readLastVisit } from "@/lib/last-visit/cookie";
 import {
@@ -961,6 +962,9 @@ export default async function LeagueHubPage({
   let lastVisitHasSnipes = false;
   let companionBeats: Beat[] = [];
   let companionLatestPick: { player_id: string; name: string } | null = null;
+  // Between-visit snipes (from PlanDisruption), passed to the check-in so a
+  // committed play whose named partner was just sniped fires a play_broken.
+  let companionSnipes: PlanSnipe[] = [];
   let lastVisitPositionCountDeltas: Partial<Record<string, number>> = {};
   let lastVisitLeagueRankDelta: number | null = null;
   let rosterPosture: RosterPosture | null = null;
@@ -1603,6 +1607,7 @@ export default async function LeagueHubPage({
         });
         lastVisitDisruptionAck = disruption.acknowledgment;
         lastVisitHasSnipes = disruption.snipes.length > 0;
+        companionSnipes = disruption.snipes;
 
         // Companion check-in beats (Principle 13). Grounded reactions to
         // what changed since the last visit. The debate beat fires when
@@ -2077,6 +2082,7 @@ export default async function LeagueHubPage({
             beats={companionBeats}
             leagueId={leagueId}
             latestPick={companionLatestPick}
+            snipes={companionSnipes}
           />
 
           {rosterPosture && <PostureBanner posture={rosterPosture} />}

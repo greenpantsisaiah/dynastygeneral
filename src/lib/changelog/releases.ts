@@ -33,6 +33,22 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-07-11",
+    title: "The companion tells you when a play just broke",
+    summary:
+      "When an opponent drafts a named piece of a play you committed to, the check-in says so, names who took him, and points you at the pivot. It fires the moment it happens, not every time you open the hub.",
+    changes: [
+      {
+        tag: "PLAY BROKE, NAMED",
+        text: "Commit to a QB stack or a handcuff and the companion watches the pieces. If a manager drafts a named follow-through target between your visits, the check-in reads 'Mayfield + Bucs Stack just broke. Mike Evans is off the board. lincolnenglish took him. Time to pivot or trade for the piece.' It names the play, the piece, and the holder, and hands off to Coach to work the pivot.",
+      },
+      {
+        tag: "ON THE EVENT, NOT ON REPEAT",
+        text: "The break fires on the transition, the pick that broke it, read off the same since-your-last-visit diff the hub already uses. It does not re-nag you every time you reopen the hub while the play sits broken. Honest-first: a real event, once, not manufactured drama.",
+      },
+    ],
+  },
+  {
     version: "2026-07-07",
     title: "The companion reckons with your week, honestly",
     summary:

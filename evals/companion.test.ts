@@ -38,7 +38,11 @@ import {
   type ResolvedName,
 } from "../src/lib/strategy/companion/debate";
 import { rankBeats, topBeat, priorityScore } from "../src/lib/strategy/companion/priority";
-import { classifyPlayAdvancedBeats } from "../src/lib/strategy/companion/play-beats";
+import {
+  classifyPlayAdvancedBeats,
+  classifyPlayBrokenBeats,
+} from "../src/lib/strategy/companion/play-beats";
+import type { PlanSnipe } from "../src/lib/last-visit/plan-disruption";
 import type {
   AnticipationInput,
   Beat,
@@ -396,6 +400,72 @@ function run() {
     "no play_advanced without a latest pick",
     classifyPlayAdvancedBeats({ commitments: [commitment], latestPick: null })
       .length === 0,
+  );
+
+  // 12b. Play-broken beat: a committed play's named partner was sniped by an
+  //      opponent since last visit (consumes the PlanDisruption snipe diff,
+  //      so it fires on the transition, not every visit).
+  const snipe = (over: Partial<PlanSnipe> = {}): PlanSnipe => ({
+    player_id: "evans",
+    player_name: "Mike Evans",
+    drafted_by_roster_id: 7,
+    drafted_by_owner: "lincolnenglish",
+    pick_no: 41,
+    ...over,
+  });
+  const broken = classifyPlayBrokenBeats({
+    commitments: [commitment],
+    snipes: [snipe()],
+  });
+  check(
+    "play_broken fires when a committed target is sniped",
+    broken.length === 1 && broken[0].kind === "play_broken",
+  );
+  check(
+    "play_broken names the play and the sniped piece",
+    (broken[0]?.headline.includes("Mayfield + Bucs Stack") &&
+      broken[0]?.body?.includes("Mike Evans")) ??
+      false,
+    `${broken[0]?.headline} / ${broken[0]?.body}`,
+  );
+  check(
+    "play_broken names the holder",
+    broken[0]?.body?.includes("lincolnenglish") ?? false,
+    broken[0]?.body,
+  );
+  check(
+    "play_broken commiserates (it is bad news)",
+    broken[0]?.tone === "commiserate",
+  );
+  check(
+    "play_broken carries grounded source",
+    (broken[0]?.source.signal?.length ?? 0) > 0,
+    broken[0]?.source.signal,
+  );
+  check(
+    "play_broken has no em dash or exclamation",
+    broken[0] ? noEmDashOrBang(broken[0]) : false,
+  );
+  check(
+    "no play_broken when no snipe hits a committed target",
+    classifyPlayBrokenBeats({
+      commitments: [commitment],
+      snipes: [snipe({ player_id: "nabers", player_name: "Malik Nabers" })],
+    }).length === 0,
+  );
+  check(
+    "no play_broken when there are no snipes at all",
+    classifyPlayBrokenBeats({ commitments: [commitment], snipes: [] }).length ===
+      0,
+  );
+  check(
+    "no play_broken for a non-active (executed) commitment",
+    classifyPlayBrokenBeats({
+      commitments: [
+        { ...commitment, status: "executed" } as unknown as PlayCommitment,
+      ],
+      snipes: [snipe()],
+    }).length === 0,
   );
 
   // 13. Debate reconstruction from the last-visit cookie (honest-first).
