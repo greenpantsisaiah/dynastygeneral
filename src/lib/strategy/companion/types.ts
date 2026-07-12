@@ -21,7 +21,7 @@
 
 import type { Urgency } from "../plays/types";
 
-/** The seven grounded beat kinds. See the beat taxonomy in the spec. */
+/** The grounded beat kinds. See the beat taxonomy in the spec. */
 export type BeatKind =
   | "vindication" // a logged prediction resolved true
   | "bad_beat" // high-prob good outcome flipped on variance, process clean
@@ -30,6 +30,7 @@ export type BeatKind =
   | "anticipation" // a live variance window before it resolves
   | "callback" // a named past bet reached a checkpoint
   | "play_advanced" // a pick advanced one of the user's active plays
+  | "play_broken" // a committed play's named partner was sniped by an opponent
   | "milestone"; // draft midpoint / week close / season close
 
 /** Tone drives the card's color rail and the phraser's register. */

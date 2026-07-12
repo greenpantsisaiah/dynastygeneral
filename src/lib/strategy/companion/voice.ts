@@ -37,6 +37,8 @@ export function phraseBeat(draft: BeatDraft): {
       return phraseCallback(v);
     case "play_advanced":
       return phrasePlayAdvanced(v);
+    case "play_broken":
+      return phrasePlayBroken(v);
     case "milestone":
       return phraseMilestone(v);
   }
@@ -64,6 +66,17 @@ function phrasePlayAdvanced(v: Values): { headline: string; body?: string } {
     body: next
       ? `We're a step closer. Next piece: ${next}.`
       : "We're a step closer. The play is coming together.",
+  };
+}
+
+function phrasePlayBroken(v: Values): { headline: string; body?: string } {
+  const play = str(v.play_name) ?? "your play";
+  const sniped = str(v.sniped) ?? "a target";
+  const holder = str(v.holder);
+  const holderText = holder ? ` ${holder} took him` : " an opponent took him";
+  return {
+    headline: `${play} just broke.`,
+    body: `${sniped} is off the board.${holderText}. Time to pivot or trade for the piece.`,
   };
 }
 

@@ -1016,14 +1016,26 @@ Wire AFTER the-call completes:
 3. New grounded companion beats reacting to plays:
    - play_advanced (win): the latest pick is a follow-through target of
      an active / committed / auto-active play. Names the play and the
-     next partner's survival.
-   - play_broken (challenge): the latest pick or a trade undercuts an
-     active play (sends or skips a piece). Names the breach and EV cost.
-     Mirrors The Call's `Breaks` badge.
+     next partner. SHIPPED (`classifyPlayAdvancedBeats`).
+   - play_broken (commiserate): a committed play's named follow-through
+     target was drafted by an opponent SINCE the user's last visit.
+     SHIPPED 2026-07-11 (`classifyPlayBrokenBeats`). Consumes the
+     canonical between-visit snipe diff (`detectPlanDisruption.snipes`,
+     the same signal LastVisitDigest surfaces) cross-referenced against
+     committed plays, so it fires on the TRANSITION (just sniped), not on
+     every visit while the play sits broken. Names the play, the sniped
+     piece, and the holder. The "or a trade undercuts a play" half is
+     deferred: coverage is draft/roster-snapshot based, and there is no
+     trade-away break signal yet.
    - play_activated (win): a play flips to auto_active (e.g., QB Hoard).
-   Consume the canonical plays state (`derivePlayState` and the
-   Activates / Advances / Breaks resolver The Call now carries). Do NOT
-   re-derive play state in the companion; the engine derives, the
+     DEFERRED. `auto_active` is derived fresh each render but nothing
+     stores WHICH plays were auto-active last visit, so a "just activated"
+     beat needs a new last-visit fingerprint field to diff against.
+     Without it the beat would fire every visit the play stays active
+     (noise, not a transition), which the honest-first rule forbids. Ship
+     it by adding `auto_active_play_keys` to the fingerprint and diffing.
+   Consume the canonical plays state and the between-visit diffs; do NOT
+   re-derive play state in the companion. The engine derives, the
    companion reads. Same `format_rules` gates as the plays themselves.
 
 ## Visualization map (538-editor pass, locked 2026-05-08 PM)
