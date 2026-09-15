@@ -84,7 +84,7 @@ We are not the first to publish a comparative scoreboard. We aim to be the first
 ## Caveats
 
 1. **Sample sizes are small.** Top-100 joined pairs per source per year run 60-90. Confidence intervals on Spearman values are roughly ±0.05 to ±0.10. The average across years is more reliable than any single-year ranking.
-2. **Engine v0 has zero signal codes loaded.** Track A (`scripts/extract-historical-signals.ts`) is in progress. v1 with signals will be re-run and these numbers will likely change.
+2. **These are backtests of engine v0 and v1 as of 2026-05-08, not the live engine.** v0 loads no signal codes; v1 loads 182 RB player-years coded by an LLM extractor with a pre-draft knowledge cutoff (`scripts/extract-historical-signals.ts`), RB only. The live board changed on 2026-06-19: every value now runs through the position rubrics blended with the FantasyCalc market prior at a market-dominant 0.55 weight, and later signal work (route participation, scheme and coaching history, OL proxies) did not beat the market in backtest. The live engine has NOT been re-scored on this board. Do not read these rows as the accuracy of the product you are using today.
 3. **Loss function is partial in v0.** We publish the cumulative-PPR-rank component. The full §8.2 loss composites that with KTC value drift; v1 will composite.
 4. **Dynasty horizons differ by source.** Source rankings target 1-3 year horizons, not single-season. Single-season-only Spearman scores (the 2024-only column) are noisy by design and should not be cited as headline numbers.
 

@@ -8,6 +8,15 @@
  * one row per (source, format, season, loss_function) with the headline
  * metrics. Anyone can rerun the harness and audit the numbers.
  *
+ * `backtest_runs` is append-only: re-running the harness adds a new row
+ * per cell. This script therefore reads rows in `created_at` order and
+ * keeps ONE row per cell key (loss_function, model_version, format,
+ * prediction_year), the newest run. Before 2026-09-15 it emitted every
+ * run ordered by name, so the CSV carried four rows for the 2022 v1
+ * cell and the page rendered whichever came last (a partial-coverage
+ * run, 0.376) while MODEL_CARD 9.7 quoted the full-coverage run
+ * (0.442). Dropped duplicates are logged so a rerun is auditable.
+ *
  * Run:
  *   npx tsx --tsconfig tsconfig.json scripts/build-scoreboard.ts
  */
@@ -19,6 +28,7 @@ loadEnv({ path: resolve(process.cwd(), ".env.local") });
 import { writeFileSync, mkdirSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
+import { scoreRowKey } from "../src/lib/scoreboard/rows";
 type Row = {
   run_label: string;
   prediction_year: number;
@@ -27,7 +37,29 @@ type Row = {
   mae: number | null;
   baseline_comparisons: Record<string, unknown> | null;
   notes: string | null;
+  created_at: string;
 };
+function formatOf(modelVersion: string): "sf" | "1qb" {
+  return modelVersion.includes("@sf") ? "sf" : "1qb";
+}
+/** Newest run per cell key. Input must be in created_at ascending order. */
+function keepNewestPerCell(rows: Row[]): { kept: Row[]; dropped: Row[] } {
+  const byKey = new Map<string, Row>();
+  const dropped: Row[] = [];
+  for (const r of rows) {
+    const key = scoreRowKey({ ...r, format: formatOf(r.model_version) });
+    const prev = byKey.get(key);
+    if (prev) dropped.push(prev);
+    byKey.set(key, r);
+  }
+  const kept = [...byKey.values()].sort(
+    (a, b) =>
+      a.loss_function.localeCompare(b.loss_function) ||
+      a.model_version.localeCompare(b.model_version) ||
+      a.prediction_year - b.prediction_year,
+  );
+  return { kept, dropped };
+}
 
 async function main(): Promise<void> {
   const supa = createClient(
@@ -37,14 +69,27 @@ async function main(): Promise<void> {
   const { data, error } = await supa
     .from("backtest_runs")
     .select(
-      "run_label, prediction_year, model_version, loss_function, mae, baseline_comparisons, notes",
+      "run_label, prediction_year, model_version, loss_function, mae, baseline_comparisons, notes, created_at",
     )
-    .order("loss_function")
-    .order("model_version")
-    .order("prediction_year");
+    .order("created_at", { ascending: true });
   if (error) throw error;
-  const rows = (data ?? []) as Row[];
-  console.log(`[scoreboard] read ${rows.length} backtest runs`);
+  const allRuns = (data ?? []) as Row[];
+  const { kept: rows, dropped } = keepNewestPerCell(allRuns);
+  console.log(
+    `[scoreboard] read ${allRuns.length} backtest runs, kept ${rows.length} cells (newest per cell), dropped ${dropped.length} superseded runs`,
+  );
+  for (const d of dropped) {
+    const bc = d.baseline_comparisons ?? {};
+    const sp =
+      typeof bc.spearman === "number"
+        ? bc.spearman
+        : typeof bc.spearman_cumulative === "number"
+          ? bc.spearman_cumulative
+          : null;
+    console.log(
+      `[scoreboard]   superseded: ${d.loss_function} ${d.model_version} ${d.prediction_year} spearman=${sp != null ? sp.toFixed(4) : "-"} created_at=${d.created_at}`,
+    );
+  }
 
   const outRows: string[] = [];
   outRows.push(
@@ -67,7 +112,7 @@ async function main(): Promise<void> {
 
   for (const r of rows) {
     const bc = r.baseline_comparisons ?? {};
-    const fmt = r.model_version.includes("@sf") ? "sf" : "1qb";
+    const fmt = formatOf(r.model_version);
     const spearman =
       typeof bc.spearman === "number"
         ? bc.spearman
