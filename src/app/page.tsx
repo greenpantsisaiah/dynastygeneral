@@ -5,6 +5,7 @@ import {
   ContrarianSection,
   ProofSection,
 } from "@/components/landing/proof-section";
+import { Waitlist } from "@/components/landing/waitlist";
 
 export const metadata: Metadata = {
   title: "Dynasty General: Intelligence layer for dynasty fantasy football",
@@ -49,6 +50,7 @@ export default function HomePage() {
         <Hero />
         <ProofSection />
         <ContrarianSection />
+        <Waitlist />
       </main>
     </>
   );
