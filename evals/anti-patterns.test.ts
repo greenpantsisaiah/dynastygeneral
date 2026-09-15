@@ -489,6 +489,39 @@ function run() {
       if (hits.length > 5) console.log(`    + ${hits.length - 5} more`);
     }
   }
+  // Roster ownership must go through ownedPlayerIds (sleeper/
+  // roster-ownership.ts). A file that reads BOTH the pick log
+  // (`picks_so_far`) AND `roster.players` is building a roster union;
+  // an unconditional union resurrects dropped draftees once the draft
+  // completes (founder report 2026-09-15: Coach read five QBs, Sleeper
+  // showed three). Such a file must import the canonical so the merge
+  // is status-gated. Per CANONICAL_SOURCES.md "Roster ownership".
+  console.log("\n── roster.players + picks_so_far union goes through ownedPlayerIds ──");
+  {
+    const CANONICAL = join(SRC, "lib", "sleeper", "roster-ownership.ts");
+    const DRAFT_STATE = join(SRC, "lib", "sleeper", "draft-state.ts");
+    const offenders: string[] = [];
+    for (const file of walk(SRC, [".ts", ".tsx"])) {
+      if (file === CANONICAL || file === DRAFT_STATE) continue;
+      const content = readFileSync(file, "utf-8");
+      const readsPickLog = /picks_so_far/.test(content);
+      const readsRosterPlayers = /\b\w+\.players\s*\?\?/.test(content);
+      if (readsPickLog && readsRosterPlayers && !content.includes("roster-ownership")) {
+        offenders.push(relpath(file));
+      }
+    }
+    if (offenders.length === 0) {
+      passed++;
+      console.log("  ✓ every roster.players + pick-log union imports the canonical");
+    } else {
+      failed++;
+      console.log("  ✗ roster union without the ownedPlayerIds canonical:");
+      for (const f of offenders) console.log(`    - ${f}`);
+      console.log(
+        "    why: draft picks are ownership ONLY while the draft is live; after completion the pick log is history and re-adds dropped draftees. Merge through ownedPlayerIds (sleeper/roster-ownership.ts). Per CANONICAL_SOURCES.md.",
+      );
+    }
+  }
   // Coach must consume the canonical engine outputs, not re-derive them
   // (founder 2026-05-22: "the coach must use our exact architecture,
   // always, even when we update it"). These fields are produced by the

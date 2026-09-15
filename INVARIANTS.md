@@ -134,6 +134,7 @@ Failure mode to ban (anywhere in Coach output): "I don't have [their roster / sp
 These are not in the schemas. They are runtime quirks that have caused trust-breaking bugs.
 
 - **`roster.players` is empty during active drafts.** Mid-draft picks live in `/draft/{draft_id}/picks`, NOT in the roster object. Use `resolveDraftState` to hydrate. The active hub does this; surfaces that don't (e.g., scout) will show drafting rosters as "0 players" when the user actually has six picks made.
+- **The pick log is ownership only while the draft is live; after completion it is history.** `/draft/{draft_id}/picks` keeps every pick forever, including players later dropped or traded. Once `draft.status` is `complete`, Sleeper has written picks onto `roster.players` and that object is the truth. Unioning the pick log into rosters unconditionally resurrects dropped draftees (2026-09-15: five phantom players, Coach read five QBs vs Sleeper's three). Canonical: `ownedPlayerIds` in `src/lib/sleeper/roster-ownership.ts`; lint-enforced.
 - **`roster.owner_id` may be null** for orphan rosters. Always handle null.
 - **`roster.co_owners`** exists. A user can be a co-owner without being primary owner. `find(r.owner_id === uid)` misses co-ownership cases.
 - **`league.roster_positions` is the source of truth** for starter requirements. The literal string `"SUPER_FLEX"` marks superflex format. K and DST appear only if the league rosters them. Never hard-code roster requirements; parse this list.

@@ -26,6 +26,10 @@ import {
 import { pickNoForSlot } from "@/lib/sleeper/snake";
 import { rosterAtPickNo } from "@/lib/sleeper/pick-resolution";
 import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
+import {
+  draftedIdsByRoster,
+  ownedPlayerIds,
+} from "@/lib/sleeper/roster-ownership";
 import type {
   LeagueFormat,
   LeagueScoring,
@@ -512,17 +516,14 @@ export async function buildLeagueSnapshot(args: {
     userById.set(u.user_id, name);
   }
 
-  // Build a roster-id → drafted-player-ids map. During a live draft,
-  // Sleeper's roster.players field doesn't reflect picks until the
-  // draft completes, so we merge drafted picks in by roster_id to get
-  // accurate mid-draft position counts.
-  const draftedByRoster = new Map<number, string[]>();
-  for (const p of draftState.picks_so_far) {
-    if (!p.player_id || typeof p.roster_id !== "number") continue;
-    const list = draftedByRoster.get(p.roster_id) ?? [];
-    list.push(p.player_id);
-    draftedByRoster.set(p.roster_id, list);
-  }
+  // Roster-id -> drafted-player-ids (the pick log, grouped). During a
+  // LIVE draft Sleeper's roster.players doesn't reflect picks, so the
+  // canonical `ownedPlayerIds` merges these in; once the draft is
+  // complete the pick log is history (dropped draftees still appear
+  // here) and roster.players alone is the truth. Founder report
+  // 2026-09-15: the old unconditional union resurrected five dropped
+  // draftees onto an in-season roster and Coach read five QBs.
+  const draftedByRoster = draftedIdsByRoster(draftState.picks_so_far);
 
   // Total starter slot count for this league's format. Used to size
   // the starter window when computing starter_avg_age per roster
@@ -579,10 +580,11 @@ export async function buildLeagueSnapshot(args: {
       prodScore: number | null;
       redraftAdp: number | null;
     }> = [];
-    const merged = new Set<string>([
-      ...(r.players ?? []),
-      ...(draftedByRoster.get(r.roster_id) ?? []),
-    ]);
+    const merged = ownedPlayerIds({
+      rosterPlayers: r.players,
+      draftedForRoster: draftedByRoster.get(r.roster_id),
+      draftStatus: draftState.status,
+    });
     for (const id of merged) {
       const p = playerMap.get(id);
       const pos = normalizePosition(p?.position ?? null);
@@ -733,7 +735,7 @@ export async function buildLeagueSnapshot(args: {
       is_me: isRosterOwnedBy(r, mySleeperUserId),
       position_counts: counts,
       position_ranks: ranks,
-      player_ids: [...merged],
+      player_ids: merged,
       avg_age,
       starter_avg_age,
       starter_talent_score,

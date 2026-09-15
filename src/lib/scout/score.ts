@@ -24,6 +24,7 @@
  */
 
 import { resolvePlayers } from "@/lib/players/cache";
+import { ownedPlayerIds } from "@/lib/sleeper/roster-ownership";
 import { ageFactor, positionFactor } from "@/lib/players/age-curve";
 import {
   FUTURE_PICK_VALUE_BY_ROUND,
@@ -397,19 +398,21 @@ export async function scoreTeamForLeague(args: {
     isSuperflex,
     leagueSettings: (league.settings ?? null) as Record<string, unknown> | null,
   });
-  // Mirror snapshot.ts: union roster.players (server-of-record after the
-  // draft completes) with the live draft picks (only source of truth
-  // mid-draft). Either side may be empty; the union is what the team
-  // actually owns right now.
+  // Canonical ownership (sleeper/roster-ownership.ts): roster.players is
+  // the server of record; live draft picks are merged in ONLY while the
+  // draft is drafting / paused. After completion the pick log is history
+  // and would resurrect dropped draftees.
   const draftedForRoster: string[] = (draftState?.picks_so_far ?? [])
     .filter(
       (p): p is typeof p & { player_id: string } =>
         p.roster_id === roster.roster_id && typeof p.player_id === "string",
     )
     .map((p) => p.player_id);
-  const playerIds = [
-    ...new Set<string>([...(roster.players ?? []), ...draftedForRoster]),
-  ];
+  const playerIds = ownedPlayerIds({
+    rosterPlayers: roster.players,
+    draftedForRoster,
+    draftStatus: draftState?.status,
+  });
   const playerMap = await resolvePlayers(playerIds);
 
   // Build per-player summaries with dynasty value
