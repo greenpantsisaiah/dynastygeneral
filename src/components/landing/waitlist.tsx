@@ -146,24 +146,25 @@ export function Waitlist() {
   return (
     <section id="waitlist" className="border-b border-border-soft py-24 sm:py-32">
       <div className="mx-auto max-w-3xl px-6">
-        <Ticker label="08 · Private beta" />
+        <Ticker label="Waitlist · other platforms" />
         <h2 className="mt-6 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-          Private beta for serious dynasty players.
+          On MFL, ESPN, or Yahoo? Get one note the day your platform ships.
         </h2>
         <p className="mt-6 text-lg text-muted">
-          We are previewing with a small group of high-volume players, active
-          traders, dynasty creators, and people who will stress-test this in
-          real leagues. If that is you, request access.
+          Sleeper is live today and open to every signed-in tester. Leave an
+          email and, if you have one, a Sleeper username. Dynasty General
+          sends one message when a new platform adapter ships, and nothing
+          else.
         </p>
 
         {status === "success" ? (
           <div className="mt-10 rounded-lg border border-accent/40 bg-accent/10 p-6 text-sm text-foreground">
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-              Requested
+              On the list
             </div>
             <p className="mt-2 text-base">
-              You&apos;re on the list. We&apos;re hand-selecting early beta
-              users and will reach out directly.
+              You&apos;re on the list. Dynasty General sends one message the
+              day your platform ships.
             </p>
           </div>
         ) : (
@@ -235,18 +236,18 @@ export function Waitlist() {
                 disabled={status === "submitting"}
                 className="inline-flex h-12 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60 sm:h-11 sm:w-auto"
               >
-                {status === "submitting" ? "Sending…" : "Request access"}
+                {status === "submitting" ? "Sending…" : "Join the waitlist"}
               </button>
               {status === "error" && error && (
                 <span className="text-sm text-danger">{error}</span>
               )}
             </div>
             <p className="text-xs text-muted-2">
-              By requesting access you agree to our{" "}
+              By joining you agree to our{" "}
               <a href="/privacy" className="text-accent hover:underline">
                 Privacy Policy
               </a>{" "}
-              and to receive email about beta access. Unsubscribe in any
+              and to one email when a new platform ships. Unsubscribe in any
               reply.
             </p>
           </form>

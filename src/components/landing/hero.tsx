@@ -68,6 +68,9 @@ export function Hero() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-2">
+              <Link href="/scout" className="hover:text-foreground">
+                Scout any manager →
+              </Link>
               <Link href="/library" className="hover:text-foreground">
                 Methodology library →
               </Link>
