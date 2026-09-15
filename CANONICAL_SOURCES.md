@@ -40,6 +40,16 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: `roster.owner_id === userId` inline for identity resolution (skips `co_owners`). Lint rule "no raw owner_id identity resolution (use isRosterOwnedBy)" bans `.owner_id ===` outside the canonical.
 - **Bug class avoided**: 2026-05-23 architecture audit found 5 identity resolutions with 3 different co-owner behaviors; the snapshot's own `is_me` omitted `co_owners` despite INVARIANTS.md flagging co-ownership as a trust-breaking class (a co-owner viewing their hub got `is_me: false` on their own team, cascading wrong identity to the Decision card, Coach context, and position counts).
 
+### Roster ownership (which players a roster owns right now, draft-status-gated)
+
+- **Canonical**: `ownedPlayerIds({ rosterPlayers, draftedForRoster, draftStatus })` in `src/lib/sleeper/roster-ownership.ts`, with `isLiveDraft(status)` and `draftedIdsByRoster(picks)`
+- **Returns**: `string[]` of de-duplicated player ids. `roster.players` (Sleeper's server of record) plus the pick log ONLY while `draftStatus` is `drafting` / `paused`. For `pre_draft`, `complete`, and `no_draft`, `roster.players` alone.
+- **Inputs**: the raw `roster.players`, the ids this roster DRAFTED (from `draftState.picks_so_far`, grouped by `draftedIdsByRoster`), and `draftState.status`.
+- **Rule**: the pick log is ownership only while the draft is live. Once complete it is history: a drafted player who was later dropped or traded still appears under the drafting roster. Sleeper writes picks onto `roster.players` at completion, so from then on the roster object is the truth. Mirrors the available-pool rule (picks-only exclusion during a live draft, `roster.players` otherwise).
+- **Consumers**: the snapshot per-roster `player_ids` + `position_counts` (`league-state/snapshot.ts`, which feeds Coach `my_roster`, opponent named rosters, startable depth, and every position count), scout per-team scoring (`scout/score.ts`), and the rankings league context (`rankings/league-context.ts`, both `myPlayerIds` and the leaguewide `drafted` set).
+- **Anti-pattern**: `new Set([...(r.players ?? []), ...draftedForRoster])` inline, or iterating `picks_so_far` into an owned / claimed set without a status gate. Lint "roster.players + picks_so_far union goes through ownedPlayerIds" in `evals/anti-patterns.test.ts` fails any file that reads both the pick log and `roster.players` without importing the canonical.
+- **Bug class avoided**: 2026-09-15 founder report (izzydabomb / Finders Keepers, in-season, draft complete). The unconditional union resurrected five dropped draftees (Shedeur Sanders, Anthony Richardson, Eli Stowers, Devin Neal, Dylan Sampson) onto the user's roster; Coach insisted on five QBs "confirmed in the snapshot" while Sleeper showed three, then flip-flopped when corrected. Locked by `evals/roster-ownership.test.ts` (fixture is the live roster + pick log from that league).
+
 ### User pick schedule (trade-aware, density-classified)
 
 - **Canonical**: `snap.draft.my_pick_schedule` (built by `buildMyPickSchedule` in `src/lib/strategy/league-state/snapshot.ts`)

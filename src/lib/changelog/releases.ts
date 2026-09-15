@@ -33,6 +33,22 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-09-15",
+    title: "Dropped draftees no longer haunt your roster",
+    summary:
+      "In-season, a player you drafted and later cut could still show up on your roster in Coach and in the position counts. The roster now reads what Sleeper actually shows, and the draft log only counts while the draft is live.",
+    changes: [
+      {
+        tag: "YOUR ROSTER IS YOUR ROSTER",
+        text: "Once a draft completes, Sleeper's roster is the truth. The hub, Coach, scout, and rankings used to fold every draft pick back in, so a QB you cut in August still counted as yours in September and Coach argued you had five quarterbacks when you had three. The draft log now merges in only while the draft is drafting or paused.",
+      },
+      {
+        tag: "ONE RULE, LOCKED",
+        text: "Every surface that asks 'who does this team own' reads one canonical, and a CI check fails any new code that unions the draft log into a roster without it. Position counts, startable depth, trade math, and the named roster Coach reads all move together.",
+      },
+    ],
+  },
+  {
     version: "2026-07-11",
     title: "The companion tells you when a play just broke",
     summary:

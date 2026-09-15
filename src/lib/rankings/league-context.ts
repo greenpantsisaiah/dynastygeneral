@@ -27,6 +27,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
 import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
+import { isLiveDraft } from "@/lib/sleeper/roster-ownership";
 
 export type RankingsLeagueOption = {
   league_id: string;
@@ -111,7 +112,10 @@ export async function loadRankingsLeagueContext(args: {
         if (isMine) myPlayerIds.add(pid);
       }
     }
-    if (draftState?.picks_so_far) {
+    // Live draft picks count as claimed only while the draft is live
+    // (canonical isLiveDraft). After completion the pick log is history:
+    // dropped draftees would otherwise read as still owned / claimed.
+    if (draftState?.picks_so_far && isLiveDraft(draftState.status)) {
       for (const pick of draftState.picks_so_far) {
         if (!pick.player_id) continue;
         drafted.add(pick.player_id);
