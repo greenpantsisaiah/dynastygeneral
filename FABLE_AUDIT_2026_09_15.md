@@ -151,3 +151,97 @@ The rails are built (monthly, annual, day pass, volume gates, Stripe). Price whe
 ## The ad
 
 Do not run it yet. Run it the week the Trade Finder has survived seven leagues of the founder's own use. The creative writes itself from that feature: a screenshot of three named offers with "why they say yes," the line "Every opponent in your league, read before you offer the trade," and a Scout link as the no-login landing page. Voice A, numbers with units, nothing about beating anyone.
+
+---
+
+# Part 2 · Data, the two models, and the 2 to 3 year claim (added 2026-09-15)
+
+Founder question: why did all the scraping only reach 82 rosters, and how do we balance (1) letting users tune the model to their own opinions with (2) having the best default model, honestly, without getting sued, on a 2 to 3 year path, while being viable now.
+
+Method: a fourth read-only audit against the live production database (row counts are live reads, not doc claims), plus three empirical probes run today against Sleeper's public API and the DynastyProcess archive.
+
+## Why 82
+
+The scraping and the 82 are unrelated. The scraping produced 26,710 KTC market rows and 3,877 outcome rows. The 82 rosters came from no scraping at all. `scripts/build-cohort.ts` has seven Sleeper league IDs hard-coded in an array literal, all of them leagues the founder belongs to, and stops. The analyzer then dropped two pre-draft leagues, so the analyzed cohort is 58 rosters in 5 leagues; the product ships "82 rosters, 5 leagues," one number from each side of the filter. The bake script that produced the shipped percentile bins is not in the repo.
+
+Nothing technical capped it. Sleeper's read API is free, unauthenticated, and unlimited in practice. A working crawler already exists in the repo (`scripts/backtest-positional-run-edge.ts:79-104` walks user to leagues to previous seasons); it was written for a different question and never pointed at the cohort.
+
+What a crawl reaches, measured today from Finders Keepers alone:
+
+| Probe | Result |
+|---|---|
+| Distinct 2026 leagues one hop from the 12 managers | 343 (159 dynasty or keeper) |
+| New leagues from expanding just 3 of those at hop 2 | 146 more |
+| Seasons retained per league chain | Imaginary Football back to 2020, 7 seasons, with rosters, weekly matchups, draft picks, and transactions all still readable |
+| Completed trades in one dynasty league, 2025 season | 30, each with both sides, picks, and timestamps |
+
+Two hops reach thousands of dynasty leagues. At 5,000 leagues that is roughly 60,000 roster-seasons with next-season records, 100,000+ real dynasty trades with market value recoverable at the trade date, and tens of thousands of real drafts. No competitor has built on this. It is the dataset that makes the product's claims validated instead of calibrated, and it is a weekend of scripting away.
+
+## What the model actually rests on today (live counts)
+
+| Dataset | Live state | What caps it |
+|---|---|---|
+| KTC historical values | 26,710 rows, 27 snapshot dates 2022-01 to 2024-12 (docs say 31). One date ingested five times. **No 2023 preseason snapshot exists**; the gap runs March to October 2023, so every "2023 preseason baseline" in the A4 backtests silently resolved to a March snapshot. Half the decision-year cells rest on it. | Wayback availability, KTC top-500 page, insert-not-upsert. |
+| FantasyPros ECR | 2022 to 2024 preseason from a 3-day paid trial, synthetic Aug-15 dates, frozen forever. | Trial over; ToS forbids scraping. |
+| Outcomes | 2022 to 2024 season totals only. **2025 is missing** eight months after the season ended; one command away. No weekly rows. | Nobody re-ran the script. |
+| RB signal codes | 182 player-years, all LLM-coded (the model card says "174 hand-coded," wrong on both counts), lost the bake-off to the free snap-derived tier, unused live. | Spend per extraction; RB only. |
+| `player_signals` live | 1,932 rows; draft capital 76%, athletic composite 70%, snap and target share 31%, route participation 17%, twelve columns at 0%. No season key, so it cannot be backtested. | nflverse coverage; single-snapshot table. |
+| `team_signals` and `team_signals_history` | 32 rows current and 128 rows 2021 to 2024, all columns 100% populated, temporally blinded. The cleanest dataset in the repo; it produced an honest null result. | Complete. |
+| Scoreboard | 30 rows, n of 62 to 91 per cell. The 2022 v1 cell has four duplicate rows (0.376 to 0.442); the page renders 0.376 and the model card quotes 0.442. The specified composite loss function is computed nowhere. | Append-only backtest runs. |
+| Prospective forecast log | **Does not exist.** `expectations` holds 4 unresolved rows from one founder mock draft in May. Zero standing calls, zero trade verdicts, zero in-season decisions have ever been recorded with the market value at decision time. FantasyCalc values are fetched, cached 24h, and dropped; there is no value history table. | Never built. Validation Plan Test C called for 600 logged decisions by August. |
+| Dial data | 4 `judgment_profiles` rows, 4 users, no aggregation, no link to outcomes. | 4 users. |
+| Free archive never tapped | DynastyProcess publishes 362 dated snapshots of dynasty values and a 39MB FantasyPros ECR archive back to roughly 2018, GPL-3 repo, and the codebase already fetches its crosswalk. | Never attempted. |
+
+The blunt read: everything the product tells a user is computed at render and discarded. It is currently impossible to answer "was the product right" about any recommendation it has ever made. That, not the 82, is the data gap that matters.
+
+## The two models, resolved
+
+The honest structure is not "tunable model versus best model." It is one ledger with three authors.
+
+**The default is the market, and that is a feature.** In every backtest the repo ran, the crowd market (KTC, FantasyCalc) was the hardest baseline; no free signal beat it on top of market plus age. So the default model is market consensus plus the adjustments we can defend today (the age curves, validated 2022 to 2025 with the survivorship caveat; format multipliers). Chrome says so: "Default: market consensus. Departures are yours." That is the most honest posture available, it needs no relative-accuracy claim, and it is what the 0.55 blend already is.
+
+**The tuned model is the user's.** The dials turn the market into a doctrine. Every dial departure becomes a named, priced bet: "your youth dial at +30 ranks Carnell Tate 14 spots above consensus." The product's job is to make those bets explicit, log them, and resolve them. That is the fun the founder describes (outcomes and interactions nothing else shows) and the honesty (the product never claimed to know; it showed your call against the market and kept score). The companion beats already phrase vindication and critique; they need the ledger underneath.
+
+**The ledger is the bridge.** Every recommendation (standing call, trade verdict, sell or buy flag, dial-driven departure) is written to `expectations` with the market value at decision time, the market-default alternative, a resolution condition, and the doctrine snapshot that produced it. A weekly job resolves rows against outcomes. Over one season this yields three track records: the user's versus the market, the default's versus the market, and the crowd's (which doctrine patterns beat the market in which formats). In year 2, crowd doctrines that demonstrably outperform can be promoted into the default with receipts, through the validate-first discipline the repo already practices (holdout, founder gate, changelog entry citing the evidence). In year 3, if the default's prospective log beats the market on decision value with a confidence interval excluding zero, claim 2 is earned, pre-registered, and unassailable. If it does not, the product is still the only league-aware decision tool, and the honest brand is intact. Either outcome is a business.
+
+**Redefine what "best model" measures.** "Player value Spearman versus KTC" is the wrong fight: unwinnable with free data, and the most legally exposed claim in the product. The claims worth making are about the world, at n in the thousands, naming no competitor:
+
+- Roster-shape outcomes: "Rosters that fit Win-Now Floor at the IN threshold won X more games the following season, n = 40,000 roster-seasons, 2020 to 2025."
+- Trade realism: "Across 100,000 accepted dynasty trades, the median accepted deal was within X% by market value; rebuilders accepted Y." The ±15% band becomes empirical, and the Trade Finder's "why they say yes" becomes a measured acceptance probability.
+- Calibration: survival percentages and contender odds published with Brier scores. Being calibrated is a claim you can always make honestly.
+- Decision track record: the prospective log, published, with n and CI.
+
+That is "the best data model" in the sense that matters: the only one built on how dynasty leagues actually play out, and the only dataset a competitor cannot replicate from public rankings.
+
+## Honesty rules for the 2 to 3 years (the no-lawsuit part)
+
+1. No named-competitor accuracy claim unless it is prospective, pre-registered, on the same metric, over a stated window, with n and CI, and the methodology is public. Retrospective backtests are labeled "backtest, not the live engine," never headlines.
+2. World-claims from the crawl name n, seasons, and method; name no competitor; publish aggregates only. Crawled user identities are hashed; no per-user or per-league publication (the cohort script's own privacy note, applied at scale).
+3. Defaults change only with receipts: a changelog entry citing the evidence and the holdout.
+4. Every number in chrome carries source, as-of date, and n (Principle 0, now enforced for data as well as copy).
+5. Open legal items closed before the crawl runs at scale: Sleeper commercial-use terms (open since May), the nflverse CC-BY attribution line on any surface rendering its numbers, an attorney glance at the GPL-3 DynastyProcess crosswalk, and the FantasyPros rule that the ECR archive is an internal baseline only, never republished at player level.
+6. The vocabulary is "track record," "calibrated," "validated on N," never "beats X."
+
+## The data plan (adds to Phase 0 and runs alongside Phase 1)
+
+| Step | Work | Hours | Unlocks |
+|---|---|---|---|
+| D0 | Ingest 2025 outcomes (and 2018 to 2021 while there). Dedupe `backtest_runs`, reconcile the 2022 cell, relabel the scoreboard. Fix the 82/58 label and the "hand-coded" wording. Refresh TRUTH_AUDIT numbers. | 4 | Retires two model-card caveats, clears the n >= 100 floor for QB, removes the Lanham exposure. |
+| D1 | DynastyProcess values archive into `historical_market_values` (362 dated snapshots; FP ECR archive as internal baseline only). Re-run the A4 backtests and log the deltas. | 6 | Fills the 2023 preseason hole, removes the top-500 ceiling and the KTC ToS ambiguity, tripling market-snapshot coverage. |
+| D2 | Sleeper graph crawl: seed from the founder's leagues, breadth-first through league members, `previous_league_id` chains back to 2018. Store league-seasons, roster-seasons with players, draft picks, weekly matchups, completed trades. First pass 5,000 dynasty and keeper leagues. Hashed user ids. | 16 | The proprietary corpus. |
+| D3 | Derived sets: cohort rebake at scale with next-season outcomes; trade corpus with market value at trade date; survival and contender-odds calibration; league Value-vs-ADP distributions. Replace every "calibrated on 82" with "validated on N." | 24 | Validated world-claims; the empirical fairness band for the Trade Finder. |
+| D4 | `player_value_history` table, written on every FantasyCalc refresh and backfilled from D1. | 6 | Week-over-week deltas; value at decision time. |
+| D5 | The ledger: write standing calls, trade verdicts, sell or buy flags, and dial departures to `expectations`; weekly resolve cron; personal, default, and crowd track-record views; scoreboard v2 as the prospective log with a pre-registration doc. | 16 | Claim 2's evidence base starts accumulating from the first week it ships. |
+| D6 | Dial telemetry joined to ledger rows; year-2 doctrine analysis with holdout. | 8 | The crowd-to-default promotion path. |
+
+Parked, with reasons already recorded: paid PFF (three free proxies at zero), a FantasyPros re-pull (ToS), more nflverse signal hunting (the limit is the signals, not the weights), and Forward Production as a beats-market bet (reframe as the in-season projection surface once weekly data exists, judged on calibration, not on beating KTC).
+
+## The 2 to 3 year arc, stated plainly
+
+- **Year 1 (2026 to 2027 season).** Ship the ledger and the crawl. Replace calibration copy with validated world-claims. Publish the prospective log with its methodology. Public posture: market-anchored, league-aware, user-tuned, with a track record you can inspect.
+- **Year 2.** First full-season prospective results. First evidence-backed default change, with receipts. Trade realism and roster-shape findings become the Library's spine and the marketing's proof.
+- **Year 3.** If the default's logged decisions beat the market's implied decisions with CI excluding zero, say so, name the window, link the log. If not, say that too. Either way the product has spent three years being the only tool that showed its work.
+
+## The autoloop
+
+The gaps from all four audits are listed in `GAP_REGISTER.md` with IDs, phase, acceptance criteria, status, and whether a founder gate applies. The loop: pick the highest open ungated gap, build it in a fresh worktree, run build and test, ship it through the PR flow, mark it done in the register, report in plain language, repeat. Founder gates stay human: production `--write` ingests, public marketing copy, the pricing flip, any default-model change, and the legal items. Everything else runs autonomously.
