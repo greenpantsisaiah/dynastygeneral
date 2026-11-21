@@ -200,6 +200,8 @@ One-time setup (owner):
   Vercel > Deployments > previous deploy > Promote to Production.
 - Optional repo variables: `PROD_URL`, `TRIPWIRE_AUTO_MERGE=false`.
 
+The workflow uses `concurrency: cancel-in-progress`, so back-to-back merges cancel the earlier watch and only the latest push range is reverted.
+
 Thresholds live as env defaults at the top of
 `scripts/ops/post-deploy-tripwire.mjs`. Manual runs (Actions > Post-deploy
 tripwire > Run workflow) watch and report but never revert.
