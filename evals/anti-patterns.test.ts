@@ -530,6 +530,20 @@ function run() {
   // user-visible decision field, add it to the Coach context AND to this
   // list. Per INVARIANTS.md "Coach consumes canonical engine outputs".
   const COACH_ROUTE = resolve(SRC, "app", "api", "coach", "[leagueId]", "route.ts");
+  // The route delegates context assembly to lib/coach/turn.ts (the
+  // <current_state> payload + COACH_CONTRACT live there). The Coach
+  // surface is both files; a missing route still reads as empty.
+  const COACH_TURN = resolve(SRC, "lib", "coach", "turn.ts");
+  const readCoachSurface = (): string => {
+    const route = readFileSync(COACH_ROUTE, "utf-8");
+    let turn = "";
+    try {
+      turn = readFileSync(COACH_TURN, "utf-8");
+    } catch {
+      turn = "";
+    }
+    return route + "\n" + turn;
+  };
 const HUB_ROUTE = resolve(SRC, "app", "leagues", "[leagueId]", "page.tsx");
 const STRATEGY_SNAPSHOT = resolve(
   SRC,
@@ -632,7 +646,7 @@ const LEAGUE_CONTEXT = resolve(SRC, "lib", "engine", "league-context.ts");
   {
     let coachContent = "";
     try {
-      coachContent = readFileSync(COACH_ROUTE, "utf-8");
+      coachContent = readCoachSurface();
     } catch {
       coachContent = "";
     }
@@ -695,7 +709,7 @@ const LEAGUE_CONTEXT = resolve(SRC, "lib", "engine", "league-context.ts");
   {
     let coachContent = "";
     try {
-      coachContent = readFileSync(COACH_ROUTE, "utf-8");
+      coachContent = readCoachSurface();
     } catch {
       coachContent = "";
     }
@@ -723,7 +737,7 @@ const LEAGUE_CONTEXT = resolve(SRC, "lib", "engine", "league-context.ts");
     let helperContent = "";
     let builderContent = "";
     try {
-      coachContent = readFileSync(COACH_ROUTE, "utf-8");
+      coachContent = readCoachSurface();
     } catch {
       coachContent = "";
     }

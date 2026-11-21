@@ -7,3 +7,5 @@ Owner: `coach-quality` agent. Gate: any Coach prompt, model, router, or context 
 - `scores.md`: one row per run.
 
 The judge is always a separate subagent from whatever produced either answer, sees the two answers in random order, and is spot-checked by Isaiah five calls per week.
+
+Run it: `npm run eval:coach-quality -- --username <sleeper name>` (harness and options in `evals/coach-quality/README.md`).

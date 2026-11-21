@@ -60,3 +60,6 @@ next-env.d.ts
 /.private/
 
 cohort.json
+
+# Coach quality eval outputs (real user questions + model answers)
+/evals/coach-quality/out/
