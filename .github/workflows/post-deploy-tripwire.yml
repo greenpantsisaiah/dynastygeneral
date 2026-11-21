@@ -83,7 +83,10 @@ jobs:
               merged="yes"
             fi
           fi
-          gh issue create --title "Tripwire fired on ${short}" --body "$(printf '%s\n\nRevert PR: %s (merged: %s)\n\nIf merged is no, merge the revert PR or promote the previous deploy in Vercel (Deployments > previous > Promote).' "$body" "$pr_url" "$merged")" || true
+          issue_body="$(printf '%s\n\nRevert PR: %s (merged: %s)\n\nIf merged is no, merge the revert PR or promote the previous deploy in Vercel (Deployments > previous > Promote).' "$body" "$pr_url" "$merged")"
+          # Charter: tripwires notify the founder the same day as an `interrupt` issue.
+          gh issue create --title "Tripwire fired on ${short}" --label interrupt --assignee "$GITHUB_REPOSITORY_OWNER" --body "$issue_body" \
+            || gh issue create --title "Tripwire fired on ${short}" --body "$issue_body" || true
 
       - name: Report without reverting
         if: steps.watch.outputs.result != 'ok' && (steps.watch.outputs.result != 'trip' || github.event_name != 'push')
@@ -95,5 +98,7 @@ jobs:
           echo "Result: $RESULT"
           echo "$SUMMARY"
           if [ "$RESULT" = "trip" ] || [ "$RESULT" = "not_live" ] || [ "$RESULT" = "error" ]; then
-            gh issue create --title "Tripwire: ${RESULT} on ${GITHUB_SHA:0:7}" --body "$(printf '%s\n\nRun: %s/%s/actions/runs/%s' "$SUMMARY" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")" || true
+            issue_body="$(printf '%s\n\nRun: %s/%s/actions/runs/%s' "$SUMMARY" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+            gh issue create --title "Tripwire: ${RESULT} on ${GITHUB_SHA:0:7}" --label interrupt --assignee "$GITHUB_REPOSITORY_OWNER" --body "$issue_body" \
+              || gh issue create --title "Tripwire: ${RESULT} on ${GITHUB_SHA:0:7}" --body "$issue_body" || true
           fi
