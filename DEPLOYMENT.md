@@ -36,6 +36,8 @@ Set in Vercel project settings AND in `.env.local` for local dev:
 | `EMAIL_FROM` | optional, default `alerts@dynastygeneral.app` | From address for ops alerts + notification email. Must be on a verified Resend sending domain. | `lib/ops/alert.ts`, `lib/email/*` |
 | `OPS_ALERT_TO` | optional | Comma-separated recipients for ops alerts (enforcement-disabled, budget-cap-reached). Falls back to the first `ADMIN_EMAILS` entry. | `lib/ops/alert.ts` |
 | `OPS_ALERT_DEDUPE_MS` | optional, default `3600000` (1h) | Per-kind in-process email dedupe window so a sustained condition does not flood the inbox. | `lib/ops/alert.ts` |
+| `HEALTH_TOKEN` | recommended | Shared secret that unlocks per-commit server error counts on `/api/health`. Set the SAME value as the GitHub repo secret `HEALTH_TOKEN` so the post-deploy tripwire can detect an error spike. Without it the tripwire watches page probes only. | `app/api/health/route.ts` |
+| `FLAG_OVERRIDES` | optional | Feature-flag kill switch, e.g. `team_card_verdict=off,coach_v2=on`. Beats any rollout percentage. Change it and redeploy; no code change. | `lib/flags/server.ts` |
 
 If `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are unset, rate limits and budget caps cannot be enforced. Behavior splits by route:
 - **LLM-touching routes fail CLOSED in real production** (Coach, Briefings, decisions/pick|trade|strategy, the scout page). They return `503` and fire an `enforcement_unconfigured` ops alert rather than serve unprotected and let one bot drain the Anthropic budget. The guard keys on `VERCEL_ENV === "production"`, so local dev and Vercel preview deploys are NOT blocked (they have no Upstash by design). The guard checks only the persistent misconfiguration case (env vars absent); a transient Upstash error still fails open so a momentary blip does not take LLM features down. Guard lives in `lib/ops/llm-guard.ts`.
@@ -125,9 +127,82 @@ Run all of these before promoting to production. The `dynasty-security-auditor` 
 ### Production deploy
 
 1. Confirm the pre-deploy checklist is complete.
-2. Merge to `main`. Vercel auto-deploys.
-3. Watch the deploy log for the first 5 minutes. Build failures here are loud.
-4. Run post-deploy verification against the production URL.
+2. Open a PR. The `ci` workflow's `test` job runs every eval suite + the em-dash check; the Vercel preview deploy checks the production build. Merge only when both are green.
+3. Merge to `main`. Vercel auto-deploys.
+4. The post-deploy tripwire watches production automatically (below). Watch the deploy log for the first 5 minutes anyway.
+5. Run post-deploy verification against the production URL.
+
+## Safe shipping (CI, flags, tripwire)
+
+These three pieces let an agent merge to production without a human
+watching, per the team charter.
+
+### CI (`.github/workflows/ci.yml`)
+
+Runs on every PR to main and every push to main. The `test` job runs
+`npm test` (all eval suites, offline, no secrets). The production build
+is checked by the Vercel preview deployment on each PR, which holds the
+env vars CI does not.
+
+Branch protection on `main`: pull request required, required checks
+`test` and `Vercel`, enforce_admins on, 0 required approvals. Approvals
+are not required because every agent acts through the owner's GitHub
+account and GitHub does not let an account approve its own PR. The
+"separate review" half of the charter's gate is the `reviewer` agent
+(a separate session that merges only what passes), not a GitHub
+approval.
+
+### Feature flags (`src/lib/flags/`)
+
+The one registry is `src/lib/flags/registry.ts`. Read flags server-side
+with `flagOn(key, unitId)` / `flagVariant(key, unitId)` from
+`@/lib/flags/server` and pass the result down as a prop. Rules:
+
+- The first variant is the control and equals today's behavior. A flag
+  adds behavior; it never hides a feature users rely on by default.
+- Assignment is deterministic per unit id (Sleeper username, league id,
+  or user id), so a user never flips arms.
+- Start dark (`rollout: [0]`), check a preview with
+  `FLAG_OVERRIDES=<key>=on`, then raise the rollout.
+- Every flag has an `expires` date; `evals/flags.test.ts` fails CI once
+  it passes, forcing cleanup.
+- Kill switch: `FLAG_OVERRIDES=<key>=off` in Vercel env, then redeploy.
+
+### Post-deploy tripwire (`.github/workflows/post-deploy-tripwire.yml`)
+
+After each push to main it:
+
+1. Waits until `/api/health` reports the pushed commit (up to 20 min).
+2. Watches for 10 minutes: probes `/`, `/api/health`, `/changelog`,
+   `/how-it-works`, `/pricing` every minute and reads the new commit's
+   server error count (from `src/instrumentation.ts` ->
+   `lib/ops/error-counter.ts`, stored per minute in Upstash).
+3. Trips when 3 probe rounds hit 5xx / timeouts, OR the new commit has
+   at least 20 server errors AND at least 3x the previous commit's
+   count over the same window.
+4. On a trip: reverts the pushed commits on a `tripwire/revert-*`
+   branch, opens and squash-merges a revert PR (Vercel redeploys the
+   previous code), and opens an `interrupt` issue with the evidence. The
+   revert commit carries `[tripwire-revert]` so it never watches itself.
+   The revert passes the same gate as any PR: because PRs opened by the
+   Actions token do not trigger `pull_request` workflows, the job
+   dispatches `ci` on the revert branch, waits up to 25 minutes for the
+   required `test` + `Vercel` checks, and merges only when both pass.
+
+One-time setup (owner):
+
+- GitHub repo secret `HEALTH_TOKEN` and the same value in Vercel env.
+- Settings > Actions > General > "Allow GitHub Actions to create and
+  approve pull requests".
+- No bypass list is needed: the revert waits for `test` + `Vercel` like
+  any PR. If the checks fail or time out, the revert PR stays open and
+  the `interrupt` issue says so; finish the rollback by merging it or by
+  Vercel > Deployments > previous deploy > Promote to Production.
+- Optional repo variables: `PROD_URL`, `TRIPWIRE_AUTO_MERGE=false`.
+
+Thresholds live as env defaults at the top of
+`scripts/ops/post-deploy-tripwire.mjs`. Manual runs (Actions > Post-deploy
+tripwire > Run workflow) watch and report but never revert.
 
 ### Domain setup (production)
 
@@ -181,7 +256,6 @@ Set Anthropic spend alerts at 50% and 80% of your monthly budget cap.
 
 ## What this doc does NOT cover
 
-- CI/CD beyond Vercel's auto-deploy on push.
 - Multi-environment promotion (we're single-environment until that becomes a problem).
 - Database migrations (no database yet).
 - Customer support workflows.
