@@ -49,7 +49,14 @@ const COACH_ROUTE_PATH = resolve(
 );
 
 const systemPromptFile = readFileSync(SYSTEM_PROMPT_PATH, "utf-8");
-const coachRoute = readFileSync(COACH_ROUTE_PATH, "utf-8");
+// The route delegates context assembly to src/lib/coach/turn.ts (the
+// COACH_CONTRACT + <current_state> payload live there), so the Coach
+// surface is the route plus the turn builder.
+const COACH_TURN_PATH = resolve(PROJECT_ROOT, "src/lib/coach/turn.ts");
+const coachRoute =
+  readFileSync(COACH_ROUTE_PATH, "utf-8") +
+  "\n" +
+  readFileSync(COACH_TURN_PATH, "utf-8");
 // COACH_CONTRACT lives inline in the route and is appended to the
 // shared SYSTEM_PROMPT for every Coach call. A citation can validly
 // live in either; check both.
