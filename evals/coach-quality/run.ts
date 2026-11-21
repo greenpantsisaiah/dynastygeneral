@@ -11,16 +11,16 @@
  * network access to Sleeper / FantasyCalc):
  *
  *   npx tsx --tsconfig tsconfig.json evals/coach-quality/run.ts \
- *     --username izzydabomb [--leagues id1,id2] [--primary id] \
- *     [--real evals/coach-quality/out/real-questions.jsonl] \
- *     [--limit 10] [--only dir-01,trd-02] [--max-cost 40] [--dry-run]
+ *     --username <sleeper username> [--leagues id1,id2] [--primary id] \
+ *     [--limit 10] [--only dir-01,trd-02] [--max-cost 20] [--dry-run]
  *
  * --dry-run builds every Coach context and filled question, prints the
  * plan and a token estimate, and makes NO model calls.
  *
- * Outputs land in evals/coach-quality/out/<run-id>/ (gitignored):
- * results.jsonl (one line per graded question, resumable), summary.json,
- * report.md.
+ * Questions come from docs/team/coach-quality/test-set.jsonl. Results go
+ * to docs/team/coach-quality/runs/<run-id>.jsonl (resumable) and
+ * runs/<run-id>.md (report with 5 spot-check judge calls), and a summary
+ * row is appended to docs/team/coach-quality/scores.md.
  */
 
 import { config as dotenv } from "dotenv";
@@ -28,6 +28,7 @@ dotenv({ path: ".env.local" });
 dotenv({ path: ".env" });
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import {
@@ -56,8 +57,16 @@ import {
   unblind,
   type GradedItem,
   type JudgeVerdict,
+  type SliceSummary,
 } from "./judge";
-import { QUESTION_BANK } from "./questions";
+import {
+  loadTestSet,
+  phraseChecks,
+  PORTFOLIO_FIXTURE,
+  ROTATE_FIXTURE,
+  TEST_SET_PATH,
+  type TestQuestion,
+} from "./testset";
 
 // ── args ──────────────────────────────────────────────────────────────
 function arg(name: string): string | undefined {
@@ -69,16 +78,22 @@ const flag = (name: string) => process.argv.includes(`--${name}`);
 const USERNAME = arg("username");
 const LEAGUE_FILTER = arg("leagues")?.split(",").filter(Boolean);
 const PRIMARY = arg("primary");
-const REAL_FILE = arg("real");
 const LIMIT = arg("limit") ? Number(arg("limit")) : undefined;
 const ONLY = arg("only")?.split(",").filter(Boolean);
-const MAX_COST = Number(arg("max-cost") ?? 40);
+// Default cap matches docs/team/ledger/spend.md ($20 per eval run until measured).
+const MAX_COST = Number(arg("max-cost") ?? 20);
 const DRY = flag("dry-run");
-const BASELINE_MODEL = arg("baseline-model") ?? "claude-opus-5-5";
+// Per .claude/agents/coach-quality.md the baseline is the SAME model as
+// Coach with no product context, so the score isolates what the product
+// context adds. Pass --baseline-model claude-opus-5-5 to compare against
+// the best general chatbot instead.
+const BASELINE_MODEL = arg("baseline-model") ?? COACH_MODEL;
 const JUDGE_MODEL = arg("judge-model") ?? "claude-opus-5-5";
 const CONCURRENCY = Number(arg("concurrency") ?? 3);
-const RUN_ID = arg("run-id") ?? new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-const OUT = join("evals", "coach-quality", "out", RUN_ID);
+const RUN_ID = arg("run-id") ?? new Date().toISOString().slice(0, 10);
+const RUNS_DIR = join("docs", "team", "coach-quality", "runs");
+const SCORES_PATH = join("docs", "team", "coach-quality", "scores.md");
+const OUT = join("evals", "coach-quality", "out", RUN_ID); // scratch: plan.json
 
 // ── cost accounting ───────────────────────────────────────────────────
 // $ per million tokens (input, output). Cache reads 0.1x input, cache
@@ -192,7 +207,10 @@ async function judge(groundTruth: string, user: string): Promise<{ verdict: Judg
 // ── planning ──────────────────────────────────────────────────────────
 type PlanItem = {
   id: string;
-  slice: GradedItem["slice"];
+  slice: string;
+  source: TestQuestion["source"];
+  must_include: string[];
+  must_not: string[];
   category: string;
   leagueId: string;
   username: string;
@@ -200,8 +218,6 @@ type PlanItem = {
   crossLeague: boolean;
   opponentsMentioned: string[];
 };
-
-type RealQuestion = { league_id: string; username: string; message: string };
 
 async function loadLeagueState(leagueId: string, username: string): Promise<CoachState> {
   const turn = await buildCoachTurn({
@@ -218,8 +234,10 @@ async function loadLeagueState(leagueId: string, username: string): Promise<Coac
 }
 
 async function main() {
-  if (!USERNAME && !REAL_FILE) {
-    console.error("Pass --username <sleeper username> and/or --real <jsonl>.");
+  const testSet = loadTestSet(arg("test-set") ?? TEST_SET_PATH);
+  const needsUserLeagues = testSet.some((q) => q.league_fixture.startsWith(ROTATE_FIXTURE));
+  if (needsUserLeagues && !USERNAME) {
+    console.error("The test set has user-leagues questions: pass --username <sleeper username>.");
     process.exit(1);
   }
   if (!DRY && !process.env.ANTHROPIC_API_KEY) {
@@ -249,42 +267,29 @@ async function main() {
   }
 
   const plan: PlanItem[] = [];
-  if (leagues.length) {
-    const primary = leagues.find((l) => l.leagueId === PRIMARY) ?? leagues[0];
-    let li = 0;
-    for (const q of QUESTION_BANK) {
-      if (ONLY && !ONLY.includes(q.id)) continue;
-      // League questions rotate across leagues so the bank covers every
-      // league; cross-league questions are asked inside the primary league.
-      const lg = q.scope === "cross_league" ? primary : leagues[li++ % leagues.length];
-      const ph = placeholdersFor(lg, leagues);
-      plan.push({
-        id: q.id,
-        slice: q.scope === "cross_league" ? "bank_cross_league" : "bank_league",
-        category: q.category,
-        leagueId: lg.leagueId,
-        username: USERNAME!,
-        question: fillQuestion(q.text, ph),
-        crossLeague: q.scope === "cross_league",
-        opponentsMentioned: (q.mentionsOpponents ?? []).map((k) => ph[k]),
-      });
-    }
-  }
-  if (REAL_FILE) {
-    const lines = readFileSync(REAL_FILE, "utf-8").split("\n").filter(Boolean);
-    lines.forEach((line, i) => {
-      const r = JSON.parse(line) as RealQuestion;
-      if (ONLY && !ONLY.includes(`real-${i + 1}`)) return;
-      plan.push({
-        id: `real-${i + 1}`,
-        slice: "real",
-        category: "real",
-        leagueId: r.league_id,
-        username: r.username,
-        question: r.message,
-        crossLeague: false,
-        opponentsMentioned: [],
-      });
+  const primary = leagues.find((l) => l.leagueId === PRIMARY) ?? leagues[0];
+  let li = 0;
+  for (const q of testSet) {
+    if (ONLY && !ONLY.includes(q.id)) continue;
+    const portfolio = q.league_fixture === PORTFOLIO_FIXTURE;
+    const rotate = q.league_fixture === ROTATE_FIXTURE;
+    // Rotating questions spread across the user's leagues so the set covers
+    // every league; portfolio questions are asked inside the primary league.
+    const lg = portfolio ? primary : rotate ? leagues[li++ % Math.max(1, leagues.length)] : undefined;
+    if ((portfolio || rotate) && !lg) continue;
+    const ph = lg ? placeholdersFor(lg, leagues) : {};
+    plan.push({
+      id: q.id,
+      slice: portfolio ? `${q.source}_portfolio` : q.source,
+      source: q.source,
+      must_include: q.must_include,
+      must_not: q.must_not,
+      category: q.category ?? "uncategorized",
+      leagueId: lg ? lg.leagueId : q.league_fixture,
+      username: q.username ?? USERNAME ?? "",
+      question: fillQuestion(q.question, ph),
+      crossLeague: portfolio,
+      opponentsMentioned: (q.mentions_opponents ?? []).map((k) => ph[k]).filter(Boolean),
     });
   }
   const items = LIMIT ? plan.slice(0, LIMIT) : plan;
@@ -297,7 +302,7 @@ async function main() {
       const state = await loadLeagueState(it.leagueId, it.username);
       stateByLeague.set(it.leagueId, { leagueId: it.leagueId, name: state.league?.name ?? it.leagueId, state });
     } catch (e) {
-      console.error(`  real-question league skipped: ${it.leagueId}: ${(e as Error).message}`);
+      console.error(`  fixed-league question skipped: ${it.leagueId}: ${(e as Error).message}`);
     }
   }
 
@@ -313,7 +318,8 @@ async function main() {
   }
 
   // Resume: skip ids already graded in this run dir.
-  const resultsPath = join(OUT, "results.jsonl");
+  mkdirSync(RUNS_DIR, { recursive: true });
+  const resultsPath = join(RUNS_DIR, `${RUN_ID}.jsonl`);
   const done = new Set<string>();
   if (existsSync(resultsPath)) {
     for (const l of readFileSync(resultsPath, "utf-8").split("\n").filter(Boolean)) {
@@ -366,9 +372,11 @@ async function main() {
     const graded = j.verdict
       ? unblind({ id: it.id, slice: it.slice, category: it.category, verdict: j.verdict, coachWasA })
       : null;
+    if (!promptHash) promptHash = createHash("sha256").update(turn.system).digest("hex").slice(0, 10);
     const row = {
       id: it.id,
       slice: it.slice,
+      source: it.source,
       category: it.category,
       league: lg.name,
       question: it.question,
@@ -378,6 +386,9 @@ async function main() {
       coach_prod_timeout: coach.prod_timeout,
       coach_input_tokens: coach.input_tokens,
       coach_was_a: coachWasA,
+      // Deterministic phrase checks from the test set's must_include / must_not.
+      coach_phrase_checks: phraseChecks(coach.text, it),
+      baseline_phrase_checks: phraseChecks(baseline.text, it),
       verdict: j.verdict,
       judge_raw: j.verdict ? undefined : j.raw,
       graded,
@@ -406,92 +417,123 @@ async function main() {
   );
   if (spent > MAX_COST) console.error(`\nStopped early: spend $${spent.toFixed(2)} passed --max-cost ${MAX_COST}.`);
 
-  writeReport(resultsPath);
+  writeReport(resultsPath, true);
 }
 
 type Row = {
   id: string;
-  slice: GradedItem["slice"];
+  slice: string;
   category: string;
   league: string;
   question: string;
+  coach_answer: string;
+  baseline_answer: string;
   graded: GradedItem | null;
   verdict: JudgeVerdict | null;
+  coach_was_a: boolean;
   coach_prod_timeout: boolean;
+  coach_phrase_checks?: { missing: string[]; banned_hits: string[] };
   cost: number;
 };
 
-function writeReport(resultsPath: string) {
+let promptHash = "";
+
+function writeReport(resultsPath: string, appendScoreRow: boolean) {
   const rows = readFileSync(resultsPath, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Row);
   const graded = rows.map((r) => r.graded).filter((g): g is GradedItem => !!g);
-  const slices = {
-    all: summarize(graded),
-    bank_league: summarize(graded.filter((g) => g.slice === "bank_league")),
-    bank_cross_league: summarize(graded.filter((g) => g.slice === "bank_cross_league")),
-    real: summarize(graded.filter((g) => g.slice === "real")),
-  };
+  const sliceNames = [...new Set(graded.map((g) => g.slice))].sort();
+  const slices: Record<string, SliceSummary> = { all: summarize(graded) };
+  for (const n of sliceNames) slices[n] = summarize(graded.filter((g) => g.slice === n));
+  const all = slices.all;
   const byCategory = Object.fromEntries(
     [...new Set(graded.map((g) => g.category))].map((c) => [c, summarize(graded.filter((g) => g.category === c))]),
   );
-  const totalCost = rows.reduce((s, r) => s + (r.cost ?? 0), 0);
-  const summary = {
-    run_id: RUN_ID,
-    models: { coach: COACH_MODEL, baseline: BASELINE_MODEL, judge: JUDGE_MODEL },
-    graded: graded.length,
-    judge_failures: rows.length - graded.length,
-    coach_prod_timeouts: rows.filter((r) => r.coach_prod_timeout).length,
-    total_cost_usd: Math.round(totalCost * 100) / 100,
-    slices,
-    by_category: byCategory,
-  };
-  writeFileSync(join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
+  const totalCost = Math.round(rows.reduce((sum, r) => sum + (r.cost ?? 0), 0) * 100) / 100;
+  const phraseFails = rows.filter(
+    (r) => (r.coach_phrase_checks?.banned_hits.length ?? 0) + (r.coach_phrase_checks?.missing.length ?? 0) > 0,
+  );
 
   const pct = (x: number) => `${Math.round(x * 100)}%`;
-  const line = (name: string, s: ReturnType<typeof summarize>) =>
-    s.n
-      ? `| ${name} | ${s.n} | ${s.coach_wins}-${s.baseline_wins}-${s.ties} | ${pct(s.coach_win_rate)} (${pct(s.coach_win_rate_ci[0])}-${pct(s.coach_win_rate_ci[1])}) | ${s.coach_mean.accuracy} / ${s.baseline_mean.accuracy} | ${s.coach_mean.league_data_use} / ${s.baseline_mean.league_data_use} | ${s.coach_mean.advisor_quality} / ${s.baseline_mean.advisor_quality} |`
-      : `| ${name} | 0 | | | | | |`;
+  const line = (name: string, x: SliceSummary) =>
+    `| ${name} | ${x.n} | ${x.coach_wins}-${x.baseline_wins}-${x.ties} | ${pct(x.coach_win_rate)} (${pct(x.coach_win_rate_ci[0])}-${pct(x.coach_win_rate_ci[1])}) | ${x.coach_mean.accuracy} / ${x.baseline_mean.accuracy} | ${x.coach_mean.league_data_use} / ${x.baseline_mean.league_data_use} | ${x.coach_mean.advisor_quality} / ${x.baseline_mean.advisor_quality} |`;
+  // Five judge calls for Isaiah to spot-check (coach-quality.md step 4):
+  // Coach losses first, then the rest, in run order.
+  const spot = [
+    ...rows.filter((r) => r.graded?.outcome === "baseline"),
+    ...rows.filter((r) => r.graded?.outcome !== "baseline"),
+  ].slice(0, 5);
+  const clip = (t: string) => (t.length > 900 ? `${t.slice(0, 900)} [...]` : t);
   const md = [
-    `# Coach quality eval: ${RUN_ID}`,
+    `# Coach quality run ${RUN_ID}`,
     "",
-    `Coach (${COACH_MODEL}, production prompt) vs plain Claude (${BASELINE_MODEL}, roster paste, web search). Blind pairwise judge: ${JUDGE_MODEL}. Scores 1-5.`,
+    `Coach (${COACH_MODEL}, production prompt, prompt hash ${promptHash || "n/a"}) vs baseline (${BASELINE_MODEL}, no product context, roster paste, web search). Blind pairwise judge ${JUDGE_MODEL}. Scores 1-5.`,
     "",
-    `Graded ${graded.length}, judge failures ${summary.judge_failures}, Coach answers over the 50s prod timeout ${summary.coach_prod_timeouts}. Spend $${summary.total_cost_usd}.`,
+    `Graded ${graded.length} of ${rows.length} (judge failures ${rows.length - graded.length}). Coach answers over the 50s prod timeout: ${rows.filter((r) => r.coach_prod_timeout).length}. Coach answers failing a must_include / must_not check: ${phraseFails.length}. Run cost $${totalCost}.`,
     "",
     "| Slice | n | Coach W-L-T | Coach win rate (95% CI) | Accuracy C / B | League data C / B | Advisor C / B |",
     "|---|---|---|---|---|---|---|",
-    line("All", slices.all),
-    line("Bank, single league", slices.bank_league),
-    line("Bank, cross-league", slices.bank_cross_league),
-    line("Real Coach questions", slices.real),
+    line("All", all),
+    ...sliceNames.map((n) => line(n, slices[n])),
     "",
-    "## Why Coach loses (tags on Coach's losing answers)",
+    "## Why Coach loses (judge tags on Coach's losing answers)",
     "",
-    ...slices.all.coach_loss_reasons.map(([r, n]) => `- ${r}: ${n}`),
+    ...(all.coach_loss_reasons.length ? all.coach_loss_reasons.map(([r, n]) => `- ${r}: ${n}`) : ["- none"]),
     "",
-    "## Why plain Claude loses",
+    "## Why the baseline loses",
     "",
-    ...slices.all.baseline_loss_reasons.map(([r, n]) => `- ${r}: ${n}`),
+    ...(all.baseline_loss_reasons.length ? all.baseline_loss_reasons.map(([r, n]) => `- ${r}: ${n}`) : ["- none"]),
     "",
     "## By category",
     "",
     "| Category | n | Coach W-L-T | Coach win rate |",
     "|---|---|---|---|",
-    ...Object.entries(byCategory).map(([c, s]) => `| ${c} | ${s.n} | ${s.coach_wins}-${s.baseline_wins}-${s.ties} | ${pct(s.coach_win_rate)} |`),
+    ...Object.entries(byCategory).map(
+      ([c, x]) => `| ${c} | ${x.n} | ${x.coach_wins}-${x.baseline_wins}-${x.ties} | ${pct(x.coach_win_rate)} |`,
+    ),
     "",
+    "## Spot-check these 5 judge calls",
+    "",
+    ...spot.flatMap((r) => [
+      `### ${r.id}: ${r.question}`,
+      "",
+      `Judge: ${r.graded?.outcome ?? "failed"}. ${r.verdict?.rationale ?? ""}`,
+      "",
+      `**Coach:** ${clip(r.coach_answer)}`,
+      "",
+      `**Baseline:** ${clip(r.baseline_answer)}`,
+      "",
+    ]),
     "## Per question",
     "",
     "| id | league | outcome | judge rationale |",
     "|---|---|---|---|",
-    ...rows.map((r) => `| ${r.id} | ${r.league} | ${r.graded?.outcome ?? "judge failed"} | ${(r.verdict?.rationale ?? "").replace(/\|/g, "/").replace(/\n/g, " ")} |`),
+    ...rows.map(
+      (r) =>
+        `| ${r.id} | ${r.league} | ${r.graded?.outcome ?? "judge failed"} | ${(r.verdict?.rationale ?? "").replace(/\|/g, "/").replace(/\n/g, " ")} |`,
+    ),
     "",
   ].join("\n");
-  writeFileSync(join(OUT, "report.md"), md);
-  console.log(`\nReport: ${join(OUT, "report.md")}`);
+  const reportPath = resultsPath.replace(/\.jsonl$/, ".md");
+  writeFileSync(reportPath, md);
+  console.log(`\nReport: ${reportPath}`);
+
+  if (appendScoreRow && graded.length) {
+    const row = `| ${RUN_ID} | ${all.n} | ${all.coach_wins} | ${all.baseline_wins} | ${all.ties} | ${pct(all.coach_win_rate)} (${pct(all.coach_win_rate_ci[0])}-${pct(all.coach_win_rate_ci[1])}) | ${COACH_MODEL} vs ${BASELINE_MODEL} | ${promptHash || "n/a"} | $${totalCost} |`;
+    const kept = readFileSync(SCORES_PATH, "utf-8")
+      .split("\n")
+      .filter((l) => !l.startsWith("No runs yet"));
+    // Insert as the last row of the scores table.
+    const sep = kept.findIndex((l) => l.startsWith("|---"));
+    let end = sep + 1;
+    while (end < kept.length && kept[end].startsWith("|")) end++;
+    const next = [...kept.slice(0, end), row, ...kept.slice(end)];
+    writeFileSync(SCORES_PATH, next.join("\n"));
+    console.log(`Score row added to ${SCORES_PATH}`);
+  }
 }
 
 if (flag("report-only")) {
-  writeReport(join(OUT, "results.jsonl"));
+  writeReport(join(RUNS_DIR, `${RUN_ID}.jsonl`), false);
 } else {
   main().catch((e) => {
     const err = e as Error;

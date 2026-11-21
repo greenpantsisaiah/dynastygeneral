@@ -122,7 +122,7 @@ export function parseVerdict(text: string): JudgeVerdict | null {
 /** One graded item, with the A/B mapping undone. */
 export type GradedItem = {
   id: string;
-  slice: "bank_league" | "bank_cross_league" | "real";
+  slice: string;
   category: string;
   coach: AnswerScores;
   baseline: AnswerScores;

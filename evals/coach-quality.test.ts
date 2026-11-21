@@ -16,7 +16,9 @@ import {
   unblind,
   type JudgeVerdict,
 } from "./coach-quality/judge";
-import { QUESTION_BANK } from "./coach-quality/questions";
+import { loadTestSet, parseTestSet, phraseChecks, PORTFOLIO_FIXTURE } from "./coach-quality/testset";
+
+const TEST_SET = loadTestSet();
 
 let passed = 0;
 let failed = 0;
@@ -54,14 +56,21 @@ const league: LeagueUnderTest = {
 };
 const other: LeagueUnderTest = { ...league, leagueId: "L2", name: "Second League" };
 
-console.log("\n── coach-quality: question bank ──");
-check("bank has ~50 questions", QUESTION_BANK.length >= 45 && QUESTION_BANK.length <= 60, String(QUESTION_BANK.length));
-check("bank ids unique", new Set(QUESTION_BANK.map((q) => q.id)).size === QUESTION_BANK.length);
-check("bank includes cross-league questions", QUESTION_BANK.filter((q) => q.scope === "cross_league").length >= 5);
-check(
-  "every bank question has no em dash",
-  QUESTION_BANK.every((q) => !q.text.includes("—")),
-);
+console.log("\n-- coach-quality: test set --");
+check("test set has at least 50 questions", TEST_SET.length >= 50, String(TEST_SET.length));
+check("test set includes portfolio (cross-league) questions", TEST_SET.filter((q) => q.league_fixture === PORTFOLIO_FIXTURE).length >= 5);
+check("every question has a valid source", TEST_SET.every((q) => ["isaiah", "user", "synthetic"].includes(q.source)));
+const EM_DASH = String.fromCharCode(0x2014);
+check("every question has no em dash", TEST_SET.every((q) => !q.question.includes(EM_DASH)));
+let dupThrew = false;
+try {
+  parseTestSet('{"id":"a","question":"x","league_fixture":"1"}\n{"id":"a","question":"y","league_fixture":"1"}');
+} catch {
+  dupThrew = true;
+}
+check("parseTestSet rejects duplicate ids", dupThrew);
+const pc = phraseChecks("I don't have their roster in the snapshot.", { must_include: ["offer"], must_not: ["don't have their roster"] });
+check("phrase checks flag banned + missing phrases", pc.banned_hits.length === 1 && pc.missing.join() === "offer");
 
 console.log("\n── coach-quality: placeholder filling ──");
 const ph = placeholdersFor(league, [league, other]);
@@ -71,7 +80,7 @@ check("my_young is aged 24 or younger", ph.my_young === "Young Receiver", ph.my_
 check("opp_a is the strongest opponent roster", ph.opp_a === "powerhouse", ph.opp_a);
 check("opp_a_top is that roster's top player", ph.opp_a_top === "Elite QB", ph.opp_a_top);
 check("league_count counts every league", ph.league_count === "2");
-const allFilled = QUESTION_BANK.every((q) => !/\{[a-z_]+\}/.test(fillQuestion(q.text, ph)));
+const allFilled = TEST_SET.every((q) => !/\{[a-z_]+\}/.test(fillQuestion(q.question, ph)));
 check("every bank placeholder resolves", allFilled);
 
 console.log("\n── coach-quality: baseline paste ──");
