@@ -1,0 +1,30 @@
+name: ci
+
+# The merge gate for agent PRs (docs/team/CHARTER.md, "Shipping to production").
+# Runs the same suites as the founder's "ship it" flow. The production build is
+# checked by the Vercel preview deployment on every PR, so it is not repeated here
+# (it needs production env vars that CI does not hold).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Test suites and em-dash check
+        run: npm test
