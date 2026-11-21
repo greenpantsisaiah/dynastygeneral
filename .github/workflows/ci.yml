@@ -10,6 +10,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # The post-deploy tripwire dispatches this on its revert branch: PRs opened
+  # by the Actions token do not trigger pull_request runs, but the revert must
+  # still pass `test` to merge under branch protection.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

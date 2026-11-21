@@ -144,11 +144,13 @@ Runs on every PR to main and every push to main. The `test` job runs
 is checked by the Vercel preview deployment on each PR, which holds the
 env vars CI does not.
 
-One-time repo setting (owner): Settings > Branches > add a rule for
-`main` that requires a pull request, requires the `test` status check
-and the Vercel deployment check, and requires one approving review.
-That makes "checks pass and a separate review approves" mechanical,
-not a promise.
+Branch protection on `main`: pull request required, required checks
+`test` and `Vercel`, enforce_admins on, 0 required approvals. Approvals
+are not required because every agent acts through the owner's GitHub
+account and GitHub does not let an account approve its own PR. The
+"separate review" half of the charter's gate is the `reviewer` agent
+(a separate session that merges only what passes), not a GitHub
+approval.
 
 ### Feature flags (`src/lib/flags/`)
 
@@ -180,19 +182,22 @@ After each push to main it:
    count over the same window.
 4. On a trip: reverts the pushed commits on a `tripwire/revert-*`
    branch, opens and squash-merges a revert PR (Vercel redeploys the
-   previous code), and opens a GitHub issue with the evidence. The
+   previous code), and opens an `interrupt` issue with the evidence. The
    revert commit carries `[tripwire-revert]` so it never watches itself.
+   The revert passes the same gate as any PR: because PRs opened by the
+   Actions token do not trigger `pull_request` workflows, the job
+   dispatches `ci` on the revert branch, waits up to 25 minutes for the
+   required `test` + `Vercel` checks, and merges only when both pass.
 
 One-time setup (owner):
 
 - GitHub repo secret `HEALTH_TOKEN` and the same value in Vercel env.
 - Settings > Actions > General > "Allow GitHub Actions to create and
   approve pull requests".
-- If branch protection requires checks, the revert PR (opened by the
-  Actions token, which does not trigger CI) cannot auto-merge. Either
-  add `github-actions` to the rule's bypass list, or accept that the
-  tripwire opens the PR plus an issue and a human (or Vercel
-  "Promote previous deploy") finishes the rollback.
+- No bypass list is needed: the revert waits for `test` + `Vercel` like
+  any PR. If the checks fail or time out, the revert PR stays open and
+  the `interrupt` issue says so; finish the rollback by merging it or by
+  Vercel > Deployments > previous deploy > Promote to Production.
 - Optional repo variables: `PROD_URL`, `TRIPWIRE_AUTO_MERGE=false`.
 
 Thresholds live as env defaults at the top of
