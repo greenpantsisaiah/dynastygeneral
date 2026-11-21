@@ -383,6 +383,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: a new stepwise/binned age curve anywhere (`if (age < 27) return ...` ladders), or re-deriving a position aging multiplier outside this module. Categorical age bins where reality is continuous are at minimum Weak per the assumption-auditor; the canonical is smooth (INVARIANTS.md "Smooth curves, not breakpoints"). Import the adapter you need; do not re-implement.
 - **Bug class avoided**: 2026-05-29 architecture audit (Phase C3) found four drifted age-curve implementations: the rank multiplier here, a stepwise production multiplier in `evaluation/util.ts`, a signed [-1,+1] dial curve in `synthesize.ts`, and the roster-aggregate signals in `windows/compute.ts`. A calibration change had to be made in up to four places, and the three per-player curves disagreed (e.g., util's TE bins cliffed at 0.50 by 33 while the rank curve declined gently). Locked by `evals/age-curve.test.ts`.
 
+### Feature flags and experiments
+
+- **Canonical**: the registry `FLAGS` in `src/lib/flags/registry.ts`, evaluated by `variantFor` / `isEnabled` in `src/lib/flags/evaluate.ts`, read server-side via `flagVariant(key, unitId)` / `flagOn(key, unitId)` in `src/lib/flags/server.ts`.
+- **Returns**: the variant string (first variant = control = today's shipped behavior) or a boolean for on/off flags.
+- **Inputs**: a registered flag key and a stable unit id (Sleeper username, league id, or user id). `FLAG_OVERRIDES` env is the kill switch and beats rollout; an override naming an unknown variant is ignored.
+- **Rules**: control first and equal to current behavior (a flag never hides a feature users rely on by default); deterministic FNV-1a bucketing salted by flag key; every flag carries `owner` + `expires`, and `evals/flags.test.ts` fails CI on an expired flag.
+- **Anti-pattern**: an ad-hoc `process.env.SOMETHING_ENABLED` toggle, a `Math.random()` split, or a client-only experiment assignment that can flicker between renders. Register the flag instead.
+- **Bug class avoided**: experiments that cannot be turned off without a revert, users flipping between arms, and stale experiments piling up.
+
 ## Adding a new entry
 
 Use this template:

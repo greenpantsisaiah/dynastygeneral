@@ -21,9 +21,11 @@ Vercel deploys production on every push to `main` and builds a preview URL for e
 1. `npm run build` clean (zero warnings) AND `npm test` all green. If not, fix before shipping; do not ship red.
 2. Commit your work to your `work/<name>` branch.
 3. `git push -u origin work/<name>` (a branch push, never a main push).
-4. `gh pr create --fill --base main`, then `gh pr merge --squash`. Intentionally omit `--delete-branch` inside a worktree; that cleanup path can print a false "`main` is already used by worktree" error even when the merge succeeded.
+4. `gh pr create --fill --base main`, wait for the `ci` check (`test`) and the Vercel preview build to pass, then `gh pr merge --squash`. Intentionally omit `--delete-branch` inside a worktree; that cleanup path can print a false "`main` is already used by worktree" error even when the merge succeeded.
 5. Tell the founder it is live in plain language, with the production URL (dynastygeneral.app) and the PR preview URL if a visual check helps.
 6. After merge, retire the worktree with `git worktree remove <path>`. If needed, prune the remote branch from a non-worktree checkout: `git -C ../web push origin --delete work/<name>`.
+
+After merge, the post-deploy tripwire watches production for ~10 minutes and auto-reverts on an error spike (see DEPLOYMENT.md "Safe shipping"). New or experimental behavior ships behind a flag in `src/lib/flags/registry.ts`, dark first.
 
 NEVER run `git push origin main` directly. It bypasses this flow, races other sessions, and trips the safety classifier. Main advances only through merged PRs.
 
