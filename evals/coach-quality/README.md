@@ -58,10 +58,20 @@ npm run eval:coach-quality -- --username <sleeper name>             # full run, 
 ```
 
 Flags: `--leagues id1,id2`, `--primary id` (league for portfolio questions),
-`--only id1,id2`, `--limit N`, `--max-cost 20` (USD; stops starting new
-questions past it, default from `docs/team/ledger/spend.md`),
-`--baseline-model`, `--judge-model`, `--concurrency 3`, `--run-id`
-(defaults to today's date; reuse it to resume), `--report-only`.
+`--only id1,id2`, `--limit N`, `--max-cost 20` (USD; reserves room for
+questions in flight so the run ends at or under it, default from
+`docs/team/ledger/spend.md`), `--baseline-model`, `--judge-model`,
+`--baseline-search-uses 10`, `--concurrency 3`, `--run-id` (defaults to
+today's date; reuse it to resume), `--report-only`, and
+`--rejudge <run-id>` (re-grade an earlier run's answers with
+`--judge-model` under a new `--run-id` and print the agreement rate; use it
+before switching to a cheaper judge).
+
+Cost: about $1.10 per question in the first run (2026-11-22). Workers now
+take one league at a time so Coach's league context and the judge's ground
+truth are read from the prompt cache after the first question in a league.
+Each row logs `cost_parts` (coach, baseline, judge) so the next run shows
+where the money goes.
 
 Writes `docs/team/coach-quality/runs/<date>.jsonl` (per question: both
 answers, scores, verdict, phrase checks, cost), `runs/<date>.md` (win rate

@@ -90,6 +90,15 @@ const DRY = flag("dry-run");
 const BASELINE_MODEL = arg("baseline-model") ?? COACH_MODEL;
 const JUDGE_MODEL = arg("judge-model") ?? "claude-opus-5-5";
 const CONCURRENCY = Number(arg("concurrency") ?? 3);
+// --rejudge <run-id>: reuse the Coach and baseline answers from an earlier
+// run and only re-grade them (e.g. with a cheaper --judge-model). Prints how
+// often the new judge agrees with the original one, so a cheaper grader is
+// adopted only with a measured agreement rate.
+const REJUDGE = arg("rejudge");
+// The baseline stands in for a chat app, which searches as often as it
+// needs. max_uses 3 ran out on 15 of 21 baseline answers in the first run
+// ("search hit its usage limit"), which handicapped the baseline.
+const BASELINE_SEARCH_USES = Number(arg("baseline-search-uses") ?? 10);
 const RUN_ID = arg("run-id") ?? new Date().toISOString().slice(0, 10);
 const RUNS_DIR = join("docs", "team", "coach-quality", "runs");
 const SCORES_PATH = join("docs", "team", "coach-quality", "scores.md");
@@ -171,7 +180,7 @@ async function askBaseline(question: string, paste: string) {
         model: BASELINE_MODEL,
         max_tokens: 16000,
         output_config: { effort: "medium" },
-        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
+        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: BASELINE_SEARCH_USES }],
         messages,
       },
       { timeout: 300_000 },
@@ -331,11 +340,29 @@ async function main() {
   }
   const todo = items.filter((i) => !done.has(i.id));
 
+  // Rejudge: answers from an earlier run, keyed by question id.
+  type PriorRow = { id: string; league: string; coach_answer: string; baseline_answer: string; graded: GradedItem | null };
+  const prior = new Map<string, PriorRow>();
+  if (REJUDGE) {
+    const p = join(RUNS_DIR, `${REJUDGE}.jsonl`);
+    for (const l of readFileSync(p, "utf-8").split("\n").filter(Boolean)) {
+      const r = JSON.parse(l) as PriorRow;
+      prior.set(r.id, r);
+    }
+  }
+  let agree = 0;
+  let compared = 0;
+
   const allLeagues = [...stateByLeague.values()].filter((l) => leagues.some((x) => x.leagueId === l.leagueId));
   async function runOne(it: PlanItem) {
     if (spent > MAX_COST) return;
     const lg = stateByLeague.get(it.leagueId);
     if (!lg) return;
+    const old = prior.get(it.id);
+    if (REJUDGE && (!old || old.league !== lg.name)) {
+      console.error(`  [${it.id}] not in run ${REJUDGE} for this league; skipped.`);
+      return;
+    }
     const turn = await buildCoachTurn({
       leagueId: it.leagueId,
       username: it.username,
@@ -350,10 +377,15 @@ async function main() {
       return;
     }
     const pasteLeagues = it.crossLeague ? allLeagues : [lg];
-    const [coach, baseline] = await Promise.all([
-      askCoach(turn.system, turn.messages),
-      askBaseline(it.question, baselinePaste({ leagues: pasteLeagues, opponentsMentioned: it.opponentsMentioned })),
-    ]);
+    const [coach, baseline] = old
+      ? [
+          { text: old.coach_answer, ms: 0, prod_timeout: false, cost: 0, input_tokens: 0 },
+          { text: old.baseline_answer, cost: 0 },
+        ]
+      : await Promise.all([
+          askCoach(turn.system, turn.messages),
+          askBaseline(it.question, baselinePaste({ leagues: pasteLeagues, opponentsMentioned: it.opponentsMentioned })),
+        ]);
     const groundTruth = it.crossLeague
       ? allLeagues.map(compactLeagueSummary).join("\n\n") +
         `\n\nFull data for the league this question was asked in (${lg.name}):\n` +
@@ -375,6 +407,10 @@ async function main() {
     const graded = j.verdict
       ? unblind({ id: it.id, slice: it.slice, category: it.category, verdict: j.verdict, coachWasA })
       : null;
+    if (old?.graded && graded) {
+      compared++;
+      if (old.graded.outcome === graded.outcome) agree++;
+    }
     if (!promptHash) promptHash = createHash("sha256").update(turn.system).digest("hex").slice(0, 10);
     const row = {
       id: it.id,
@@ -396,6 +432,8 @@ async function main() {
       judge_raw: j.verdict ? undefined : j.raw,
       graded,
       cost: coach.cost + baseline.cost + j.cost,
+      cost_parts: { coach: coach.cost, baseline: baseline.cost, judge: j.cost },
+      ...(old ? { rejudge_of: REJUDGE, original_outcome: old.graded?.outcome ?? null } : {}),
     };
     appendFileSync(resultsPath, JSON.stringify(row) + "\n");
     console.log(
@@ -407,36 +445,52 @@ async function main() {
   // flight (at the running average cost per question, $1.00 until one
   // finishes), so a run stops at or under --max-cost instead of
   // overrunning by the in-flight answers (the first baseline overran $2.95).
-  const queue = [...todo];
+  // Each worker takes one league at a time and runs that league's questions
+  // back to back, so Coach's league context and the judge's ground truth hit
+  // the prompt cache (5-minute TTL) after the first question in a league.
+  const groups = new Map<string, PlanItem[]>();
+  for (const it of todo) groups.set(it.leagueId, [...(groups.get(it.leagueId) ?? []), it]);
+  const leagueQueue = [...groups.values()].sort((x, y) => y.length - x.length);
+  let left = todo.length;
   let inFlight = 0;
   let finished = 0;
   let finishedCost = 0;
+  let stopped = false;
   const perQuestion = () => (finished ? finishedCost / finished : 1);
   await Promise.all(
     Array.from({ length: CONCURRENCY }, async () => {
-      while (queue.length) {
-        if (spent + (inFlight + 1) * perQuestion() > MAX_COST) break;
-        const it = queue.shift()!;
-        const before = spent;
-        inFlight++;
-        try {
-          await runOne(it);
-        } catch (e) {
-          const err = e as Error;
-          console.error(`  [${it.id}] failed: ${err.message}\n${err.stack}`);
-        } finally {
-          inFlight--;
-          finished++;
-          finishedCost += spent - before;
+      while (leagueQueue.length && !stopped) {
+        const group = leagueQueue.shift()!;
+        for (const it of group) {
+          if (spent + (inFlight + 1) * perQuestion() > MAX_COST) {
+            stopped = true;
+            break;
+          }
+          const before = spent;
+          inFlight++;
+          try {
+            await runOne(it);
+          } catch (e) {
+            const err = e as Error;
+            console.error(`  [${it.id}] failed: ${err.message}\n${err.stack}`);
+          } finally {
+            inFlight--;
+            finished++;
+            left--;
+            finishedCost += spent - before;
+          }
         }
       }
     }),
   );
-  if (queue.length) {
-    console.error(`\nStopped early: $${spent.toFixed(2)} spent, ${queue.length} questions left to stay under --max-cost ${MAX_COST}.`);
+  if (REJUDGE) {
+    console.log(`\nJudge agreement with run ${REJUDGE}: ${agree} of ${compared} outcomes match.`);
+  }
+  if (left > 0) {
+    console.error(`\nStopped early: $${spent.toFixed(2)} spent, ${left} questions left to stay under --max-cost ${MAX_COST}.`);
   }
 
-  writeReport(resultsPath, true);
+  writeReport(resultsPath, !REJUDGE);
 }
 
 type Row = {
