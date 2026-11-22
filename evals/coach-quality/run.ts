@@ -313,7 +313,10 @@ async function main() {
     const ctxChars = [...stateByLeague.values()].map((l) => JSON.stringify(l.state).length);
     const avgTok = Math.round(ctxChars.reduce((a, b) => a + b, 0) / Math.max(1, ctxChars.length) / 3.5);
     console.log(`\n~${avgTok} tokens of <current_state> per league (rough chars/3.5).`);
-    console.log(`Rough cost: ~$${((items.length * avgTok * (3 + 4 * 0.25)) / 1e6 + items.length * 0.12).toFixed(0)} (Coach input + cached judge ground truth + answers).`);
+    // Measured on the first baseline (2026-11-22): $0.52 to $1.55 per
+    // question, mean $1.09 (web search turns on both sides plus the Opus
+    // judge dominate). The token-only formula underestimated by about 3x.
+    console.log(`Rough cost: ~$${(items.length * 1.1).toFixed(0)} at the measured ~$1.10 per question (range $0.50 to $1.60).`);
     return;
   }
 
@@ -400,22 +403,38 @@ async function main() {
     );
   }
 
-  // Small worker pool.
+  // Small worker pool. The cap reserves room for questions already in
+  // flight (at the running average cost per question, $1.00 until one
+  // finishes), so a run stops at or under --max-cost instead of
+  // overrunning by the in-flight answers (the first baseline overran $2.95).
   const queue = [...todo];
+  let inFlight = 0;
+  let finished = 0;
+  let finishedCost = 0;
+  const perQuestion = () => (finished ? finishedCost / finished : 1);
   await Promise.all(
     Array.from({ length: CONCURRENCY }, async () => {
       while (queue.length) {
+        if (spent + (inFlight + 1) * perQuestion() > MAX_COST) break;
         const it = queue.shift()!;
+        const before = spent;
+        inFlight++;
         try {
           await runOne(it);
         } catch (e) {
           const err = e as Error;
           console.error(`  [${it.id}] failed: ${err.message}\n${err.stack}`);
+        } finally {
+          inFlight--;
+          finished++;
+          finishedCost += spent - before;
         }
       }
     }),
   );
-  if (spent > MAX_COST) console.error(`\nStopped early: spend $${spent.toFixed(2)} passed --max-cost ${MAX_COST}.`);
+  if (queue.length) {
+    console.error(`\nStopped early: $${spent.toFixed(2)} spent, ${queue.length} questions left to stay under --max-cost ${MAX_COST}.`);
+  }
 
   writeReport(resultsPath, true);
 }
