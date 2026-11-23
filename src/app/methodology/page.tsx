@@ -165,7 +165,7 @@ export default function MethodologyPage() {
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 3 · inflection scorecards (only we publish this)
+                Receipt 3 · inflection scorecards
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 Bimodal forecasts, not single points.
@@ -178,7 +178,7 @@ export default function MethodologyPage() {
                 no actual player ends up. KTC and FantasyCalc collapse
                 this into one number anyway. We refuse to. Each
                 inflection window publishes both stories with
-                calibrated probabilities, a signal scorecard with
+                probabilities, a signal scorecard with
                 confidence labels, and named historical comparators.
               </p>
             </div>
@@ -191,7 +191,7 @@ export default function MethodologyPage() {
           <div className="mx-auto max-w-5xl px-6 py-10">
             <div className="mb-4 max-w-2xl">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Receipt 4 · opponent fingerprints (only we publish this)
+                Receipt 4 · opponent fingerprints
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 Reading counterparty behavior from pick-trade history.

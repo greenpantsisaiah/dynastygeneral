@@ -92,10 +92,10 @@ export default function ScoreboardPage() {
           <div className="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24 sm:pb-16">
             <Ticker label={`Scoreboard · engine v0 + v1 backtest · run ${BACKTEST_RUN_DATE} · not the live engine`} />
             <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              We publish our accuracy. The industry hides theirs.
+              Our backtest, wins and losses, with units.
             </h1>
             <p className="mt-6 max-w-3xl text-lg leading-relaxed text-muted">
-              Dynasty General is built on calibrated prediction. We backtest
+              We backtest
               our engine against named industry baselines (FantasyPros ECR,
               FantasyPros ADP, KeepTradeCut) on dynasty cumulative outcomes
               from 2022 to 2024. The numbers below are reproducible from the

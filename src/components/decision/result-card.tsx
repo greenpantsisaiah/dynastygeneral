@@ -424,7 +424,7 @@ function CalibrationFooter() {
   return (
     <div className="flex items-center justify-between border-t border-border-soft px-5 py-3">
       <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-        Engine v0 · 0.399 Spearman · beats consensus
+        Engine v0 backtest · scores on the scoreboard
       </span>
       <a
         href="/scoreboard"
@@ -470,7 +470,7 @@ function formatIncomingVerdict(r: TradeIncomingOutput): string {
   }
   lines.push(
     ``,
-    `Engine v0: 0.399 Spearman, beats consensus. Methodology: dynastygeneral.app/scoreboard`,
+    `Engine v0 backtest and methodology: dynastygeneral.app/scoreboard`,
   );
   return lines.join("\n");
 }
@@ -502,7 +502,7 @@ function formatOutboundVerdict(r: TradeOutboundOutput): string {
     `Walk-away floor: ${r.walk_away_floor}`,
     `Opportunity cost: ${r.opportunity_cost}`,
     ``,
-    `Engine v0: 0.399 Spearman, beats consensus. Methodology: dynastygeneral.app/scoreboard`,
+    `Engine v0 backtest and methodology: dynastygeneral.app/scoreboard`,
   );
   return lines.join("\n");
 }
