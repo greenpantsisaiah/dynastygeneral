@@ -35,6 +35,10 @@
  *   tier-1 RB just went"), not generic ("trades picks constantly").
  */
 
+import {
+  buildOpponentTradeHistory,
+  type TradeSignatureLabel,
+} from "@/lib/strategy/opponents/trade-history";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import type { AvailablePlayer } from "@/lib/players/available";
 import type { UpcomingDraftSummary } from "@/lib/strategy/pre-draft/upcoming-draft";
@@ -168,7 +172,7 @@ export type AskTier = {
 export type PartnerCandidate = {
   roster_id: number;
   owner_name: string;
-  trade_signature: string;
+  trade_signature: TradeSignatureLabel;
   /** Specific reason this partner says yes; not generic signature label. */
   why_them: string;
 };
@@ -294,24 +298,18 @@ function findSweetenerPick(args: {
   };
 }
 
-function tradeSignatureFor(
+// Thin call into the canonical opponent pick-trade signature. Never
+// re-derive the label here (CANONICAL_SOURCES.md "Opponent pick-trade signature").
+function pickTradeSignature(
   snap: LeagueSnapshot,
   rosterId: number,
-): string {
-  let sent = 0;
-  let received = 0;
-  for (const tp of snap.draft.traded_picks) {
-    if (tp.original_owner === rosterId) sent++;
-    if (tp.current_owner === rosterId) received++;
-  }
-  if (sent + received >= 4) {
-    if (sent > received) return "pick_seller";
-    if (received > sent) return "pick_hoarder";
-    return "pick_flipper";
-  }
-  return "pick_quiet";
+): TradeSignatureLabel {
+  return buildOpponentTradeHistory({
+    rosterId,
+    tradedPicks: snap.draft.traded_picks,
+    currentSeason: snap.season,
+  }).signature;
 }
-
 
 function computeStructuralHoles(snap: LeagueSnapshot): Array<{
   position: Position;
@@ -468,7 +466,7 @@ export function detectTradeOpportunities(args: {
           (r) => r.roster_id === partnerRosterId,
         );
         if (partner) {
-          const partnerSig = tradeSignatureFor(snap, partnerRosterId);
+          const partnerSig = pickTradeSignature(snap, partnerRosterId);
           const userSendPickAsset = buildPickAsset({
             pickNo: firstUpcoming.pick_no,
             totalTeams,
@@ -605,7 +603,7 @@ export function detectTradeOpportunities(args: {
     );
     const top = surplusOpponents[0];
     if (!top) continue;
-    const partnerSig = tradeSignatureFor(snap, top.roster_id);
+    const partnerSig = pickTradeSignature(snap, top.roster_id);
 
     // For a hole-fill we don't know the specific player on either
     // side yet (the partner's roster details aren't in this engine's
@@ -777,7 +775,7 @@ export function detectTradeOpportunities(args: {
         ? snap.rosters.find((r) => r.roster_id === partnerRosterId)
         : null;
       if (partner && partner.roster_id !== myRosterId) {
-        const partnerSig = tradeSignatureFor(snap, partner.roster_id);
+        const partnerSig = pickTradeSignature(snap, partner.roster_id);
         const userSendPick = buildPickAsset({
           pickNo: slot1.pick_no,
           totalTeams,

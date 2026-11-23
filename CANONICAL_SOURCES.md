@@ -127,6 +127,14 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: writing `(value / 100) * (pick - adp)` inline, or re-defining a local `round2`. Lint rule "no inline per-pick EV formula (use perPickEv canonical)" bans the `/ 100) * (` signature outside `formula.ts`.
 - **Bug class avoided**: 2026-05-23 architecture audit found 5 independent copies of the formula and 5 of `round2`; the hub's inline copy had drifted enough to warrant a comment admitting it duplicated the EV bank. A calibration change to the EV math would have had to be made in five places. Note `aar/page.tsx` `adp_delta = pick_no - adp` (the signed ADP distance) and `companion/classify.ts` `expected_value / 100` (a stored-value normalization) are DISTINCT metrics, not this formula.
 
+### Opponent pick-trade signature (pick_seller / pick_hoarder / pick_flipper / pick_quiet)
+
+- **Canonical**: `buildOpponentTradeHistory({ rosterId, tradedPicks, currentSeason })` in `src/lib/strategy/opponents/trade-history.ts`; read `.signature` (type `TradeSignatureLabel`).
+- **Returns**: `OpponentTradeHistory` (picks sent / received, net, future vs current split, `signature`, plain-text `summary`). Skips traded_picks entries where `original_owner === current_owner`; flipper = volume >= 4 with |net| <= 1; quiet below volume 2; hoarder net >= 2; seller net <= -2.
+- **Consumers**: Coach opponent cards (`api/coach/[leagueId]/route.ts`), hub opponent cards (`leagues/[leagueId]/page.tsx`), the AAR dossier, and the Trade Opportunities partners (`trade-opportunities/detect.ts`, via `pickTradeSignature`, a thin wrapper).
+- **Anti-pattern**: a local function that re-counts `traded_picks` and returns a signature literal. Lint "no local pick-trade signature derivation (use buildOpponentTradeHistory)" bans a `tradeSignature*` function or a `return "pick_seller|hoarder|flipper"` outside the canonical.
+- **Bug class avoided**: 2026-11-23 `detect.ts` carried a private `tradeSignatureFor` fork (no self-owned skip, single volume >= 4 gate, no flipper net band), so the Trade Opportunities panel labeled an opponent (for example sent 3 / received 0: quiet vs seller) differently from Coach and the hub. Locked by `evals/opponent-trade-history.test.ts` and the lint.
+
 ### Roster-fit math (position room health, starter need scoring)
 
 - **Canonical**: `src/lib/engine/roster-fit.ts` (`buildPositionRoomHealth`, `flexShareForPosition`, `getRealisticStarterMax`, etc.)

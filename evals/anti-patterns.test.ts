@@ -106,6 +106,22 @@ const RULES: Rule[] = [
       join(SRC, "lib", "strategy", "decision-synthesis", "decision-bundle.ts"),
     ],
   },
+  // Opponent pick-trade signature has ONE owner: buildOpponentTradeHistory.
+  // detect.ts once carried a private fork (tradeSignatureFor) with a different
+  // volume gate and no original_owner === current_owner skip, so the Trade
+  // Opportunities panel labeled an opponent differently from Coach and the
+  // hub cards. Bans a function named tradeSignature* or a function returning
+  // a pick_seller / pick_hoarder / pick_flipper literal outside the canonical.
+  {
+    name: "no local pick-trade signature derivation (use buildOpponentTradeHistory)",
+    why: "The pick-trade signature (pick_seller / pick_hoarder / pick_flipper / pick_quiet) must come from buildOpponentTradeHistory(...).signature in opponents/trade-history.ts. A local re-derivation drifts from Coach and the hub opponent cards. Per CANONICAL_SOURCES.md.",
+    pattern: /function\s+tradeSignature\w*\s*\(|return\s+["']pick_(?:seller|hoarder|flipper)["']/,
+    scan: { dir: SRC, ext: [".ts", ".tsx"] },
+    allowFilePrefixes: [
+      EVALS,
+      join(SRC, "lib", "strategy", "opponents", "trade-history.ts"),
+    ],
+  },
   // The leaf player value has ONE door now that VALUE_MODE is flipped to
   // "rubric" (Phase 4, 2026-06-19): every surface reads the rubric point
   // estimate through buildPricedPool / the value-mode seam / the
