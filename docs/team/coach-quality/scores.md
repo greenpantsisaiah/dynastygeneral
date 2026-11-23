@@ -4,3 +4,5 @@
 |---|---|---|---|---|---|---|---|---|
 
 No runs yet. First target: 50 questions scored by 2026-12-05.
+
+2026-11-23: test set reached 50 questions. Weekly score NOT run: no Coach eval harness (the real pipeline needs live Sleeper, Supabase, and auth) and no Anthropic key in the routine environment. Blockers are in the 2026-11-23 coach-quality report.
