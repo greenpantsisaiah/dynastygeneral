@@ -5,8 +5,12 @@ import { Ticker } from "@/components/ui/ticker";
 export const metadata = {
   title: "Dynasty General vs FantasyPros",
   description:
-    "Dynasty General is a calibrated dynasty intelligence engine. We publish our backtest accuracy. We synthesize one decision per pick. We respect your league format. Comparison page reflecting public product observation.",
+    "Dynasty General publishes its backtest, wins and losses. One decision per pick. Reads your league format off Sleeper. Comparison page reflecting public product observation.",
   alternates: { canonical: "/vs-fantasypros" },
+  // Claims steward 2026-11-23: the FantasyPros product observations on
+  // this page date from 2026-05-05, past the LEGAL_GUARDRAILS rule 5
+  // re-verification window. Kept out of search until re-verified.
+  robots: { index: false, follow: true },
 };
 
 export default function VsFantasyProsPage() {
@@ -32,15 +36,17 @@ export default function VsFantasyProsPage() {
         <section className="border-b border-border-soft">
           <div className="mx-auto max-w-5xl px-6 py-12">
             <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-              We publish our accuracy. They don't.
+              Our backtest is public. Wins and losses.
             </h2>
             <p className="mt-3 text-base leading-relaxed text-muted">
-              Calibrated prediction is the moat. We backtest against named
-              industry baselines and publish the result. Engine v0 (no
-              signal codes loaded yet) achieves a Spearman rank correlation
-              of 0.399 averaged across 2022-2024 dynasty cumulative
-              outcomes. The named consensus baselines we tested against
-              landed at 0.346 to 0.365 in the same window.
+              We backtest against named industry baselines and publish the
+              result. Engine v0 (no signal codes loaded yet) posted a
+              Spearman rank correlation of 0.399 averaged across 2022-2024
+              dynasty cumulative outcomes; the named consensus baselines
+              landed at 0.346 to 0.365 in the same retrospective window.
+              That is a backtest of a past engine version, not a
+              forward-logged result, and it is not the accuracy of the
+              live engine.
             </p>
             <p className="mt-3 text-base leading-relaxed text-muted">
               The honest read, published in full on the scoreboard: that
@@ -52,13 +58,6 @@ export default function VsFantasyProsPage() {
               as well as we do. Sample sizes are 60 to 90 pairs per cell,
               so the confidence band is roughly 0.05 to 0.10. We show the
               wins and the losses, with units.
-            </p>
-            <p className="mt-3 text-base leading-relaxed text-muted">
-              FantasyPros has internal expert-accuracy data (we can see it
-              in their experts dropdown: "2024 Draft Accuracy Top 20",
-              "2025 In-Season Accuracy Top 20"). They use it to filter
-              their consensus blend. They never publish the per-expert
-              calibration scores or the blend's accuracy.
             </p>
             <p className="mt-4 text-base">
               <Link
@@ -129,8 +128,8 @@ export default function VsFantasyProsPage() {
               guess.
             </p>
             <p className="mt-3 text-base leading-relaxed text-muted">
-              Generic chatbots optimize for fluent answers. Calibrated
-              prediction optimizes for honest answers. We chose the second.
+              Generic chatbots optimize for fluent answers. The Coach is
+              built to say what it does not know.
             </p>
           </div>
         </section>
@@ -162,8 +161,8 @@ export default function VsFantasyProsPage() {
               breadth is the priority, they're the right pick.
             </p>
             <p className="mt-3 text-base leading-relaxed text-muted">
-              We compete on depth, decisive synthesis, and calibrated
-              prediction. If you've already decided you want an analyst on
+              We compete on depth, decisive synthesis, and a published
+              backtest. If you've already decided you want an analyst on
               your dynasty league, not a content library, we're built for
               you.
             </p>

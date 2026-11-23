@@ -152,7 +152,7 @@ export default async function OgImage({ params }: Props) {
             borderTop: "1px solid #1f1f22",
           }}
         >
-          <span>Engine v0 · 0.399 Spearman · beats consensus</span>
+          <span>Engine v0 backtest · methodology</span>
           <span>dynastygeneral.app/scoreboard</span>
         </div>
       </div>
