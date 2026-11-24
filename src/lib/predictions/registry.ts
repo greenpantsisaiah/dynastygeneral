@@ -84,7 +84,7 @@ export const PREDICTION_TYPES: PredictionType[] = [
     bar_registered: "2026-11-23",
     status_evidence: "",
     notes:
-      "No canonical computes this yet. Needs a weekly-points projection per roster and a schedule simulator; register the simulator in CANONICAL_SOURCES.md when built.",
+      "Computed by simulateSeason (src/lib/strategy/verdict/season-sim.ts), registered in CANONICAL_SOURCES.md 'Season simulator'. Roster strength is this season's shrunk weekly average; a projection-based mean is a later version.",
   },
   {
     id: "title_odds@v1",
@@ -162,6 +162,34 @@ export const PREDICTION_TYPES: PredictionType[] = [
     status_evidence: "",
     notes:
       "Expect this to be hard: every Phase B ranking signal failed to beat the market (MODEL_LIVE_PLAN value-pipe deviation). Logging it is still cheap and the honest outcome either way.",
+  },
+  {
+    id: "offseason_value_decay@v1",
+    title: "Offseason value decay: share of a player's market value gone by the August keeper deadline if held",
+    theory:
+      "Selling before the offseason is only right if held value actually shrinks. The canonical age curve (ageRetention, src/lib/players/age-curve.ts) predicts the retained share as ageRetention(age + 0.75) / ageRetention(age). The market already prices age, so this may double count; that is the hypothesis under test.",
+    sources: [
+      "RESEARCH_CORPUS.md age-curve section (Apex peak-age series, Northwestern 2020 RB)",
+      "negative-results.md (prior signals failed to beat the market)",
+    ],
+    metric:
+      "Predicted ratio in (0, 1.5) of FantasyCalc normalized value on August 20 of next year to value on the log date, for every rostered player with value >= 10.",
+    resolution_rule:
+      "Resolves on the FantasyCalc snapshot nearest August 20 following the log date (within 5 days, else voided). Players who retire or are cut score as ratio 0.",
+    baseline: "No change: predicted ratio 1.0 for every player.",
+    scoring: ["rmse", "spearman"],
+    success_bar: {
+      provisional:
+        "Over at least 1,000 resolved player rows from at least 2 weekly cohorts, RMSE lower than no-change with paired bootstrap 90% CI excluding zero.",
+      validated:
+        "Over two offseasons, RMSE reduction >= 5% vs no-change with 95% CI excluding zero, and Spearman(predicted, realized) > 0.2.",
+    },
+    logging: ["shadow_weekly", "surfaced_advice"],
+    status: "hypothesis",
+    bar_registered: "2026-11-24",
+    status_evidence: "",
+    notes:
+      "Computed by offseasonValueDecay (src/lib/strategy/verdict/decay.ts). Drives the 'value kept by selling' side of the contend-or-sell rule; until provisional, copy must say 'expected by the age curve', not 'will lose'.",
   },
   {
     id: "contender_premium@v1",

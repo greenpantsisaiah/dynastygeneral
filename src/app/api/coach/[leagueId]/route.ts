@@ -35,11 +35,15 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import {
   getLeague,
+  getNflState,
   getLeagueUsers,
   getRosters,
   getUserByUsername,
 } from "@/lib/sleeper";
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
+import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
+import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
+import { flagOn } from "@/lib/flags/server";
 import { buildLeagueContext } from "@/lib/engine/league-context";
 import {
   buildOpponentReadout,
@@ -87,6 +91,30 @@ export const maxDuration = 60;
 // whole turn. Founder report 2026-05-24: Coach failed instantly on
 // mobile only, because a malformed stored play failed strict whole-body
 // validation while the desktop's localStorage was clean.
+
+// Contend-or-sell prompt section. Appended ONLY when the
+// contend_or_sell_verdict flag is on, so Coach with the flag off is
+// identical to main (charter Coach gate: turning the flag on needs a
+// Coach test-set run).
+const CONTEND_OR_SELL_PROMPT = `
+
+### Keep going or sell (cite the verdict, never your own odds)
+
+\`<current_state>.contend_or_sell\` is the contend-or-sell verdict the
+board renders: simulated \`title_pct\` and \`playoff_pct\`,
+\`rank_by_title_odds\` of \`teams\`, the sell candidates (value lost by
+August per the age curve, weekly points lost, \`title_delta\` if sold,
+ranked \`buyers\` with reasons), and three \`voices\` (Moneyball,
+Gambler, Strategist) with a \`headline\` and \`consensus\` flag. When the
+user asks whether to keep pushing, sell, or who to trade with, present the
+voices as a debate, name where they agree or split, and cite the numbers
+exactly. Never give a bare verdict without the reasoning. These are
+registered hypotheses (\`prediction_types\`), not validated results; say
+"the simulation gives you" not "you will." \`contender_premium\` is unknown
+and priced at 0: never tell the user a contender should pay above market.
+When \`contend_or_sell\` is null, do not state title or playoff odds as
+numbers; reason qualitatively from the standings and roster.
+`;
 
 // Coach voice extension. Layered onto SYSTEM_PROMPT so the existing
 // "no em dash, sharp dynasty coach" identity is preserved.
@@ -1050,6 +1078,27 @@ export async function POST(
   // divergence: Coach priced only me + available here.
   const pricedPool = leagueContext.pricedPool;
   const available = pricedPool.available;
+  // Contend-or-sell verdict: the SAME loader and inputs the hub card
+  // reads (snapshot + pricedPool.playerValuesById), so chat and board
+  // cite identical title odds, sell package, buyers and voices. Flagged
+  // dark (contend_or_sell_verdict); null when off or not computable.
+  let contendOrSell: ContendOrSellVerdict | null = null;
+  const contendOrSellOn = flagOn("contend_or_sell_verdict", sleeperUser?.username ?? null);
+  if (contendOrSellOn) {
+    try {
+      const nflState = await getNflState();
+      const res = await loadContendOrSellVerdict({
+        league,
+        snapshot,
+        nflWeek: nflState?.week ?? null,
+        seasonType: nflState?.season_type ?? null,
+        playerValuesById: pricedPool.playerValuesById,
+      });
+      if (res.ok) contendOrSell = res.verdict;
+    } catch (err) {
+      console.error("[coach:contend-or-sell]", err instanceof Error ? `${err.message}\n${err.stack}` : err);
+    }
+  }
   const pickApproach = buildPickApproach(snapshot, ranked, available);
   const coachPlayerValues: Record<string, number> | undefined =
     pricedPool.playerValuesById;
@@ -1886,6 +1935,39 @@ export async function POST(
           })(),
         }
       : null,
+    // Contend-or-sell verdict, mirrored from loadContendOrSellVerdict
+    // (the hub card's object). Coach cites these numbers; never its own.
+    // Only present when the flag is on, so the flag-off payload matches main.
+    ...(contendOrSellOn
+      ? {
+        contend_or_sell: contendOrSell
+          ? {
+              title_pct: contendOrSell.odds.title_pct,
+              playoff_pct: contendOrSell.odds.playoff_pct,
+              rank_by_title_odds: contendOrSell.league.rank_by_title_odds,
+              teams: contendOrSell.league.teams,
+              fair_title_share: contendOrSell.league.fair_title_share,
+              headline: contendOrSell.panel.headline,
+              consensus: contendOrSell.panel.consensus,
+              voices: contendOrSell.panel.voices,
+              sell_candidates: contendOrSell.candidates.map((c) => ({
+                name: c.player.name,
+                position: c.player.position,
+                age: c.player.age,
+                value: c.player.value,
+                value_lost_by_august: c.decay.value_lost,
+                weekly_points_lost: c.weekly_points_lost,
+                title_delta: c.title_delta,
+                buyers: c.buyers.map((x) => ({ team: x.label, title_pct: x.title_pct, need: x.need, reason: x.reason })),
+              })),
+              package: contendOrSell.package,
+              title_worth: contendOrSell.title_worth,
+              contender_premium: contendOrSell.contender_premium,
+              prediction_types: contendOrSell.provenance.prediction_types,
+            }
+          : null,
+        }
+      : {}),
     nfl_draft_live: isNflDraftWindowActive(),
   };
 
@@ -1897,7 +1979,7 @@ export async function POST(
   const draftLiveContext = isNflDraftWindowActive()
     ? `\n\n## NFL Draft is LIVE\n\nThe NFL Draft is happening right now. The available pool contains a mix of pre-draft rookies (team: null) and post-draft rookies (team assigned). Treat each rookie individually based on their current team field. Picks are landing every few minutes; the user's snapshot may already be 30-60s stale by the time you reply. If the user asks "where did X get drafted," check the team field in top_available; only reach for web_search if the rookie isn't in the snapshot or their team field looks ambiguous.`
     : "";
-  const system = `${SYSTEM_PROMPT}${COACH_CONTRACT}${draftLiveContext}`;
+  const system = `${SYSTEM_PROMPT}${COACH_CONTRACT}${contendOrSellOn ? CONTEND_OR_SELL_PROMPT : ""}${draftLiveContext}`;
 
   // Trade-question classifier. When the user asks about trades and we
   // have NO pricing context to anchor against, structurally inject a

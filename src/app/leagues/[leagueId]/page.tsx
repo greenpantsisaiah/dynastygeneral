@@ -65,6 +65,10 @@ import {
 } from "@/lib/strategy/player-suggestions/enrich";
 import { enrichArchetypeWithTargets } from "@/lib/strategy/player-suggestions/play-targets";
 import { ContenderOutlookCard } from "@/components/league/contender-outlook-card";
+import { ContendOrSellCard } from "@/components/league/contend-or-sell-card";
+import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
+import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
+import { flagOn } from "@/lib/flags/server";
 import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forecast";
 import { synthesizeContenderOutlook } from "@/lib/strategy/contender-outlook/synthesize";
 import type { ContenderOutlook } from "@/lib/strategy/contender-outlook/types";
@@ -1984,6 +1988,29 @@ export default async function LeagueHubPage({
     }
   }
 
+  // Contend-or-sell verdict (in-season, flag contend_or_sell_verdict,
+  // dark). One canonical object; Coach reads the same loader. Uses the
+  // snapshot + scoring values buildLeagueContext already produced.
+  let contendOrSell: ContendOrSellVerdict | null = null;
+  if (
+    leagueSnapshot &&
+    !draftActive &&
+    flagOn("contend_or_sell_verdict", sleeperUser?.username ?? null)
+  ) {
+    try {
+      const res = await loadContendOrSellVerdict({
+        league,
+        snapshot: leagueSnapshot,
+        nflWeek: nflState?.week ?? null,
+        seasonType: nflState?.season_type ?? null,
+        playerValuesById: playerValuesByIdJson,
+      });
+      if (res.ok) contendOrSell = res.verdict;
+    } catch (err) {
+      captureError(issues, "hub:contend-or-sell", err);
+    }
+  }
+
   // Draft journal entries: user's own picks_made with player names
   // resolved + pick label formatted. Powers the post-Quadrant
   // self-awareness surface ("your draft so far"). Best-effort; UI
@@ -2833,6 +2860,9 @@ export default async function LeagueHubPage({
                         items={inflectionItems}
                         rubricByPlayerId={rubricByPlayerId}
                       />
+                    )}
+                    {contendOrSell && (
+                      <ContendOrSellCard verdict={contendOrSell} />
                     )}
                     {contenderOutlook && (
                       <ContenderOutlookCard outlook={contenderOutlook} />

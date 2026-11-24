@@ -643,6 +643,14 @@ const LEAGUE_CONTEXT = resolve(SRC, "lib", "engine", "league-context.ts");
       derivedFrom: "pricedPool.priorDrivenById",
       note: "the prior-driven honesty flag is the canonical priced-pool field, not a Coach-local re-derivation",
     },
+    {
+      // Contend-or-sell verdict (title odds, sell package, buyers, three
+      // voices). The hub card and Coach must read the same loader so chat
+      // never cites different odds than the board.
+      field: "contend_or_sell",
+      derivedFrom: "loadContendOrSellVerdict",
+      note: "the contend-or-sell verdict is the canonical loader's object, not a Coach-local simulation",
+    },
   ];
   console.log("\n── coach mirrors the canonical engine outputs (object-parity) ──");
   {
