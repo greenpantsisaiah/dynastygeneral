@@ -36,7 +36,7 @@ const env = process.env;
 const PROD_URL = (env.PROD_URL || "https://dynastygeneral.app").replace(/\/$/, "");
 const TARGET_SHA = env.TARGET_SHA || "";
 const PREVIOUS_SHA = env.PREVIOUS_SHA || "";
-const HEALTH_TOKEN = env.HEALTH_TOKEN || "";
+const HEALTH_TOKEN = (env.HEALTH_TOKEN || "").trim();
 const num = (v, d) => (Number.isFinite(Number(v)) && v !== "" && v != null ? Number(v) : d);
 const WAIT_LIVE_MINUTES = num(env.WAIT_LIVE_MINUTES, 20);
 const WATCH_MINUTES = num(env.WATCH_MINUTES, 10);

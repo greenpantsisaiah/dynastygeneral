@@ -22,8 +22,10 @@ export async function GET(req: Request) {
     env: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown",
   };
 
-  const token = process.env.HEALTH_TOKEN;
-  const auth = req.headers.get("authorization");
+  // Trim both sides: a value pasted into Vercel or GitHub with a stray
+  // space or newline must not silently lock out the tripwire.
+  const token = process.env.HEALTH_TOKEN?.trim();
+  const auth = req.headers.get("authorization")?.trim();
   if (token && auth === `Bearer ${token}`) {
     const raw = Number.parseInt(url.searchParams.get("minutes") ?? "10", 10);
     const minutes = Number.isFinite(raw) ? Math.min(60, Math.max(1, raw)) : 10;
