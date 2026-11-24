@@ -29,6 +29,7 @@ import {
   getUserByUsername,
 } from "@/lib/sleeper";
 import { resolveDraftState } from "@/lib/sleeper/draft-state";
+import { flagOn } from "@/lib/flags/server";
 import {
   sendAarReadyEmail,
   type AarNotifyArgs,
@@ -183,6 +184,9 @@ export async function GET(request: Request): Promise<Response> {
 
   for (const profile of profiles) {
     const userId = profile.id as string;
+    // Dark until approved: with the profiles columns fixed, this would
+    // email every user with any completed draft at once (bulk send).
+    if (!flagOn("aar_ready_email", userId)) continue;
     const sleeperUsername = profile.sleeper_username as string;
     const ownerName =
       (profile.display_name as string | null) ?? sleeperUsername;
