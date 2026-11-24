@@ -391,6 +391,23 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: a new stepwise/binned age curve anywhere (`if (age < 27) return ...` ladders), or re-deriving a position aging multiplier outside this module. Categorical age bins where reality is continuous are at minimum Weak per the assumption-auditor; the canonical is smooth (INVARIANTS.md "Smooth curves, not breakpoints"). Import the adapter you need; do not re-implement.
 - **Bug class avoided**: 2026-05-29 architecture audit (Phase C3) found four drifted age-curve implementations: the rank multiplier here, a stepwise production multiplier in `evaluation/util.ts`, a signed [-1,+1] dial curve in `synthesize.ts`, and the roster-aggregate signals in `windows/compute.ts`. A calibration change had to be made in up to four places, and the three per-player curves disagreed (e.g., util's TE bins cliffed at 0.50 by 33 while the rank curve declined gently). Locked by `evals/age-curve.test.ts`.
 
+### Season simulator (playoff and title odds, in-season)
+
+- **Canonical**: `simulateSeason(input, opts)` in `src/lib/strategy/verdict/season-sim.ts`, fed by `buildSimInputFromSleeper(args)` in `src/lib/strategy/verdict/from-sleeper.ts`
+- **Returns**: `SimResult`: per roster `{ playoff_pct, title_pct, mean_wins, weekly_mean }` plus the model provenance (league mean, weekly sd, shrink games, sims, seed). `{ ok: false, reason }` when there are too few scored weeks to estimate weekly variance (it declines; it never guesses).
+- **Inputs**: this season's scored weeks and remaining schedule from Sleeper matchups (`getMatchups`), `playoff_week_start`, `playoff_teams`. Optional `meanShift` for a what-if move; baseline and move runs share a seed (common random numbers) so the delta is not simulation noise.
+- **Prediction types**: `playoff_odds@v1`, `title_odds@v1`, `title_odds_delta@v1` in `src/lib/predictions/registry.ts`. Every number it produces is a registered hypothesis until the ledger moves it.
+- **Anti-pattern**: estimating "you are a contender" from standings, record, or roster age in a surface; a second Monte Carlo; or a hardcoded odds band in copy. Read the simulator.
+- **Bug class avoided**: the mid-season keep-going-or-sell decision answered by vibes or by the draft-time win-now score, which never saw a single game result.
+
+### Contend-or-sell verdict (sell package, buyers, three voices)
+
+- **Canonical**: `buildContendOrSellVerdict(args)` in `src/lib/strategy/verdict/compose.ts`, composed from `offseasonValueDecay` (`verdict/decay.ts`, reads `ageRetention`), `rankBuyers` (`verdict/buyers.ts`, reads `startable_counts` + realistic starter need) and `convene` (`verdict/voices.ts`).
+- **Returns**: `ContendOrSellVerdict`: my odds, title rank, sell candidates (decay, weekly points lost, title odds if sold, ranked buyers with reasons), the package delta, roster retained share, the voice panel (Moneyball, Gambler, Strategist; consensus flag; headline), `contender_premium: 0 / unknown`, provenance listing the prediction types it cites.
+- **Rule**: one verdict object feeds the hub card, Coach, and the weekly email. Voices are policies over the same registered facts; they may not cite a number that is not in `VoiceFacts`. Copy never implies a contender should overpay (`contender_premium@v1` is unknown).
+- **Anti-pattern**: a surface that re-runs the simulator with its own inputs, re-derives decay from age, or writes its own sell / push call. Consume the verdict.
+- **Bug class avoided**: board, Coach and email giving three different contend-or-sell answers for one roster.
+
 ### Feature flags and experiments
 
 - **Canonical**: the registry `FLAGS` in `src/lib/flags/registry.ts`, evaluated by `variantFor` / `isEnabled` in `src/lib/flags/evaluate.ts`, read server-side via `flagVariant(key, unitId)` / `flagOn(key, unitId)` in `src/lib/flags/server.ts`.

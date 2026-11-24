@@ -15,12 +15,20 @@
  * Kill switch: set `FLAG_OVERRIDES=<key>=off` in Vercel env and
  * redeploy (no code change). Overrides win over rollout.
  *
- * The registry is empty on purpose: no experiment is approved yet.
  */
 
 import type { FlagDefinition } from "./evaluate";
 
 export const FLAGS = {
+  contend_or_sell_verdict: {
+    description:
+      "In-season contend-or-sell card on the hub (title odds, sell package, buyers, three voices) mirrored to Coach. Dark until the ledger logs it.",
+    owner: "trade advisor",
+    created: "2026-11-24",
+    expires: "2027-03-31",
+    variants: ["off", "on"],
+    rollout: [0],
+  },
   // example_experiment: {
   //   description: "Lead the first-run Team Card with the verdict line.",
   //   owner: "product steward",
