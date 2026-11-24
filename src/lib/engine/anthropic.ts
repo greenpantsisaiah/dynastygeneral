@@ -119,6 +119,9 @@ export async function runStructured<TSchema extends z.ZodTypeAny>(
       model,
       input_tokens: response.usage.input_tokens,
       output_tokens: response.usage.output_tokens,
+      cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
+      cache_creation_input_tokens:
+        response.usage.cache_creation_input_tokens ?? 0,
     }).catch(() => {});
 
     const toolUse = response.content.find(

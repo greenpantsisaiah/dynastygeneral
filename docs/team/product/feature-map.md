@@ -22,7 +22,7 @@ Tiers follow the charter and `product-steward.md`: Free gets the read (diagnosis
 | `/login`, `/auth/*`, `/connect` | Acquire | Free | First-run path: username, then league |
 | `/leagues` | Acquire | Free | League picker |
 | `/leagues/[leagueId]` (hub) | Diagnose, Read the league, Decide and act, Come back | Free (read); Pro meters LLM sections | See hub breakdown below |
-| `/leagues/[leagueId]/coach` | Decide and act | Free daily cap, Pro volume | LLM cost; cap `coach` 5/day free, 200/day Pro (defaults) |
+| `/leagues/[leagueId]/coach` | Decide and act | Free daily cap, Pro volume | LLM cost; cap `coach` 15/week free, 200/day Pro (defaults); free tier also has a $3/month model-spend backstop |
 | `/leagues/[leagueId]/pick`, `/trade`, `/strategy` | Decide and act | Free daily cap (`verdict`), Pro volume | LLM decision endpoints; MODEL_LIVE_PLAN G1 asks whether they are still live deep links |
 | `/leagues/[leagueId]/aar` | Come back | Free | After-action report at draft complete |
 | `/scout`, `/scout/[username]` | Read the league, Acquire | Free | Works without connecting a league; strong acquisition hook |
@@ -43,7 +43,7 @@ Tiers follow the charter and `product-steward.md`: Free gets the read (diagnosis
 | How you're doing (Value vs ADP bank, position diagnostic) | Diagnose | Free |
 | Your team (Team Identity, Inflection, Contender outlook) | Diagnose | Free |
 | The league (trade strategy, opponent reads, SWOT, standings) | Read the league | Free |
-| Intel (briefing feed) | Come back | Free daily cap (`briefing` 3/day), Pro volume |
+| Intel (briefing feed) | Come back | Free weekly cap (`briefing` 5/week), Pro volume |
 | Coach rail | Decide and act | Free daily cap, Pro volume |
 
 ## API routes that cost money to serve
@@ -60,5 +60,5 @@ Tiers follow the charter and `product-steward.md`: Free gets the read (diagnosis
 1. **No first-run Team Card.** The design's recommended first run (username, pick a league, one Team Card that leads with Push / Hold / Sell) does not exist. Today a new manager lands on the full hub. Registered as `EXP-P1` (drafted).
 2. **Activation and week-2 return cannot be measured.** `src/lib/analytics.ts` types `sleeper_username_submit`, `leagues_fetched`, and `league_opened`, but no component fires them. Only six events fire (`coach_message_sent`, `briefing_generated`, `trade_evaluated`, `trade_attack_built`, `trade_verdict_shared`, `soundboard_doctrine_saved`), all to GTM, which agents cannot read. The `leagues` table is never written by the app, so a connected league leaves no server record. Decision issue filed.
 3. **No weekly email brief exists.** The charter promises "the weekly email stays free," but the only email cron is `aar-notifications`. Nothing to gate, nothing to protect yet; it is a build candidate for the Come back job once measurement exists.
-4. **Briefings carry a free daily cap of 3.** That is in-app briefings, not the weekly email. Keep them distinct when the weekly email ships so the email is never metered.
+4. **Briefings carry a free weekly cap of 5.** That is in-app briefings, not the weekly email. Keep them distinct when the weekly email ships so the email is never metered.
 5. **GDPR data export listed as a Pro perk.** Data-access rights may need to stay free. Route to `dynasty-legal-privacy-checker` before any enforcement.

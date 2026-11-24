@@ -23,21 +23,41 @@
 import { Redis } from "@upstash/redis";
 import { isBetaOpenMode } from "@/lib/billing/beta-mode";
 import type { Tier } from "@/lib/auth/session";
+import { getUserMonthSpend } from "@/lib/budget";
 
 export type Feature = "coach" | "briefing" | "multi_pick" | "verdict";
 
+/**
+ * Cap windows. Free caps are WEEKLY (reset Monday 00:00 UTC); Pro caps
+ * stay DAILY protective ceilings.
+ *
+ * Why weekly for free (2026-11-24, founder-approved cost review): at the
+ * old 5/3/1/5 per-day free caps, a free user who maxed every cap all
+ * month cost about $39 in model fees, more than a Pro subscription earns.
+ * A weekly allowance keeps the same "a few real questions" feel for the
+ * typical user (most never hit a daily cap) while bounding the worst
+ * case to roughly a fifth of that. The weekly Tuesday email is NOT
+ * metered here and never should be (it is the return engine).
+ */
+export type CapWindow = "day" | "week";
+
+export function capWindowFor(tier: Tier): CapWindow {
+  return tier === "free" ? "week" : "day";
+}
+
 const DEFAULT_CAPS: Record<Tier, Record<Feature, number>> = {
   free: {
-    coach: 5,
-    briefing: 3,
-    multi_pick: 1,
-    verdict: 5,
+    // Per WEEK.
+    coach: 15,
+    briefing: 5,
+    multi_pick: 3,
+    verdict: 10,
   },
   pro: {
-    // Pro caps are protective ceilings against the 1% extreme user
-    // (someone running 5 leagues, 200 coach turns per draft). The
-    // median Pro user won't see these caps. Tune from analytics
-    // once we have actual beta consumption data.
+    // Per DAY. Pro caps are protective ceilings against the 1% extreme
+    // user (someone running 5 leagues, 200 coach turns per draft). The
+    // median Pro user won't see these caps. Tune from analytics once we
+    // have actual consumption data.
     coach: 200,
     briefing: 100,
     multi_pick: 50,
@@ -47,10 +67,10 @@ const DEFAULT_CAPS: Record<Tier, Record<Feature, number>> = {
 
 const ENV_CAP_KEY: Record<Tier, Record<Feature, string>> = {
   free: {
-    coach: "CAP_FREE_COACH_PER_DAY",
-    briefing: "CAP_FREE_BRIEFINGS_PER_DAY",
-    multi_pick: "CAP_FREE_MULTI_PICK_PER_DAY",
-    verdict: "CAP_FREE_VERDICT_PER_DAY",
+    coach: "CAP_FREE_COACH_PER_WEEK",
+    briefing: "CAP_FREE_BRIEFINGS_PER_WEEK",
+    multi_pick: "CAP_FREE_MULTI_PICK_PER_WEEK",
+    verdict: "CAP_FREE_VERDICT_PER_WEEK",
   },
   pro: {
     coach: "CAP_PRO_COACH_PER_DAY",
@@ -70,13 +90,43 @@ function capFor(tier: Tier, feature: Feature): number {
   return DEFAULT_CAPS[tier][feature];
 }
 
-function todayKey(): string {
-  // UTC day. Caps reset at midnight UTC; documented on /pricing FAQ.
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Pure: the bucket id for a window. Day = UTC date. Week = the UTC date
+ * of that week's Monday, so every week starts Monday 00:00 UTC.
+ */
+export function windowBucket(window: CapWindow, now: Date = new Date()): string {
+  if (window === "day") return now.toISOString().slice(0, 10);
+  const d = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+  const sinceMonday = (d.getUTCDay() + 6) % 7; // Mon=0 ... Sun=6
+  d.setUTCDate(d.getUTCDate() - sinceMonday);
+  return `w${d.toISOString().slice(0, 10)}`;
 }
 
-function key(userId: string, feature: Feature): string {
-  return `consumption:${userId}:${feature}:${todayKey()}`;
+function windowTtlSeconds(window: CapWindow): number {
+  // Window length plus a 2h buffer for clock slop.
+  return (window === "day" ? 24 : 7 * 24) * 60 * 60 + 2 * 60 * 60;
+}
+
+function key(userId: string, feature: Feature, tier: Tier): string {
+  return `consumption:${userId}:${feature}:${windowBucket(capWindowFor(tier))}`;
+}
+
+/**
+ * Free-tier monthly model-spend ceiling (USD), a backstop under the
+ * count caps. Env `FREE_MONTHLY_USD_CEILING`; default $3. Pro has no
+ * dollar ceiling (its daily caps are the protective layer).
+ */
+const DEFAULT_FREE_MONTHLY_USD_CEILING = 3;
+
+export function freeMonthlyUsdCeiling(): number {
+  const raw = process.env.FREE_MONTHLY_USD_CEILING;
+  if (raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return DEFAULT_FREE_MONTHLY_USD_CEILING;
 }
 
 let redis: Redis | null = null;
@@ -100,6 +150,7 @@ function getRedis(): Redis | null {
 }
 
 export type CapCheck = {
+  window: CapWindow;
   // True when the call is allowed (under cap, OR enforcement is off
   // because of beta mode, OR Upstash is unavailable).
   allowed: boolean;
@@ -147,7 +198,8 @@ export async function hasActiveDayPass(userId: string): Promise<boolean> {
 }
 
 /**
- * Pre-flight check: would this request exceed the user's daily cap?
+ * Pre-flight check: would this request exceed the user's cap for the
+ * tier's window (weekly free, daily Pro), or the free spend ceiling?
  *
  * During beta: returns allowed=true regardless, with observed_only=true
  * when the cap would have fired. Caller still proceeds; we just know
@@ -169,33 +221,47 @@ export async function checkCap(
   tier: Tier,
 ): Promise<CapCheck> {
   const cap = capFor(tier, feature);
+  const window = capWindowFor(tier);
   const r = getRedis();
   if (!r) {
-    return { allowed: true, used: 0, cap, observed_only: false };
+    return { window, allowed: true, used: 0, cap, observed_only: false };
   }
   // Day Pass short-circuits the cap. Read in parallel with usage so
   // the check doesn't add a serial round-trip.
   const [usedRaw, passRaw] = await Promise.all([
-    r.get<string | number>(key(userId, feature)),
+    r.get<string | number>(key(userId, feature, tier)),
     r.get(dayPassKey(userId)),
   ]);
   const used = typeof usedRaw === "number" ? usedRaw : Number(usedRaw ?? 0);
-  const wouldBlock = Number.isFinite(used) && used >= cap;
+  let wouldBlock = Number.isFinite(used) && used >= cap;
+  // Free-tier dollar backstop: once a free user's month-to-date model
+  // spend passes the ceiling, treat every metered feature as capped.
+  if (!wouldBlock && tier === "free") {
+    const spent = await getUserMonthSpend(userId);
+    const ceiling = freeMonthlyUsdCeiling();
+    if (spent >= ceiling) {
+      wouldBlock = true;
+      console.info(
+        `[consumption:spend-ceiling] user=${userId} feature=${feature} spent_usd=${spent.toFixed(2)} ceiling_usd=${ceiling}`,
+      );
+    }
+  }
   const dayPass = passRaw != null;
   const beta = isBetaOpenMode();
   if (dayPass && wouldBlock) {
     console.info(
       `[consumption:day-pass-active] user=${userId} feature=${feature} used=${used} cap=${cap} (Day Pass active; not enforced)`,
     );
-    return { allowed: true, used, cap, observed_only: false };
+    return { window, allowed: true, used, cap, observed_only: false };
   }
   if (wouldBlock && beta) {
     console.info(
       `[consumption:observe] user=${userId} feature=${feature} tier=${tier} used=${used} cap=${cap} (beta open; not enforced)`,
     );
-    return { allowed: true, used, cap, observed_only: true };
+    return { window, allowed: true, used, cap, observed_only: true };
   }
   return {
+    window,
     allowed: !wouldBlock,
     used: Number.isFinite(used) ? used : 0,
     cap,
@@ -205,6 +271,7 @@ export async function checkCap(
 
 export type FeatureUsage = {
   feature: Feature;
+  window: CapWindow;
   used: number;
   cap: number;
   remaining: number;
@@ -227,12 +294,14 @@ export async function getUsageSummary(
   tier: Tier,
 ): Promise<FeatureUsage[]> {
   const features: Feature[] = ["coach", "briefing", "multi_pick", "verdict"];
+  const window = capWindowFor(tier);
   const r = getRedis();
   if (!r) {
     return features.map((feature) => {
       const cap = capFor(tier, feature);
       return {
         feature,
+        window,
         used: 0,
         cap,
         remaining: cap,
@@ -242,7 +311,7 @@ export async function getUsageSummary(
     });
   }
   // mget batches the gets into one round-trip.
-  const keys = features.map((f) => key(userId, f));
+  const keys = features.map((f) => key(userId, f, tier));
   const raw = await r.mget<Array<string | number | null>>(...keys);
   return features.map((feature, i) => {
     const cap = capFor(tier, feature);
@@ -253,6 +322,7 @@ export async function getUsageSummary(
     const pct = cap > 0 ? Math.min(1, safe / cap) : 0;
     return {
       feature,
+      window,
       used: safe,
       cap,
       remaining,
@@ -264,23 +334,25 @@ export async function getUsageSummary(
 
 /**
  * Record one use. Atomic INCR with TTL on first set so the key
- * naturally expires at the end of the UTC day (with 2h buffer for
- * timezone slop). Best-effort: a missing Upstash means we silently
+ * naturally expires at the end of the tier's window (UTC day for Pro,
+ * Monday-start UTC week for free, plus a 2h buffer). Pass the same tier
+ * the caller passed to checkCap so both read one bucket. Best-effort: a missing Upstash means we silently
  * skip the record; the global budget cap remains the safety net.
  */
 export async function recordUse(
   userId: string,
   feature: Feature,
+  tier: Tier,
 ): Promise<void> {
   const r = getRedis();
   if (!r) return;
   try {
-    const k = key(userId, feature);
+    const k = key(userId, feature, tier);
     const next = await r.incr(k);
     if (next === 1) {
-      // First write of the day. Set expiry to ~26h so the day
-      // rollover is clean across timezones.
-      await r.expire(k, 26 * 60 * 60);
+      // First write of the window. Expire just past the window end so
+      // rollover is clean.
+      await r.expire(k, windowTtlSeconds(capWindowFor(tier)));
     }
   } catch (err) {
     console.error("[consumption:record]", err);

@@ -25,6 +25,7 @@ import { checkBudget } from "@/lib/budget";
 import { guardLlmEnforcement } from "@/lib/ops/llm-guard";
 import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
+import { capWindowCopy } from "@/lib/consumption/window-copy";
 import { isPlanAvailable } from "@/lib/stripe/client";
 
 export async function POST(
@@ -55,7 +56,7 @@ export async function POST(
       },
     );
   }
-  // Per-user daily cap. Free: 3 batches/day, Pro: 100/day. Beta
+  // Per-user cap. Free: 5 batches/week, Pro: 100/day. Beta
   // observes only; post-beta enforces. Tunable via env vars.
   if (gate.user.id !== "anonymous-dev") {
     const cap = await checkCap(gate.user.id, "briefing", gate.user.tier);
@@ -63,7 +64,7 @@ export async function POST(
       return NextResponse.json(
         {
           error: "daily_cap_reached",
-          message: `Daily Briefings cap reached (${cap.used}/${cap.cap}). Resets at midnight UTC.`,
+          message: `${capWindowCopy(cap.window).adjective} Briefings cap reached (${cap.used}/${cap.cap}). ${capWindowCopy(cap.window).reset}`,
           cap_used: cap.used,
           cap_max: cap.cap,
           tier: gate.user.tier,
@@ -151,7 +152,7 @@ export async function POST(
     // Per-user daily counter. Records every successful briefings
     // batch so analytics + post-beta enforcement work. Best-effort.
     if (gate.user.id !== "anonymous-dev") {
-      await recordUse(gate.user.id, "briefing");
+      await recordUse(gate.user.id, "briefing", gate.user.tier);
     }
     return NextResponse.json({
       briefings,

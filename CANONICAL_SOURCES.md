@@ -400,6 +400,14 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: an ad-hoc `process.env.SOMETHING_ENABLED` toggle, a `Math.random()` split, or a client-only experiment assignment that can flicker between renders. Register the flag instead.
 - **Bug class avoided**: experiments that cannot be turned off without a revert, users flipping between arms, and stale experiments piling up.
 
+### Model spend accounting (cost per call, per user)
+
+- **Canonical**: `costUsd(args)` and `recordSpend(args)` in `src/lib/budget.ts`; per-user month total via `getUserMonthSpend(userId)`.
+- **Returns**: USD for one Anthropic response: uncached input at the model rate, cache reads at 0.1x, cache writes at 1.25x, output at the output rate, plus web-search fees. `recordSpend` adds it to the daily global budget and, when `userId` is passed, to the user's UTC-month total.
+- **Consumers**: every Anthropic call site (`coach` route, `engine/anthropic.ts`, `scout/verdict.ts`); the free-tier spend ceiling in `consumption/track.ts` (`checkCap`).
+- **Anti-pattern**: pricing tokens inline, or recording spend from `input_tokens` alone once prompt caching is on (cache reads and writes are reported separately and would vanish from the budget).
+- **Bug class avoided**: 2026-11-24 cost review. The global counter could not answer "what does one user cost," and cached tokens were invisible to the budget.
+
 ## Adding a new entry
 
 Use this template:

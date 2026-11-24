@@ -125,31 +125,61 @@ export async function checkBudget(): Promise<{
   }
 }
 
-/**
- * Record spend from a completed Anthropic response. Call AFTER the
- * request succeeds. Token counts come from response.usage.
- */
-export async function recordSpend(args: {
+// Prompt-cache billing multipliers on the base input rate. Cache reads
+// bill at 0.1x; 5-minute cache writes bill at 1.25x. Anthropic reports
+// these token classes separately from `input_tokens`, so without them a
+// cached turn under-reports (reads) or over-saves (writes) its cost.
+const CACHE_READ_MULTIPLIER = 0.1;
+const CACHE_WRITE_MULTIPLIER = 1.25;
+
+export type SpendArgs = {
   model: string;
   input_tokens: number;
   output_tokens: number;
+  // response.usage.cache_read_input_tokens / cache_creation_input_tokens.
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
   // Optional: number of web_search tool requests this turn used.
   // Read from response.usage.server_tool_use?.web_search_requests
   // when calling. Anthropic bills these separately from message
   // tokens (~$10 per 1000 requests). Without this field, search-
   // augmented turns under-report cost.
   web_search_requests?: number;
-}): Promise<void> {
-  const r = getRedis();
-  if (!r) return;
-  const price =
-    PRICING_PER_MTOK[args.model] ?? PRICING_PER_MTOK.default;
+  // Optional: the signed-in user who caused the spend. When present the
+  // cost also accumulates on a per-user monthly counter, which is what
+  // the cost-per-user estimate and the free-tier spend ceiling read.
+  userId?: string | null;
+};
+
+/** Pure: estimated USD for one Anthropic response. */
+export function costUsd(args: SpendArgs): number {
+  const price = PRICING_PER_MTOK[args.model] ?? PRICING_PER_MTOK.default;
+  const perTok = price.input / 1_000_000;
   const tokenUsd =
-    (args.input_tokens / 1_000_000) * price.input +
+    args.input_tokens * perTok +
+    (args.cache_read_input_tokens ?? 0) * perTok * CACHE_READ_MULTIPLIER +
+    (args.cache_creation_input_tokens ?? 0) * perTok * CACHE_WRITE_MULTIPLIER +
     (args.output_tokens / 1_000_000) * price.output;
   const searchUsd =
     (args.web_search_requests ?? 0) * WEB_SEARCH_USD_PER_REQUEST;
-  const usd = tokenUsd + searchUsd;
+  return tokenUsd + searchUsd;
+}
+
+/** Per-user monthly spend key, UTC month. */
+export function userMonthSpendKey(userId: string, now: Date = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  return `dg:spend:user:${userId}:${y}-${m}`;
+}
+
+/**
+ * Record spend from a completed Anthropic response. Call AFTER the
+ * request succeeds. Token counts come from response.usage.
+ */
+export async function recordSpend(args: SpendArgs): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  const usd = costUsd(args);
   if (!Number.isFinite(usd) || usd <= 0) return;
   try {
     const key = todayUtcKey();
@@ -157,7 +187,28 @@ export async function recordSpend(args: {
     // rollover confusion without leaking history.
     await r.incrbyfloat(key, usd);
     await r.expire(key, 60 * 60 * 48);
+    if (args.userId) {
+      // Per-user month total. 40-day TTL keeps last month readable for
+      // the product steward's cost-per-user readout after rollover.
+      const uk = userMonthSpendKey(args.userId);
+      await r.incrbyfloat(uk, usd);
+      await r.expire(uk, 60 * 60 * 24 * 40);
+    }
   } catch (err) {
     console.error("[budget:record]", err);
+  }
+}
+
+/** Month-to-date spend for one user, in USD. 0 when Redis is absent. */
+export async function getUserMonthSpend(userId: string): Promise<number> {
+  const r = getRedis();
+  if (!r) return 0;
+  try {
+    const raw = await r.get<string | number>(userMonthSpendKey(userId));
+    const n = typeof raw === "number" ? raw : Number.parseFloat(String(raw ?? 0));
+    return Number.isFinite(n) ? n : 0;
+  } catch (err) {
+    console.error("[budget:user-month]", err);
+    return 0;
   }
 }
