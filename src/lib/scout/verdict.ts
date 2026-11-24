@@ -280,6 +280,8 @@ export async function generateScoutVerdict(args: {
     model: "claude-sonnet-4-6",
     input_tokens: response.usage.input_tokens,
     output_tokens: response.usage.output_tokens,
+    cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
+    cache_creation_input_tokens: response.usage.cache_creation_input_tokens ?? 0,
   }).catch(() => {});
 
   const text = response.content

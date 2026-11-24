@@ -20,6 +20,9 @@ import { checkBudget, recordSpend } from "@/lib/budget";
 import { guardLlmEnforcement } from "@/lib/ops/llm-guard";
 import { checkProGate } from "@/lib/auth/paywall";
 import { checkCap, recordUse } from "@/lib/consumption/track";
+import { capWindowCopy } from "@/lib/consumption/window-copy";
+import { buildCoachTurn, renderCurrentState } from "@/lib/coach/turn";
+import { flagOn } from "@/lib/flags/server";
 import { isPlanAvailable } from "@/lib/stripe/client";
 import { humanize, resolvePlayers } from "@/lib/players/cache";
 import { getProjections, pickAdpFromVariants } from "@/lib/players/projections";
@@ -107,9 +110,11 @@ the name yet in chat.
 
 ## Truth source per turn
 
-The system PREPENDS a \`<current_state>\` block to each user message
-before sending the turn (the user did not type it; the server injected
-a fresh JSON snapshot: pick label, picks until you, declared window,
+The server supplies a fresh \`<current_state>\` block on every turn,
+either in the system context or at the top of the user message, and a
+\`[STATE]\` line in the user message may restate its live pick label
+and standing call (the user did not type either; the server injected a
+fresh JSON snapshot: pick label, picks until you, declared window,
 system_decision, ranked archetypes, available players, opponents).
 That block is the AUTHORITATIVE truth for THIS turn. If anything you
 said in a previous reply contradicts it (a different pick label, a
@@ -908,8 +913,8 @@ export async function POST(
       },
     );
   }
-  // Per-user daily cap. During beta this only OBSERVES; post-beta it
-  // enforces. Free: 5/day, Pro: 200/day (extreme protective ceiling).
+  // Per-user cap. During beta this only OBSERVES; post-beta it
+  // enforces. Free: 15/week, Pro: 200/day (extreme protective ceiling).
   // Caps tunable via env vars; see lib/consumption/track.ts.
   if (gate.user.id !== "anonymous-dev") {
     const cap = await checkCap(gate.user.id, "coach", gate.user.tier);
@@ -917,7 +922,7 @@ export async function POST(
       return NextResponse.json(
         {
           error: "daily_cap_reached",
-          message: `Daily Coach cap reached (${cap.used}/${cap.cap}). Resets at midnight UTC.`,
+          message: `${capWindowCopy(cap.window).adjective} Coach cap reached (${cap.used}/${cap.cap}). ${capWindowCopy(cap.window).reset}`,
           cap_used: cap.used,
           cap_max: cap.cap,
           tier: gate.user.tier,
@@ -1972,11 +1977,38 @@ export async function POST(
     history.length > COACH_HISTORY_LIMIT
       ? history.slice(-COACH_HISTORY_LIMIT)
       : history;
-  const turnContent = `<current_state>\n${JSON.stringify(contextPayload, null, 2)}\n</current_state>${tradeGuard}${taxiGuard}${unreadSurfaceGuard}\n\n${message}`;
-  const messages: Anthropic.MessageParam[] = [
-    ...trimmedHistory.map((m) => ({ role: m.role, content: m.content })),
-    { role: "user", content: turnContent },
-  ];
+  // Prompt-cache layout (flag `coach_state_cache`). "on" moves the
+  // <current_state> snapshot into a cached system block so follow-up
+  // turns read it at about a tenth of the input rate; the final user
+  // message carries a short [STATE] recency pointer instead. "off" is
+  // the original layout (snapshot inside the last user message). See
+  // src/lib/coach/turn.ts for the cost math and the recency guard.
+  const guards = `${tradeGuard}${taxiGuard}${unreadSurfaceGuard}`;
+  const cacheState = flagOn("coach_state_cache", gate.user.id);
+  const legacyTurnContent = `${renderCurrentState(contextPayload)}${guards}\n\n${message}`;
+  const turn = cacheState
+    ? buildCoachTurn({
+        system,
+        contextPayload,
+        history: trimmedHistory,
+        guards,
+        message,
+        nextPickLabel: pickApproach?.my_pick_label ?? null,
+        standingCallName: decision?.recommendation.name ?? null,
+      })
+    : {
+        system: [
+          {
+            type: "text" as const,
+            text: system,
+            cache_control: { type: "ephemeral" as const },
+          },
+        ],
+        messages: [
+          ...trimmedHistory.map((m) => ({ role: m.role, content: m.content })),
+          { role: "user" as const, content: legacyTurnContent },
+        ] as Anthropic.MessageParam[],
+      };
 
   let response: Anthropic.Message;
   try {
@@ -1984,13 +2016,7 @@ export async function POST(
       model: "claude-sonnet-4-6",
       max_tokens: 1500,
       temperature: 0.5,
-      system: [
-        {
-          type: "text",
-          text: system,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
+      system: turn.system,
       // Web search lets the coach pull live KTC pricing, recent injury
       // news, and trade-market commentary when the user asks something
       // the snapshot can't answer. Capped at 3 searches per turn so a
@@ -2005,7 +2031,7 @@ export async function POST(
           max_uses: 3,
         },
       ],
-      messages,
+      messages: turn.messages,
     },
     // Bound the call below the 60s Vercel function limit (maxDuration).
     // A web-search-augmented turn on a large late-draft context can run
@@ -2047,14 +2073,21 @@ export async function POST(
     model: "claude-sonnet-4-6",
     input_tokens: response.usage.input_tokens,
     output_tokens: response.usage.output_tokens,
+    cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
+    cache_creation_input_tokens:
+      response.usage.cache_creation_input_tokens ?? 0,
     web_search_requests:
       response.usage.server_tool_use?.web_search_requests ?? 0,
+    userId: gate.user.id !== "anonymous-dev" ? gate.user.id : null,
   }).catch(() => {});
+  console.info(
+    `[coach:usage] layout=${cacheState ? "cached_state" : "legacy"} input=${response.usage.input_tokens} cache_read=${response.usage.cache_read_input_tokens ?? 0} cache_write=${response.usage.cache_creation_input_tokens ?? 0} output=${response.usage.output_tokens}`,
+  );
 
   // Per-user daily counter. Records every successful Coach turn so
   // analytics + post-beta enforcement work. Best-effort.
   if (gate.user.id !== "anonymous-dev") {
-    await recordUse(gate.user.id, "coach");
+    await recordUse(gate.user.id, "coach", gate.user.tier);
   }
 
   // Server-side chat history mirror. Pro-tier benefit: cross-device

@@ -17,11 +17,13 @@
  */
 
 import { useEffect, useState } from "react";
+import { capWindowCopy } from "@/lib/consumption/window-copy";
 
 type Feature = "coach" | "briefing" | "multi_pick" | "verdict";
 
 type FeatureUsage = {
   feature: Feature;
+  window?: "day" | "week";
   used: number;
   cap: number;
   remaining: number;
@@ -111,7 +113,7 @@ export function UsageChip({ feature }: { feature: Feature }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${tone}`}
-      title={`${usage.used} of ${usage.cap} ${LABELS[feature].toLowerCase()} today. Resets at midnight UTC.`}
+      title={`${usage.used} of ${usage.cap} ${LABELS[feature].toLowerCase()} ${capWindowCopy(usage.window ?? "day").period}. ${capWindowCopy(usage.window ?? "day").reset}`}
     >
       <span
         className={`inline-block h-1 w-1 rounded-full ${
@@ -122,7 +124,7 @@ export function UsageChip({ feature }: { feature: Feature }) {
               : "bg-success"
         }`}
       />
-      {usage.used}/{usage.cap} today
+      {usage.used}/{usage.cap} {capWindowCopy(usage.window ?? "day").period}
     </span>
   );
 }
@@ -149,20 +151,22 @@ export function UsageDetail() {
   }, []);
 
   if (!data || !data.authenticated) return null;
+  const windowCopy = capWindowCopy(data.features[0]?.window ?? "day");
 
   return (
     <div className="mt-8 rounded-lg border border-border-strong bg-surface px-5 py-5">
       <div className="flex items-baseline justify-between gap-2">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          Today's usage
+          {windowCopy.adjective} usage
         </div>
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-          Resets midnight UTC · tier: {data.tier}
+          {windowCopy.reset} · tier: {data.tier}
         </span>
       </div>
       <p className="mt-2 text-xs text-muted">
-        Generous daily caps so beta is meaningful for everyone. Hit a
-        cap and want to keep going? Pro removes them.
+        {data.tier === "free"
+          ? "Free caps run by the week. The weekly email is never counted. Hit a cap and want to keep going? Pro raises them."
+          : "Pro caps are daily ceilings most people never reach."}
       </p>
 
       {data.day_pass_active && (
