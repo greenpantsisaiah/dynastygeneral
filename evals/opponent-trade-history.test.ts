@@ -33,6 +33,22 @@ function tp(season: string, round: number, original: number, current: number): T
 }
 
 function run() {
+  console.log("\n── 0. regression: sent 3 / received 0 matches the canonical (pick_seller) ──");
+  {
+    // The retired detect.ts fork read this as pick_quiet (single volume>=4
+    // gate). Canonical: netPicks -3, volume 3 -> pick_seller. Also checks the
+    // self-owned entry is skipped. detect.ts now routes through this canonical.
+    const tradedPicks: TradedPick[] = [
+      tp("2026", 1, 5, 1),
+      tp("2026", 2, 5, 2),
+      tp("2027", 1, 5, 3),
+      tp("2027", 2, 5, 5), // original === current, skipped
+    ];
+    const h = buildOpponentTradeHistory({ rosterId: 5, tradedPicks, currentSeason: SEASON });
+    check("sent 3 / received 0 is pick_seller", h.signature === "pick_seller", `actual: ${h.signature}`);
+    check("self-owned entry not counted", h.picks_sent === 3 && h.picks_received === 0);
+  }
+
   console.log("\n── 1. pick_flipper: high two-way volume, ~zero net ──");
   {
     // Joeboch fingerprint: sent 3 picks, received 3 picks. Net 0,

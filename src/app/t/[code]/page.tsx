@@ -44,19 +44,19 @@ export async function generateMetadata(
     title: `${headline} · Dynasty General`,
     description:
       record.mode === "incoming"
-        ? "Calibrated dynasty trade verdict. Methodology and backtest at dynastygeneral.app/scoreboard."
-        : "Calibrated dynasty trade attack plan. Methodology and backtest at dynastygeneral.app/scoreboard.",
+        ? "Dynasty trade verdict. Methodology and backtest at dynastygeneral.app/scoreboard."
+        : "Dynasty trade attack plan. Methodology and backtest at dynastygeneral.app/scoreboard.",
     alternates: { canonical: url },
     openGraph: {
       title: `${headline} · Dynasty General`,
-      description: `${Math.round((record.confidence ?? 50))}% confidence · Engine v0 · 0.399 Spearman, beats consensus`,
+      description: `${Math.round((record.confidence ?? 50))}% confidence · Engine v0 backtest at dynastygeneral.app/scoreboard`,
       url,
       type: "article",
     },
     twitter: {
       card: "summary_large_image",
       title: `${headline} · Dynasty General`,
-      description: `${Math.round((record.confidence ?? 50))}% confidence · Engine v0 · 0.399 Spearman, beats consensus`,
+      description: `${Math.round((record.confidence ?? 50))}% confidence · Engine v0 backtest at dynastygeneral.app/scoreboard`,
     },
     robots: { index: false, follow: true },
   };
