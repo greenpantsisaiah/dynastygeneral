@@ -140,7 +140,7 @@ export async function GET(request: Request): Promise<Response> {
   // them to a Sleeper account anyway.
   const { data: profiles, error: profilesError } = await admin
     .from("profiles")
-    .select("user_id, sleeper_username, full_name")
+    .select("id, sleeper_username, display_name")
     .not("sleeper_username", "is", null);
 
   if (profilesError) {
@@ -159,7 +159,7 @@ export async function GET(request: Request): Promise<Response> {
 
   // Fetch user emails in one batch via the auth admin API. Maps
   // user_id -> email.
-  const userIds = profiles.map((p) => p.user_id as string);
+  const userIds = profiles.map((p) => p.id as string);
   const emailByUserId = new Map<string, string>();
   for (const uid of userIds) {
     try {
@@ -182,10 +182,10 @@ export async function GET(request: Request): Promise<Response> {
   const season = String(new Date().getFullYear());
 
   for (const profile of profiles) {
-    const userId = profile.user_id as string;
+    const userId = profile.id as string;
     const sleeperUsername = profile.sleeper_username as string;
     const ownerName =
-      (profile.full_name as string | null) ?? sleeperUsername;
+      (profile.display_name as string | null) ?? sleeperUsername;
     const email = emailByUserId.get(userId);
     if (!email) continue;
 

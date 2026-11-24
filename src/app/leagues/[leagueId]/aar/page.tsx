@@ -69,7 +69,7 @@ export default async function AarPage({ params, searchParams }: PageProps) {
       const { data } = await supabase
         .from("profiles")
         .select("sleeper_username")
-        .eq("user_id", authUser.id)
+        .eq("id", authUser.id)
         .maybeSingle();
       savedSleeperUsername =
         (data?.sleeper_username as string | null) ?? null;
