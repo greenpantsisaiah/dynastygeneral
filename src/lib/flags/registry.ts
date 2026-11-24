@@ -29,6 +29,15 @@ export const FLAGS = {
     variants: ["off", "on"],
     rollout: [0],
   },
+  aar_ready_email: {
+    description:
+      "Post-draft \"AAR ready\" email from /api/cron/aar-notifications. The cron never sent (wrong profiles columns) until #117; once it works it would email every user with any completed draft, a bulk send. Dark until Isaiah approves; needs unsubscribe + postal address before it goes on.",
+    owner: "growth",
+    created: "2026-11-24",
+    expires: "2027-03-31",
+    variants: ["off", "on"],
+    rollout: [0],
+  },
   contend_or_sell_verdict: {
     description:
       "In-season contend-or-sell card on the hub (title odds, sell package, buyers, three voices) mirrored to Coach. Dark until the ledger logs it.",
