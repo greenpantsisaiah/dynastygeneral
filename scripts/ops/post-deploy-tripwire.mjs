@@ -122,6 +122,22 @@ async function main() {
   }
   console.log(`live. baseline errors: ${baseline ?? "n/a"}`);
 
+  // Say plainly why error counts are or are not available, so a missing
+  // token (GitHub secret vs Vercel env) or a missing Upstash store is
+  // diagnosable from this log alone.
+  if (HEALTH_TOKEN) {
+    const probe = await health(TARGET_SHA);
+    if (!probe) {
+      console.log("error counts: /api/health did not answer.");
+    } else if (!("server_errors" in probe)) {
+      console.log("error counts: token REJECTED by production. Check that Vercel HEALTH_TOKEN (Production) matches the GitHub secret and that production was redeployed after setting it.");
+    } else if (probe.server_errors == null) {
+      console.log("error counts: token accepted, but the error store is unavailable (Upstash env vars missing in production).");
+    } else {
+      console.log(`error counts: token accepted, store live (${probe.server_errors} errors in window).`);
+    }
+  }
+
   // 2. Watch.
   const rounds = Math.max(1, Math.round((WATCH_MINUTES * 60_000) / INTERVAL_MS));
   let failedRounds = 0;
