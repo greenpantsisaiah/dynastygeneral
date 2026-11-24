@@ -20,6 +20,15 @@
 import type { FlagDefinition } from "./evaluate";
 
 export const FLAGS = {
+  weekly_brief_email: {
+    description:
+      "Tuesday brief email to every account: contend-or-sell verdict per league; Pro adds who to sell to. Bulk send is red tier: Isaiah approves the first send.",
+    owner: "growth",
+    created: "2026-11-24",
+    expires: "2027-03-31",
+    variants: ["off", "on"],
+    rollout: [0],
+  },
   contend_or_sell_verdict: {
     description:
       "In-season contend-or-sell card on the hub (title odds, sell package, buyers, three voices) mirrored to Coach. Dark until the ledger logs it.",

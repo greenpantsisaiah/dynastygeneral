@@ -63,11 +63,7 @@ export async function getOptionalUser(): Promise<AuthUser | null> {
   const subRow = sub.data;
   // Effective tier: a "trialing" or "active" Pro row counts as pro,
   // everything else (canceled, past_due, missing row) is free.
-  const tier: Tier =
-    subRow?.tier === "pro" &&
-    (subRow.status === "trialing" || subRow.status === "active")
-      ? "pro"
-      : "free";
+  const tier: Tier = effectiveTier(subRow);
 
   const meta = data.user.user_metadata ?? {};
   return {
@@ -138,4 +134,18 @@ export async function getTier(): Promise<{
   const user = await getOptionalUser();
   if (!user) return { tier: "free", user: null };
   return { tier: user.tier, user };
+}
+
+/**
+ * Effective tier from a subscriptions row: a "trialing" or "active" Pro
+ * row counts as pro; everything else (canceled, past_due, missing row)
+ * is free. The one rule shared by the session and server jobs (the
+ * weekly brief cron), so free vs Pro never differs between surfaces.
+ */
+export function effectiveTier(
+  row: { tier?: string | null; status?: string | null } | null | undefined,
+): Tier {
+  return row?.tier === "pro" && (row.status === "trialing" || row.status === "active")
+    ? "pro"
+    : "free";
 }
