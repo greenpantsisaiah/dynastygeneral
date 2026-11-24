@@ -40,13 +40,7 @@ export function rankBuyers(args: {
     const target = Math.max(1, r.starters_at_pos + 1);
     const need = Math.min(1, Math.max(0, (target - r.startable_at_pos) / target));
     const score = r.title_pct * (1 - NEED_WEIGHT + NEED_WEIGHT * need);
-    const short = Math.max(0, r.starters_at_pos - r.startable_at_pos);
-    const depth =
-      short > 0
-        ? `${short} startable ${args.position} short of ${r.starters_at_pos} starters`
-        : r.startable_at_pos <= r.starters_at_pos
-          ? `no startable ${args.position} depth behind ${r.starters_at_pos} starters`
-          : `${r.startable_at_pos} startable ${args.position} for ${r.starters_at_pos} slots`;
+    const depth = `${r.startable_at_pos} startable ${args.position} for ${r.starters_at_pos} starter slots`;
     out.push({
       ...r,
       need,

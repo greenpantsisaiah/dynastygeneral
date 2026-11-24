@@ -67,6 +67,14 @@ export function moneyball(f: VoiceFacts, titleWorth = DEFAULT_TITLE_WORTH): Voic
   };
 }
 
+const GAMBLER_TAKE: Record<Stance, string> = {
+  push: "That is a live ticket; ride it.",
+  lean_push: "Close enough to a fair shot to keep playing.",
+  split: "Below a fair shot but not dead; only sell for a clear return.",
+  lean_sell: "A long shot; start cashing chips.",
+  sell: "A long shot; cash the chips.",
+};
+
 export function gambler(f: VoiceFacts): VoiceRead {
   const fair = 1 / Math.max(2, f.teams);
   const r = f.title_pct / fair;
@@ -74,7 +82,7 @@ export function gambler(f: VoiceFacts): VoiceRead {
   return {
     voice: "gambler",
     stance,
-    line: `Title odds ${pct(f.title_pct)} against a fair share of ${pct(fair)}. ${r >= 0.6 ? "That is a live ticket; ride it." : "That is a long shot; cash the chips."}`,
+    line: `Title odds ${pct(f.title_pct)} against a fair share of ${pct(fair)}. ${GAMBLER_TAKE[stance]}`,
   };
 }
 
