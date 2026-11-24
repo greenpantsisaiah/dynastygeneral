@@ -87,12 +87,12 @@ export async function GET(request: Request): Promise<Response> {
   const admin = getAdminClient();
   const { data: profiles, error } = await admin
     .from("profiles")
-    .select("user_id, sleeper_username, full_name");
+    .select("id, sleeper_username, display_name");
   if (error) {
     console.error("[cron:weekly-brief:profiles]", error.message);
     return NextResponse.json({ ok: false, error: "profiles_query_failed" }, { status: 500 });
   }
-  const ids = (profiles ?? []).map((p) => p.user_id as string);
+  const ids = (profiles ?? []).map((p) => p.id as string);
   const [{ data: subs }, { data: marks }] = await Promise.all([
     admin.from("subscriptions").select("user_id, tier, status").in("user_id", ids),
     admin
@@ -111,7 +111,7 @@ export async function GET(request: Request): Promise<Response> {
   const resend = Resend && apiKey ? new Resend(apiKey) : null;
 
   for (const profile of profiles ?? []) {
-    const userId = profile.user_id as string;
+    const userId = profile.id as string;
     if (!flagOn("weekly_brief_email", userId)) {
       result.flag_off++;
       continue;
@@ -172,7 +172,7 @@ export async function GET(request: Request): Promise<Response> {
       }
     }
     const args = {
-      ownerName: (profile.full_name as string | null) ?? username ?? "there",
+      ownerName: (profile.display_name as string | null) ?? username ?? "",
       tier,
       leagues,
       appUrl,

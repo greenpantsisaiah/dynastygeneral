@@ -92,10 +92,10 @@ function leagueText(l: BriefLeague, tier: BriefTier, appUrl: string): string[] {
 }
 
 export function renderWeeklyBriefText(args: BriefArgs): string {
-  const lines = [`${args.weekLabel} brief for ${args.ownerName}.`, ""];
-  if (args.leagues.length === 0) lines.push(`Add your Sleeper username and the brief will carry a keep-going-or-sell read for every league: ${args.appUrl}/connect`, "");
+  const lines = [args.ownerName ? `${args.weekLabel} brief for ${args.ownerName}.` : `${args.weekLabel} brief.`, ""];
+  if (args.leagues.length === 0) lines.push(`Add your Sleeper username and the brief will carry a keep-going-or-sell read for your leagues: ${args.appUrl}/connect`, "");
   for (const l of args.leagues) lines.push(...leagueText(l, args.tier, args.appUrl), "");
-  if (args.tier === "free") lines.push(`Pro names who to sell to in every league: ${args.appUrl}/pricing`, "");
+  if (args.tier === "free") lines.push(`Pro names the managers most likely to buy, across up to 10 leagues: ${args.appUrl}/pricing`, "");
   lines.push(
     "Odds come from simulating the rest of your season from this season's scores. They are estimates with real uncertainty, not guarantees.",
     "",
@@ -125,7 +125,7 @@ export function renderWeeklyBriefHtml(args: BriefArgs): string {
               : c.buyers.length > 0
                 ? `<li style="color:#f5a524">${c.buyers.length} managers ranked as buyers. <a href="${e(args.appUrl)}/pricing" style="color:#f5a524">Pro names them and why.</a></li>`
                 : "";
-          return `<p style="margin:10px 0 2px"><b>${e(c.player.name)}</b> <span style="color:#888">${e(c.player.position)}${c.player.age != null ? ` · ${c.player.age}` : ""}</span><br><span style="color:#bbb;font-size:13px">About ${valuePts(c.decay.value_lost)} gone by August per the age curve. Selling costs ${Math.abs(c.title_delta * 100).toFixed(1)} pts of title odds.</span></p><ul style="margin:2px 0 0 16px;padding:0;font-size:13px">${buyers}</ul>`;
+          return `<p style="margin:10px 0 2px"><b>${e(c.player.name)}</b> <span style="color:#888">${e(c.player.position)}${c.player.age != null ? ` · ${c.player.age}` : ""}</span><br><span style="color:#bbb;font-size:13px">About ${valuePts(c.decay.value_lost)} gone by August per the age curve. Selling costs ${Math.max(0, -c.title_delta * 100).toFixed(1)} pts of title odds.</span></p><ul style="margin:2px 0 0 16px;padding:0;font-size:13px">${buyers}</ul>`;
         })
         .join("");
       return `<div style="margin:24px 0;border-top:1px solid #222;padding-top:16px">${head}
@@ -142,8 +142,8 @@ export function renderWeeklyBriefHtml(args: BriefArgs): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5">
 <div style="font-family:monospace;text-transform:uppercase;letter-spacing:.18em;font-size:10px;color:#888">${e(args.weekLabel)} brief · Dynasty General</div>
-<h1 style="font-size:22px;margin:8px 0 0">Keep going or sell, ${e(args.ownerName)}?</h1>
-${args.leagues.length === 0 ? `<p style="color:#bbb;font-size:14px;line-height:1.6">Add your Sleeper username and this email will carry a keep-going-or-sell read for every league you play in: title odds, who to sell, and the managers most likely to buy. <a href="${e(args.appUrl)}/connect" style="color:#f5a524">Add it here</a>.</p>` : ""}${leagueBlocks}${upsell}
+<h1 style="font-size:22px;margin:8px 0 0">Keep going or sell${args.ownerName ? `, ${e(args.ownerName)}` : ""}?</h1>
+${args.leagues.length === 0 ? `<p style="color:#bbb;font-size:14px;line-height:1.6">Add your Sleeper username and this email will carry a keep-going-or-sell read for your leagues: title odds, who to sell, and the managers most likely to buy. <a href="${e(args.appUrl)}/connect" style="color:#f5a524">Add it here</a>.</p>` : ""}${leagueBlocks}${upsell}
 <p style="font-size:11px;line-height:1.5;color:#777;margin-top:24px">Odds come from simulating the rest of your season from this season's scores. They are estimates with real uncertainty, not guarantees.</p>
 <p style="font-size:11px;line-height:1.5;color:#777"><a href="${e(args.unsubscribeUrl)}" style="color:#777">Unsubscribe</a> from the weekly brief.<br>${e(args.mailingAddress)}</p>
 </body></html>`;

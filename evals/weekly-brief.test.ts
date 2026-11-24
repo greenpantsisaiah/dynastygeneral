@@ -84,6 +84,11 @@ check("league name is escaped", proHtml.includes("Finders &amp; Keepers"));
 console.log("\n── no-league nudge ──");
 const nudge = renderWeeklyBriefText({ ...base, leagues: [] });
 check("accounts without a Sleeper username get the connect nudge", nudge.includes("/connect"));
+check("no copy promises every league (caps are 3 free / 10 Pro)", ![freeHtml, freeText, proHtml, proText, nudge, renderWeeklyBriefHtml({ ...base, leagues: [] })].some((s) => s.includes("every league")));
+
+console.log("\n── nameless owner ──");
+const nameless = renderWeeklyBriefHtml({ ...base, ownerName: "" });
+check("no dangling comma when the owner has no name", nameless.includes("Keep going or sell?") && !nameless.includes("sell, ?"));
 
 console.log("\n── unsubscribe tokens ──");
 const uid = "11111111-2222-3333-4444-555555555555";
