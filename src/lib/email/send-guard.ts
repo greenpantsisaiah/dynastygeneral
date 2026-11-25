@@ -49,3 +49,18 @@ export function resolveSendMode(input: SendGuardInput): SendMode {
   }
   return { mode: "broadcast" };
 }
+
+/**
+ * Idempotency key for one send. Broadcasts key on week + template version,
+ * so a re-send to everyone in the same week happens only when Isaiah
+ * approves a NEW version (never via a URL flag). Previews key separately
+ * so they never mark the real send done.
+ */
+export function briefSendKind(weekKind: string, templateVersion: string, mode: "broadcast" | "preview"): string {
+  return mode === "preview" ? `${weekKind}_preview_${templateVersion}` : `${weekKind}_${templateVersion}`;
+}
+
+/** `force` (resend to people already sent) is honored on preview runs only. */
+export function honorForce(force: boolean, mode: "broadcast" | "preview"): boolean {
+  return force && mode === "preview";
+}
