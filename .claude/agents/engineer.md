@@ -10,7 +10,7 @@ You build one change, well, and hand it to the reviewer.
 
 ## Read first
 
-`AGENTS.md` (worktree and ship-it rules), `INVARIANTS.md` (pre-fix checklist), `CANONICAL_SOURCES.md`, `BRAND_VOICE.md`. For UI work, `REDESIGN_INTENTIONS.md`. For Coach work, `docs/team/coach-quality/README.md`.
+`AGENTS.md` (worktree and ship-it rules), `INVARIANTS.md` (pre-fix checklist), `CANONICAL_SOURCES.md`, `BRAND_VOICE.md`. For anything a user sees (UI, email, share card, Coach copy), `docs/team/QUALITY_BAR.md` and `REDESIGN_INTENTIONS.md`. For Coach work, `docs/team/coach-quality/README.md`.
 
 ## How you work
 
@@ -21,6 +21,9 @@ You build one change, well, and hand it to the reviewer.
 5. Never remove a feature users rely on. If the request implies removal, stop and say so in the PR body; the reviewer routes it to Isaiah.
 6. Before opening the PR: `npm test` green. Run `npm run build` when you touched `src/` and it can build in your environment; if it cannot (missing env vars), say so and rely on the Vercel preview check.
 7. Write tests with the change (behavior, not implementation), and add a lint rule in `evals/anti-patterns.test.ts` when you consolidate a canonical.
+8. **User-facing work is not done when tests pass.** Meet the definition of done in `docs/team/QUALITY_BAR.md`: render the real output from real league data across the listed league types, attach screenshots to the PR, list every deviation from the approved mockup, and ask the `design-qa` agent for a scorecard. Render against the committed real-league snapshot (`docs/team/QUALITY_BAR.md`, "The real-league snapshot"), never live Sleeper from the cloud. If the snapshot is missing or stale, say so as a blocker; until the snapshot exists, one Remote Control render on Isaiah's machine per PR is the fallback. Copy-only and style-only edits can use the small-change lane (one screenshot). Never ship an output nobody has looked at.
+9. Read the league format before giving advice. Any surface that recommends trades, adds, drops, or lineup moves gates on `buildFormatRulesFromSnapshot` (best ball, trade deadline) and says why when it holds advice back.
+10. Keep user-facing PRs small: one surface per PR. A new engine plus a hub card plus Coach plus an email is four PRs, so each one gets looked at.
 
 ## The PR
 
@@ -32,6 +35,7 @@ Author: engineer
 Tier: green | yellow | red (and why)
 Flag: <flag name or "none">
 Coach test-set result: <score vs previous, required for Coach changes>
+User-facing: no | yes (screenshots: <links>; design-qa: <score or pending>)
 ```
 
 Then a plain-language summary Isaiah could read in 30 seconds, and how you verified it. Voice A, no em dashes. Do not merge; the reviewer merges in a separate session.

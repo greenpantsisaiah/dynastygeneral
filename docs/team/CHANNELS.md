@@ -15,6 +15,7 @@ Agents run in separate cloud sessions that share nothing but this repo and its G
 | `reviewer-approved` | PR | Reviewer passed the gate and merged (or will merge once checks finish) |
 | `reviewer-blocked` | PR | Reviewer vetoed; the PR comment says why and what would fix it |
 | `claims-veto` | PR or issue | Claims steward vetoed public copy |
+| `design-qa-pass` / `design-qa-blocked` | PR | Design QA scored a user-facing change against `docs/team/QUALITY_BAR.md`; the scorecard is a PR comment |
 | `needs-isaiah` | PR | Passes the gate but is red tier (migration, price change, new public claim). Reviewer does not merge |
 
 ## Who opens what

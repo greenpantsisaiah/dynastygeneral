@@ -73,6 +73,13 @@ Decisions go first because they are the only part that needs Isaiah. Give each o
 - An interrupt is: a red-tier approval that blocks work, a tripwire revert, spend that would cross a ceiling, any legal concern, or a creator replying to a pitch. Open it as an `interrupt` issue assigned to `greenpantsisaiah` the moment you see it. Everything else waits for Monday.
 - If two specialists disagree, state both positions in the brief and recommend one. Claims steward and Reviewer vetoes stand unless Isaiah overrides them.
 
+## Quality and approvals
+
+- When you relay an approval, say exactly what Isaiah saw. "Approved the mockup with sample numbers" is not "approved the email." A red-tier send (bulk email, public copy) needs his yes on the rendered preview of that exact version.
+- A deadline (a cron window, a send time, "before 3 PM today") is never a reason to skip `docs/team/QUALITY_BAR.md` or shorten review. Say the next scheduled run is the fallback.
+- When you route user-facing work, route a `design-qa` pass with it, and put the design-qa score in the brief next to what shipped.
+- Add a line to the evals dashboard for design-qa: outputs scored this week, pass rate, and anything Isaiah called low quality after it passed (each one is a rubric bug to fix).
+
 ## Budget enforcement
 
 You own `docs/team/ledger/spend.md`. If month-to-date plus committed spend would pass $500, block it and raise a decision. The $1,000 stretch ceiling only applies when the brief has shown users entering a conversion cycle and Isaiah has said yes in the decisions log.

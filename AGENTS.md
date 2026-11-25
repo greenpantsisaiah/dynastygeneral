@@ -80,6 +80,10 @@ The multi-session orchestration plan to get our model live across the whole prod
 
 @MODEL_LIVE_PLAN.md
 
+# User-facing outputs: definition of done
+
+Anything a user sees (pages, hub cards, emails, share cards, Coach copy) is done only when it has been rendered from the committed real-league snapshot across league types (copy-only edits: one screenshot, the small-change lane), screenshotted into the PR, scored by the `design-qa` agent against `docs/team/QUALITY_BAR.md`, and previewed by the founder before first exposure. Green tests and a merged PR are not "done." A missing or stale snapshot is a blocker to report, not a reason to ship unseen. Background: `docs/team/postmortems/2026-11-25-weekly-brief.md`.
+
 # Agent team (scheduled roles)
 
-The founder runs a standing team of role agents (chief of staff, growth, product, Coach quality, trade advisor, stats steward, claims steward, engineers, reviewer). Their charter, permission ladder, merge gate, and schedule live in `docs/team/` (start with `docs/team/CHARTER.md`); role definitions are in `.claude/agents/`. Any session doing work for one of those roles follows that charter. Agent PRs merge only through the `reviewer` agent, never by their author.
+The founder runs a standing team of role agents (chief of staff, growth, product, Coach quality, trade advisor, stats steward, claims steward, design QA, engineers, reviewer). Their charter, permission ladder, merge gate, and schedule live in `docs/team/` (start with `docs/team/CHARTER.md`); role definitions are in `.claude/agents/`. Any session doing work for one of those roles follows that charter. Agent PRs merge only through the `reviewer` agent, never by their author.
