@@ -17,6 +17,14 @@
 import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
 import type { Stance } from "@/lib/strategy/verdict/voices";
 
+/**
+ * Version of this template. Bump it on ANY change to the rendered email.
+ * The cron only broadcasts when EMAIL_BRIEF_APPROVED_VERSION equals this
+ * value, so a new template always goes to the admin preview list first
+ * and reaches users only after Isaiah approves that exact version.
+ */
+export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-25.beta1";
+
 export type BriefTier = "free" | "pro";
 
 export interface BriefLeague {

@@ -15,6 +15,8 @@ import {
   type BriefArgs,
 } from "../src/lib/email/weekly-brief";
 import { unsubscribeToken, verifyUnsubscribeToken } from "../src/lib/email/unsubscribe";
+import { resolveSendMode } from "../src/lib/email/send-guard";
+import { WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
 
 let passed = 0;
 let failed = 0;
@@ -102,6 +104,19 @@ check("token verifies for its user", verifyUnsubscribeToken(uid, tok, "weekly_br
 check("token fails for another user", !verifyUnsubscribeToken("11111111-2222-3333-4444-555555555556", tok, "weekly_brief", "k1"));
 check("token fails under another key", !verifyUnsubscribeToken(uid, tok, "weekly_brief", "k2"));
 check("no key, no token", unsubscribeToken(uid, "weekly_brief", null) === null);
+
+console.log("\n── send guard (no broadcast without an approved template) ──");
+const V = WEEKLY_BRIEF_TEMPLATE_VERSION;
+const g = (o: Partial<Parameters<typeof resolveSendMode>[0]>) =>
+  resolveSendMode({ templateVersion: V, approvedVersion: undefined, previewTo: undefined, replyTo: "owner@dg.app", requestedMode: null, ...o });
+check("approved version matching the deploy broadcasts", g({ approvedVersion: V }).mode === "broadcast");
+const noApproval = g({});
+check("no approval previews to the reply-to inbox only", noApproval.mode === "preview" && noApproval.to.join() === "owner@dg.app");
+const stale = g({ approvedVersion: "2020-01-01.old" });
+check("stale approval never broadcasts", stale.mode === "preview" && stale.reason.includes("mismatch"));
+check("explicit preview list wins over reply-to", (() => { const r = g({ previewTo: "A@x.com, b@y.com" }); return r.mode === "preview" && r.to.join() === "a@x.com,b@y.com"; })());
+check("?mode=preview forces preview even when approved", g({ approvedVersion: V, requestedMode: "preview" }).mode === "preview");
+check("no approval and no admin address refuses", g({ replyTo: undefined }).mode === "refuse");
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
