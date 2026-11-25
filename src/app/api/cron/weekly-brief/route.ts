@@ -69,10 +69,13 @@ export async function GET(request: Request): Promise<Response> {
 
   const apiKey = process.env.RESEND_API_KEY;
   const mailingAddress = process.env.EMAIL_MAILING_ADDRESS?.trim();
-  if (!dry && (!apiKey || !mailingAddress)) {
-    console.warn("[cron:weekly-brief:exit] email_unconfigured", { RESEND_API_KEY: !apiKey, EMAIL_MAILING_ADDRESS: !mailingAddress });
+  // The brief asks for replies, so it never sends from a dead inbox.
+  const replyTo = process.env.EMAIL_REPLY_TO?.trim();
+  if (!dry && (!apiKey || !mailingAddress || !replyTo)) {
+    const missing = { RESEND_API_KEY: !apiKey, EMAIL_MAILING_ADDRESS: !mailingAddress, EMAIL_REPLY_TO: !replyTo };
+    console.warn("[cron:weekly-brief:exit] email_unconfigured", missing);
     return NextResponse.json(
-      { ok: false, error: "email_unconfigured", missing: { RESEND_API_KEY: !apiKey, EMAIL_MAILING_ADDRESS: !mailingAddress } },
+      { ok: false, error: "email_unconfigured", missing },
       { status: 503 },
     );
   }
@@ -193,6 +196,7 @@ export async function GET(request: Request): Promise<Response> {
     const { error: sendErr } = await resend.emails.send({
       from,
       to: email,
+      replyTo,
       subject: briefSubject(args),
       html: renderWeeklyBriefHtml(args),
       text: renderWeeklyBriefText(args),
