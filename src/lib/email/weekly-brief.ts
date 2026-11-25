@@ -59,6 +59,15 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// Beta framing + feedback ask (Isaiah 2026-11-25: emails are replyable,
+// read by him, and should warmly invite feedback). The cron sets
+// reply_to so a reply reaches a person.
+const BETA_INTRO =
+  "This brief is in beta, and you are one of the first managers to get it. It will get sharper with your help.";
+const FEEDBACK_BODY =
+  "Just hit reply. Tell me what you wish this told you, what felt off, or the decision you are stuck on this week. I read every reply myself.";
+const FEEDBACK_ASK = `Tell me how Dynasty General can serve you better. ${FEEDBACK_BODY}\nIsaiah, founder`;
+
 export function briefSubject(args: BriefArgs): string {
   const first = args.leagues.find((l) => l.verdict);
   if (!first?.verdict) return `${args.weekLabel} brief: your leagues`;
@@ -92,11 +101,17 @@ function leagueText(l: BriefLeague, tier: BriefTier, appUrl: string): string[] {
 }
 
 export function renderWeeklyBriefText(args: BriefArgs): string {
-  const lines = [args.ownerName ? `${args.weekLabel} brief for ${args.ownerName}.` : `${args.weekLabel} brief.`, ""];
+  const lines = [
+    args.ownerName ? `${args.weekLabel} brief for ${args.ownerName}.` : `${args.weekLabel} brief.`,
+    BETA_INTRO,
+    "",
+  ];
   if (args.leagues.length === 0) lines.push(`Add your Sleeper username and the brief will carry a keep-going-or-sell read for your leagues: ${args.appUrl}/connect`, "");
   for (const l of args.leagues) lines.push(...leagueText(l, args.tier, args.appUrl), "");
   if (args.tier === "free") lines.push(`Pro names the managers most likely to buy, across up to 10 leagues: ${args.appUrl}/pricing`, "");
   lines.push(
+    FEEDBACK_ASK,
+    "",
     "Odds come from simulating the rest of your season from this season's scores. They are estimates with real uncertainty, not guarantees.",
     "",
     `Unsubscribe: ${args.unsubscribeUrl}`,
@@ -141,9 +156,15 @@ export function renderWeeklyBriefHtml(args: BriefArgs): string {
       : "";
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5">
-<div style="font-family:monospace;text-transform:uppercase;letter-spacing:.18em;font-size:10px;color:#888">${e(args.weekLabel)} brief · Dynasty General</div>
+<div style="font-family:monospace;text-transform:uppercase;letter-spacing:.18em;font-size:10px;color:#888">${e(args.weekLabel)} brief · Dynasty General · Beta</div>
 <h1 style="font-size:22px;margin:8px 0 0">Keep going or sell${args.ownerName ? `, ${e(args.ownerName)}` : ""}?</h1>
+<p style="color:#bbb;font-size:13px;line-height:1.6;margin:8px 0 0">${e(BETA_INTRO)}</p>
 ${args.leagues.length === 0 ? `<p style="color:#bbb;font-size:14px;line-height:1.6">Add your Sleeper username and this email will carry a keep-going-or-sell read for your leagues: title odds, who to sell, and the managers most likely to buy. <a href="${e(args.appUrl)}/connect" style="color:#f5a524">Add it here</a>.</p>` : ""}${leagueBlocks}${upsell}
+<div style="margin:28px 0 0;padding:16px;border:1px solid #2a2a2a;border-radius:6px">
+<p style="font-size:14px;line-height:1.6;margin:0;color:#e5e5e5"><b>Tell me how Dynasty General can serve you better.</b></p>
+<p style="font-size:13px;line-height:1.6;margin:6px 0 0;color:#bbb">${e(FEEDBACK_BODY)}</p>
+<p style="font-size:13px;line-height:1.6;margin:10px 0 0;color:#bbb">Isaiah, founder</p>
+</div>
 <p style="font-size:11px;line-height:1.5;color:#777;margin-top:24px">Odds come from simulating the rest of your season from this season's scores. They are estimates with real uncertainty, not guarantees.</p>
 <p style="font-size:11px;line-height:1.5;color:#777"><a href="${e(args.unsubscribeUrl)}" style="color:#777">Unsubscribe</a> from the weekly brief.<br>${e(args.mailingAddress)}</p>
 </body></html>`;

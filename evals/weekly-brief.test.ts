@@ -86,6 +86,11 @@ const nudge = renderWeeklyBriefText({ ...base, leagues: [] });
 check("accounts without a Sleeper username get the connect nudge", nudge.includes("/connect"));
 check("no copy promises every league (caps are 3 free / 10 Pro)", ![freeHtml, freeText, proHtml, proText, nudge, renderWeeklyBriefHtml({ ...base, leagues: [] })].some((s) => s.includes("every league")));
 
+console.log("\n── beta + feedback ask ──");
+for (const [name, body] of [["free html", freeHtml], ["free text", freeText], ["pro html", proHtml], ["pro text", proText]] as const) {
+  check(`${name} says beta and asks for a reply`, /beta/i.test(body) && body.includes("hit reply") && body.includes("Isaiah, founder"));
+}
+
 console.log("\n── nameless owner ──");
 const nameless = renderWeeklyBriefHtml({ ...base, ownerName: "" });
 check("no dangling comma when the owner has no name", nameless.includes("Keep going or sell?") && !nameless.includes("sell, ?"));
