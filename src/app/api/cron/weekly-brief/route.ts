@@ -60,6 +60,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const cronSecret = process.env.CRON_SECRET;
   if (isProd() && !cronSecret) {
+    console.error("[cron:weekly-brief:exit] CRON_SECRET missing in production; refusing to run.");
     return NextResponse.json({ ok: false, error: "cron_secret_unconfigured" }, { status: 503 });
   }
   if (cronSecret && request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
