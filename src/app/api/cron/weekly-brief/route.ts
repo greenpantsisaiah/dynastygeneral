@@ -11,8 +11,14 @@
  *   Isaiah's yes),
  * - RESEND_API_KEY, EMAIL_MAILING_ADDRESS (CAN-SPAM postal address) and an
  *   unsubscribe signing secret are configured,
- * - the user has not opted out, and has not been sent this week's brief.
+ * - the user has not opted out, and has not been sent this week's brief,
+ * - the send guard (src/lib/email/send-guard.ts): users get the email only
+ *   when EMAIL_BRIEF_APPROVED_VERSION equals the deployed
+ *   WEEKLY_BRIEF_TEMPLATE_VERSION. Otherwise the run sends a "[Preview]"
+ *   copy to the admin list only (EMAIL_PREVIEW_TO, else EMAIL_REPLY_TO),
+ *   once per week and template version, and nobody else.
  *
+ * `?mode=preview` forces a preview run; add `&force=1` to resend it.
  * `?dry=1` renders and counts without sending or writing (preview use).
  * Runs hourly on Tuesday (vercel.json) with a time budget, so a run that
  * cannot finish leaves the rest to the next hour; idempotent per week.
@@ -33,11 +39,13 @@ import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
 import { flagOn } from "@/lib/flags/server";
 import { effectiveTier } from "@/lib/auth/session";
 import {
+  WEEKLY_BRIEF_TEMPLATE_VERSION,
   briefSubject,
   renderWeeklyBriefHtml,
   renderWeeklyBriefText,
   type BriefLeague,
 } from "@/lib/email/weekly-brief";
+import { resolveSendMode } from "@/lib/email/send-guard";
 import { OPT_OUT, WEEKLY_BRIEF_LIST, unsubscribeUrl } from "@/lib/email/unsubscribe";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +65,7 @@ export async function GET(request: Request): Promise<Response> {
   const started = Date.now();
   const url = new URL(request.url);
   const dry = url.searchParams.get("dry") === "1";
+  const force = url.searchParams.get("force") === "1";
 
   const cronSecret = process.env.CRON_SECRET;
   if (isProd() && !cronSecret) {
@@ -80,6 +89,22 @@ export async function GET(request: Request): Promise<Response> {
       { status: 503 },
     );
   }
+  if (!dry && !unsubscribeUrl("https://x", "preflight")) {
+    console.warn("[cron:weekly-brief:exit] unsubscribe_secret_unconfigured");
+    return NextResponse.json({ ok: false, error: "unsubscribe_secret_unconfigured" }, { status: 503 });
+  }
+  const guard = resolveSendMode({
+    templateVersion: WEEKLY_BRIEF_TEMPLATE_VERSION,
+    approvedVersion: process.env.EMAIL_BRIEF_APPROVED_VERSION,
+    previewTo: process.env.EMAIL_PREVIEW_TO,
+    replyTo,
+    requestedMode: url.searchParams.get("mode"),
+  });
+  console.log("[cron:weekly-brief:guard]", JSON.stringify({ ...guard, template: WEEKLY_BRIEF_TEMPLATE_VERSION }));
+  if (guard.mode === "refuse" && !dry) {
+    return NextResponse.json({ ok: false, error: "send_guard_refused", reason: guard.reason }, { status: 503 });
+  }
+  const preview = guard.mode === "preview" ? new Set(guard.to) : null;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dynastygeneral.app";
   const from = process.env.EMAIL_FROM ?? "brief@dynastygeneral.app";
 
@@ -89,6 +114,8 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ ok: true, note: "not_regular_season" });
   }
   const weekKind = `${WEEKLY_BRIEF_LIST}_${nfl.season}_w${nfl.week}`;
+  // Previews log under their own kind so they never mark the real send done.
+  const sendKind = preview ? `${weekKind}_preview_${WEEKLY_BRIEF_TEMPLATE_VERSION}` : weekKind;
   const weekLabel = `Week ${nfl.week}`;
 
   const admin = getAdminClient();
@@ -107,19 +134,23 @@ export async function GET(request: Request): Promise<Response> {
       .select("user_id, kind, status")
       .in("user_id", ids)
       .eq("league_id", OPT_OUT.league_id)
-      .in("kind", [OPT_OUT.kind(WEEKLY_BRIEF_LIST), weekKind]),
+      .in("kind", [OPT_OUT.kind(WEEKLY_BRIEF_LIST), sendKind]),
   ]);
   const tierBy = new Map((subs ?? []).map((s) => [s.user_id as string, effectiveTier(s)]));
-  const optedOut = new Set((marks ?? []).filter((m) => m.kind !== weekKind).map((m) => m.user_id as string));
-  const doneThisWeek = new Set((marks ?? []).filter((m) => m.kind === weekKind && m.status === "sent").map((m) => m.user_id as string));
+  const optedOut = new Set((marks ?? []).filter((m) => m.kind !== sendKind).map((m) => m.user_id as string));
+  const doneThisWeek = new Set(
+    (marks ?? []).filter((m) => m.kind === sendKind && m.status === "sent" && !force).map((m) => m.user_id as string),
+  );
 
-  const result = { ok: true, dry, week: weekKind, eligible: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, flag_off: 0 };
+  const result = { ok: true, dry, mode: guard.mode, template: WEEKLY_BRIEF_TEMPLATE_VERSION, not_admin: 0, week: sendKind, eligible: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, flag_off: 0 };
   const { Resend } = dry ? { Resend: null } : await import("resend");
   const resend = Resend && apiKey ? new Resend(apiKey) : null;
 
   for (const profile of profiles ?? []) {
     const userId = profile.id as string;
-    if (!flagOn("weekly_brief_email", userId)) {
+    // Preview runs skip the flag (so a preview works with the flag off) but
+    // only ever reach the admin list, checked against the auth email below.
+    if (!preview && !flagOn("weekly_brief_email", userId)) {
       result.flag_off++;
       continue;
     }
@@ -145,6 +176,10 @@ export async function GET(request: Request): Promise<Response> {
     }
     if (!email) {
       result.skipped++;
+      continue;
+    }
+    if (preview && !preview.has(email.toLowerCase())) {
+      result.not_admin++;
       continue;
     }
     result.eligible++;
@@ -185,7 +220,9 @@ export async function GET(request: Request): Promise<Response> {
       }
     }
     const args = {
-      ownerName: (profile.display_name as string | null) ?? username ?? "",
+      // display_name holds the email for email signups: never greet with
+      // anything that looks like an address.
+      ownerName: [profile.display_name as string | null, username].find((n) => n && !n.includes("@")) ?? "",
       tier,
       leagues,
       appUrl,
@@ -198,7 +235,7 @@ export async function GET(request: Request): Promise<Response> {
       from,
       to: email,
       replyTo,
-      subject: briefSubject(args),
+      subject: preview ? `[Preview] ${briefSubject(args)}` : briefSubject(args),
       html: renderWeeklyBriefHtml(args),
       text: renderWeeklyBriefText(args),
       headers: { "List-Unsubscribe": `<${unsub}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
@@ -207,7 +244,7 @@ export async function GET(request: Request): Promise<Response> {
       {
         user_id: userId,
         league_id: OPT_OUT.league_id,
-        kind: weekKind,
+        kind: sendKind,
         status: sendErr ? "failed" : "sent",
         error_message: sendErr?.message ?? null,
         sent_at: new Date().toISOString(),
