@@ -29,16 +29,8 @@
 
 import { NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import {
-  getLeagueUsers,
-  getLeaguesForUser,
-  getNflState,
-  getRosters,
-  getUserByUsername,
-} from "@/lib/sleeper";
-import { resolveDraftState } from "@/lib/sleeper/draft-state";
-import { buildLeagueContext } from "@/lib/engine/league-context";
-import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
+import { getNflState } from "@/lib/sleeper";
+import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { flagOn } from "@/lib/flags/server";
 import { effectiveTier } from "@/lib/auth/session";
 import {
@@ -57,8 +49,6 @@ export const maxDuration = 300;
 
 /** Stop starting new users after this many ms; the next hourly run continues. */
 const TIME_BUDGET_MS = 240_000;
-/** Leagues per brief. Pro covers more leagues (volume gate, not a feature gate). */
-const LEAGUE_CAP = { free: 3, pro: 10 } as const;
 
 function isProd(): boolean {
   return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
@@ -190,44 +180,17 @@ export async function GET(request: Request): Promise<Response> {
     result.eligible++;
     const tier = tierBy.get(userId) ?? "free";
     const username = (profile.sleeper_username as string | null) ?? null;
-    const leagues: BriefLeague[] = [];
+    let leagues: BriefLeague[] = [];
     if (username) {
       try {
-        const su = await getUserByUsername(username);
-        const all = su ? await getLeaguesForUser(su.user_id, nfl.season) : [];
-        for (const lg of all.slice(0, LEAGUE_CAP[tier])) {
-          try {
-            const [rosters, users, draftState] = await Promise.all([
-              getRosters(lg.league_id),
-              getLeagueUsers(lg.league_id),
-              resolveDraftState(lg.league_id, su!.user_id),
-            ]);
-            const ctx = await buildLeagueContext({ league: lg, rosters, users, draftState, mySleeperUserId: su!.user_id });
-            const res = await loadContendOrSellVerdict({
-              league: lg,
-              snapshot: ctx.snapshot,
-              nflWeek: nfl.week,
-              seasonType: nfl.season_type,
-              playerValuesById: ctx.pricedPool.playerValuesById,
-            });
-            leagues.push({
-              leagueId: lg.league_id,
-              leagueName: lg.name,
-              verdict: res.ok ? res.verdict : null,
-              note: res.ok ? undefined : `No verdict this week: ${res.reason}.`,
-            });
-          } catch (err) {
-            console.error("[cron:weekly-brief:league]", lg.league_id, err instanceof Error ? `${err.message}\n${err.stack}` : err);
-          }
-        }
+        leagues = await buildBriefLeagues({ username, season: nfl.season, nflWeek: nfl.week, seasonType: nfl.season_type, tier, logTag: "cron:weekly-brief" });
       } catch (err) {
         console.error("[cron:weekly-brief:sleeper]", userId, err instanceof Error ? err.message : err);
       }
     }
     const args = {
-      // display_name holds the email for email signups: never greet with
-      // anything that looks like an address.
-      ownerName: [profile.display_name as string | null, username].find((n) => n && !n.includes("@")) ?? "",
+      // display_name holds the email for email signups: never greet with an address.
+      ownerName: briefOwnerName(profile.display_name as string | null, username),
       tier,
       leagues,
       appUrl,
