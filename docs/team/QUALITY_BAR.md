@@ -6,13 +6,34 @@ Why it exists: the first weekly brief email (week 11, 2026-11-25) went to all 13
 
 ## Definition of done (all five, or it is not done)
 
-1. **Rendered with real data.** The output is rendered from real league data, not only hand-made fixtures. Isaiah's own leagues are the default sample (see the project memory for his Sleeper ids). If the session cannot reach Sleeper or the preview (cloud sessions get a proxy 403 on api.sleeper.app; Vercel previews sit behind deployment protection), that is a **blocker to report**, not a reason to ship unseen. Run the render on Isaiah's machine through Remote Control, or capture a real-data fixture there and commit it.
+1. **Rendered with real data.** The output is rendered from real league data, not only hand-made fixtures. Render against the committed real-league snapshot (see "The real-league snapshot" below), so cloud agents never have to wait on Isaiah's Mac. If the snapshot does not exist yet, is older than 8 days, or lacks a league type you need, that is a **blocker to report**, not a reason to ship unseen; ask for a snapshot refresh rather than rendering live on his Mac for each change.
 2. **Rendered across league types.** At minimum: dynasty, redraft, best ball, trade deadline passed, an account with no leagues, and an account with many leagues (7 or more). An output that is wrong for one league type is wrong.
 3. **Screenshots in the PR.** The PR body links or attaches a screenshot of each rendered case (desktop and phone width for pages and emails). No screenshots, no review.
 4. **Critiqued against the rubric below,** by someone other than the author: the `design-qa` agent, scored, with the score in the PR body.
 5. **Owner preview before first exposure.** The first time a new surface or a new version of an email reaches users, Isaiah has seen that exact rendered output first and said yes to it. Approving a mockup is approving a direction, not a send. For email this is enforced in code by the send guard (`src/lib/email/send-guard.ts`): users get only the template version Isaiah approved.
 
 If any of the five is missing, the reviewer blocks with `reviewer-blocked` and names the missing item.
+
+## Small-change lane
+
+Not every change needs the full matrix. A change qualifies for the small lane when it only edits copy, spacing, or colors inside an existing surface, and adds no new data, logic, section, or recipient. In the small lane:
+
+- One screenshot of the changed area, rendered from the real-league snapshot, replaces the six-case matrix.
+- design-qa scores only rubric lines 2, 3, 4 and 9 (personalization, contradictions, filler, Voice A), with no zero allowed.
+- Owner preview is not required unless the change touches a broadcast email's subject or headline.
+
+The author claims the small lane in the PR body; the reviewer or design-qa can move it to the full lane if it does more than the rule allows.
+
+## The real-league snapshot
+
+Cloud sessions cannot reach Sleeper (proxy 403), so real data comes from a committed snapshot instead of live calls.
+
+- **What:** a JSON capture of Isaiah's real leagues (league settings, rosters, users, matchups, Sleeper state) covering every league type in item 2, written by a capture script run on his Mac. This snapshot is the source of truth for his Sleeper ids and league list; do not read them from project memory.
+- **Where:** `evals/fixtures/real-leagues/` (status: **planned**; the capture script and first snapshot are a prerequisite follow-up, not yet built). Until it lands, the fallback is one Remote Control render on Isaiah's Mac per user-facing PR.
+- **Refresh:** weekly, before the Monday brief, plus on demand when a surface needs a league type the snapshot lacks. The capture date is in the file; renders against a snapshot older than 8 days do not count.
+- **Privacy:** league and manager names are fine (they already show in the product); never commit emails, auth tokens, or postal addresses.
+
+A second prerequisite: an **admin-only render route** (status: **planned**) that returns the exact email HTML for a given user without sending, so the reviewer and design-qa can see the real email from the live data path.
 
 ## The rubric (design-qa scores each line 0, 1 or 2)
 
@@ -43,4 +64,4 @@ The judge writes one line of evidence per score, quoting the rendered output. A 
 
 ## Tests that back the bar
 
-Every user-facing renderer gets a fixture test per league type (the list in item 2) that asserts the rubric lines a machine can check: no "@" in names, no trade copy when trading is off, no zero-value lines, no duplicate sentences, every league present or explained, week label matches its source. CI keeps the rendered HTML as an artifact so a reviewer can open it. Lines a machine cannot check (hierarchy, emotional ROI, design match) are the `design-qa` judge's job.
+Every user-facing renderer gets a fixture test per league type (the list in item 2) that asserts the rubric lines a machine can check: no "@" in names, no trade copy when trading is off, no zero-value lines, no duplicate sentences, every league present or explained, week label matches its source. Status: **planned**. The email version is being built by the email redesign work; until it exists, nothing in CI checks these lines and design-qa covers them by hand. Once built, CI should keep the rendered HTML as an artifact so a reviewer can open it (also **planned**). Lines a machine cannot check (hierarchy, emotional ROI, design match) are the `design-qa` judge's job.

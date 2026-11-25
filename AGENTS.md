@@ -82,7 +82,7 @@ The multi-session orchestration plan to get our model live across the whole prod
 
 # User-facing outputs: definition of done
 
-Anything a user sees (pages, hub cards, emails, share cards, Coach copy) is done only when it has been rendered with real league data across league types, screenshotted into the PR, scored by the `design-qa` agent against `docs/team/QUALITY_BAR.md`, and previewed by the founder before first exposure. Green tests and a merged PR are not "done." If the sandbox cannot reach Sleeper or the preview, that is a blocker to report, not a reason to ship unseen. Background: `docs/team/postmortems/2026-11-25-weekly-brief.md`.
+Anything a user sees (pages, hub cards, emails, share cards, Coach copy) is done only when it has been rendered from the committed real-league snapshot across league types (copy-only edits: one screenshot, the small-change lane), screenshotted into the PR, scored by the `design-qa` agent against `docs/team/QUALITY_BAR.md`, and previewed by the founder before first exposure. Green tests and a merged PR are not "done." A missing or stale snapshot is a blocker to report, not a reason to ship unseen. Background: `docs/team/postmortems/2026-11-25-weekly-brief.md`.
 
 # Agent team (scheduled roles)
 

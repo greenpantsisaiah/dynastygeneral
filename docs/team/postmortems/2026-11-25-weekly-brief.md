@@ -58,5 +58,6 @@ Follow-ups owned elsewhere:
 
 - Email content lint, per-league-type fixtures, and the redesign: "Redesign the weekly email brief" thread.
 - Gate the contend-or-sell verdict on `format_rules` (best ball, deadline) and fix the contradicting strategist sentence and zero-value lines in `voices.ts`: engineer, requested by the trade advisor.
-- A render-preview route or script that outputs real HTML for a given user (a `?dry=1` that returns the email, admin only), so reviewers can see output without a send.
+- Prerequisite: a real-league snapshot captured weekly from Isaiah's Mac into `evals/fixtures/real-leagues/`, so cloud agents render real data without live Sleeper calls.
+- Prerequisite: an admin-only render route that returns the exact email HTML for a given user without sending, so reviewers can see output from the live data path.
 - Run design-qa over the live hub card and Coach verdict copy, which shipped through the same gate.

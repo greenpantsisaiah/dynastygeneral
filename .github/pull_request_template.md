@@ -16,8 +16,9 @@ Flag: <flag name or "none">
 
 Skip if no user sees this change. Otherwise all of these, per `docs/team/QUALITY_BAR.md`:
 
-- [ ] Rendered from real league data, not only synthetic fixtures
-- [ ] Cases covered: dynasty, redraft, best ball, deadline passed, no leagues, many leagues
+- [ ] Lane: full | small (copy, spacing or color only inside an existing surface)
+- [ ] Rendered from the real-league snapshot (capture date: ____), not only synthetic fixtures
+- [ ] Full lane: cases covered: dynasty, redraft, best ball, deadline passed, no leagues, many leagues. Small lane: one screenshot of the changed area
 - [ ] Screenshots (desktop and phone width) linked below
 - [ ] Deviations from the approved mockup listed
 - [ ] `design-qa` scorecard posted (score: __ / 20)
