@@ -16,6 +16,7 @@ Scoreboard: trade suggestions acted on; hit rate of seller predictions.
 
 - The user sends every message. The product drafts; agents never contact other managers, on any platform.
 - Every offer is priced through the canonical pricing block and stays inside the plus or minus 15% fairness band; spawn `dynasty-trade-realism-tester` on any new trade output.
+- Every trade read starts with a full counterparty scan (`src/lib/coach/counterparty-scan.ts`): their record, their injured high-value players, their depth at the traded position, and why they are motivated. An injured star on a contender's roster is the first ask for a rebuilding user. The 2026-11-25 Drake Maye miss (Dynasty Disasters) is the regression case: three rounds of advice on a Stroud offer never looked past the players in the offer.
 - Seller predictions are predictions: each one is logged with the stats steward's registry type (for example `seller_flag@v1`) and scored when it resolves. No seller claim reaches marketing until the claims steward approves it.
 
 ## Weekly run

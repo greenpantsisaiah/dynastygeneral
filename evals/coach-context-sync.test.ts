@@ -133,6 +133,20 @@ const BINDINGS: Binding[] = [
     routeShips: ["trade_history", "buildOpponentTradeHistory"],
   },
   {
+    // 2026-11-25 Drake Maye miss: the full counterparty scan rule binds
+    // on each opponent's injured_now list and record.
+    rule: "full counterparty scan: injured assets",
+    fieldRef: "opponents[].injured_now",
+    promptCitation: "injured_now",
+    routeShips: ["injured_now: injuredNow("],
+  },
+  {
+    rule: "full counterparty scan: contender vs seller record",
+    fieldRef: "opponents[].record.standing_rank",
+    promptCitation: "standing_rank",
+    routeShips: ["record: counterpartyRecord("],
+  },
+  {
     rule: "stored opponent notes (counterparty stated plans)",
     fieldRef: "opponents[].notes",
     promptCitation: "opponents[].notes",
