@@ -1,5 +1,5 @@
 /**
- * Unsubscribe from the weekly brief.
+ * Unsubscribe from a marketing list (the weekly brief or lineup alerts).
  *
  * GET shows a confirm page with a button (link scanners prefetch GETs,
  * so a GET never unsubscribes on its own). POST records the opt-out:
@@ -13,12 +13,25 @@
 
 import { NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { OPT_OUT, WEEKLY_BRIEF_LIST, verifyUnsubscribeToken } from "@/lib/email/unsubscribe";
+import { LINEUP_ALERTS_LIST, OPT_OUT, WEEKLY_BRIEF_LIST, verifyUnsubscribeToken } from "@/lib/email/unsubscribe";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const LISTS = new Set([WEEKLY_BRIEF_LIST]);
+const LISTS = new Set([WEEKLY_BRIEF_LIST, LINEUP_ALERTS_LIST]);
+
+const COPY: Record<string, { title: string; what: string; done: string }> = {
+  [WEEKLY_BRIEF_LIST]: {
+    title: "Stop the weekly brief?",
+    what: "You will stop getting the Tuesday contend-or-sell email.",
+    done: "No more weekly briefs. Reply to any past brief if you want it back.",
+  },
+  [LINEUP_ALERTS_LIST]: {
+    title: "Stop lineup alerts?",
+    what: "You will stop getting emails when a starter in your lineup is ruled out, on bye, or missing.",
+    done: "No more lineup alerts. Reply to any past alert if you want them back.",
+  },
+};
 
 function page(body: string, status = 200): Response {
   return new Response(
@@ -40,7 +53,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!p.valid) return page("<p>This unsubscribe link is not valid. Reply to any brief and we will remove you by hand.</p>", 400);
   const action = `/api/email/unsubscribe?${url.searchParams.toString()}`;
   return page(
-    `<h1 style="font-size:20px">Stop the weekly brief?</h1><p style="color:#bbb">You will stop getting the Tuesday contend-or-sell email. Your account and leagues are not affected.</p><form method="post" action="${action.replace(/"/g, "&quot;")}"><button type="submit" style="padding:10px 16px;background:#f5a524;border:0;font-weight:600;cursor:pointer">Unsubscribe</button></form>`,
+    `<h1 style="font-size:20px">${COPY[p.l].title}</h1><p style="color:#bbb">${COPY[p.l].what} Your account and leagues are not affected.</p><form method="post" action="${action.replace(/"/g, "&quot;")}"><button type="submit" style="padding:10px 16px;background:#f5a524;border:0;font-weight:600;cursor:pointer">Unsubscribe</button></form>`,
   );
 }
 
@@ -68,5 +81,5 @@ export async function POST(request: Request): Promise<Response> {
   }
   const accept = request.headers.get("accept") ?? "";
   if (!accept.includes("text/html")) return NextResponse.json({ ok: true });
-  return page("<h1 style=\"font-size:20px\">Unsubscribed.</h1><p style=\"color:#bbb\">No more weekly briefs. Reply to any past brief if you want it back.</p>");
+  return page(`<h1 style="font-size:20px">Unsubscribed.</h1><p style="color:#bbb">${COPY[p.l].done}</p>`);
 }

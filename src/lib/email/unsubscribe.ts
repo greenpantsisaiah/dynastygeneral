@@ -9,6 +9,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const WEEKLY_BRIEF_LIST = "weekly_brief";
+export const LINEUP_ALERTS_LIST = "lineup_alerts";
 
 function secret(): string | null {
   return process.env.EMAIL_UNSUBSCRIBE_SECRET || process.env.CRON_SECRET || null;

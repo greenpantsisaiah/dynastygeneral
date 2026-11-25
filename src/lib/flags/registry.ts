@@ -38,6 +38,15 @@ export const FLAGS = {
     variants: ["off", "on"],
     rollout: [0],
   },
+  lineup_out_alert_email: {
+    description:
+      "Lineup alert email from /api/cron/lineup-alerts: a starter ruled out, on bye, or an empty slot, inside 3 hours of lock, with bench options by season average. Factual (Sleeper injury report), no projection. Bulk send is red tier: Isaiah approves the first send.",
+    owner: "product steward",
+    created: "2026-11-25",
+    expires: "2027-03-31",
+    variants: ["off", "on"],
+    rollout: [0],
+  },
   contend_or_sell_verdict: {
     description:
       "In-season contend-or-sell card on the hub (title odds, sell package, buyers, three voices) mirrored to Coach. Dark until the ledger logs it.",

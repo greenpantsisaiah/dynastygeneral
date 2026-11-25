@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/weekly-brief",
       "schedule": "0 13-21 * * 2"
+    },
+    {
+      "path": "/api/cron/lineup-alerts",
+      "schedule": "*/30 * * * *"
     }
   ]
 }
