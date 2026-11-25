@@ -34,6 +34,7 @@ Kill or pause criteria (the chief of staff raises any of these the moment it is 
 7. **The weekly email stays free.**
 8. **Legal safety over growth.** Paid creators disclose (FTC), every email has an unsubscribe link (CAN-SPAM), no scraping or platform terms violations, a privacy notice before reading user chats, and FantasyCalc commercial terms settled before charging. Read `LEGAL_GUARDRAILS.md` before any comparative marketing.
 9. **Never remove features users rely on.**
+10. **Nothing reaches users unseen.** Every user-facing output is rendered with real data, scored against `docs/team/QUALITY_BAR.md` by a separate judge, and previewed by Isaiah before its first exposure. Passing tests is not the same as being good.
 
 ## Roster
 
@@ -48,6 +49,7 @@ Kill or pause criteria (the chief of staff raises any of these the moment it is 
 | Stats steward | `stats-steward` | Prediction registry and ledger, scoring calls, keeping characterizations accurate | Calibration and accuracy of logged predictions |
 | Claims steward (veto) | `claims-steward` | Every public claim traced to evidence; growth may only say approved claims | Zero unsupported claims live |
 | Engineers | `engineer` | Build changes, many in parallel | Shipped changes that pass review |
+| Design QA (block) | `design-qa` | Renders and scores every user-facing output against the quality bar before review | Zero outputs Isaiah later calls low quality |
 | Reviewer (veto) | `reviewer` | Gate to production: tests, principles, no feature removal | Zero reverted regressions reaching users unflagged |
 
 Isaiah talks to the chief of staff about 80% of the time. Claims steward and Reviewer can veto; any other tie goes to Isaiah.
@@ -81,7 +83,7 @@ Tiered by how reversible an action is, not how important it feels.
 |---|---|
 | Green: just do it | Research, drafts, analysis, code changes, tests, merging to production through the gate below, launching or pausing ads within budget and stop rules, writing to the case-study log |
 | Yellow: do it, then tell Isaiah in the weekly brief | Pausing a losing test early, posting from an agent-run brand account, replying to user feedback and support, giving creators free Pro or an affiliate code |
-| Red: ask first | Anything sent under Isaiah's name (one-tap approval until trust is earned), any single deal or test over $300, spend past the monthly ceiling, price changes, legal matters (terms, privacy, contracts), bulk messages to users, new public statistical claims, database migrations that touch production |
+| Red: ask first | Anything sent under Isaiah's name (one-tap approval until trust is earned), any single deal or test over $300, spend past the monthly ceiling, price changes, legal matters (terms, privacy, contracts), bulk messages to users (approval means Isaiah saw the rendered preview of that exact version, not a mockup), new public statistical claims, database migrations that touch production |
 | Never | Remove features users rely on; message other league managers directly; buy followers or fake reviews; pose as an ordinary fan |
 
 Agents cannot open accounts, enter payment details, or type passwords. Those steps go to Isaiah as a `decision` issue.
@@ -95,7 +97,8 @@ Agents merge to production without asking Isaiah, only through this gate:
 3. The reviewer checked the change against the principles: no feature removal, no unsupported claims, Voice A, emotional ROI intact.
 4. Any Coach prompt, model, or data change beats the previous version on the Coach test set (`evals/coach-quality/`).
 5. Experiments ship behind an on/off flag so a bad test turns off in one step.
-6. Tripwire: an error spike or a broken core page after a release is reverted (revert PR through the same gate, merged immediately) and Isaiah is told the same day with an `interrupt` issue.
+6. User-facing changes meet the definition of done in `docs/team/QUALITY_BAR.md`: real-data renders across league types, screenshots in the PR, a passing `design-qa` scorecard. A deadline never shortens this gate.
+7. Tripwire: an error spike or a broken core page after a release is reverted (revert PR through the same gate, merged immediately) and Isaiah is told the same day with an `interrupt` issue.
 
 Merges follow the repo's ship-it flow in `AGENTS.md`: squash-merge a PR into `main`, never push to `main` directly, never force-push.
 
