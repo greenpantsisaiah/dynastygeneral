@@ -63,12 +63,14 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ ok: false, error: "cron_secret_unconfigured" }, { status: 503 });
   }
   if (cronSecret && request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+    console.warn("[cron:weekly-brief:exit] unauthorized");
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
   const apiKey = process.env.RESEND_API_KEY;
   const mailingAddress = process.env.EMAIL_MAILING_ADDRESS?.trim();
   if (!dry && (!apiKey || !mailingAddress)) {
+    console.warn("[cron:weekly-brief:exit] email_unconfigured", { RESEND_API_KEY: !apiKey, EMAIL_MAILING_ADDRESS: !mailingAddress });
     return NextResponse.json(
       { ok: false, error: "email_unconfigured", missing: { RESEND_API_KEY: !apiKey, EMAIL_MAILING_ADDRESS: !mailingAddress } },
       { status: 503 },
@@ -79,6 +81,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const nfl = await getNflState();
   if (!nfl || nfl.season_type !== "regular" || !nfl.week) {
+    console.warn("[cron:weekly-brief:exit] not_regular_season", nfl?.season_type, nfl?.week);
     return NextResponse.json({ ok: true, note: "not_regular_season" });
   }
   const weekKind = `${WEEKLY_BRIEF_LIST}_${nfl.season}_w${nfl.week}`;
@@ -125,7 +128,10 @@ export async function GET(request: Request): Promise<Response> {
       continue;
     }
     const unsub = unsubscribeUrl(appUrl, userId);
-    if (!unsub) return NextResponse.json({ ok: false, error: "unsubscribe_secret_unconfigured" }, { status: 503 });
+    if (!unsub) {
+      console.warn("[cron:weekly-brief:exit] unsubscribe_secret_unconfigured");
+      return NextResponse.json({ ok: false, error: "unsubscribe_secret_unconfigured" }, { status: 503 });
+    }
     let email: string | null = null;
     try {
       const { data } = await admin.auth.admin.getUserById(userId);
@@ -133,7 +139,10 @@ export async function GET(request: Request): Promise<Response> {
     } catch (err) {
       console.error("[cron:weekly-brief:auth]", userId, err instanceof Error ? err.message : err);
     }
-    if (!email) continue;
+    if (!email) {
+      result.skipped++;
+      continue;
+    }
     result.eligible++;
     const tier = tierBy.get(userId) ?? "free";
     const username = (profile.sleeper_username as string | null) ?? null;
@@ -200,8 +209,15 @@ export async function GET(request: Request): Promise<Response> {
       },
       { onConflict: "user_id,league_id,kind" },
     );
-    if (sendErr) result.failed++;
-    else result.sent++;
+    if (sendErr) {
+      result.failed++;
+      // Surface the provider's reason (e.g. unverified sender domain) in
+      // the Vercel function log, not just the notifications row.
+      console.error("[cron:weekly-brief:send]", userId, sendErr.name ?? "", sendErr.message);
+    } else result.sent++;
   }
+  // One summary line per run so the Vercel log answers "why zero sent"
+  // (flag_off = override not live, skipped = opted out / already sent).
+  console.log("[cron:weekly-brief:result]", JSON.stringify({ ...result, profiles: (profiles ?? []).length, from }));
   return NextResponse.json(result);
 }
