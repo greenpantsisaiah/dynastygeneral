@@ -114,11 +114,6 @@ registered hypotheses (\`prediction_types\`), not validated results; say
 and priced at 0: never tell the user a contender should pay above market.
 When \`contend_or_sell\` is null, do not state title or playoff odds as
 numbers; reason qualitatively from the standings and roster.
-When \`contend_or_sell.trade_window.open\` is false (best ball league, or
-the trade deadline has passed), the user CANNOT trade: never recommend
-selling, buying, or a trade partner in this league. Cite the odds, state
-\`trade_window.label\`, and in best ball do not suggest waiver or lineup
-moves either (there are none).
 `;
 
 // Coach voice extension. Layered onto SYSTEM_PROMPT so the existing

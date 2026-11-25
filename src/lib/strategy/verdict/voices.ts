@@ -60,17 +60,10 @@ export function moneyball(f: VoiceFacts, titleWorth = DEFAULT_TITLE_WORTH): Voic
   const edge = (gain - cost) / scale;
   const stance: Stance =
     edge > 0.6 ? "sell" : edge > 0.25 ? "lean_sell" : edge < -0.6 ? "push" : edge < -0.25 ? "lean_push" : "split";
-  const lost = Math.max(0, -f.title_delta);
-  // Never print "costs 0%, worth 0": say the odds barely move instead.
-  const oddsClause =
-    Math.round(lost * 100) < 1
-      ? "barely moves your title odds (under 1 pt)"
-      : `costs ${pct(lost)} of title odds, worth ${pts(cost)} value points at ${titleWorth} per title`;
-  const keptClause = Math.round(gain) < 1 ? "keeps almost no value" : `keeps about ${pts(gain)} value points`;
   return {
     voice: "moneyball",
     stance,
-    line: `Selling ${keptClause} and ${oddsClause}.`,
+    line: `Selling keeps about ${pts(gain)} value points and costs ${pct(Math.max(0, -f.title_delta))} of title odds, worth ${pts(cost)} at ${titleWorth} per title.`,
   };
 }
 
@@ -98,32 +91,15 @@ export function strategist(f: VoiceFacts): VoiceRead {
   const contender = f.title_pct >= fair;
   const aging = f.roster_retained_share < 0.92;
   const young = f.roster_retained_share >= 0.98;
-  const kept = `The roster keeps about ${pct(f.roster_retained_share)} of its value through the offseason`;
-  // One sentence per case, so the line always agrees with the stance
-  // (2026-11-25: "this core still rises. This is not the window." read as
-  // a contradiction next to a lean-push stance).
   let stance: Stance;
-  let line: string;
-  if (young && contender) {
-    stance = "push";
-    line = `${kept}, and this is a real window. Push now; the core holds its value either way.`;
-  } else if (young) {
-    stance = "lean_push";
-    line = `${kept}. This year is not the window, but the core is young, so keep it for next season rather than selling.`;
-  } else if (aging && contender) {
-    stance = "split";
-    line = `${kept}, so the core is shrinking, but this is a real window. Push only if you accept selling later at a lower price.`;
-  } else if (aging) {
-    stance = "sell";
-    line = `${kept}, so the core is shrinking and this is not the window. Sell the aging pieces before they lose more.`;
-  } else if (contender) {
-    stance = "lean_push";
-    line = `${kept} and this is a real window. Lean toward pushing.`;
-  } else {
-    stance = "lean_sell";
-    line = `${kept}, but this is not the window. Lean toward selling.`;
-  }
-  return { voice: "strategist", stance, line };
+  if (young) stance = contender ? "push" : "lean_push";
+  else if (aging) stance = contender ? "split" : "sell";
+  else stance = contender ? "lean_push" : "lean_sell";
+  return {
+    voice: "strategist",
+    stance,
+    line: `The roster keeps about ${pct(f.roster_retained_share)} of its value through the offseason${aging ? ", so this core is shrinking" : young ? ", so this core still rises" : ""}. ${contender ? "This is a real window." : "This is not the window."}`,
+  };
 }
 
 export interface Panel {

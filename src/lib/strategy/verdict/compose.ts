@@ -15,7 +15,6 @@
 import { offseasonValueDecay, type DecayRead } from "./decay";
 import { rankBuyers, type BuyerInput, type BuyerRead } from "./buyers";
 import { simulateSeason, type SimInput, type TeamOdds } from "./season-sim";
-import type { TradeWindow } from "./trade-window";
 import { convene, DEFAULT_TITLE_WORTH, type Panel, type VoiceFacts } from "./voices";
 
 export interface VerdictPlayer {
@@ -55,12 +54,6 @@ export interface ContendOrSellVerdict {
     value_kept_by_selling: number;
   };
   roster_retained_share: number;
-  /**
-   * Whether the user can still trade (tradeWindow canonical). When closed
-   * (best ball, past the deadline) there are no sell candidates, and every
-   * surface shows the odds plus `trade_window.label` instead of the voices.
-   */
-  trade_window: TradeWindow;
   panel: Panel;
   title_worth: number;
   contender_premium: { value: 0; status: "unknown" };
@@ -86,14 +79,11 @@ export function buildContendOrSellVerdict(args: {
   players: VerdictPlayer[];
   buyers: BuyerInput[] | ((position: string) => BuyerInput[]);
   titleWorth?: number;
-  /** Defaults to open; loadContendOrSellVerdict passes the league's real window. */
-  tradeWindow?: TradeWindow;
   packageSize?: number;
   sims?: number;
   seed?: number;
 }): VerdictResult {
   const titleWorth = args.titleWorth ?? DEFAULT_TITLE_WORTH;
-  const window: TradeWindow = args.tradeWindow ?? { open: true, deadline_week: null };
   const base = simulateSeason(args.sim, { sims: args.sims, seed: args.seed });
   if (!base.ok) return base;
   const mine = base.odds[args.rosterId];
@@ -120,8 +110,7 @@ export function buildContendOrSellVerdict(args: {
   const pool = args.players
     .filter((p) => (decays.get(p.player_id)?.value_lost ?? 0) > 0)
     .sort((a, b) => decays.get(b.player_id)!.value_lost - decays.get(a.player_id)!.value_lost)
-    // No sell package when the user cannot trade.
-    .slice(0, window.open ? (args.packageSize ?? 2) : 0);
+    .slice(0, args.packageSize ?? 2);
 
   const candidates: SellCandidate[] = pool.map((p) => {
     const lost = shiftFor(p);
@@ -179,7 +168,6 @@ export function buildContendOrSellVerdict(args: {
         value_kept_by_selling: valueKept,
       },
       roster_retained_share: retained,
-      trade_window: window,
       panel: convene(facts, titleWorth),
       title_worth: titleWorth,
       contender_premium: { value: 0, status: "unknown" },

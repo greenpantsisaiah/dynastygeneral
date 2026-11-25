@@ -23,7 +23,7 @@ import type { Stance } from "@/lib/strategy/verdict/voices";
  * value, so a new template always goes to the admin preview list first
  * and reaches users only after Isaiah approves that exact version.
  */
-export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-25.beta2";
+export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-25.beta1";
 
 export type BriefTier = "free" | "pro";
 
@@ -77,7 +77,7 @@ const FEEDBACK_BODY =
 const FEEDBACK_ASK = `Tell me how Dynasty General can serve you better. ${FEEDBACK_BODY}\nIsaiah, founder`;
 
 export function briefSubject(args: BriefArgs): string {
-  const first = args.leagues.find((l) => l.verdict?.trade_window.open);
+  const first = args.leagues.find((l) => l.verdict);
   if (!first?.verdict) return `${args.weekLabel} brief: your leagues`;
   const v = first.verdict;
   return `${args.weekLabel}: ${STANCE[v.panel.headline]} in ${first.leagueName}, title odds ${pct(v.odds.title_pct)}`;
@@ -88,13 +88,6 @@ function leagueText(l: BriefLeague, tier: BriefTier, appUrl: string): string[] {
   const v = l.verdict;
   if (!v) {
     out.push(`  ${l.note ?? "No verdict this week."}`);
-    return out;
-  }
-  if (!v.trade_window.open) {
-    out.push(
-      `  Title odds ${pct(v.odds.title_pct)} (${v.league.rank_by_title_odds} of ${v.league.teams}), playoffs ${pct(v.odds.playoff_pct)}. ${v.trade_window.label}`,
-      `  Open the league: ${appUrl}/leagues/${l.leagueId}`,
-    );
     return out;
   }
   out.push(
@@ -144,13 +137,6 @@ export function renderWeeklyBriefHtml(args: BriefArgs): string {
       if (!v) {
         return `<div style="margin:24px 0">${head}<p style="color:#888;font-size:13px">${e(l.note ?? "No verdict this week.")}</p></div>`;
       }
-      if (!v.trade_window.open) {
-        // Best ball / past the deadline: odds and why, never sell advice.
-        return `<div style="margin:24px 0;border-top:1px solid #222;padding-top:16px">${head}
-<h2 style="font-size:18px;margin:6px 0">Title odds ${pct(v.odds.title_pct)}, ${v.league.rank_by_title_odds} of ${v.league.teams}</h2>
-<p style="color:#bbb;font-size:13px;margin:0">Playoffs ${pct(v.odds.playoff_pct)}. ${e(v.trade_window.label)}</p>
-<p style="margin:14px 0 0"><a href="${e(args.appUrl)}/leagues/${encodeURIComponent(l.leagueId)}" style="color:#f5a524;font-size:13px">Open ${e(l.leagueName)}</a></p></div>`;
-      }
       const voices = v.panel.voices
         .map((vr) => `<li style="margin:4px 0"><b>${VOICE[vr.voice]}, ${STANCE[vr.stance]}.</b> <span style="color:#bbb">${e(vr.line)}</span></li>`)
         .join("");
@@ -162,7 +148,7 @@ export function renderWeeklyBriefHtml(args: BriefArgs): string {
               : c.buyers.length > 0
                 ? `<li style="color:#f5a524">${c.buyers.length} managers ranked as buyers. <a href="${e(args.appUrl)}/pricing" style="color:#f5a524">Pro names them and why.</a></li>`
                 : "";
-          return `<p style="margin:10px 0 2px"><b>${e(c.player.name)}</b> <span style="color:#888">${e(c.player.position)}${c.player.age != null ? ` · ${c.player.age}` : ""}</span><br><span style="color:#bbb;font-size:13px">About ${valuePts(c.decay.value_lost)} gone by August per the age curve.${-c.title_delta >= 0.005 ? ` Selling costs ${(-c.title_delta * 100).toFixed(1)} pts of title odds.` : ""}</span></p><ul style="margin:2px 0 0 16px;padding:0;font-size:13px">${buyers}</ul>`;
+          return `<p style="margin:10px 0 2px"><b>${e(c.player.name)}</b> <span style="color:#888">${e(c.player.position)}${c.player.age != null ? ` · ${c.player.age}` : ""}</span><br><span style="color:#bbb;font-size:13px">About ${valuePts(c.decay.value_lost)} gone by August per the age curve. Selling costs ${Math.max(0, -c.title_delta * 100).toFixed(1)} pts of title odds.</span></p><ul style="margin:2px 0 0 16px;padding:0;font-size:13px">${buyers}</ul>`;
         })
         .join("");
       return `<div style="margin:24px 0;border-top:1px solid #222;padding-top:16px">${head}

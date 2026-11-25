@@ -105,15 +105,6 @@ check("token fails for another user", !verifyUnsubscribeToken("11111111-2222-333
 check("token fails under another key", !verifyUnsubscribeToken(uid, tok, "weekly_brief", "k2"));
 check("no key, no token", unsubscribeToken(uid, "weekly_brief", null) === null);
 
-console.log("\n── best ball / past deadline: no sell advice ──");
-const closedV = { ...r.verdict, candidates: [], trade_window: { open: false as const, reason: "best_ball" as const, deadline_week: null, label: "Best ball league: no trades, waivers or lineup moves, so there is nothing to buy or sell." } };
-const bb = { ...base, leagues: [{ leagueId: "9", leagueName: "Jabroni", verdict: closedV }] };
-const bbHtml = renderWeeklyBriefHtml(bb);
-const bbText = renderWeeklyBriefText(bb);
-check("closed league states why", bbHtml.includes("Best ball league") && bbText.includes("Best ball league"));
-check("closed league has no voices or sell words", !/Moneyball|Sell to|Sell candidate|Lean sell/.test(bbHtml + bbText));
-check("no '0.0 pts' lines anywhere", !/0\.0 pts/.test(freeHtml + proHtml));
-
 console.log("\n── send guard (no broadcast without an approved template) ──");
 const V = WEEKLY_BRIEF_TEMPLATE_VERSION;
 const g = (o: Partial<Parameters<typeof resolveSendMode>[0]>) =>
