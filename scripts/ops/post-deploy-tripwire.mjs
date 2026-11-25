@@ -59,19 +59,37 @@ async function fetchWithTimeout(url, init = {}, ms = 20000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { ...init, signal: ctrl.signal, redirect: "follow" });
+    return await fetch(url, { redirect: "follow", ...init, signal: ctrl.signal });
   } finally {
     clearTimeout(t);
   }
 }
 
+let loggedRedirect = false;
 async function health(commit) {
   const qs = commit ? `?minutes=${Math.ceil(WATCH_MINUTES)}&commit=${commit}` : `?minutes=${Math.ceil(WATCH_MINUTES)}`;
   const headers = HEALTH_TOKEN ? { authorization: `Bearer ${HEALTH_TOKEN}` } : {};
   try {
-    const res = await fetchWithTimeout(`${PROD_URL}/api/health${qs}&t=${Date.now()}`, { headers });
-    if (!res.ok) return null;
-    return await res.json();
+    // fetch drops the Authorization header when it follows a redirect to
+    // another host (for example apex -> www), which made production look
+    // like it rejected a correct token. Follow redirects by hand and keep
+    // the header.
+    let url = `${PROD_URL}/api/health${qs}&t=${Date.now()}`;
+    for (let hop = 0; hop < 5; hop++) {
+      const res = await fetchWithTimeout(url, { headers, redirect: "manual" });
+      if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+        const next = new URL(res.headers.get("location"), url).toString();
+        if (!loggedRedirect) {
+          console.log(`note: ${new URL(url).origin} redirects to ${new URL(next).origin}; following with the token. Set the PROD_URL repo variable to the final origin to skip the hop.`);
+          loggedRedirect = true;
+        }
+        url = next;
+        continue;
+      }
+      if (!res.ok) return null;
+      return await res.json();
+    }
+    return null;
   } catch {
     return null;
   }
