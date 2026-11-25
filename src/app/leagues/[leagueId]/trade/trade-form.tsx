@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   TradeIncomingResult,
   TradeOutboundResult,
@@ -17,6 +17,10 @@ import {
   type PaywallReason,
 } from "@/components/billing/paywall-modal";
 import { track } from "@/lib/analytics";
+import {
+  TradeScreenshotImport,
+  type ScreenshotTrade,
+} from "@/components/league/trade-screenshot-import";
 
 type ApiResponse =
   | {
@@ -54,6 +58,18 @@ export function TradeForm({
   const [result, setResult] = useState<ApiResponse | null>(null);
   const [lastInput, setLastInput] = useState<Record<string, unknown> | null>(null);
   const [paywall, setPaywall] = useState<PaywallReason | null>(null);
+  // Screenshot import fills the incoming fields. `version` remounts the
+  // token inputs so they pick up the new initial values (still editable).
+  const [prefill, setPrefill] = useState<(ScreenshotTrade & { version: number }) | null>(null);
+  const [submitAfterFill, setSubmitAfterFill] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  function onScreenshotApply(trade: ScreenshotTrade, evaluate: boolean) {
+    setPrefill((prev) => ({ ...trade, version: (prev?.version ?? 0) + 1 }));
+    setResult(null);
+    setSubmitAfterFill(evaluate);
+    track({ event: "trade_screenshot_imported", league_id: leagueId, evaluate });
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -136,8 +152,27 @@ export function TradeForm({
   return (
     <div className="mt-10 space-y-8">
       <PaywallModal reason={paywall} onClose={() => setPaywall(null)} />
-      <form onSubmit={onSubmit} className="grid gap-4">
-        {mode === "incoming" ? <IncomingFields /> : <OutboundFields />}
+      {mode === "incoming" && (
+        <TradeScreenshotImport
+          leagueId={leagueId}
+          sleeperUsername={sleeperUsername}
+          onApply={onScreenshotApply}
+        />
+      )}
+      <form ref={formRef} onSubmit={onSubmit} className="grid gap-4">
+        {mode === "incoming" ? (
+          <IncomingFields
+            prefill={prefill}
+            onMounted={() => {
+              if (submitAfterFill) {
+                setSubmitAfterFill(false);
+                formRef.current?.requestSubmit();
+              }
+            }}
+          />
+        ) : (
+          <OutboundFields />
+        )}
         <div>
           <button
             type="submit"
@@ -216,11 +251,26 @@ function MetaWrap({
   );
 }
 
-function IncomingFields() {
+function IncomingFields({
+  prefill,
+  onMounted,
+}: {
+  prefill: (ScreenshotTrade & { version: number }) | null;
+  onMounted: () => void;
+}) {
+  const v = prefill?.version ?? 0;
+  // Fires after the remounted inputs hold the screenshot's values, so a
+  // "Looks right. Evaluate" submit reads the filled form.
+  useEffect(() => {
+    if (v > 0) onMounted();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v]);
   return (
     <>
       <Field label="You send (your assets going out)">
         <AssetTokenInput
+          key={`send-${v}`}
+          initialValue={prefill?.you_send.join(", ") ?? ""}
           name="you_send"
           required
           placeholder="Type a player or pick. Add multiple. e.g. Jalen Hurts, 2027 2nd"
@@ -228,6 +278,8 @@ function IncomingFields() {
       </Field>
       <Field label="You receive (their assets coming to you)">
         <AssetTokenInput
+          key={`receive-${v}`}
+          initialValue={prefill?.you_receive.join(", ") ?? ""}
           name="you_receive"
           required
           placeholder="Type a player or pick. Add multiple. e.g. Malik Nabers, 2026 4th"
@@ -235,7 +287,9 @@ function IncomingFields() {
       </Field>
       <Field label="Who's offering (optional: team or manager name)">
         <input
+          key={`manager-${v}`}
           name="other_manager"
+          defaultValue={prefill?.other_manager ?? ""}
           placeholder="EO386 · TeamName"
           className={inputCls}
         />

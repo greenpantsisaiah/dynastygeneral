@@ -25,6 +25,8 @@ const PRICING_PER_MTOK: Record<
 > = {
   "claude-sonnet-4-6": { input: 3, output: 15 },
   "claude-opus-4-7": { input: 15, output: 75 },
+  // Trade screenshot reader (vision extraction).
+  "claude-opus-5-5": { input: 4, output: 20 },
   // Fallback
   default: { input: 3, output: 15 },
 };

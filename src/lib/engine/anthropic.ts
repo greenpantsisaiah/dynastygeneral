@@ -223,6 +223,11 @@ function stubFor<TSchema extends z.ZodTypeAny>(
         walk_away_floor: "[DEV STUB] Decline anything below current offer.",
         negotiation_message:
           "[DEV STUB] Structure's fine. Given the board, I need a 2027 2nd to pull the trigger.",
+        voices: [
+          { voice: "moneyball", stance: "lean_take", line: "[DEV STUB] Inside the fairness band on value." },
+          { voice: "gambler", stance: "pass", line: "[DEV STUB] Costs a starter this season." },
+          { voice: "strategist", stance: "split", line: "[DEV STUB] Younger return, thinner now." },
+        ],
         confidence: 0.5,
       };
     case "trade_outbound_decision":

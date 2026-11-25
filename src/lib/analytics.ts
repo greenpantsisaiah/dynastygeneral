@@ -23,6 +23,7 @@ type DGEvent =
       league_id: string;
       verdict?: "accept" | "counter" | "decline" | "wait";
     }
+  | { event: "trade_screenshot_imported"; league_id: string; evaluate: boolean }
   | {
       event: "trade_attack_built";
       league_id: string;

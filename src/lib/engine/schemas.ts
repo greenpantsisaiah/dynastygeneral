@@ -113,6 +113,23 @@ export const counterOfferSchema = z.object({
 });
 export type CounterOffer = z.infer<typeof counterOfferSchema>;
 
+// Competing voices on an incoming trade (product principle 2026-11-23:
+// never a bare verdict). Same three policies as the contend-or-sell
+// verdict panel, each reading the SAME context (pricing block, format
+// rules, roster, posture). They may disagree; `recommendation` is the
+// synthesis. nullish so verdicts shared before voices existed still parse.
+export const tradeVoiceSchema = z.object({
+  voice: z.enum(["moneyball", "gambler", "strategist"]),
+  stance: z.enum(["take", "lean_take", "split", "lean_pass", "pass"]),
+  line: z
+    .string()
+    .min(4)
+    .describe(
+      "One or two sentences in this voice. Cite only numbers present in the context (pricing values, ranks, ages).",
+    ),
+});
+export type TradeVoice = z.infer<typeof tradeVoiceSchema>;
+
 export const tradeIncomingOutputSchema = z.object({
   action: tradeActionSchema,
   recommendation: z
@@ -152,6 +169,7 @@ export const tradeIncomingOutputSchema = z.object({
       "Copy-ready Sleeper chat message if sending a counter or decline. " +
         "No emojis. Natural, not corporate. 1-3 sentences.",
     ),
+  voices: z.array(tradeVoiceSchema).max(3).nullish(),
   confidence,
 });
 export type TradeIncomingOutput = z.infer<typeof tradeIncomingOutputSchema>;
@@ -325,6 +343,7 @@ export const tradeIncomingOutputJsonSchema = {
     "opponent_read",
     "leverage",
     "walk_away_floor",
+    "voices",
     "confidence",
   ],
   properties: {
@@ -369,6 +388,25 @@ export const tradeIncomingOutputJsonSchema = {
         "REQUIRED. The minimum package below which the user should walk.",
     },
     negotiation_message: { type: ["string", "null"] },
+    voices: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      description:
+        "Three competing reads of THIS offer, one per voice, from the same context. moneyball: value math only (pricing block, fairness band). gambler: does it raise this season's title odds (posture, starters). strategist: multi-year window (ages, core, picks). They may disagree; do not force consensus. Cite only numbers present in the context.",
+      items: {
+        type: "object",
+        required: ["voice", "stance", "line"],
+        properties: {
+          voice: { type: "string", enum: ["moneyball", "gambler", "strategist"] },
+          stance: {
+            type: "string",
+            enum: ["take", "lean_take", "split", "lean_pass", "pass"],
+          },
+          line: { type: "string" },
+        },
+      },
+    },
     confidence: { type: "number", minimum: 0, maximum: 1 },
   },
 } as const;
