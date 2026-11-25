@@ -80,6 +80,13 @@ import {
 import { DIAL_SPECS, isAtDefault } from "@/lib/lab/dial-types";
 import { loadEffectiveDials } from "@/lib/lab/league-doctrine";
 import { parseCoachRequest } from "@/lib/coach/request";
+import {
+  counterpartyRecord,
+  injuredNow,
+  normalizeInjuryStatus,
+  standingsRanks,
+  type CounterpartyPlayer,
+} from "@/lib/coach/counterparty-scan";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -490,7 +497,11 @@ yet. When the user asks about a rookie:
 Every entry in \`<current_state>.opponents[]\` carries a \`roster\`
 array with every named player on that opponent's team, sorted by KTC
 value descending. Fields per player: name, pos, team, age, value
-(0-100), position_rank (within position), overall_rank.
+(0-100), position_rank (within position), overall_rank, injury_status
+(Sleeper status, null when healthy). Each opponent also carries
+\`record\` (wins, losses, ties, standing_rank of N) and \`injured_now\`
+(their players who cannot play now: IR / Out / PUP / Sus, highest
+value first).
 
 When the user asks "which of their WRs should I target" or "what
 should I offer for player X" or "give me trade ideas with these
@@ -518,6 +529,39 @@ Founder report 2026-05-14: "looks like coach doesn't know the
 rosters. This is key to being able to offer trade advice on the
 platform throughout the season." The data is now in your context;
 use it.
+
+## Full counterparty scan BEFORE any trade verdict or counter
+
+Every trade read (an offer the user received, a counter, "should I
+sell X", "who should I target") starts by reading the counterparty's
+WHOLE entry in \`opponents[]\`, not just the players already in the
+offer. Before you give a verdict or propose a counter, check:
+
+1. \`record\`: are they contending (top of standing_rank, deadline
+   ahead) or selling? A contender pays for help NOW; a seller pays
+   for youth and picks.
+2. \`injured_now\`: any high-value player they cannot start this
+   season. For a contender that player is near-worthless until next
+   year; for a user whose window is later he keeps most of his value.
+   When one exists and the user is rebuilding or out of contention,
+   lead with him as the ask ("your X for their injured Y"). That is
+   usually the best deal on the table, better than any package of
+   their healthy depth.
+3. Their whole roster at the position the user is selling or buying:
+   what they would start without this trade, and what surplus they can
+   spare without hurting their lineup (their bench pieces cost them
+   little).
+4. Why THEY are motivated: the injury, the hole, or the record that
+   makes this offer urgent for them. Name it; it is the user's leverage.
+
+Only then evaluate the offer as sent and build counters. If the scan
+finds nothing (no injured asset, no surplus), say so in one line so the
+user knows you looked.
+
+Founder report 2026-11-25: three rounds of advice on a C.J. Stroud
+offer never noticed that the offering manager's Drake Maye (valued
+above Stroud) had just fractured his ankle. The user found it himself;
+Stroud for Maye beat every counter the advice had built.
 
 ## Trade initiation (proactive + reactive)
 
@@ -1043,6 +1087,8 @@ export async function POST(
   });
   const { snapshot, ranked, windows } = leagueContext;
   const opponents = buildOpponentReadout(snapshot);
+  // Standing rank per roster for the counterparty scan (opponents[i].record).
+  const standingRanks = standingsRanks(snapshot.rosters);
 
   // Counterparty-stated-plans: persistent notes the user logs about
   // opponents (stated plans, trade intent, trigger conditions, psych
@@ -1347,6 +1393,7 @@ export async function POST(
     pos: string | null;
     team: string | null;
     age: number | null;
+    injury_status: string | null;
   };
   const opponentRostersByRosterId = new Map<number, OpponentRosterPlayer[]>();
   if (opponentRosterIds.size > 0) {
@@ -1365,6 +1412,7 @@ export async function POST(
             pos: h.position,
             team: h.team,
             age: h.age,
+            injury_status: normalizeInjuryStatus(p.injury_status),
           });
         }
         opponentRostersByRosterId.set(r.roster_id, list);
@@ -1781,7 +1829,9 @@ export async function POST(
       // report: "looks like coach doesn't know the rosters." Built for
       // EVERY roster (opponentRostersByRosterId above), so it is present
       // even for opponents the readout dropped.
-      const namedRoster = (opponentRostersByRosterId.get(r.roster_id) ?? [])
+      const namedRoster: CounterpartyPlayer[] = (
+        opponentRostersByRosterId.get(r.roster_id) ?? []
+      )
         .map((p) => {
           const v = playerValueMap.get(p.player_id);
           return {
@@ -1792,6 +1842,10 @@ export async function POST(
             value: v ? v.value : null,
             position_rank: v ? v.position_rank : null,
             overall_rank: v ? v.overall_rank : null,
+            // Sleeper injury_status (null = healthy). Counterparty scan,
+            // 2026-11-25: an injured star on the other side is the
+            // buy-low leverage a full-roster read must surface.
+            injury_status: p.injury_status,
           };
         })
         .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
@@ -1820,6 +1874,18 @@ export async function POST(
           current_picks_received: tradeHistory.current_picks_received,
         },
         notes,
+        // Counterparty scan (2026-11-25 founder report, the Drake Maye
+        // miss): record + standing tells contender from seller; injured_now
+        // lists their unavailable players, value-descending, the buy-low
+        // leverage a trade read must check before any counter.
+        record: counterpartyRecord(r, standingRanks, snapshot.rosters.length),
+        injured_now: injuredNow(namedRoster).map((p) => ({
+          name: p.name,
+          pos: p.pos,
+          age: p.age,
+          value: p.value,
+          injury_status: p.injury_status,
+        })),
         roster: namedRoster,
       };
     }),

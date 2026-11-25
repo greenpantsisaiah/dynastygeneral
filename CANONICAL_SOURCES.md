@@ -135,6 +135,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: a local function that re-counts `traded_picks` and returns a signature literal. Lint "no local pick-trade signature derivation (use buildOpponentTradeHistory)" bans a `tradeSignature*` function or a `return "pick_seller|hoarder|flipper"` outside the canonical.
 - **Bug class avoided**: 2026-11-23 `detect.ts` carried a private `tradeSignatureFor` fork (no self-owned skip, single volume >= 4 gate, no flipper net band), so the Trade Opportunities panel labeled an opponent (for example sent 3 / received 0: quiet vs seller) differently from Coach and the hub. Locked by `evals/opponent-trade-history.test.ts` and the lint.
 
+### Counterparty scan (opponent injured assets + record, for every trade read)
+
+- **Canonical**: `injuredNow(roster)`, `isUnavailableNow(status)`, `normalizeInjuryStatus(raw)`, `standingsRanks(rows)`, `counterpartyRecord(row, ranks, total)` in `src/lib/coach/counterparty-scan.ts`
+- **Returns**: per opponent, `injured_now` (players with Sleeper `injury_status` IR / Out / PUP / Sus / NFI, value-descending, no value threshold) and `record` (`wins`, `losses`, `ties`, `standing_rank` of N; rank null before any games).
+- **Inputs**: the opponent's named roster (with `injury_status` from the Sleeper players blob) and the snapshot rosters' W-L-T.
+- **Consumers**: Coach `opponents[i].injured_now` / `opponents[i].record` / `opponents[i].roster[].injury_status`, cited by the "Full counterparty scan" system-prompt rule. Future trade surfaces (Trade Opportunities, the negotiation kit, the weekly brief's named partners) read the same helpers.
+- **Anti-pattern**: judging a trade from the players in the offer alone, or re-deriving "is this player out" from a raw status string in a surface.
+- **Bug class avoided**: 2026-11-25 Dynasty Disasters. Advice on a Stroud offer never saw that the counterparty's Drake Maye (valued above Stroud) was out for the season, the real source of his urgency and the best deal available. Locked by `evals/counterparty-scan.test.ts` and `evals/coach-context-sync.test.ts`.
+
 ### Roster-fit math (position room health, starter need scoring)
 
 - **Canonical**: `src/lib/engine/roster-fit.ts` (`buildPositionRoomHealth`, `flexShareForPosition`, `getRealisticStarterMax`, etc.)
