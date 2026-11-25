@@ -18,7 +18,10 @@
  *   copy to the admin list only (EMAIL_PREVIEW_TO, else EMAIL_REPLY_TO),
  *   once per week and template version, and nobody else.
  *
- * `?mode=preview` forces a preview run; add `&force=1` to resend it.
+ * `?mode=preview` forces a preview run; add `&force=1` to resend a preview
+ * (ignored on broadcasts). A broadcast is idempotent per week AND template
+ * version, so the only way to re-send a week to users is a newly approved
+ * version.
  * `?dry=1` renders and counts without sending or writing (preview use).
  * Runs hourly on Tuesday (vercel.json) with a time budget, so a run that
  * cannot finish leaves the rest to the next hour; idempotent per week.
@@ -45,7 +48,7 @@ import {
   renderWeeklyBriefText,
   type BriefLeague,
 } from "@/lib/email/weekly-brief";
-import { resolveSendMode } from "@/lib/email/send-guard";
+import { briefSendKind, honorForce, resolveSendMode } from "@/lib/email/send-guard";
 import { OPT_OUT, WEEKLY_BRIEF_LIST, unsubscribeUrl } from "@/lib/email/unsubscribe";
 
 export const dynamic = "force-dynamic";
@@ -115,7 +118,9 @@ export async function GET(request: Request): Promise<Response> {
   }
   const weekKind = `${WEEKLY_BRIEF_LIST}_${nfl.season}_w${nfl.week}`;
   // Previews log under their own kind so they never mark the real send done.
-  const sendKind = preview ? `${weekKind}_preview_${WEEKLY_BRIEF_TEMPLATE_VERSION}` : weekKind;
+  const sendMode = preview ? "preview" : "broadcast";
+  const sendKind = briefSendKind(weekKind, WEEKLY_BRIEF_TEMPLATE_VERSION, sendMode);
+  const forceResend = honorForce(force, sendMode);
   const weekLabel = `Week ${nfl.week}`;
 
   const admin = getAdminClient();
@@ -139,7 +144,7 @@ export async function GET(request: Request): Promise<Response> {
   const tierBy = new Map((subs ?? []).map((s) => [s.user_id as string, effectiveTier(s)]));
   const optedOut = new Set((marks ?? []).filter((m) => m.kind !== sendKind).map((m) => m.user_id as string));
   const doneThisWeek = new Set(
-    (marks ?? []).filter((m) => m.kind === sendKind && m.status === "sent" && !force).map((m) => m.user_id as string),
+    (marks ?? []).filter((m) => m.kind === sendKind && m.status === "sent" && !forceResend).map((m) => m.user_id as string),
   );
 
   const result = { ok: true, dry, mode: guard.mode, template: WEEKLY_BRIEF_TEMPLATE_VERSION, not_admin: 0, week: sendKind, eligible: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, flag_off: 0 };

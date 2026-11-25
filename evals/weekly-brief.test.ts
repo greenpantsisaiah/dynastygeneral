@@ -15,7 +15,7 @@ import {
   type BriefArgs,
 } from "../src/lib/email/weekly-brief";
 import { unsubscribeToken, verifyUnsubscribeToken } from "../src/lib/email/unsubscribe";
-import { resolveSendMode } from "../src/lib/email/send-guard";
+import { briefSendKind, honorForce, resolveSendMode } from "../src/lib/email/send-guard";
 import { WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
 
 let passed = 0;
@@ -117,6 +117,9 @@ check("stale approval never broadcasts", stale.mode === "preview" && stale.reaso
 check("explicit preview list wins over reply-to", (() => { const r = g({ previewTo: "A@x.com, b@y.com" }); return r.mode === "preview" && r.to.join() === "a@x.com,b@y.com"; })());
 check("?mode=preview forces preview even when approved", g({ approvedVersion: V, requestedMode: "preview" }).mode === "preview");
 check("no approval and no admin address refuses", g({ replyTo: undefined }).mode === "refuse");
+check("force is ignored on broadcasts", !honorForce(true, "broadcast") && honorForce(true, "preview"));
+check("a new approved version gets a new broadcast key (deliberate resend)", briefSendKind("wb_w12", "v1", "broadcast") !== briefSendKind("wb_w12", "v2", "broadcast"));
+check("preview key never equals the broadcast key", briefSendKind("wb_w12", "v1", "preview") !== briefSendKind("wb_w12", "v1", "broadcast"));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
