@@ -2,6 +2,7 @@ import type {
   PickOutput,
   StrategyClarifyOutput,
   TradeIncomingOutput,
+  TradeVoice,
   TradeOutboundOutput,
 } from "@/lib/engine/schemas";
 import { ClientCopy } from "./client-copy";
@@ -164,6 +165,11 @@ export function TradeIncomingResult({
           ))}
         </ul>
       </Row>
+      {result.voices && result.voices.length > 0 && (
+        <Row label="Three voices">
+          <TradeVoices voices={result.voices} />
+        </Row>
+      )}
       <Row label="Opponent read">{result.opponent_read}</Row>
       <Row label="Opportunity cost">{result.opportunity_cost}</Row>
       {result.action === "counter" && result.counter_offer && (
@@ -505,4 +511,49 @@ function formatOutboundVerdict(r: TradeOutboundOutput): string {
     `Engine v0 backtest and methodology: dynastygeneral.app/scoreboard`,
   );
   return lines.join("\n");
+}
+
+const VOICE_LABEL: Record<TradeVoice["voice"], string> = {
+  moneyball: "Moneyball",
+  gambler: "Gambler",
+  strategist: "Strategist",
+};
+
+const STANCE_LABEL: Record<TradeVoice["stance"], { text: string; cls: string }> = {
+  take: { text: "Take it", cls: "text-success" },
+  lean_take: { text: "Lean take", cls: "text-success" },
+  split: { text: "Split", cls: "text-muted" },
+  lean_pass: { text: "Lean pass", cls: "text-danger" },
+  pass: { text: "Pass", cls: "text-danger" },
+};
+
+/**
+ * Competing reads of one offer (Moneyball value math, Gambler title
+ * odds, Strategist window). Shown so the user weighs the call instead of
+ * receiving a bare verdict; a consensus line appears only when all three
+ * agree on a direction.
+ */
+function TradeVoices({ voices }: { voices: TradeVoice[] }) {
+  const dir = (s: TradeVoice["stance"]) =>
+    s === "take" || s === "lean_take" ? 1 : s === "pass" || s === "lean_pass" ? -1 : 0;
+  const dirs = voices.map((v) => dir(v.stance));
+  const consensus = dirs.length === 3 && dirs[0] !== 0 && dirs.every((d) => d === dirs[0]);
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-muted">
+        {consensus ? "All three voices agree." : "The voices split. Weigh them against your plan."}
+      </div>
+      <ul className="space-y-2">
+        {voices.map((v) => (
+          <li key={v.voice}>
+            <span className="font-semibold text-foreground">{VOICE_LABEL[v.voice]}</span>{" "}
+            <span className={`font-mono text-[10px] uppercase tracking-[0.16em] ${STANCE_LABEL[v.stance].cls}`}>
+              {STANCE_LABEL[v.stance].text}
+            </span>
+            <div className="text-muted">{v.line}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }

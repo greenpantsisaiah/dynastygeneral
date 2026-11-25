@@ -22,6 +22,7 @@ type BucketName =
   | "coach"
   | "briefings"
   | "decisions"
+  | "trade-screenshot"
   | "scout"
   | "scout-daily"
   | "decisions-strategy"
@@ -49,6 +50,10 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   coach: { requests: 10, window: "5 m" }, // 10 coach chats per 5 min per IP
   briefings: { requests: 5, window: "10 m" }, // 5 briefings runs per 10 min per IP
   decisions: { requests: 20, window: "5 m" }, // pick + trade decisions
+  // Trade screenshot reader: one vision call per upload. A real user
+  // uploads one or two offers at a time; 10 per 10 minutes covers a
+  // re-crop or two while capping a looping client.
+  "trade-screenshot": { requests: 10, window: "10 m" },
   // Strategy uses Opus (5x cost). Split into its own bucket so a bot can't
   // burn the full decisions allowance on the most expensive endpoint. Per
   // cost-watcher audit 2026-04-22: shared bucket = $1,008/day single-IP exposure.

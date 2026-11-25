@@ -121,7 +121,7 @@ export async function runTradeIncoming(
     `## Context`,
     renderContextForPrompt(ctx),
     ``,
-    `Decide accept / counter / decline / wait. Invoke the \`trade_incoming_decision\` tool. Every output must include a walk-away floor and an explicit opportunity cost. If counter, include a copy-ready message.`,
+    `Decide accept / counter / decline / wait. Invoke the \`trade_incoming_decision\` tool. Every output must include a walk-away floor and an explicit opportunity cost. If counter, include a copy-ready message. Also give three competing voices (moneyball, gambler, strategist) reading this same offer from the same context; they may disagree, and the recommendation is your synthesis of them.`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -137,7 +137,7 @@ export async function runTradeIncoming(
     outputSchema: tradeIncomingOutputSchema,
     userMessage,
     model: "sonnet",
-    maxTokens: 1500,
+    maxTokens: 2000,
     temperature: 0.35,
   });
   return { ...result, teamDisplay: ctx.me.team_name };

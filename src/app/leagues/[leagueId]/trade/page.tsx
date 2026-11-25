@@ -50,7 +50,7 @@ export default async function TradePage({ params, searchParams }: PageProps) {
           <p className="mt-4 max-w-2xl text-muted">
             {outbound
               ? "Name a target: a specific player, a manager whose roster you want to raid, or a specific draft pick. You'll get the attack angle, three tiered packages (conservative / fair / aggressive), a copy-ready opener, and the walk-away floor."
-              : "Paste what you send and what you receive. You'll get accept / counter / decline / wait, the opponent read, leverage, stronger ask, and a copy-ready message you can paste into your league chat."}
+              : "Upload the Sleeper screenshot or type what you send and what you receive. You'll get accept / counter / decline / wait, three competing reads of the deal, the opponent read, leverage, and a copy-ready message for your league chat."}
           </p>
 
           <TradeForm
