@@ -36,8 +36,9 @@ export function FeedbackWidget({
   signedInEmail?: string | null;
 } = {}) {
   const [open, setOpen] = useState(false);
-  // On the homepage the pill overlaps the signup form on phones.
-  const onHome = usePathname() === "/";
+  // On the homepage and /login the pill overlaps the form on phones.
+  const path = usePathname();
+  const onHome = path === "/" || path === "/login";
   const [rating, setRating] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");

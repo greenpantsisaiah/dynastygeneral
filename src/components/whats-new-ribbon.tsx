@@ -29,7 +29,9 @@ export function WhatsNewRibbon() {
   const [expanded, setExpanded] = useState(false);
   // The homepage is for first-time visitors; a release note there sits
   // over the signup form on phones. Returning testers see it in the app.
-  const onHome = usePathname() === "/";
+  // Hidden where a fixed overlay would cover a signup or sign-in form.
+  const path = usePathname();
+  const onHome = path === "/" || path === "/login";
 
   useEffect(() => {
     try {
