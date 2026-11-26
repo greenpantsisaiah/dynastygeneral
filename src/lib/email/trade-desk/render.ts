@@ -99,7 +99,7 @@ export function sellingLabel(c: TradeCard): string {
 export function sellEffect(c: TradeCard): { big: string; sub: string; tone: string } {
   const d = Math.round(c.lead.title_delta * 100);
   const kept = Math.round(c.lead.decay.value_lost);
-  const keptLine = `keeps about ${valuePts(kept)}`;
+  const keptLine = `avoids a ${kept}-point offseason drop`;
   if (d <= -1) return { big: `&minus;${-d} pts`, sub: `league-win chance to ${fmtPct(c.lead.title_pct_if_sold)}, ${keptLine}`, tone: C.red };
   if (d >= 1) return { big: `+${d} pts`, sub: `the replacement scores more; ${keptLine}`, tone: C.green };
   return { big: "&lt;1 pt", sub: `barely moves it; ${keptLine}`, tone: C.ink };
@@ -158,7 +158,7 @@ export function heroSub(m: TradeDeskModel): string {
   const read = m.leagues.filter((l) => l.verdict && l.verdict.trade_window.open).length;
   const noRead = m.leagues.filter((l) => !l.verdict).length;
   const parts: string[] = [];
-  if (closed > 0) parts.push(closed === n ? `All ${plural(n, "league")} are past the trade deadline or best ball.` : `${closed} of your ${plural(n, "league")} ${closed === 1 ? "is" : "are"} past the trade deadline or best ball.`);
+  if (closed > 0) parts.push(closed === n ? `${n === 1 ? "Your 1 league is" : `All ${n} leagues are`} past the trade deadline or best ball.` : `${closed} of your ${plural(n, "league")} ${closed === 1 ? "is" : "are"} past the trade deadline or best ball.`);
   if (read > 0) parts.push(read === n ? `In all ${plural(n, "league")} the analysts see no sale worth trying.` : `In the ${read === 1 ? "1 league" : `${read} leagues`} with a read, the analysts see no sale worth trying.`);
   if (noRead > 0) parts.push(noRead === n ? `No league has a read yet this week; the table says why.` : `${plural(noRead, "league")} had no read this week; the table says why.`);
   return `${parts.join(" ")}${read + closed > 0 ? ` ${sims}` : ""}`;
@@ -227,7 +227,7 @@ function tradeCardHtml(c: TradeCard, i: number, m: TradeDeskModel, appUrl: strin
   const tile = (a: string, b: string, d: string, col = C.ink) =>
     `<td width="33%" valign="top">${kicker(a)}<div style="font:700 24px ${SERIF};color:${col};margin-top:4px;">${b}</div><div style="font:12px ${SANS};color:${C.mute};">${esc(d)}</div></td>`;
   const tiles =
-    tile("Playoffs", RANGE_LABEL[playoffRange(v.odds.playoff_pct)], `${fmtPct(v.odds.playoff_pct)} · ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds`) +
+    tile("Playoffs", RANGE_LABEL[playoffRange(c.playoffPct)], `${fmtPct(c.playoffPct)} · ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds`) +
     tile("Win the league", fmtPct(v.odds.title_pct), `fair share is ${Math.round(v.league.fair_title_share * 100)}%`) +
     tile(esc(sellingLabel(c)), eff.big, eff.sub.replace("&minus;", "-"), eff.tone);
   const voices = c.panel.voices
@@ -346,7 +346,7 @@ export function renderDeskText(a: DeskRenderArgs): string {
     const eff = sellEffect(c);
     out.push(`WORTH TRYING ${i + 1} OF ${m.cards.length} · ${c.leagueName} · ${deadlineChip(c)}`);
     out.push(cardTitle(c));
-    out.push(`Playoffs: ${RANGE_LABEL[playoffRange(v.odds.playoff_pct)]} (${fmtPct(v.odds.playoff_pct)}, ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds). Win the league ${fmtPct(v.odds.title_pct)} (fair share is ${Math.round(v.league.fair_title_share * 100)}%). ${sellingLabel(c)}: ${eff.big.replace("&minus;", "-").replace("&lt;", "<")}, ${eff.sub}.`);
+    out.push(`Playoffs: ${RANGE_LABEL[playoffRange(c.playoffPct)]} (${fmtPct(c.playoffPct)}, ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds). Win the league ${fmtPct(v.odds.title_pct)} (fair share is ${Math.round(v.league.fair_title_share * 100)}%). ${sellingLabel(c)}: ${eff.big.replace("&minus;", "-").replace("&lt;", "<")}, ${eff.sub}.`);
     for (const x of c.panel.voices) out.push(`  ${VOICE_NAME[x.voice]} · ${STANCE_LABEL[x.stance]}. ${x.line}`);
     out.push(verdictLine(c), `If it doesn't land: ${fallbackLine(c)}`);
     out.push(m.tier === "pro" ? `Open the offer to ${c.buyer.label}: ${a.appUrl}/leagues/${c.leagueId}/trade` : `Pro: the ready-to-send offer and message. ${a.appUrl}/pricing`, "");
