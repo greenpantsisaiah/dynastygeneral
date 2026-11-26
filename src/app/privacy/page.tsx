@@ -17,7 +17,7 @@ export default function PrivacyPage() {
             Privacy Policy
           </h1>
           <p className="mt-2 font-mono text-xs uppercase tracking-[0.18em] text-muted-2">
-            Last updated 2026-04-24
+            Last updated 2026-11-26
           </p>
 
           <div className="mt-8 space-y-6 text-sm leading-relaxed text-muted sm:text-base">
@@ -34,8 +34,10 @@ export default function PrivacyPage() {
               </p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 <li>
-                  A functional preference cookie storing your declared
-                  draft window. Not used for tracking or advertising.
+                  Usage measurement through Google Tag Manager: which pages
+                  you visit and whether you complete a signup. Tags in it
+                  may set first-party analytics cookies. Not used for
+                  advertising.
                 </li>
                 <li>
                   Standard server logs (IP address, request path, user
@@ -57,6 +59,26 @@ export default function PrivacyPage() {
                   address and a securely hashed password managed by our
                   auth provider (Supabase Auth). We never store your
                   password in plain text.
+                </li>
+                <li>
+                  If you sign up from the homepage with your email and
+                  Sleeper username: we create your account right away
+                  with no password and no confirmation link, and store
+                  your email, Sleeper username, and Sleeper user ID. You
+                  sign in later with Google on the same address or with a
+                  one-time sign-in link we email you.
+                </li>
+              </ul>
+              <p className="mt-4">
+                <strong>When you get the weekly brief email:</strong>
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  Every account receives a weekly brief during the NFL
+                  season, built from your Sleeper leagues. We store when
+                  each brief was sent and whether you unsubscribed. Every
+                  brief carries a one-click unsubscribe that needs no
+                  login.
                 </li>
               </ul>
               <p className="mt-4">
@@ -84,11 +106,11 @@ export default function PrivacyPage() {
                   data server-side beyond the duration of your request.
                 </li>
                 <li>
-                  Your declared strategy choices and chat messages with the
-                  coach. Free-tier chats are stored in your browser's
-                  localStorage only. Pro-tier chats are also stored
-                  server-side for cross-device continuity. Each chat turn
-                  is sent to our AI provider as described below.
+                  Your chat messages with Coach and its replies. When you
+                  are signed in, they are stored server-side so your
+                  conversations follow you across devices, and we read
+                  them to improve Coach&apos;s answers. Each chat turn is sent
+                  to our AI provider as described below.
                 </li>
                 <li>
                   Pinned briefings (Pro tier) are stored server-side so
@@ -115,7 +137,13 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                   League and chat data is used to generate the analysis we
-                  show you.
+                  show you, including the weekly brief email.
+                </li>
+                <li>
+                  Your email address is used for the weekly brief, sign-in
+                  links, and account notices. Unsubscribing from the brief
+                  stops the brief; sign-in links still arrive when you ask
+                  for one.
                 </li>
                 <li>We do not sell your data. We do not share it with advertisers.</li>
               </ul>
@@ -178,6 +206,24 @@ export default function PrivacyPage() {
                   .
                 </li>
                 <li>
+                  <strong>Resend</strong> delivers the weekly brief and
+                  other product email. It receives your email address and
+                  the content of each email.
+                </li>
+                <li>
+                  <strong>Google Tag Manager</strong> measures site usage
+                  (page views and signups). Subject to{" "}
+                  <a
+                    href="https://policies.google.com/privacy"
+                    className="text-accent hover:underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Google's Privacy Policy
+                  </a>
+                  .
+                </li>
+                <li>
                   <strong>Vercel</strong> hosts the application and serves
                   static logs.
                 </li>
@@ -210,13 +256,14 @@ export default function PrivacyPage() {
                 </li>
                 <li>League data: not retained server-side.</li>
                 <li>
-                  Chat history (free tier): stored in your browser's
-                  localStorage until you clear it.
-                </li>
-                <li>
-                  Chat history and pinned briefings (Pro tier): stored
+                  Chat history (signed in) and pinned briefings: stored
                   server-side until you delete them via Account settings
                   or use the "Wipe my data" feature.
+                </li>
+                <li>
+                  Account data (email, Sleeper username and ID, email
+                  preferences): kept while your account exists, deleted
+                  on request.
                 </li>
                 <li>
                   Server logs: retained per Vercel's defaults (typically
@@ -279,20 +326,15 @@ export default function PrivacyPage() {
 
             <Section title="Cookies">
               <p className="mt-2">
-                We set one cookie: `dw_&lt;leagueId&gt;`, a 180-day
-                functional preference cookie that stores your declared
-                draft window for a specific league. The cookie is set
-                only when you take the explicit action of declaring a
-                window in the Windows Bar (your declaration is your
-                consent). You can decline by not declaring a window;
-                the rest of the app functions normally. We do not set
-                advertising, analytics, or tracking cookies, and we do
-                not use third-party trackers.
+                We use sign-in cookies set by Supabase to keep you signed
+                in, and Google Tag Manager, whose tags may set
+                first-party analytics cookies to count page views and
+                signups. We do not set advertising cookies and do not
+                sell or share data for cross-context advertising.
               </p>
               <p className="mt-3">
-                You can clear the cookie at any time by clearing site
-                data in your browser, or it will expire automatically
-                after 180 days.
+                You can clear cookies at any time by clearing site data
+                in your browser. Clearing sign-in cookies signs you out.
               </p>
             </Section>
 
@@ -308,7 +350,7 @@ export default function PrivacyPage() {
             <Section title="Changes">
               <p className="mt-2">
                 We may update this policy. Material changes will be
-                announced on the site or by email to waitlist members.
+                announced on the site or by email to account holders.
               </p>
             </Section>
 

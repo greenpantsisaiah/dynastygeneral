@@ -14,7 +14,14 @@
  * - Strategist: plays the multi-year window. Reads how fast the core is
  *   aging; keeps a young core even in a lost season, sells an old core
  *   that is not a real contender.
+ *
+ * Redraft (horizon "this_season"): rosters reset after the season, so a
+ * sale banks nothing. No voice may cite offseason value there; each reads
+ * only this season's odds, and the axis runs from "season is over" (split)
+ * to "push", never to sell.
  */
+
+import type { VerdictHorizon } from "./decay";
 
 export type Stance = "sell" | "lean_sell" | "split" | "lean_push" | "push";
 export type VoiceName = "moneyball" | "gambler" | "strategist";
@@ -37,6 +44,10 @@ export interface VoiceFacts {
   value_kept_by_selling: number;
   /** Value-weighted share of the whole roster's value kept through the offseason. */
   roster_retained_share: number;
+  /** "this_season" in redraft. Absent means multi-year (keeper, dynasty). */
+  horizon?: VerdictHorizon;
+  /** The user's record, "4-7", when known. Used by the redraft lines. */
+  record?: string;
 }
 
 export interface VoiceRead {
@@ -67,7 +78,26 @@ export interface VoiceContext {
   record: string;
 }
 
+/** Below this playoff chance the season is over (every voice). */
+const SEASON_OVER_PLAYOFF = 0.02;
+
+const seasonOnly = (f: VoiceFacts) => f.horizon === "this_season";
+const atRecord = (f: VoiceFacts, ctx?: VoiceContext) => {
+  const r = ctx?.record ?? f.record;
+  return r ? `At ${r}` : "Right now";
+};
+
 export function moneyball(f: VoiceFacts, titleWorth = DEFAULT_TITLE_WORTH, ctx?: VoiceContext): VoiceRead {
+  if (seasonOnly(f)) {
+    const over = f.playoff_pct < SEASON_OVER_PLAYOFF;
+    return {
+      voice: "moneyball",
+      stance: over ? "split" : "lean_push",
+      line: over
+        ? `${atRecord(f, ctx)} the playoffs are out of reach, and redraft rosters reset after the season, so no trade changes the math.`
+        : `Redraft rosters reset after the season, so selling banks no future value. Trade only for players who add weekly points; your playoff chance is ${pct(f.playoff_pct)}.`,
+    };
+  }
   const cost = titleWorth * Math.max(0, -f.title_delta);
   const gain = f.value_kept_by_selling;
   const scale = Math.max(cost, gain, 1);
@@ -110,6 +140,20 @@ const GAMBLER_CARD_TAKE: Record<Stance, (p: string) => string> = {
 export function gambler(f: VoiceFacts, ctx?: VoiceContext): VoiceRead {
   const fair = 1 / Math.max(2, f.teams);
   const r = f.title_pct / fair;
+  if (seasonOnly(f)) {
+    // Redraft pays nothing for cashing out, so a long shot swings for upside.
+    const over = f.playoff_pct < SEASON_OVER_PLAYOFF;
+    const stance: Stance = over ? "split" : r >= 0.6 ? "push" : "lean_push";
+    return {
+      voice: "gambler",
+      stance,
+      line: over
+        ? `${atRecord(f, ctx)} your chance to win the league is ${pct(f.title_pct)}. The ticket is spent.`
+        : `${atRecord(f, ctx)} your chance to win the league is ${pct(f.title_pct)} against a fair share of ${pct(fair)}. ${
+            r >= 0.6 ? "That is a live ticket; ride it." : "There is nothing to cash out in redraft, so swing for upside."
+          }`,
+    };
+  }
   const stance: Stance = r >= 1 ? "push" : r >= 0.6 ? "lean_push" : r >= 0.35 ? "split" : r >= 0.2 ? "lean_sell" : "sell";
   return {
     voice: "gambler",
@@ -120,12 +164,17 @@ export function gambler(f: VoiceFacts, ctx?: VoiceContext): VoiceRead {
   };
 }
 
-/** Below this playoff chance the season is over for the Strategist. */
-const SEASON_OVER_PLAYOFF = 0.02;
-
 export function strategist(f: VoiceFacts, ctx?: VoiceContext): VoiceRead {
   const fair = 1 / Math.max(2, f.teams);
   const contender = f.title_pct >= fair;
+  if (seasonOnly(f)) {
+    const over = f.playoff_pct < SEASON_OVER_PLAYOFF;
+    const at = atRecord(f, ctx);
+    if (over) return { voice: "strategist", stance: "split", line: `${at} the season is over, and redraft has no next season to build for.` };
+    return contender
+      ? { voice: "strategist", stance: "push", line: `${at} this is a real window, and redraft has no next season, so play to win now.` }
+      : { voice: "strategist", stance: "lean_push", line: `${at} you are behind, but redraft has no next season to save for, so keep starting your best lineup.` };
+  }
   const aging = f.roster_retained_share < 0.92;
   // "Holds its value" is about value retention, not age: a 0-11 roster can
   // hold its value and still be old (desk1 review: "the core is young" on a

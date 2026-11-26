@@ -34,7 +34,7 @@ export default async function LoginPage({
             Welcome back.
           </h1>
           <p className="mt-3 text-sm text-muted">
-            Sign in with Google or email. No marketing email by default.
+            Sign in with Google, or with your email and a password or a sign-in link.
           </p>
 
           {params.error && (

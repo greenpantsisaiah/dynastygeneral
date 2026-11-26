@@ -96,6 +96,7 @@ export default async function HomePage({
             sleeper: (l) => `https://sleeper.com/leagues/${l.league_id}/team`,
             league: (id) => `/leagues/${id}?${q}`,
             item: (i) => `/home?item=${encodeURIComponent(i.id)}`,
+            allLeagues: "/leagues",
           }}
         />
       </main>

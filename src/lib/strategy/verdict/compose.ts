@@ -12,7 +12,7 @@
  *   offseason_value_decay@v1, contender_premium@v1 (0, unknown).
  */
 
-import { offseasonValueDecay, type DecayRead } from "./decay";
+import { decayYearsFor, offseasonValueDecay, verdictHorizon, type DecayRead, type LeagueType, type VerdictHorizon } from "./decay";
 import { rankBuyers, type BuyerInput, type BuyerRead } from "./buyers";
 import { simulateSeason, type SimInput, type TeamOdds } from "./season-sim";
 import type { TradeWindow } from "./trade-window";
@@ -68,6 +68,12 @@ export interface ContendOrSellVerdict {
    * surface shows the odds plus `trade_window.label` instead of the voices.
    */
   trade_window: TradeWindow;
+  /**
+   * "this_season" in redraft: no offseason decay, no sell candidates (a
+   * sale banks nothing that carries over), and the voices reason only on
+   * this season's odds. "next_season" in keeper and dynasty leagues.
+   */
+  horizon: VerdictHorizon;
   panel: Panel;
   title_worth: number;
   contender_premium: { value: 0; status: "unknown" };
@@ -96,11 +102,15 @@ export function buildContendOrSellVerdict(args: {
   /** Defaults to open; loadContendOrSellVerdict passes the league's real window. */
   tradeWindow?: TradeWindow;
   packageSize?: number;
+  /** snapshot.league_type. Defaults to dynasty (multi-year) when absent. */
+  leagueType?: LeagueType | null;
   sims?: number;
   seed?: number;
 }): VerdictResult {
   const titleWorth = args.titleWorth ?? DEFAULT_TITLE_WORTH;
   const window: TradeWindow = args.tradeWindow ?? { open: true, deadline_week: null };
+  const horizon = verdictHorizon(args.leagueType);
+  const seasonOnly = horizon === "this_season";
   const base = simulateSeason(args.sim, { sims: args.sims, seed: args.seed });
   if (!base.ok) return base;
   const mine = base.odds[args.rosterId];
@@ -116,7 +126,7 @@ export function buildContendOrSellVerdict(args: {
   let keptValue = 0;
   const decays = new Map<string, DecayRead>();
   for (const p of args.players) {
-    const d = offseasonValueDecay({ value: p.value, position: p.position, age: p.age });
+    const d = offseasonValueDecay({ value: p.value, position: p.position, age: p.age, years: decayYearsFor(horizon) });
     decays.set(p.player_id, d);
     totalValue += d.value_now;
     keptValue += d.value_later;
@@ -129,8 +139,9 @@ export function buildContendOrSellVerdict(args: {
   const pool = args.players
     .filter((p) => (decays.get(p.player_id)?.value_lost ?? 0) > 0)
     .sort((a, b) => decays.get(b.player_id)!.value_lost - decays.get(a.player_id)!.value_lost)
-    // No sell package when the user cannot trade.
-    .slice(0, window.open ? (args.packageSize ?? 2) : 0);
+    // No sell package when the user cannot trade, or in redraft (decay is
+    // 0 there, so this filter is already empty; the guard says it out loud).
+    .slice(0, window.open && !seasonOnly ? (args.packageSize ?? 2) : 0);
 
   const candidates: SellCandidate[] = pool.map((p) => {
     const lost = shiftFor(p);
@@ -162,6 +173,7 @@ export function buildContendOrSellVerdict(args: {
           title_delta: after.title_pct - mine.title_pct,
           value_kept_by_selling: decays.get(p.player_id)!.value_lost,
           roster_retained_share: retained,
+          horizon,
         },
         titleWorth,
         record ? { player: p.name, record } : undefined,
@@ -184,6 +196,8 @@ export function buildContendOrSellVerdict(args: {
     title_delta: pkgOdds.title_pct - mine.title_pct,
     value_kept_by_selling: valueKept,
     roster_retained_share: retained,
+    horizon,
+    record: record || undefined,
   };
 
   return {
@@ -201,6 +215,7 @@ export function buildContendOrSellVerdict(args: {
       },
       roster_retained_share: retained,
       trade_window: window,
+      horizon,
       panel: convene(facts, titleWorth),
       title_worth: titleWorth,
       contender_premium: { value: 0, status: "unknown" },
@@ -208,13 +223,15 @@ export function buildContendOrSellVerdict(args: {
         sims: base.sims,
         seed: base.seed,
         ...base.model,
-        prediction_types: [
-          "playoff_odds@v1",
-          "title_odds@v1",
-          "title_odds_delta@v1",
-          "offseason_value_decay@v1",
-          "contender_premium@v1",
-        ],
+        prediction_types: seasonOnly
+          ? ["playoff_odds@v1", "title_odds@v1"]
+          : [
+              "playoff_odds@v1",
+              "title_odds@v1",
+              "title_odds_delta@v1",
+              "offseason_value_decay@v1",
+              "contender_premium@v1",
+            ],
       },
     },
   };

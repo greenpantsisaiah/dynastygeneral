@@ -1997,12 +1997,12 @@ export default async function LeagueHubPage({
   // email already show everyone). Only the full card stays behind the
   // contend_or_sell_card flag (Coach keeps contend_or_sell_verdict).
   let contendOrSell: ContendOrSellVerdict | null = null;
-  // The card's sell math is offseason value decay, which only means
-  // something where rosters carry over. Redraft leagues get the season
-  // strip only until the verdict learns league type (design-qa, PR #142).
-  const showContendOrSellCard =
-    flagOn("contend_or_sell_card", sleeperUser?.username ?? null) &&
-    leagueSnapshot?.league_type !== "redraft";
+  // Redraft leagues read the verdict's "this_season" horizon (PR #143):
+  // no offseason decay, no sell package.
+  const showContendOrSellCard = flagOn(
+    "contend_or_sell_card",
+    sleeperUser?.username ?? null,
+  );
   if (leagueSnapshot && !draftActive) {
     try {
       const res = await loadContendOrSellVerdict({

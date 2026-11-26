@@ -2,39 +2,46 @@ import type { Metadata } from "next";
 import { SiteNav } from "@/components/site-nav";
 import { Hero } from "@/components/landing/hero";
 import {
-  ContrarianSection,
-  ProofSection,
-} from "@/components/landing/proof-section";
+  AnalystsSection,
+  HonestySection,
+  InboxSection,
+  LeaguesSection,
+} from "@/components/landing/brief-sections";
 import { Waitlist } from "@/components/landing/waitlist";
 
+const DESCRIPTION =
+  "A weekly brief for every Sleeper league you're in: trades worth trying, playoff odds from 5,000 simulated seasons, and three analysts who argue the call. Dynasty, redraft, keeper and best ball. Free during the beta.";
+
 export const metadata: Metadata = {
-  title: "Dynasty General: Intelligence layer for dynasty fantasy football",
-  description:
-    "Lane identity across an 82-roster cohort. Per-opponent trade fingerprints. Coach context with named players. The intelligence layer your dynasty league does not have.",
+  title: "Dynasty General: the trades worth trying in every league you're in",
+  description: DESCRIPTION,
   alternates: { canonical: "/" },
+  openGraph: {
+    title: "Dynasty General",
+    description: DESCRIPTION,
+    url: "/",
+    type: "website",
+    siteName: "Dynasty General",
+  },
 };
 
-// Homepage rebuilt 2026-05-12. Old hero (UI screenshot, 4 numbered
-// callouts) replaced by a chart-led hero that visualizes the cohort
-// math BEFORE introducing the product surface. Per founder direction:
-// "visual > words in the copy" and "rethink from the ground up."
-// SoundboardPreview + FAQ removed to keep the homepage to one scroll.
-// They live as components in case a future surface wants them; the
-// homepage does not.
+// Homepage rebuilt 2026-11-26 around the weekly brief (the product's
+// front door) and one signup: email + Sleeper username. The 2026-05-12
+// lane-cohort hero and proof charts described the retired Strategic
+// Lanes surface; their components stay in components/landing/.
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: "Dynasty General",
   applicationCategory: "SportsApplication",
   operatingSystem: "Web",
-  description:
-    "Intelligence layer for dynasty fantasy football managers. Lane identity across an 82-roster calibration cohort, per-opponent trade fingerprints, Coach context with named players.",
+  description: DESCRIPTION,
   url: "https://dynastygeneral.app",
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-    description: "Alpha is free for every signed-in tester.",
+    description: "Free during the beta.",
   },
 };
 
@@ -48,8 +55,10 @@ export default function HomePage() {
       <SiteNav />
       <main className="flex-1">
         <Hero />
-        <ProofSection />
-        <ContrarianSection />
+        <InboxSection />
+        <AnalystsSection />
+        <LeaguesSection />
+        <HonestySection />
         <Waitlist />
       </main>
     </>
