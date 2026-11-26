@@ -83,8 +83,12 @@ function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): Tra
   for (const c of v.candidates) {
     const n = sellLeaningCount(c.panel);
     if (n < 2) continue;
-    const buyers = c.buyers.filter(isShortAt);
-    if (buyers.length === 0) continue;
+    const short = c.buyers.filter(isShortAt);
+    if (short.length === 0) continue;
+    // The buyer with a priced fair package leads (design QA, 2026-11-26): a
+    // card never points at a manager it then says has nothing to give.
+    const priced = (b: BuyerRead) => (b.ask?.fair ? 2 : b.ask && (b.ask.floor || b.ask.great) ? 1 : 0);
+    const buyers = [...short].sort((a, b) => priced(b) - priced(a));
     if (Math.round(c.decay.value_now) < 1 || Math.round(c.decay.value_lost) < MIN_CARD_VALUE_KEPT) continue;
     return {
       leagueId: l.leagueId,

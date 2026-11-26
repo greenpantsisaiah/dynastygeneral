@@ -139,24 +139,28 @@ export function verdictLine(c: TradeCard): string {
   if (ask) return `${head} ${ask}`;
   const drop = d.value_now > 0 ? Math.round((d.value_lost / d.value_now) * 100) : 0;
   const last = lastName(c.lead.player.name);
-  const alt = c.fallbackBuyers.find((b) => b.ask && (b.ask.fair || b.ask.floor || b.ask.great));
-  const altRung = alt?.ask ? (alt.ask.fair ?? alt.ask.floor ?? alt.ask.great) : null;
   return [
     head,
     `Nothing on ${c.buyer.label}'s bench is a fair return for ${last} by our trade values, so ask for their draft picks.`,
-    alt && altRung ? `${alt.label} could pay with ${rung(altRung)}.` : null,
     drop >= 1 ? `${last}'s trade value drops about ${drop}% by August.` : null,
   ].filter(Boolean).join(" ");
 }
 export function fallbackLine(c: TradeCard): string {
   const pos = c.lead.player.position;
+  const last = lastName(c.lead.player.name);
   const keeper = c.panel.voices.find((v) => v.stance === "push" || v.stance === "lean_push");
-  const keepNote = keeper ? ` The ${VOICE_NAME[keeper.voice]} would keep ${lastName(c.lead.player.name)} anyway.` : "";
+  const keepNote = keeper ? ` The ${VOICE_NAME[keeper.voice]} would keep ${last} anyway.` : "";
   if (c.fallbackBuyers.length > 0) {
-    const names = c.fallbackBuyers.map((b) => b.label);
-    return `${names.join(" and ")} ${names.length > 1 ? "are" : "is"} also short at ${pos}. If nobody pays full value, keeping ${lastName(c.lead.player.name)} is a fine outcome.${keepNote}`;
+    // Each fallback said once: a priced ask where one exists, else picks.
+    const asks = c.fallbackBuyers.map((b) => {
+      const r = b.ask ? (b.ask.fair ?? b.ask.floor ?? b.ask.great) : null;
+      return r
+        ? `ask ${b.label} for ${rung(r)}`
+        : `ask ${b.label} for draft picks (also short at ${pos}, no fair bench return)`;
+    });
+    return `${asks.join(", or ")}. If nobody pays full value, keeping ${last} is a fine outcome.${keepNote}`.replace(/^a/, "A");
   }
-  return `No other manager is short at ${pos}. Keeping ${lastName(c.lead.player.name)} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
+  return `No other manager is short at ${pos}. Keeping ${last} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
 }
 export function deadlineChip(c: TradeCard): string {
   if (c.deadlineWeek == null) return "No trade deadline";

@@ -179,6 +179,8 @@ async function attachAskLadders(
       const position = normalizePosition(p?.position ?? null);
       const value = values[id];
       if (!p || !position || typeof value !== "number") continue;
+      // Never ask a seller to take back a hurt player (design QA, 2026-11-26).
+      if (p.injury_status) continue;
       const name = p.full_name || [p.first_name, p.last_name].filter(Boolean).join(" ");
       if (!name) continue;
       out.push({ player_id: id, name, position, value, age: typeof p.age === "number" ? p.age : null, starter: starters.has(id) });
