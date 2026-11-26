@@ -68,6 +68,8 @@ import { ContenderOutlookCard } from "@/components/league/contender-outlook-card
 import { ContendOrSellCard } from "@/components/league/contend-or-sell-card";
 import { SeasonStrip } from "@/components/league/season-strip";
 import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
+import { leagueDecision } from "@/lib/decisions/league-decision";
+import { TradeCard as WeekTradeCard, LeagueCallCard } from "@/components/home/decision-feed";
 import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
 import { flagOn } from "@/lib/flags/server";
 import { computeContenderForecast } from "@/lib/strategy/contender-outlook/forecast";
@@ -2018,6 +2020,20 @@ export default async function LeagueHubPage({
     }
   }
 
+  // This week's call: the same decision item /home and the weekly email
+  // build for this league (one builder), so the three never disagree.
+  const weekCall =
+    contendOrSell && nflState?.week
+      ? leagueDecision({
+          league,
+          verdict: contendOrSell,
+          season: nflState.season,
+          resultsWeek: Math.max(0, nflState.week - 1),
+          tier: authUser?.tier ?? "free",
+          seasonStartDate: nflState.season_start_date ?? null,
+        })
+      : null;
+
   // Draft journal entries: user's own picks_made with player names
   // resolved + pick label formatted. Powers the post-Quadrant
   // self-awareness surface ("your draft so far"). Best-effort; UI
@@ -2205,14 +2221,21 @@ export default async function LeagueHubPage({
             disruptionAcknowledgment={lastVisitDisruptionAck}
           />
 
-          <CompanionCheckIn
-            beats={companionBeats}
-            leagueId={leagueId}
-            latestPick={companionLatestPick}
-            snipes={companionSnipes}
-          />
-
-          {rosterPosture && <PostureBanner posture={rosterPosture} />}
+          {/* Draft-time and pre-season: the companion and posture lead.
+              In-season they move below the season strip and this
+              week's call (prod review of #142, 2026-11-26: Week 12 still
+              opened on "Value vs ADP 9th of 10" and "Mid-pack"). */}
+          {!inSeasonLayout && (
+            <>
+              <CompanionCheckIn
+                beats={companionBeats}
+                leagueId={leagueId}
+                latestPick={companionLatestPick}
+                snipes={companionSnipes}
+              />
+              {rosterPosture && <PostureBanner posture={rosterPosture} />}
+            </>
+          )}
 
           {/* Pre-draft only: the Draft Position banner is the intended
               lead hero before the clock starts (no Call yet). Once the
@@ -2552,10 +2575,41 @@ export default async function LeagueHubPage({
                   and league-win chances, trade window), then the
                   keep-or-sell call with the three analysts. Both read the
                   contend-or-sell verdict; neither computes anything. */}
+              {inSeasonLayout && weekCall && (
+                <section aria-label="This week's call" className="mt-6">
+                  <h2 className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
+                    This week&apos;s call
+                  </h2>
+                  {weekCall.kind === "trade" ? (
+                    <WeekTradeCard
+                      item={weekCall}
+                      open={false}
+                      focused={false}
+                      offerHref={tradeIncomingHref}
+                      coachHref={`/leagues/${leagueId}/coach${qs({ username: cleanedUsername, season, ask: `Talk me through this call: ${weekCall.title}` })}`}
+                    />
+                  ) : (
+                    <LeagueCallCard item={weekCall} focused={false} leagueHref={null} />
+                  )}
+                </section>
+              )}
+
               {inSeasonLayout && contendOrSell && showContendOrSellCard && (
                 <div className="mt-6">
                   <ContendOrSellCard verdict={contendOrSell} />
                 </div>
+              )}
+
+              {inSeasonLayout && (
+                <>
+                  <CompanionCheckIn
+                    beats={companionBeats.filter((b) => b.source.signal !== "analyzeLeagueEvBank")}
+                    leagueId={leagueId}
+                    latestPick={companionLatestPick}
+                    snipes={companionSnipes}
+                  />
+                  {rosterPosture && <PostureBanner posture={rosterPosture} />}
+                </>
               )}
 
               {/* AAR pre-launch banner. Surfaces at 75 percent draft
@@ -3137,6 +3191,7 @@ export default async function LeagueHubPage({
                     username={cleanedUsername}
                     displayName={String(teamName)}
                     variant="panel"
+                    inSeason={inSeasonLayout}
                     context={{
                       leagueName: league.name,
                       myPickLabel: pickApproach?.my_pick_label ?? null,

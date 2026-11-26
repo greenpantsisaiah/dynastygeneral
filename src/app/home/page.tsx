@@ -92,7 +92,7 @@ export default async function HomePage({
           focusId={item ?? null}
           hrefs={{
             offer: (t) => `/leagues/${t.league_id}/trade?${q}`,
-            coach: (t) => `/leagues/${t.league_id}/coach?${q}`,
+            coach: (t) => `/leagues/${t.league_id}/coach?${q}&ask=${encodeURIComponent(`Talk me through this call: ${t.title}`)}`,
             sleeper: (l) => `https://sleeper.com/leagues/${l.league_id}/team`,
             league: (id) => `/leagues/${id}?${q}`,
             item: (i) => `/home?item=${encodeURIComponent(i.id)}`,

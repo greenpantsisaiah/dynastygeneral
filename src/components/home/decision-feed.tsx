@@ -267,7 +267,16 @@ export function QuietList({ items, hrefFor }: { items: Array<TradeItem | LineupI
 }
 
 /** App only: one compact call per league with no trade card, so every league says what to do and why. */
-export function LeagueCallCard({ item, focused, leagueHref }: { item: LeagueCallItem; focused: boolean; leagueHref: string }) {
+export function LeagueCallCard({
+  item,
+  focused,
+  leagueHref,
+}: {
+  item: LeagueCallItem;
+  focused: boolean;
+  /** null on the league's own page, where a link back to it is noise. */
+  leagueHref: string | null;
+}) {
   return (
     <article
       id={item.id}
@@ -302,9 +311,11 @@ export function LeagueCallCard({ item, focused, leagueHref }: { item: LeagueCall
           </ul>
         </details>
       )}
-      <a href={leagueHref} className="mt-3 inline-block text-sm font-semibold text-accent hover:underline">
-        Open {item.league_name} →
-      </a>
+      {leagueHref && (
+        <a href={leagueHref} className="mt-3 inline-block text-sm font-semibold text-accent hover:underline">
+          Open {item.league_name} →
+        </a>
+      )}
     </article>
   );
 }
