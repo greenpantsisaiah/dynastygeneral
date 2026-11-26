@@ -216,7 +216,7 @@ const closedWeek = buildLeagueWeek({
 });
 check("no for-you label where trading is closed", closedWeek.shifts.every((s) => s.role === null));
 const openShifts = week().shifts;
-check("shift why leads with the week's cause", openShifts.length === 0 || openShifts.every((s) => /^(Beat|Lost|Tied|scored)/.test(s.why)), openShifts.map((s) => s.why).join(" / "));
+check("shift why leads with the week's cause", openShifts.length === 0 || openShifts.every((s) => /^(Beat|Lost|Tied|Scored)/.test(s.why)), openShifts.map((s) => s.why).join(" / "));
 check("pro legend defines the for-you labels", pro.text.includes("For you: Seller:"));
 
 
@@ -236,6 +236,14 @@ const refusedRow = compose(FIXTURES.sim_refused).items.find((i) => i.kind === "w
 check("refused league row carries its reason", refusedRow?.kind === "week_row" && !!refusedRow.refused_reason && refusedRow.playoffs === null);
 const tampered = items.map((i) => (i.kind === "trade" ? { ...i, verdict: "Push now!" } : i));
 check("the item lint applies the copy rules", lintDecisionItems(tampered, []).some((l) => l.includes("exclamation")));
+
+console.log("\n── /home design check fixes ──");
+const card0 = dated.items.find((i) => i.kind === "trade");
+const row0 = dated.items.find((i) => i.kind === "week_row" && i.league_id === card0?.league_id);
+check("card playoffs tile and the league row read one number", card0?.kind === "trade" && row0?.kind === "week_row" && row0.playoffs != null && card0.stats[0].sub!.startsWith(fmtPct(row0.playoffs)), `${card0?.kind === "trade" ? card0.stats[0].sub : ""} vs ${row0?.kind === "week_row" ? row0.playoffs : ""}`);
+check("the Moneyballer names the offseason drop, not a value", card0?.kind === "trade" && card0.voices.some((v) => v.voice === "moneyball" && /offseason drop/.test(v.line)) && !/keeps about \d+ value/.test(dated.text));
+const oneClosed = compose([FIXTURES.past_deadline_only[0]]);
+check("one closed league reads singular", oneClosed.text.includes("Your 1 league is past the trade deadline") && !oneClosed.text.includes("All 1 league"));
 
 console.log("\n── beta: no paywall in the email until the split is switched on ──");
 check("split off: a free account renders the full brief", briefRenderTier("free", false) === "pro");

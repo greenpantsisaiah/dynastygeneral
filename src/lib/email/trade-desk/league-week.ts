@@ -168,7 +168,7 @@ export function buildLeagueWeek(args: {
     const opp = !args.bestBall && row.matchup_id != null
       ? rows.find((x) => x.matchup_id === row.matchup_id && x.roster_id !== rid)
       : undefined;
-    if (!opp) return [`scored ${fmtScore(pts)}`, recNow].filter(Boolean).join(", ");
+    if (!opp) return [`Scored ${fmtScore(pts)}`, recNow].filter(Boolean).join(", ");
     const o = round1(opp.points ?? 0);
     const who = label.get(opp.roster_id) ?? "their opponent";
     const res = pts === o ? `Tied ${who} ${fmtScore(pts)}-${fmtScore(o)}` : pts > o ? `Beat ${who} ${fmtScore(pts)}-${fmtScore(o)}` : `Lost ${fmtScore(pts)}-${fmtScore(o)} to ${who}`;

@@ -20,7 +20,7 @@ import { buildDecisionItems, type DecisionDigest, type DecisionItem } from "@/li
  * value, so a new template always goes to the admin preview list first
  * and reaches users only after Isaiah approves that exact version.
  */
-export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk3";
+export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk4";
 
 export type { BriefTier, DeskLeague };
 

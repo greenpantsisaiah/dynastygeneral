@@ -229,7 +229,7 @@ function tradeItem(c: TradeCard, i: number, m: TradeDeskModel, season: string): 
     direction: "sell",
     kicker: `Worth trying · ${i + 1} of ${m.cards.length} · ${c.leagueName}`,
     stats: [
-      { label: "Playoffs", value: RANGE_LABEL[rangeOf(v.odds.playoff_pct)], sub: `${fmtPct(v.odds.playoff_pct)} · ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds` },
+      { label: "Playoffs", value: RANGE_LABEL[rangeOf(c.playoffPct)], sub: `${fmtPct(c.playoffPct)} · ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds` },
       { label: "Win the league", value: fmtPct(v.odds.title_pct), sub: `fair share is ${Math.round(v.league.fair_title_share * 100)}%` },
       { label: sellingLabel(c), value: deEntity(eff.big), sub: deEntity(eff.sub) },
     ],

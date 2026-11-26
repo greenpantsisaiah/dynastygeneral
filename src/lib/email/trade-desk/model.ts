@@ -55,6 +55,12 @@ export interface TradeCard {
   sellLeaning: number;
   /** One player per card (desk1 review); other package pieces live in the app. */
   lead: SellCandidate;
+  /**
+   * Playoff chance shown on the card. The week row's number when there is
+   * one, so the card and the league's row never print two numbers for the
+   * same league (2026-11-26: card 15%, row 13%).
+   */
+  playoffPct: number;
   /** The analysts on selling this player alone. */
   panel: Panel;
   buyer: BuyerRead;
@@ -88,6 +94,7 @@ function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): Tra
       sellLeaning: n,
       lead: c,
       panel: c.panel,
+      playoffPct: l.week?.playoff_now ?? v.odds.playoff_pct,
       buyer: buyers[0],
       fallbackBuyers: buyers.slice(1, 3),
       verdict: v,

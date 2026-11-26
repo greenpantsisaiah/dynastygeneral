@@ -80,7 +80,11 @@ export function moneyball(f: VoiceFacts, titleWorth = DEFAULT_TITLE_WORTH, ctx?:
     Math.round(lost * 100) < 1
       ? "barely moves your chance to win the league (under 1 point)"
       : `costs ${Math.round(lost * 100)} points of league-win chance, worth ${pts(cost)} value points at ${titleWorth} per title`;
-  const keptClause = Math.round(gain) < 1 ? "keeps almost no value" : `keeps about ${pts(gain)} value point${Math.round(gain) === 1 ? "" : "s"}`;
+  // Name what the number is: the offseason drop avoided, not the player's
+  // value (2026-11-26: "keeps about 4" read against "worth about 24").
+  const keptClause = Math.round(gain) < 1
+    ? "avoids almost no offseason value drop"
+    : `avoids about ${pts(gain)} value point${Math.round(gain) === 1 ? "" : "s"} of offseason drop`;
   return {
     voice: "moneyball",
     stance,
