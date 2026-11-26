@@ -189,6 +189,7 @@ export const nflStateSchema = z
     week: z.number(),
     display_week: z.number().nullable().optional(),
     previous_season: z.string().nullable().optional(),
+    season_start_date: z.string().nullable().optional(),
   })
   .passthrough();
 export type NflState = z.infer<typeof nflStateSchema>;

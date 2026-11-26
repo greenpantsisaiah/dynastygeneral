@@ -41,6 +41,13 @@ export interface SellCandidate {
   title_delta: number;
   playoff_delta: number;
   buyers: BuyerRead[];
+  /**
+   * The three voices on selling THIS player alone (his decay, his odds
+   * change), phrased with his name and the league record. The email trade
+   * card names one player, so it reads this panel; the hub reads the
+   * package panel below.
+   */
+  panel: Panel;
 }
 
 export interface ContendOrSellVerdict {
@@ -100,6 +107,8 @@ export function buildContendOrSellVerdict(args: {
   if (!mine) return { ok: false, reason: "roster not in this league's schedule" };
 
   const teams = args.sim.teams.length;
+  const me = args.sim.teams.find((t) => t.roster_id === args.rosterId);
+  const record = me ? `${me.wins}-${me.losses}${me.ties ? `-${me.ties}` : ""}` : "";
   const ranked = Object.values(base.odds).sort((a, b) => b.title_pct - a.title_pct);
   const rank = ranked.findIndex((o) => o.roster_id === args.rosterId) + 1;
 
@@ -145,6 +154,18 @@ export function buildContendOrSellVerdict(args: {
       title_delta: after.title_pct - mine.title_pct,
       playoff_delta: after.playoff_pct - mine.playoff_pct,
       buyers: rankBuyers({ position: p.position, sellerRosterId: args.rosterId, rosters: withOdds }),
+      panel: convene(
+        {
+          teams,
+          title_pct: mine.title_pct,
+          playoff_pct: mine.playoff_pct,
+          title_delta: after.title_pct - mine.title_pct,
+          value_kept_by_selling: decays.get(p.player_id)!.value_lost,
+          roster_retained_share: retained,
+        },
+        titleWorth,
+        record ? { player: p.name, record } : undefined,
+      ),
     };
   });
 
