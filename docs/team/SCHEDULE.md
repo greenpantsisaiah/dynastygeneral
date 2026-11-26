@@ -14,6 +14,7 @@ All times America/Chicago. Routines are stored in UTC cron, so after daylight sa
 | DG growth paid | Monday 11:00 am | Sonnet | Test pipeline, stop rules, report |
 | DG growth partnerships | Monday 12:00 pm | Sonnet | Creator list, pitch drafts for approval, report |
 | DG claims steward | Monday 1:00 pm | Opus | Claims register, vetoes, legal checklist, report |
+| DG customer council | Monday 4:17 pm | Opus | Pulse every week; full persona review after a batch of user-facing PRs, at each season phase, or every 4 weeks; report |
 | DG chief of staff brief | Monday 6:00 pm | Opus | The Monday brief as a GitHub issue assigned to Isaiah |
 
 The engineer and the ten existing specialists (bug investigator, context doctor, canon keeper, and so on) have no schedule of their own. Role agents spawn them inside their runs.
