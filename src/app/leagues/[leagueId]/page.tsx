@@ -1983,7 +1983,18 @@ export default async function LeagueHubPage({
   if (leagueSnapshot) {
     try {
       const meSnap = getMyRoster(leagueSnapshot);
-      const years = await computeContenderForecast(leagueSnapshot, meSnap);
+      const allYears = await computeContenderForecast(leagueSnapshot, meSnap);
+      // In-season the current year is answered by this season's results
+      // (the strip and the keep-or-sell odds), not by a roster-value
+      // projection, so the outlook starts at next season.
+      const seasonUnderway =
+        !draftActive &&
+        (draftState?.status === "complete" ||
+          nflState?.season_type === "regular" ||
+          nflState?.season_type === "post");
+      const years = seasonUnderway
+        ? allYears.filter((y) => y.season !== leagueSnapshot!.season)
+        : allYears;
       contenderOutlook = synthesizeContenderOutlook({
         years,
         snap: leagueSnapshot,
@@ -3130,18 +3141,8 @@ export default async function LeagueHubPage({
                           odds={contendOrSell?.league_odds ?? null}
                           sims={contendOrSell?.provenance.sims ?? null}
                           medianGames={medianGames}
-                          simCountsMedian={
-                            (contendOrSell?.provenance as { median_game?: boolean } | undefined)
-                              ?.median_game === true
-                          }
-                          tradeOpen={contendOrSell?.trade_window.open ?? false}
+                          showSellers={(contendOrSell?.trade_window.open ?? false) && !thisSeasonOnly}
                         />
-                      )}
-                      {inSeasonLayout && leagueOutlook && leagueSnapshot && (
-                        <>
-                          <LeagueDivergence outlook={leagueOutlook} />
-                          <LeagueTable outlook={leagueOutlook} />
-                        </>
                       )}
                       {leagueRead && (inSeasonLayout || draftState?.status !== "pre_draft") && (
                         <TradeStrategyPanel data={leagueRead} />
@@ -3169,14 +3170,39 @@ export default async function LeagueHubPage({
                         // standings above carry that), so they sit one
                         // tap down instead of leading the section.
                         if (!inSeasonLayout) return opponentReads;
-                        if (opponentCharacterizations.length === 0 && !pathCompetition) return null;
+                        const rosterValue = leagueOutlook && leagueSnapshot ? (
+                          <>
+                            <LeagueDivergence outlook={leagueOutlook} />
+                            <LeagueTable outlook={leagueOutlook} />
+                          </>
+                        ) : null;
+                        // The SWOT plays are trade and draft moves written
+                        // for the preseason (future picks included); none
+                        // apply once trades close or in a redraft or best
+                        // ball league.
+                        const preseasonSwot =
+                          leagueOutlook &&
+                          leagueSnapshot &&
+                          !thisSeasonOnly &&
+                          (contendOrSell?.trade_window.open ?? true) ? (
+                            <SwotCard swot={computeSwot(leagueSnapshot, leagueOutlook)} />
+                          ) : null;
+                        if (!rosterValue && !preseasonSwot && opponentCharacterizations.length === 0 && !pathCompetition) {
+                          return null;
+                        }
                         return (
                           <details className="rounded-lg border border-border-soft bg-surface px-4 py-3 sm:px-5">
                             <summary className="cursor-pointer text-sm text-foreground">
-                              How each roster was built at the draft
-                              <span className="ml-2 text-xs text-muted-2">opponent notes, trade history, same-path rivals</span>
+                              Roster value and preseason reads
+                              <span className="ml-2 text-xs text-muted-2">
+                                ranked by player value, not this season&apos;s results; written at the draft
+                              </span>
                             </summary>
-                            <div className="mt-4 space-y-6">{opponentReads}</div>
+                            <div className="mt-4 space-y-6">
+                              {rosterValue}
+                              {opponentReads}
+                              {preseasonSwot}
+                            </div>
                           </details>
                         );
                       })()}
@@ -3202,13 +3228,7 @@ export default async function LeagueHubPage({
                             <LeagueTable outlook={leagueOutlook} />
                           </>
                         )}
-                      {inSeasonLayout &&
-                        leagueOutlook &&
-                        leagueSnapshot && (
-                          <SwotCard
-                            swot={computeSwot(leagueSnapshot, leagueOutlook)}
-                          />
-                        )}
+
                       {draftState?.status === "pre_draft" && !inSeasonLayout && (
                         <div className="rounded-md border border-border-soft bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
                           League-shape surfaces (SWOT, standings,

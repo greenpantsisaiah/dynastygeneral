@@ -21,28 +21,21 @@ export interface SeasonStandingsRow {
 
 export function SeasonStandings({
   rows,
-  odds: simOdds,
+  odds,
   sims,
   medianGames,
-  simCountsMedian,
-  tradeOpen,
+  showSellers,
 }: {
   rows: SeasonStandingsRow[];
   odds: Record<number, TeamOdds> | null;
   sims: number | null;
   /** league_average_match: each week also counts a game against the league median. */
   medianGames: boolean;
-  /** The simulator run also played the median games (provenance.median_game). */
-  simCountsMedian: boolean;
-  /** The tradeWindow canonical; seller tags show only while trades are open. */
-  tradeOpen: boolean;
+  /** Seller tags: only while trades are open (tradeWindow canonical) and
+   * only where rosters carry over (a redraft sale banks nothing). */
+  showSellers: boolean;
 }) {
   if (rows.length === 0) return null;
-  // The simulator plays head-to-head games only. In a league that also
-  // scores a game against the weekly median, its odds would sit beside a
-  // record built on twice the games and read out of order, so the table
-  // shows the record alone there.
-  const odds = medianGames && !simCountsMedian ? null : simOdds;
   return (
     <section aria-label="Standings" className="rounded-lg border border-border-soft bg-surface px-4 py-4 sm:px-5">
       <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">Standings</div>
@@ -67,18 +60,16 @@ export function SeasonStandings({
               >
                 <td className="py-2 font-mono text-xs">{i + 1}</td>
                 <td className="min-w-0 py-2 pr-2">
-                  <span className="block truncate">
-                    {r.name}
-                  </span>
+                  <span className="block break-words">{r.name}</span>
                   {r.is_me && !o && <span className="block text-xs font-normal text-accent">You</span>}
                   {o && (
-                    <span className="block truncate text-xs font-normal text-muted-2">
+                    <span className="block text-xs font-normal leading-snug text-muted-2">
                       {r.is_me && <span className="text-accent">You · </span>}
                       {RANGE_LABEL[playoffRange(o.playoff_pct)]}
                       {/* Same rule as the weekly email's Seller tag
                           (ROLE_DEFINITIONS.seller): a long shot or out,
                           likely to sell veterans. */}
-                      {tradeOpen && !r.is_me && ["long_shot", "no_chance"].includes(playoffRange(o.playoff_pct))
+                      {showSellers && !r.is_me && ["long_shot", "no_chance"].includes(playoffRange(o.playoff_pct))
                         ? " · seller"
                         : ""}
                     </span>
@@ -100,12 +91,11 @@ export function SeasonStandings({
         {medianGames
           ? "Records are Sleeper's and include a game against the league median each week. "
           : "Records are Sleeper's. "}
-        {odds && tradeOpen ? `${ROLE_DEFINITIONS.seller}. ` : ""}
+        {odds ? "Favorite, In the hunt, Bubble, Long shot: each team's playoff outlook. " : ""}
+        {odds && showSellers ? `${ROLE_DEFINITIONS.seller}. ` : ""}
         {odds && sims
-          ? `Chances from ${sims.toLocaleString("en-US")} simulated seasons of this league's remaining schedule.`
-          : medianGames && simOdds && !simCountsMedian
-            ? "Playoff and league-win chances are left out here: the season simulator does not count the median games yet."
-            : ""}
+          ? `Chances from ${sims.toLocaleString("en-US")} simulated seasons of this league's remaining schedule${medianGames ? ", median games included" : ""}.`
+          : ""}
       </p>
     </section>
   );
