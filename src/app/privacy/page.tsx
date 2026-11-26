@@ -64,7 +64,10 @@ export default function PrivacyPage() {
                   If you sign up from the homepage with your email and
                   Sleeper username: we create your account right away
                   with no password and no confirmation link, and store
-                  your email, Sleeper username, and Sleeper user ID. You
+                  your email, Sleeper username, and Sleeper user ID. We
+                  also store where the signup came from: the campaign tags
+                  on the link you followed (utm tags) and the referring
+                  website&apos;s domain, never the full page address. You
                   sign in later with Google on the same address or with a
                   one-time sign-in link we email you.
                 </li>
