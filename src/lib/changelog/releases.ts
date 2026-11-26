@@ -33,6 +33,26 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-11-26",
+    title: "A weekly brief for every league you're in",
+    summary:
+      "Leave an email and a Sleeper username and Dynasty General reads every league you're in each Tuesday of the season: playoff odds from 5,000 simulated seasons, the moves worth making, and three analysts arguing the call.",
+    changes: [
+      {
+        tag: "ONE-STEP SIGNUP",
+        text: "The homepage takes an email and a Sleeper username in one form. No password and no confirm link; your leagues open right away and the brief starts the next Tuesday.",
+      },
+      {
+        tag: "THREE ANALYSTS",
+        text: "The Moneyballer, The Strategist and The Gambler weigh in on every keep-or-sell call, in the brief and on the hub. When they disagree, you see each case and make the call.",
+      },
+      {
+        tag: "EVERY FORMAT",
+        text: "Dynasty, redraft, keeper and best ball each get read correctly. Best ball and leagues past their trade deadline get odds and the recap, never a trade you can't make.",
+      },
+    ],
+  },
+  {
     version: "2026-09-15",
     title: "Dropped draftees no longer haunt your roster",
     summary:
