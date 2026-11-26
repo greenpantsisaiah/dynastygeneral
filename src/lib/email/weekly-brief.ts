@@ -24,6 +24,16 @@ export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk3";
 
 export type { BriefTier, DeskLeague };
 
+/**
+ * The tier the brief renders as. While the brief_pro_split flag is off
+ * (the beta, billing off), everyone gets the full brief: no locked panel,
+ * no /pricing link. Coordinator, 2026-11-26: the site says "Free during
+ * the beta", so the email must not show a paywall.
+ */
+export function briefRenderTier(subscriptionTier: BriefTier, proSplitOn: boolean): BriefTier {
+  return proSplitOn ? subscriptionTier : "pro";
+}
+
 export interface ComposedBrief {
   subject: string;
   html: string;

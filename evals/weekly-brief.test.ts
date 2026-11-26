@@ -19,7 +19,8 @@ import { tradeBy } from "../src/lib/email/trade-desk/deadline";
 import { lintDecisionItems } from "../src/lib/email/trade-desk/lint";
 import { strategist } from "../src/lib/strategy/verdict/voices";
 import type { DeskLeague } from "../src/lib/email/trade-desk/model";
-import { composeWeeklyBrief, WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
+import { briefRenderTier, composeWeeklyBrief, WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
+import { FLAGS } from "../src/lib/flags/registry";
 import { unsubscribeToken, verifyUnsubscribeToken } from "../src/lib/email/unsubscribe";
 import { briefSendKind, honorForce, resolveSendMode } from "../src/lib/email/send-guard";
 
@@ -235,6 +236,13 @@ const refusedRow = compose(FIXTURES.sim_refused).items.find((i) => i.kind === "w
 check("refused league row carries its reason", refusedRow?.kind === "week_row" && !!refusedRow.refused_reason && refusedRow.playoffs === null);
 const tampered = items.map((i) => (i.kind === "trade" ? { ...i, verdict: "Push now!" } : i));
 check("the item lint applies the copy rules", lintDecisionItems(tampered, []).some((l) => l.includes("exclamation")));
+
+console.log("\n── beta: no paywall in the email until the split is switched on ──");
+check("split off: a free account renders the full brief", briefRenderTier("free", false) === "pro");
+check("split on: tiers render as they are", briefRenderTier("free", true) === "free" && briefRenderTier("pro", true) === "pro");
+check("brief_pro_split ships off", FLAGS.brief_pro_split.rollout[0] === 0);
+const beta = compose(FIXTURES.trades, briefRenderTier("free", false));
+check("beta brief has no /pricing link and no locked panel", !beta.html.includes("/pricing") && !beta.html.includes("Pro · The offer"));
 
 console.log("\n── unsubscribe tokens ──");
 const uid = "11111111-2222-3333-4444-555555555555";
