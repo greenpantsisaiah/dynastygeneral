@@ -10,6 +10,7 @@
  */
 
 import type { ReactNode } from "react";
+import { fmtPct } from "@/lib/email/trade-desk/league-week";
 import type {
   DecisionDigest,
   DecisionItem,
@@ -46,7 +47,8 @@ const RANGE_LABEL = {
   no_chance: "No chance",
 } as const;
 
-const pct = (p: number) => `${Math.round(p * 100)}%`;
+/** Same rounding as the email (and the trade card tile), so one league shows one number. */
+const pct = fmtPct;
 
 /** Items that the home shows in the "Needs you" column, most urgent first. */
 export function feedItems(items: DecisionItem[]): Array<TradeItem | LineupItem> {

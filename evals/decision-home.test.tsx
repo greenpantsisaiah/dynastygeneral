@@ -53,7 +53,7 @@ const items: DecisionItem[] = [
     verdict: "All 3 lean buy; they split on price.", if_it_doesnt_land: "If pmac wants more than a 2nd, walk away.",
     package_note: null, cta_label: "Open the offer to pmac",
   },
-  { ...base, id: decisionItemId("week_row", "2026", 11, "eu", "row"), kind: "week_row", week: 11, league_id: "eu", league_name: "Europa", title: "Europa", format_record: "Dynasty · 7-4", result: "W 131-118", playoffs: 0.7, playoffs_change: 8, recs: 1, refused_reason: null },
+  { ...base, id: decisionItemId("week_row", "2026", 11, "eu", "row"), kind: "week_row", week: 11, league_id: "eu", league_name: "Europa", title: "Europa", format_record: "Dynasty · 7-4", result: "W 131-118", playoffs: 0.6836, playoffs_change: 8, recs: 1, refused_reason: null },
   { ...base, id: decisionItemId("week_row", "2026", 11, "bb", "row"), kind: "week_row", week: 11, league_id: "bb", league_name: "Smells like jabroni spirit", title: "x", format_record: "Best ball · 4th", result: "3rd in pts", playoffs: null, playoffs_change: null, recs: 0, refused_reason: null },
   { ...base, id: decisionItemId("week_row", "2026", 11, "dd", "row"), kind: "week_row", week: 11, league_id: "dd", league_name: "Dynasty Disasters", title: "x", format_record: "Dynasty · 0-11", result: "L 88-131", playoffs: null, playoffs_change: null, recs: 0, refused_reason: "Not enough scored weeks" },
   { ...base, id: decisionItemId("shift", "2026", 12, "12m", "pmac"), kind: "shift", league_id: "12m", league_name: "12 Man", title: "pmac", manager: "pmac", range_from: "bubble", range_to: "no_chance", cause: "Lost 3 straight; 35% to under 2%", for_you: "seller" },
@@ -100,6 +100,7 @@ check("buy scale reads Pass ... Buy", html.includes(">Pass<") && html.includes("
 check("sell scale reads Sell now ... Keep going", html.includes(">Sell now<") && html.includes(">Keep going<"));
 
 console.log("\n4. Leagues table");
+check("week table rounds playoff % with the email's fmtPct (0.6836 -> 70%, never 68%)", html.includes("70%") && !html.includes("68%"));
 check("refused sim shows its reason, not a number", html.includes("Not enough scored weeks"));
 check("rec chip links to that league's card", html.includes(`href="#${evansId}"`));
 check("best ball row has no playoff percent", !/jabroni[\s\S]{0,400}\d+%/.test(html.split("Dynasty Disasters")[0]));
