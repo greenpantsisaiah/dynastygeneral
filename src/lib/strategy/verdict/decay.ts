@@ -17,6 +17,25 @@ import { ageRetention } from "@/lib/players/age-curve";
 /** Late November to the August keeper deadline, in years. */
 export const OFFSEASON_YEARS = 0.75;
 
+export type LeagueType = "redraft" | "keeper" | "dynasty";
+/**
+ * What the sell-or-keep call is about. Redraft rosters reset after the
+ * season, so nothing a player is worth next August belongs to the user:
+ * the call reads only this season's chances (design QA on #142, 2026-11-26:
+ * redraft leagues were told a sale "avoids about 6 value points of
+ * offseason drop"). Keeper and dynasty rosters carry players over.
+ */
+export type VerdictHorizon = "this_season" | "next_season";
+
+export function verdictHorizon(leagueType: LeagueType | null | undefined): VerdictHorizon {
+  return leagueType === "redraft" ? "this_season" : "next_season";
+}
+
+/** Years of age decay a held player carries into value the user keeps. */
+export function decayYearsFor(horizon: VerdictHorizon): number {
+  return horizon === "this_season" ? 0 : OFFSEASON_YEARS;
+}
+
 export interface DecayRead {
   retained_share: number;
   /** Value points lost by holding (negative = expected to gain). */

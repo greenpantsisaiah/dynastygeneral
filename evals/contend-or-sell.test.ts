@@ -19,7 +19,7 @@ import {
 } from "../src/lib/strategy/verdict/from-sleeper";
 import { offseasonValueDecay } from "../src/lib/strategy/verdict/decay";
 import { rankBuyers } from "../src/lib/strategy/verdict/buyers";
-import { convene, gambler, moneyball, strategist } from "../src/lib/strategy/verdict/voices";
+import { convene, gambler, moneyball, strategist, STANCE_SCORE } from "../src/lib/strategy/verdict/voices";
 import { buildContendOrSellVerdict } from "../src/lib/strategy/verdict/compose";
 import { tradeWindow } from "../src/lib/strategy/verdict/trade-window";
 import { ageRetention } from "../src/lib/players/age-curve";
@@ -211,6 +211,39 @@ for (const share of [0.85, 0.95, 0.99]) for (const tp of [0.01, 0.3]) {
   const r2 = strategist({ ...zeroFacts, roster_retained_share: share, title_pct: tp });
   const says = /Sell|selling/.test(r2.line) && !/rather than selling/.test(r2.line);
   check(`strategist line matches stance (${share}, ${tp})`, !(says && (r2.stance === "push" || r2.stance === "lean_push")), `${r2.stance}: ${r2.line}`);
+}
+
+console.log("\n── redraft: this season only, no offseason value (design QA on #142) ──");
+{
+  const r = buildContendOrSellVerdict({ ...vArgs, leagueType: "redraft" });
+  check("redraft verdict built", r.ok);
+  if (r.ok) {
+    const R = r.verdict;
+    check("redraft horizon is this_season", R.horizon === "this_season");
+    check("redraft: no sell candidates", R.candidates.length === 0 && R.package.player_ids.length === 0);
+    check("redraft: no value kept by selling", R.package.value_kept_by_selling === 0);
+    check("redraft: roster keeps all its value (nothing decays that the user owns)", R.roster_retained_share === 1);
+    check("redraft: no voice leans sell", R.panel.voices.every((x) => STANCE_SCORE[x.stance] >= 0), R.panel.voices.map((x) => x.stance).join(","));
+    const text = R.panel.voices.map((x) => x.line).join(" ");
+    check("redraft: no offseason / August / value-drop copy", !/offseason|August|value drop|value point|loses value|next season to build/.test(text.replace("no next season", "")), text);
+    check("redraft: no decay prediction type cited", !R.provenance.prediction_types.includes("offseason_value_decay@v1"));
+    check("redraft: same odds as the dynasty run (season sim unchanged)", v.ok && near(R.odds.title_pct, v.verdict.odds.title_pct, 1e-9));
+  }
+  const dyn = buildContendOrSellVerdict({ ...vArgs, leagueType: "dynasty" });
+  check("dynasty horizon is next_season and keeps the sell package", dyn.ok && dyn.verdict.horizon === "next_season" && dyn.verdict.candidates.length > 0);
+  const keeper = buildContendOrSellVerdict({ ...vArgs, leagueType: "keeper" });
+  check("keeper still reads offseason decay", keeper.ok && keeper.verdict.horizon === "next_season" && keeper.verdict.package.value_kept_by_selling > 0);
+  // Voice cases in redraft: lost season, long shot, contender.
+  const base = { teams: 12, title_delta: 0, value_kept_by_selling: 0, roster_retained_share: 1, horizon: "this_season" as const, record: "3-9" };
+  const dead = convene({ ...base, title_pct: 0.001, playoff_pct: 0.005 });
+  check("redraft lost season: every voice splits, headline split", dead.headline === "split" && dead.voices.every((x) => x.stance === "split"), dead.voices.map((x) => x.line).join(" | "));
+  const longShot = convene({ ...base, title_pct: 0.03, playoff_pct: 0.2 });
+  check("redraft long shot: lean keep, never sell", longShot.headline === "lean_push", longShot.headline);
+  check("redraft lines name the record", dead.voices.every((x) => /3-9|Redraft/.test(x.line)));
+  const contender = convene({ ...base, title_pct: 0.25, playoff_pct: 0.9, record: "9-3" });
+  check("redraft contender: push", contender.headline === "push" || contender.headline === "lean_push", contender.headline);
+  const all = [dead, longShot, contender].flatMap((p) => p.voices.map((x) => x.line));
+  check("redraft lines carry no em dash", all.every((l) => !l.includes("\u2014")));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

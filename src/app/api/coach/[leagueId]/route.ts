@@ -110,7 +110,11 @@ user asks whether to keep pushing, sell, or who to trade with, present the
 voices as a debate, name where they agree or split, and cite the numbers
 exactly. Never give a bare verdict without the reasoning. These are
 registered hypotheses (\`prediction_types\`), not validated results; say
-"the simulation gives you" not "you will." \`contender_premium\` is unknown
+"the simulation gives you" not "you will." When \`horizon\` is
+"this_season" (a redraft league) rosters reset after the season: there
+are no sell candidates and no offseason value, so never tell the user to
+sell for future value or cite value lost by August; judge any trade on
+this season's weekly points. \`contender_premium\` is unknown
 and priced at 0: never tell the user a contender should pay above market.
 When \`contend_or_sell\` is null, do not state title or playoff odds as
 numbers; reason qualitatively from the standings and roster.
@@ -1952,6 +1956,7 @@ export async function POST(
               rank_by_title_odds: contendOrSell.league.rank_by_title_odds,
               teams: contendOrSell.league.teams,
               fair_title_share: contendOrSell.league.fair_title_share,
+              horizon: contendOrSell.horizon,
               headline: contendOrSell.panel.headline,
               consensus: contendOrSell.panel.consensus,
               voices: contendOrSell.panel.voices,

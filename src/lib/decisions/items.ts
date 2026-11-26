@@ -325,6 +325,21 @@ function leagueCall(l: DeskLeague, m: TradeDeskModel, season: string): LeagueCal
   const head = v.panel.headline;
   const voices = v.panel.voices.map((x) => ({ voice: x.voice, stance: x.stance, stance_label: STANCE_LABEL[x.stance], line: x.line }));
   const keepers = v.panel.voices.filter((x) => x.stance === "push" || x.stance === "lean_push").length;
+  if (v.horizon === "this_season") {
+    // Redraft: rosters reset after the season, so there is nothing to sell for.
+    const over = head === "split";
+    return {
+      ...base,
+      priority: 200 + Math.round(playoffs * 10),
+      title: over ? "Season is over; redraft has nothing to sell for." : "Play to win this season.",
+      stance: head,
+      stance_label: STANCE_LABEL[head],
+      reason: over
+        ? "Redraft rosters reset after the season, so no trade changes anything that carries over."
+        : "Redraft rosters reset after the season, so a sale banks nothing. Trade only for players who add weekly points.",
+      voices,
+    };
+  }
   const sellSide = head === "sell" || head === "lean_sell";
   let title: string;
   let reason: string;

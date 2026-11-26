@@ -91,7 +91,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
           })}
         </div>
         <div className="mt-1 flex justify-between text-[11px] text-muted-2">
-          <span>Sell to contenders</span>
+          <span>{v.horizon === "this_season" ? "Season over" : "Sell to contenders"}</span>
           <span>Push for the title</span>
         </div>
       </div>
@@ -152,8 +152,11 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
           {v.provenance.sims.toLocaleString()}{" "}simulated seasons from this season&apos;s weekly scores. Each team&apos;s
           weekly mean is shrunk {v.provenance.shrink_games} games toward the league average of{" "}
           {v.provenance.league_mean.toFixed(1)} pts; weekly luck sd {v.provenance.weekly_sd.toFixed(1)} pts;{" "}
-          {v.provenance.weeks_remaining} regular-season weeks left; {v.provenance.playoff_teams}-team bracket. Value decay
-          reads the position age curve. Voices weigh the same numbers differently; the Moneyballer prices a title at{" "}
+          {v.provenance.weeks_remaining} regular-season weeks left; {v.provenance.playoff_teams}-team bracket.{" "}
+          {v.horizon === "this_season"
+            ? "Redraft rosters reset after the season, so the call reads only this season's odds; no offseason value is counted."
+            : "Value decay reads the position age curve."}{" "}
+          Voices weigh the same numbers differently; the Moneyballer prices a title at{" "}
           {v.title_worth} value points.
         </p>
         <p className="mt-1">
