@@ -20,9 +20,12 @@ const STANCE_LABEL: Record<Stance, string> = {
 };
 
 const VOICE: Record<VoiceName, { label: string; dot: string; text: string }> = {
-  moneyball: { label: "Moneyball", dot: "bg-sky-300", text: "text-sky-300" },
-  strategist: { label: "Strategist", dot: "bg-violet-300", text: "text-violet-300" },
-  gambler: { label: "Gambler", dot: "bg-orange-300", text: "text-orange-300" },
+  // One cast everywhere (2026-11-26): the three analysts keep the same
+  // name and color on the hub, in Coach and in the weekly email. Colors
+  // sit off the red-sell / green-keep axis so a dot never reads as a stance.
+  moneyball: { label: "Moneyballer", dot: "bg-blue-400", text: "text-blue-300" },
+  strategist: { label: "Strategist", dot: "bg-violet-400", text: "text-violet-300" },
+  gambler: { label: "Gambler", dot: "bg-amber-500", text: "text-amber-400" },
 };
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
@@ -128,7 +131,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
           weekly mean is shrunk {v.provenance.shrink_games} games toward the league average of{" "}
           {v.provenance.league_mean.toFixed(1)} pts; weekly luck sd {v.provenance.weekly_sd.toFixed(1)} pts;{" "}
           {v.provenance.weeks_remaining} regular-season weeks left; {v.provenance.playoff_teams}-team bracket. Value decay
-          reads the position age curve. Voices weigh the same numbers differently; Moneyball prices a title at{" "}
+          reads the position age curve. Voices weigh the same numbers differently; the Moneyballer prices a title at{" "}
           {v.title_worth} value points.
         </p>
         <p className="mt-1">

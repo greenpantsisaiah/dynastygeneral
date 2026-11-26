@@ -53,7 +53,7 @@ const STANCE: Record<Stance, string> = {
   lean_push: "Lean push",
   push: "Push",
 };
-const VOICE = { moneyball: "Moneyball", gambler: "Gambler", strategist: "Strategist" } as const;
+const VOICE = { moneyball: "Moneyballer", gambler: "Gambler", strategist: "Strategist" } as const;
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 const valuePts = (n: number) => `${Math.round(n)} value point${Math.round(n) === 1 ? "" : "s"}`;
