@@ -8,6 +8,7 @@
 
 import { cardTitle, deskSubject } from "./render";
 import type { TradeDeskModel } from "./model";
+import { itemSentences, type DecisionItem } from "@/lib/decisions/items";
 
 export const MAX_HTML_BYTES = 95 * 1024;
 
@@ -140,4 +141,28 @@ export function lintTradeDesk(args: {
   else if (PLACEHOLDER_ADDRESS.test(args.mailingAddress)) f.push("postal address is a placeholder (set EMAIL_MAILING_ADDRESS)");
   if (args.subject !== deskSubject(m)) f.push("subject does not match the first card");
   return f;
+}
+
+/**
+ * The same copy rules over the shared decision items (BUILD_SPEC: the lint
+ * runs once on the items, then once more on the email), so /home inherits
+ * every rule the email follows.
+ */
+export function lintDecisionItems(items: DecisionItem[], names: string[]): string[] {
+  const f: string[] = [];
+  const ids = items.map((i) => i.id);
+  if (new Set(ids).size !== ids.length) f.push("two decision items share an id");
+  const sentences: string[] = [];
+  for (const item of items) {
+    for (const raw of itemSentences(item)) {
+      const ours = withoutNames(raw, names);
+      for (const [re, what] of BANNED) if (re.test(ours)) f.push(`item ${item.id} contains ${what}`);
+      if (/\bNaN\b|undefined|\bnull\b/.test(raw)) f.push(`item ${item.id} renders NaN, undefined or null`);
+      if (/(^|[^\d.<>])(0|100)%/.test(ours)) f.push(`item ${item.id} has a 0% or 100% probability`);
+      sentences.push(...raw.split(/(?<=[.?])\s+/).map((x) => x.trim()).filter((x) => x.length > 40 && /[.?]$/.test(x)));
+    }
+  }
+  const dup = sentences.find((x, i) => sentences.indexOf(x) !== i);
+  if (dup) f.push(`item sentence repeated: "${dup.slice(0, 80)}"`);
+  return [...new Set(f)];
 }

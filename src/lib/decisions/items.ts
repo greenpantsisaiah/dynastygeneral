@@ -13,11 +13,30 @@
  * - The app is a superset: every emailed item appears in the app, and the
  *   app may also show items with `emailed: false` (below the email bar).
  *
- * Types only for now. The builder lands with the Trade Desk email (PR 1 of
- * the weekly brief v2 build spec); /home renders the same list.
+ * The builder (buildDecisionItems, below) reads the Trade Desk model and
+ * writes every sentence once, with the same copy functions the email uses,
+ * so the email and /home cannot word a decision two ways.
  */
 
 import type { Stance, VoiceName } from "@/lib/strategy/verdict/voices";
+import { STANCE_LABEL, playoffDelta, type DeskLeague, type TradeCard, type TradeDeskModel } from "@/lib/email/trade-desk/model";
+import { fmtPct, fmtScore, playoffRange as rangeOf, RANGE_LABEL } from "@/lib/email/trade-desk/league-week";
+import {
+  allShifts,
+  cardTitle,
+  deadlineChip,
+  fallbackLine,
+  heroHeadline,
+  heroSub,
+  KIND_LABEL,
+  MAX_SHIFT_ROWS,
+  ordinal,
+  sellEffect,
+  sellingLabel,
+  shiftsHeadline,
+  verdictLine,
+  weekHeadline,
+} from "@/lib/email/trade-desk/render";
 
 export type DecisionKind =
   /** A trade worth trying before the league's trade deadline. */
@@ -172,4 +191,141 @@ export function decisionItemId(kind: DecisionKind, season: string, week: number,
 /** Deep link from an email to the item on the home. */
 export function decisionItemHref(appUrl: string, id: string): string {
   return `${appUrl.replace(/\/$/, "")}/home?item=${encodeURIComponent(id)}`;
+}
+
+/**
+ * The hero and section lines, written once so the email and /home print
+ * the same text.
+ */
+export interface DecisionDigest {
+  /** "izzydabomb · Week 11 is in · Week 12 ahead" */
+  kicker: string;
+  headline: string;
+  subline: string;
+  /** "3-4 last week. Your playoff chances ..." or null when no league has a result. */
+  week_summary: string | null;
+  /** "8 teams changed their season. ..." or null when nothing shifted. */
+  shifts_summary: string | null;
+}
+
+const deEntity = (t: string) => t.replace(/&minus;/g, "-").replace(/&lt;/g, "<");
+
+function tradeItem(c: TradeCard, i: number, m: TradeDeskModel, season: string): TradeItem {
+  const v = c.verdict;
+  const eff = sellEffect(c);
+  const pkg = v.candidates.length > 1 ? `The analysts also priced selling ${v.candidates.map((x) => x.player.name).join(" and ")} together.` : null;
+  return {
+    id: decisionItemId("trade", season, m.aheadWeek, c.leagueId, c.lead.player.player_id),
+    kind: "trade",
+    season,
+    week: m.aheadWeek,
+    league_id: c.leagueId,
+    league_name: c.leagueName,
+    deadline: c.tradeBy?.iso ?? null,
+    deadline_label: deadlineChip(c),
+    priority: 1000 - i,
+    title: cardTitle(c),
+    delivery: { emailed: true, email: "tuesday_trade_desk" },
+    direction: "sell",
+    kicker: `Worth trying · ${i + 1} of ${m.cards.length} · ${c.leagueName}`,
+    stats: [
+      { label: "Playoffs", value: RANGE_LABEL[rangeOf(v.odds.playoff_pct)], sub: `${fmtPct(v.odds.playoff_pct)} · ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds` },
+      { label: "Win the league", value: fmtPct(v.odds.title_pct), sub: `fair share is ${Math.round(v.league.fair_title_share * 100)}%` },
+      { label: sellingLabel(c), value: deEntity(eff.big), sub: deEntity(eff.sub) },
+    ],
+    voices: c.panel.voices.map((x) => ({ voice: x.voice, stance: x.stance, stance_label: STANCE_LABEL[x.stance], line: x.line })),
+    verdict: verdictLine(c),
+    if_it_doesnt_land: fallbackLine(c),
+    manager: c.buyer.label,
+    package_note: pkg,
+    cta_label: `Open the offer to ${c.buyer.label}`,
+  };
+}
+
+function weekRow(l: DeskLeague, m: TradeDeskModel, season: string): WeekRowItem {
+  const w = l.week;
+  const r = w?.result;
+  const rec = w ? `${w.record.wins}-${w.record.losses}${w.record.ties ? `-${w.record.ties}` : ""}` : null;
+  const result = !r
+    ? null
+    : r.kind === "points_rank"
+      ? `${ordinal(r.rank)} in pts`
+      : `${r.won == null ? "T" : r.won ? "W" : "L"} ${fmtScore(r.my)}-${fmtScore(r.opp)}`;
+  return {
+    id: decisionItemId("week_row", season, m.resultsWeek, l.leagueId, "row"),
+    kind: "week_row",
+    season,
+    week: m.resultsWeek,
+    league_id: l.leagueId,
+    league_name: l.leagueName,
+    deadline: null,
+    deadline_label: null,
+    priority: 0,
+    title: l.leagueName,
+    delivery: { emailed: true, email: "tuesday_trade_desk" },
+    format_record: [KIND_LABEL[l.kind], rec].filter(Boolean).join(" · "),
+    result,
+    playoffs: w?.playoff_now ?? null,
+    playoffs_change: playoffDelta(w),
+    recs: m.recsByLeague[l.leagueId] ?? 0,
+    refused_reason: w?.odds_note ?? (l.verdict ? null : l.note ?? null),
+  };
+}
+
+/**
+ * Every Tuesday item for one user: trade cards, league shifts (all of them;
+ * the first MAX_SHIFT_ROWS are emailed, the rest are app-only) and one week
+ * row per league, plus the digest lines.
+ */
+export function buildDecisionItems(args: { model: TradeDeskModel; season: string }): { items: DecisionItem[]; digest: DecisionDigest } {
+  const m = args.model;
+  const items: DecisionItem[] = m.cards.map((c, i) => tradeItem(c, i, m, args.season));
+  const shifts = allShifts(m, Number.POSITIVE_INFINITY);
+  shifts.forEach((s, i) => {
+    const move = s.from && s.to ? `${RANGE_LABEL[s.from]} to ${RANGE_LABEL[s.to]}` : `Key injury`;
+    items.push({
+      id: decisionItemId("shift", args.season, m.resultsWeek, s.leagueId, String(s.roster_id)),
+      kind: "shift",
+      season: args.season,
+      week: m.resultsWeek,
+      league_id: s.leagueId,
+      league_name: s.league,
+      deadline: null,
+      deadline_label: null,
+      priority: 500 - i,
+      title: `${s.manager}: ${move}`,
+      delivery: i < MAX_SHIFT_ROWS ? { emailed: true, email: "tuesday_trade_desk" } : { emailed: false },
+      manager: s.manager,
+      range_from: s.from,
+      range_to: s.to,
+      cause: s.why,
+      for_you: s.role,
+    });
+  });
+  for (const l of m.leagues) items.push(weekRow(l, m, args.season));
+  const emailedShifts = shifts.slice(0, MAX_SHIFT_ROWS);
+  return {
+    items,
+    digest: {
+      kicker: [m.ownerName, `Week ${m.resultsWeek} is in`, `Week ${m.aheadWeek} ahead`].filter(Boolean).join(" · "),
+      headline: heroHeadline(m),
+      subline: heroSub(m),
+      week_summary: m.leagues.length ? weekHeadline(m) : null,
+      shifts_summary: emailedShifts.length ? shiftsHeadline(emailedShifts) : null,
+    },
+  };
+}
+
+/** Every user-facing sentence on an item, for the content lint. */
+export function itemSentences(item: DecisionItem): string[] {
+  const out = [item.title];
+  if (item.deadline_label) out.push(item.deadline_label);
+  if (item.kind === "trade") {
+    out.push(item.kicker, item.verdict, item.if_it_doesnt_land, item.cta_label, ...item.voices.map((v) => v.line));
+    for (const st of item.stats) out.push(st.label, st.value, st.sub ?? "");
+    if (item.package_note) out.push(item.package_note);
+  }
+  if (item.kind === "shift") out.push(item.cause);
+  if (item.kind === "week_row") out.push(item.format_record, item.result ?? "", item.refused_reason ?? "");
+  return out.filter(Boolean);
 }
