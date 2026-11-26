@@ -54,6 +54,11 @@ export interface DecisionStat {
 /** One analyst's read on a trade. */
 export interface DecisionVoice {
   voice: VoiceName;
+  /**
+   * Position on the five-column scale, left to right. For a sell item the
+   * columns read "Sell now ... Keep going"; for a buy item "Pass ... Buy".
+   * So "sell" is the leftmost column and "push" the rightmost in both.
+   */
   stance: Stance;
   /** The stance as shown on the scale, e.g. "Lean sell", "Buy". */
   stance_label: string;
@@ -160,6 +165,22 @@ export interface WeekRowItem extends BaseItem {
   recs: number;
   /** When the season sim declined (ok: false), its reason; numbers are then hidden. */
   refused_reason: string | null;
+}
+
+/** The top of the home and the email hero, written by the builder. */
+export interface DecisionDigest {
+  season: string;
+  week: number;
+  /** "TUE NOV 24 · WEEK 11 IS IN · WEEK 12 AHEAD". */
+  kicker: string;
+  /** "2 trades worth trying before Thursday's deadline." */
+  headline: string;
+  /** "Your other 6 leagues need nothing from you this week. Every number ..." */
+  subline: string;
+  /** "4-3 last week. Your playoff chances rose in 4 leagues, fell in 2." */
+  week_summary: string | null;
+  /** "6 teams changed their season. 3 are now sellers." Null hides the section. */
+  shifts_summary: string | null;
 }
 
 export type DecisionItem = TradeItem | ShiftItem | SwingItem | LineupItem | RootForItem | WeekRowItem;
