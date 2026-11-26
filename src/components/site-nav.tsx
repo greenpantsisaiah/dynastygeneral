@@ -33,7 +33,9 @@ export async function SiteNav() {
               <Link href="/home" className="text-muted transition hover:text-foreground">
                 Home
               </Link>
-              <Link href="/leagues" className="text-muted transition hover:text-foreground">
+              {/* Phone width: My leagues lives in the account menu so the
+                  bar fits on one line at 390px. */}
+              <Link href="/leagues" className="hidden text-muted transition hover:text-foreground sm:inline">
                 My leagues
               </Link>
               <Link href="/rankings" className="hidden text-muted transition hover:text-foreground sm:inline">

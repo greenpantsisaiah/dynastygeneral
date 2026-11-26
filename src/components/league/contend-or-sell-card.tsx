@@ -121,7 +121,9 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
 
       {v.candidates.length > 0 && worthListing.length === 0 && (
         <p className="mt-4 border-t border-border-soft pt-3 text-sm text-muted">
-          No player here loses enough value by August, or moves your chance to win the league enough, to be worth selling.
+          {v.panel.headline === "sell" || v.panel.headline === "lean_sell"
+            ? "The odds say sell, but no player here loses real value by August or moves your chance to win the league. There is nothing worth selling now; hold the roster into the offseason."
+            : "No player here loses enough value by August, or moves your chance to win the league enough, to be worth selling."}
         </p>
       )}
       {worthListing.length > 0 && (
