@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 type Status = "idle" | "submitting" | "sent" | "error";
 
@@ -35,6 +36,9 @@ export function FeedbackWidget({
   signedInEmail?: string | null;
 } = {}) {
   const [open, setOpen] = useState(false);
+  // On the homepage and /login the pill overlaps the form on phones.
+  const path = usePathname();
+  const onHome = path === "/" || path === "/login";
   const [rating, setRating] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
@@ -99,7 +103,7 @@ export function FeedbackWidget({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-30 inline-flex h-10 items-center gap-2 rounded-full border border-accent/40 bg-background/90 px-4 font-mono text-[11px] uppercase tracking-[0.16em] text-accent shadow-lg backdrop-blur transition hover:bg-accent/10"
+        className={`fixed bottom-4 right-4 z-30 ${onHome ? "hidden sm:inline-flex" : "inline-flex"} h-10 items-center gap-2 rounded-full border border-accent/40 bg-background/90 px-4 font-mono text-[11px] uppercase tracking-[0.16em] text-accent shadow-lg backdrop-blur transition hover:bg-accent/10`}
         aria-label="Send feedback"
       >
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />

@@ -50,6 +50,37 @@ export function EmailSignInForm({ next = "/" }: { next?: string }) {
     setLoading(false);
   }
 
+  // Passwordless sign-in. Homepage signups (/api/brief-signup) have no
+  // password, so a non-Google address needs this to get back in.
+  // shouldCreateUser: false keeps account creation on the signup paths.
+  async function sendMagicLink() {
+    setError(null);
+    setSuccess(null);
+    if (!email) {
+      setError("Enter your email first.");
+      return;
+    }
+    setLoading(true);
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
+    });
+    setLoading(false);
+    if (err) {
+      setError(
+        /signups not allowed|not found/i.test(err.message)
+          ? "No account uses that email. Sign up on the homepage."
+          : err.message,
+      );
+    } else {
+      setSuccess("Sign-in link sent. Open it on this device.");
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <label className="block">
@@ -102,6 +133,17 @@ export function EmailSignInForm({ next = "/" }: { next?: string }) {
             ? "Sign in"
             : "Create account"}
       </button>
+
+      {mode === "signin" && (
+        <button
+          type="button"
+          onClick={sendMagicLink}
+          disabled={loading}
+          className="inline-flex h-11 w-full items-center justify-center rounded-md border border-border-strong bg-surface px-6 text-sm font-medium text-foreground transition hover:border-accent/60 disabled:opacity-50"
+        >
+          Email me a sign-in link instead
+        </button>
+      )}
 
       <p className="text-center text-xs text-muted-2">
         {mode === "signin" ? (

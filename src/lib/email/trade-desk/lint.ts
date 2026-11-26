@@ -159,7 +159,9 @@ export function lintDecisionItems(items: DecisionItem[], names: string[]): strin
       for (const [re, what] of BANNED) if (re.test(ours)) f.push(`item ${item.id} contains ${what}`);
       if (/\bNaN\b|undefined|\bnull\b/.test(raw)) f.push(`item ${item.id} renders NaN, undefined or null`);
       if (/(^|[^\d.<>])(0|100)%/.test(ours)) f.push(`item ${item.id} has a 0% or 100% probability`);
-      sentences.push(...raw.split(/(?<=[.?])\s+/).map((x) => x.trim()).filter((x) => x.length > 40 && /[.?]$/.test(x)));
+      // The repeat rule is for the email; app-only items (e.g. two leagues past
+      // the same deadline) may honestly share a sentence.
+      if (item.delivery.emailed) sentences.push(...raw.split(/(?<=[.?])\s+/).map((x) => x.trim()).filter((x) => x.length > 40 && /[.?]$/.test(x)));
     }
   }
   const dup = sentences.find((x, i) => sentences.indexOf(x) !== i);

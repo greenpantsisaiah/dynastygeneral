@@ -1,0 +1,122 @@
+/**
+ * /home: the logged-in home across every league (round 4 of the
+ * multi-league home design). The weekly email is the teaser; this page is
+ * home. Both read one builder (`buildDecisionItems`), so an email button
+ * (`/home?item={id}`) lands on the same item, worded the same way.
+ *
+ * Dark behind `multi_league_home`. Admins (ADMIN_EMAILS) see it for preview;
+ * everyone else is sent to /leagues until the flag goes on.
+ */
+
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { SiteNav } from "@/components/site-nav";
+import { getOptionalUser } from "@/lib/auth/session";
+import { isAdminEmail } from "@/lib/auth/admin";
+import { flagOn } from "@/lib/flags/server";
+import { createClient } from "@/lib/supabase/server";
+import { getNflState } from "@/lib/sleeper";
+import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
+import { buildTradeDeskModel } from "@/lib/email/trade-desk/model";
+import { buildDecisionItems } from "@/lib/decisions/items";
+import { DecisionHome } from "@/components/home/decision-feed";
+
+export const metadata = {
+  title: "Home",
+  description: "Every decision across your leagues, soonest deadline first.",
+  robots: { index: false, follow: false },
+};
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 120;
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ item?: string }>;
+}) {
+  const { item } = await searchParams;
+  const user = await getOptionalUser();
+  if (!user) redirect(`/login?next=${encodeURIComponent(item ? `/home?item=${item}` : "/home")}`);
+  if (!flagOn("multi_league_home", user.id) && !isAdminEmail(user.email)) redirect("/leagues");
+
+  const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("sleeper_username, display_name")
+    .eq("id", user.id)
+    .maybeSingle();
+  const username = (profile?.sleeper_username as string | null) ?? null;
+  const displayName = (profile?.display_name as string | null) ?? null;
+
+  const nfl = await getNflState();
+  if (!username || !nfl || !nfl.week) {
+    return (
+      <EmptyHome
+        line={
+          !username
+            ? "No Sleeper account saved yet. Connect one and every league's decisions land here."
+            : "Sleeper did not return the current NFL week. Retry in a minute."
+        }
+      />
+    );
+  }
+
+  const { leagues, resultsWeek } = await buildBriefLeagues({
+    username,
+    season: nfl.season,
+    nflWeek: nfl.week,
+    seasonType: nfl.season_type,
+    logTag: "home",
+  });
+  if (leagues.length === 0) {
+    return <EmptyHome line={`No ${nfl.season} Sleeper leagues found for ${username}. Join or connect one and its decisions land here.`} />;
+  }
+  const model = buildTradeDeskModel({
+    ownerName: briefOwnerName(displayName, username),
+    tier: user.tier,
+    resultsWeek,
+    leagues,
+    seasonStartDate: nfl.season_start_date,
+  });
+  const { items, digest } = buildDecisionItems({ model, season: nfl.season });
+
+  const q = new URLSearchParams({ username, season: nfl.season }).toString();
+  return (
+    <>
+      <SiteNav />
+      <main className="flex-1 bg-background">
+        <DecisionHome
+          digest={digest}
+          items={items}
+          focusId={item ?? null}
+          hrefs={{
+            offer: (t) => `/leagues/${t.league_id}/trade?${q}`,
+            coach: (t) => `/leagues/${t.league_id}/coach?${q}`,
+            sleeper: (l) => `https://sleeper.com/leagues/${l.league_id}/team`,
+            league: (id) => `/leagues/${id}?${q}`,
+            item: (i) => `/home?item=${encodeURIComponent(i.id)}`,
+            allLeagues: "/leagues",
+          }}
+        />
+      </main>
+    </>
+  );
+}
+
+function EmptyHome({ line }: { line: string }) {
+  return (
+    <>
+      <SiteNav />
+      <main className="flex-1 bg-background">
+        <div className="mx-auto max-w-3xl px-6 py-12">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Home</h1>
+          <p className="mt-3 text-muted">{line}</p>
+          <Link href="/leagues" className="mt-6 inline-block text-sm text-accent underline">
+            Go to my leagues
+          </Link>
+        </div>
+      </main>
+    </>
+  );
+}

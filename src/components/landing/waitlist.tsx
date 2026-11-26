@@ -151,10 +151,9 @@ export function Waitlist() {
           On MFL, ESPN, or Yahoo? Get one note the day your platform ships.
         </h2>
         <p className="mt-6 text-lg text-muted">
-          Sleeper is live today and open to every signed-in tester. Leave an
-          email and, if you have one, a Sleeper username. Dynasty General
-          sends one message when a new platform adapter ships, and nothing
-          else.
+          Sleeper is live today; use the form at the top of the page. For
+          other platforms, leave an email and Dynasty General sends one
+          message when your platform ships, and nothing else.
         </p>
 
         {status === "success" ? (
@@ -188,17 +187,6 @@ export function Waitlist() {
                 />
               </Field>
             </Grid>
-            <Field label="Sleeper username (we'll detect your leagues)">
-              <input
-                name="sleeper_username"
-                autoComplete="off"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. izzydabomb"
-                className={inputCls}
-              />
-              <CountDisplay state={count} />
-            </Field>
             <Field label="Are you more active in drafts or trades right now?">
               <select name="focus" className={inputCls} defaultValue="">
                 <option value="" disabled>
@@ -254,40 +242,6 @@ export function Waitlist() {
         )}
       </div>
     </section>
-  );
-}
-
-function CountDisplay({ state }: { state: CountState }) {
-  if (state.kind === "idle") return null;
-  if (state.kind === "loading") {
-    return (
-      <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-        Checking Sleeper…
-      </div>
-    );
-  }
-  if (state.kind === "missing") {
-    return (
-      <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-danger">
-        No Sleeper account matches &ldquo;{state.username}&rdquo;.
-      </div>
-    );
-  }
-  if (state.kind === "error") {
-    return (
-      <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
-        {state.message}
-      </div>
-    );
-  }
-  // found
-  return (
-    <div className="mt-2 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-      Identified{state.display_name ? ` · ${state.display_name}` : ""} ·{" "}
-      {state.dynasty} dynasty{state.dynasty === 1 ? " league" : " leagues"}
-      {state.other > 0 ? ` · ${state.other} other` : ""}
-      {state.season ? ` · ${state.season}` : ""}
-    </div>
   );
 }
 
