@@ -50,6 +50,7 @@ Kill or pause criteria (the chief of staff raises any of these the moment it is 
 | Claims steward (veto) | `claims-steward` | Every public claim traced to evidence; growth may only say approved claims | Zero unsupported claims live |
 | Engineers | `engineer` | Build changes, many in parallel | Shipped changes that pass review |
 | Design QA (block) | `design-qa` | Renders and scores every user-facing output against the quality bar before review | Zero outputs Isaiah later calls low quality |
+| Customer council | `customer-council` | Ten synthetic managers (winning, middle, losing × fun, analytical, money, plus Isaiah and a guest) review the live product by season phase; routes fixes | Council mean score per surface rising; fixes closed |
 | Reviewer (veto) | `reviewer` | Gate to production: tests, principles, no feature removal | Zero reverted regressions reaching users unflagged |
 
 Isaiah talks to the chief of staff about 80% of the time. Claims steward and Reviewer can veto; any other tie goes to Isaiah.
