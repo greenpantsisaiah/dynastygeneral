@@ -2490,8 +2490,8 @@ export default async function LeagueHubPage({
               <p className="mt-1.5 text-sm text-foreground leading-relaxed">
                 The engine detected one or more data-correctness issues
                 that may make recommendations on this page incomplete
-                or wrong. We surface this banner instead of silently
-                serving you a partial answer.
+                or wrong. This banner shows so a partial answer is never
+                served silently.
               </p>
               <ul className="mt-2 space-y-1 text-xs text-muted">
                 {integrityReport.issues
@@ -2968,7 +2968,7 @@ export default async function LeagueHubPage({
                       }
                       tagline={
                         inSeasonLayout
-                          ? "Who is the team to beat, who is buying, who is selling."
+                          ? "Where every team stands and what each one needs."
                           : "Where the soft spots are, who needs what, what to send."
                       }
                       defaultOpen={!draftActive}
@@ -3299,7 +3299,17 @@ function toSwitcherItem(l: SleeperLeague): LeagueSwitcherItem {
     total_rosters: l.total_rosters ?? null,
     status: l.status ?? null,
     is_dynasty: isDynastyLeague(l),
+    kind_label: leagueKindLabel(l),
   };
+}
+
+/** Plain league kind for the switcher: Best ball, Keeper, Redraft; null for dynasty. */
+function leagueKindLabel(l: SleeperLeague): string | null {
+  const settings = (l.settings ?? {}) as Record<string, unknown>;
+  if (Number(settings.best_ball) === 1) return "Best ball";
+  if (isDynastyLeague(l)) return null;
+  if (Number(settings.type) === 1) return "Keeper";
+  return "Redraft";
 }
 
 function qs(params: Record<string, string>): string {

@@ -140,14 +140,14 @@ export function UserMenu({ name, email, avatarUrl, tier }: Props) {
             )}
           </div>
           <div className="py-1">
+            <MenuLink href="/home" onClick={() => setOpen(false)}>
+              Home
+            </MenuLink>
             <MenuLink href="/account" onClick={() => setOpen(false)}>
               Account settings
             </MenuLink>
             <MenuLink href="/leagues" onClick={() => setOpen(false)}>
               My leagues
-            </MenuLink>
-            <MenuLink href="/home" onClick={() => setOpen(false)}>
-              Home
             </MenuLink>
             <MenuLink href="/rankings" onClick={() => setOpen(false)}>
               Rankings lab

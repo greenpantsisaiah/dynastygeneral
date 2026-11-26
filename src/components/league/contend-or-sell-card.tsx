@@ -29,6 +29,7 @@ const VOICE: Record<VoiceName, { label: string; dot: string; text: string }> = {
   gambler: { label: "Gambler", dot: "bg-amber-500", text: "text-amber-400" },
 };
 
+const MIN_VALUE_SAVED = 2;
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 const pp = (d: number) => `${Math.abs(d * 100).toFixed(1)} pts`;
 const valuePts = (n: number) => `${Math.round(n)} value point${Math.round(n) === 1 ? "" : "s"}`;
@@ -59,6 +60,16 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
     );
   }
   const headline = STANCE_LABEL[v.panel.headline];
+  // A sell candidate earns a line only if selling changes something: at
+  // least 2 value points saved by August, half a point a week, or a
+  // visible move in the chance to win the league. Bench filler that
+  // changes nothing is left out (design-qa, PR #142).
+  const worthListing = v.candidates.filter(
+    (c) =>
+      c.decay.value_lost >= MIN_VALUE_SAVED ||
+      c.weekly_points_lost >= 0.5 ||
+      Math.abs(c.title_delta) >= 0.005,
+  );
   const consensus = v.panel.consensus ? "The voices agree" : "The voices disagree";
   return (
     <section className="rounded-lg border border-border-strong bg-surface p-4">
@@ -108,13 +119,18 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
         ))}
       </ul>
 
-      {v.candidates.length > 0 && (
+      {v.candidates.length > 0 && worthListing.length === 0 && (
+        <p className="mt-4 border-t border-border-soft pt-3 text-sm text-muted">
+          No player here loses enough value by August, or moves your chance to win the league enough, to be worth selling.
+        </p>
+      )}
+      {worthListing.length > 0 && (
         <div className="mt-4 border-t border-border-soft pt-3">
           <p className="font-mono text-[11px] uppercase tracking-wider text-muted-2">
             If you sell · who loses value by August, who should buy
           </p>
           <ul className="mt-2 space-y-3 text-sm">
-            {v.candidates.map((c) => (
+            {worthListing.map((c) => (
               <li key={c.player.player_id}>
                 <p>
                   <span className="font-semibold">{c.player.name}</span>{" "}
@@ -141,11 +157,13 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
               </li>
             ))}
           </ul>
+          {worthListing.length === v.candidates.length && v.candidates.length > 1 && (
           <p className="mt-2 text-xs text-muted-2">
             Selling all {v.candidates.length}: chance to win the league {fmtPct(v.odds.title_pct)} to {fmtPct(v.package.title_pct_if_sold)},
             about {valuePts(v.package.value_kept_by_selling)} kept. Contender premium is unknown and priced
             at 0, so ask for market value, not more.
           </p>
+          )}
         </div>
       )}
 
