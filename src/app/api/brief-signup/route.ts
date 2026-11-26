@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { getUserByUsername } from "@/lib/sleeper";
+import { parseSignupSource } from "@/lib/growth/signup-source";
 
 /**
  * Landing-page signup: email + Sleeper username in one step.
@@ -69,6 +70,9 @@ export async function POST(req: Request) {
     );
   }
   const { email, sleeper_username } = parsed.data;
+  // Channel attribution rides outside the schema and is salvaged per
+  // field, so a malformed `source` never fails the signup.
+  const signupUtm = parseSignupSource((json as { source?: unknown } | null)?.source);
 
   let sleeperUser;
   try {
@@ -105,7 +109,9 @@ export async function POST(req: Request) {
     // sign-in on the same address land on this account instead of
     // forking a second one.
     email_confirm: true,
-    user_metadata: { signup_source: "landing_brief" },
+    user_metadata: signupUtm
+      ? { signup_source: "landing_brief", signup_utm: signupUtm }
+      : { signup_source: "landing_brief" },
   });
 
   if (createErr || !created?.user) {
@@ -141,6 +147,6 @@ export async function POST(req: Request) {
   // Welcome brief hook: once src/lib/email/welcome-brief.ts lands (the
   // PR after Trade Desk #133), call `await sendWelcomeBriefIfDue(created.user.id)`
   // here. It is idempotent, never throws, and respects the send guard.
-  console.info("[brief-signup:created]", JSON.stringify({ user: created.user.id }));
+  console.info("[brief-signup:created]", JSON.stringify({ user: created.user.id, utm: signupUtm }));
   return Response.json({ ok: true, username: sleeperUser.username ?? sleeper_username });
 }

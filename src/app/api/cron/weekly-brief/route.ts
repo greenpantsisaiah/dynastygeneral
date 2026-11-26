@@ -33,6 +33,7 @@ import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { flagOn } from "@/lib/flags/server";
 import { resolveMailingAddress } from "@/lib/email/mailing-address";
+import { briefFrom } from "@/lib/email/sender";
 import { effectiveTier } from "@/lib/auth/session";
 import { WEEKLY_BRIEF_TEMPLATE_VERSION, briefRenderTier, composeWeeklyBrief, type DeskLeague } from "@/lib/email/weekly-brief";
 import { briefSendKind, honorForce, resolveSendMode } from "@/lib/email/send-guard";
@@ -44,6 +45,8 @@ export const maxDuration = 300;
 
 /** Stop starting new users after this many ms; the next hourly run continues. */
 const TIME_BUDGET_MS = 240_000;
+/** Briefs built and sent at once (see the worker pool in GET). */
+const SEND_CONCURRENCY = 3;
 
 function isProd(): boolean {
   return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
@@ -95,7 +98,7 @@ export async function GET(request: Request): Promise<Response> {
   }
   const preview = guard.mode === "preview" ? new Set(guard.to) : null;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dynastygeneral.app";
-  const from = process.env.EMAIL_FROM ?? "brief@dynastygeneral.app";
+  const from = briefFrom();
 
   const nfl = await getNflState();
   if (!nfl || nfl.season_type !== "regular" || !nfl.week) {
@@ -136,26 +139,32 @@ export async function GET(request: Request): Promise<Response> {
   const { Resend } = dry ? { Resend: null } : await import("resend");
   const resend = Resend && apiKey ? new Resend(apiKey) : null;
 
-  for (const profile of profiles ?? []) {
+  // Build and send up to SEND_CONCURRENCY briefs at a time. Each brief
+  // spends most of its time waiting on Sleeper, so a small pool raises the
+  // Tuesday ceiling about 3x while staying under Resend's default 2
+  // requests per second. Counters are shared; JS runs one callback at a time.
+  let unsubscribeUnconfigured = false;
+  const queue = [...(profiles ?? [])];
+  const handleProfile = async (profile: (typeof queue)[number]): Promise<void> => {
     const userId = profile.id as string;
     // Preview runs skip the flag (so a preview works with the flag off) but
     // only ever reach the admin list, checked against the auth email below.
     if (!preview && !flagOn("weekly_brief_email", userId)) {
       result.flag_off++;
-      continue;
+      return;
     }
     if (optedOut.has(userId) || doneThisWeek.has(userId)) {
       result.skipped++;
-      continue;
+      return;
     }
     if (Date.now() - started > TIME_BUDGET_MS) {
       result.deferred++;
-      continue;
+      return;
     }
     const unsub = unsubscribeUrl(appUrl, userId);
     if (!unsub) {
-      console.warn("[cron:weekly-brief:exit] unsubscribe_secret_unconfigured");
-      return NextResponse.json({ ok: false, error: "unsubscribe_secret_unconfigured" }, { status: 503 });
+      unsubscribeUnconfigured = true;
+      return;
     }
     let email: string | null = null;
     try {
@@ -166,11 +175,11 @@ export async function GET(request: Request): Promise<Response> {
     }
     if (!email) {
       result.skipped++;
-      continue;
+      return;
     }
     if (preview && !preview.has(email.toLowerCase())) {
       result.not_admin++;
-      continue;
+      return;
     }
     result.eligible++;
     // Beta: everyone gets the full brief until the free/Pro split is switched on.
@@ -204,9 +213,9 @@ export async function GET(request: Request): Promise<Response> {
     if (!preview && brief.lint.length > 0) {
       result.lint_blocked++;
       console.error("[cron:weekly-brief:lint]", userId, JSON.stringify(brief.lint));
-      continue;
+      return;
     }
-    if (dry || !resend) continue;
+    if (dry || !resend) return;
     const { error: sendErr } = await resend.emails.send({
       from,
       to: email,
@@ -233,6 +242,17 @@ export async function GET(request: Request): Promise<Response> {
       // the Vercel function log, not just the notifications row.
       console.error("[cron:weekly-brief:send]", userId, sendErr.name ?? "", sendErr.message);
     } else result.sent++;
+  };
+  const worker = async () => {
+    for (let profile = queue.shift(); profile; profile = queue.shift()) {
+      if (unsubscribeUnconfigured) return;
+      await handleProfile(profile);
+    }
+  };
+  await Promise.all(Array.from({ length: SEND_CONCURRENCY }, worker));
+  if (unsubscribeUnconfigured) {
+    console.warn("[cron:weekly-brief:exit] unsubscribe_secret_unconfigured");
+    return NextResponse.json({ ok: false, error: "unsubscribe_secret_unconfigured" }, { status: 503 });
   }
   // One summary line per run so the Vercel log answers "why zero sent"
   // (flag_off = override not live, skipped = opted out / already sent).

@@ -18,6 +18,7 @@ import { buildLeagueWeek, fmtPct, playoffRange } from "../src/lib/email/trade-de
 import { tradeBy } from "../src/lib/email/trade-desk/deadline";
 import { resolveMailingAddress } from "../src/lib/email/mailing-address";
 import { lintDecisionItems, BANNED_SUBJECT_LEAD } from "../src/lib/email/trade-desk/lint";
+import { briefFrom } from "../src/lib/email/sender";
 import { strategist } from "../src/lib/strategy/verdict/voices";
 import type { DeskLeague } from "../src/lib/email/trade-desk/model";
 import { briefRenderTier, composeWeeklyBrief, WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
@@ -286,6 +287,12 @@ check("no approval and no admin address refuses", g({ replyTo: undefined }).mode
 check("force is ignored on broadcasts", !honorForce(true, "broadcast") && honorForce(true, "preview"));
 check("a new approved version gets a new broadcast key (deliberate resend)", briefSendKind("wb_w12", "v1", "broadcast") !== briefSendKind("wb_w12", "v2", "broadcast"));
 check("preview key never equals the broadcast key", briefSendKind("wb_w12", "v1", "preview") !== briefSendKind("wb_w12", "v1", "broadcast"));
+
+console.log("\n── sender display name ──");
+check("default From carries the brand name", briefFrom(undefined) === "Dynasty General <brief@dynastygeneral.app>", briefFrom(undefined));
+check("bare EMAIL_FROM gets the brand name", briefFrom("alerts@dynastygeneral.app") === "Dynasty General <alerts@dynastygeneral.app>");
+check("EMAIL_FROM with a display name is kept", briefFrom("DG Team <x@dynastygeneral.app>") === "DG Team <x@dynastygeneral.app>");
+check("blank EMAIL_FROM falls back to the default", briefFrom("  ") === "Dynasty General <brief@dynastygeneral.app>");
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
