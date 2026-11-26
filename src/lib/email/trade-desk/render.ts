@@ -79,27 +79,28 @@ const button = (t: string, href: string) =>
 /**
  * Analyst scale v2 (BUILD_SPEC, after Isaiah's phone review 2026-11-26):
  * three rows (dots, track, labels) in a fixed-layout table so every column
- * lines up; dots sharing a stance stack bottom-up with an even 4px gap;
- * labels never wrap and the occupied stances are bold; empty track
- * segments are thinner and faded.
+ * lines up. Analysts sharing a stance sit side by side on one line (never
+ * stacked: a stack reads as a bar chart), 24px dots for one or two, 18px
+ * when all three share. Labels never wrap and the occupied stances are bold;
+ * empty track segments are thinner and faded.
  */
 function scale(card: TradeCard): string {
   const stops = ["Sell now", "Lean sell", "Split", "Lean keep", "Keep going"];
   const rail = ["#C9573F", "#E0A08F", "#D9D3C7", "#9CCAAE", "#3F8F63"];
-  const at = (i: number) => card.panel.voices.filter((v) => STANCE_STOP[v.stance] === i);
-  const tallest = Math.max(1, ...stops.map((_, i) => at(i).length));
   let dots = "", bars = "", labels = "";
   stops.forEach((s, i) => {
-    const here = at(i);
+    const here = card.panel.voices.filter((v) => STANCE_STOP[v.stance] === i);
     const on = here.length > 0;
-    const stack = here
-      .map((v) => `<div style="margin:4px auto 0;width:24px;height:24px;border-radius:12px;background:${VOICE_COLOR[v.voice]};color:#fff;font-family:${SANS};font-size:11px;font-weight:700;line-height:24px;text-align:center;">${VOICE_NAME[v.voice][0]}</div>`)
+    const d = here.length >= 3 ? 18 : 24;
+    const cells = here
+      .map((v) => `<td style="padding:0 1px;"><div style="width:${d}px;height:${d}px;border-radius:${d / 2}px;background:${VOICE_COLOR[v.voice]};color:#fff;font-family:${SANS};font-size:${d < 24 ? 10 : 11}px;font-weight:700;line-height:${d}px;text-align:center;">${VOICE_NAME[v.voice][0]}</div></td>`)
       .join("");
-    dots += `<td width="20%" valign="bottom" align="center" style="height:${tallest * 28}px;padding:0 0 6px;">${stack}</td>`;
+    const inner = on ? `<table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr>${cells}</tr></table>` : "&nbsp;";
+    dots += `<td width="20%" valign="bottom" align="center" style="height:24px;padding:0 0 6px;">${inner}</td>`;
     bars += `<td width="20%" style="padding:0 2px;"><div style="height:${on ? 6 : 4}px;border-radius:3px;background:${rail[i]};${on ? "" : "opacity:.55;"}font-size:0;line-height:0;">&nbsp;</div></td>`;
     labels += `<td width="20%" align="center" valign="top" style="padding-top:6px;font-family:${SANS};font-size:10px;line-height:1.2;white-space:nowrap;color:${on ? C.ink : C.mute};font-weight:${on ? 600 : 400};">${s}</td>`;
   });
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;"><tr>${dots}</tr><tr valign="middle" style="height:8px;">${bars}</tr><tr>${labels}</tr></table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;"><tr>${dots}</tr><tr>${bars}</tr><tr>${labels}</tr></table>`;
 }
 
 // ---------- shared copy (HTML and text use the same sentences) ----------
