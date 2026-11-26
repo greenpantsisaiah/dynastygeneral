@@ -2346,7 +2346,8 @@ export default async function LeagueHubPage({
                 </div>
               )}
               <div className="mt-2 text-sm text-muted">
-                {String(teamName)}
+                {/* No matched roster: name the league size, not "Your team". */}
+                {myRoster ? String(teamName) : `${totalRosters} teams`}
                 {standing && (
                   <>
                     <span className="text-muted-2"> · </span>
@@ -2420,7 +2421,7 @@ export default async function LeagueHubPage({
               {!authUser && (
                 <Link
                   href={`/login?next=${encodeURIComponent(`/leagues/${leagueId}`)}`}
-                  className="mt-3 inline-flex min-h-10 items-center rounded-md bg-accent px-4 text-sm font-semibold text-black"
+                  className="mt-3 inline-flex min-h-10 items-center rounded-md border border-border-strong px-4 text-sm font-semibold text-foreground hover:border-accent"
                 >
                   Sign in
                 </Link>
