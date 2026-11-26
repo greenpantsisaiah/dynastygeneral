@@ -140,8 +140,12 @@ export function lintTradeDesk(args: {
   if (!args.mailingAddress || !body.includes(args.mailingAddress)) f.push("missing postal address");
   else if (PLACEHOLDER_ADDRESS.test(args.mailingAddress)) f.push("postal address is a placeholder (no address found in the environment)");
   if (args.subject !== deskSubject(m)) f.push("subject does not match the first card");
+  if (BANNED_SUBJECT_LEAD.test(args.subject.trim())) f.push("subject leads with the product name instead of the decision");
   return f;
 }
+
+/** Subjects lead with the decision or the hook (Isaiah, 2026-11-26). */
+export const BANNED_SUBJECT_LEAD = /^(weekly brief|brief|dynasty general)\b/i;
 
 /**
  * The same copy rules over the shared decision items (BUILD_SPEC: the lint

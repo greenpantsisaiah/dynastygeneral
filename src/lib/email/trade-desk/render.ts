@@ -214,8 +214,11 @@ export function deskSubject(m: TradeDeskModel): string {
   const c = m.cards[0];
   if (m.leagues.length === 0) return "Connect your Sleeper leagues for next Tuesday's brief";
   if (!c) return `Week ${m.resultsWeek} is in: ${m.record.wins}-${m.record.losses} across your ${plural(m.leagues.length, "league")}`;
-  const more = m.cards.length > 1 ? ` (+${m.cards.length - 1} more)` : "";
-  return `Worth trying in ${c.leagueName}: offer ${c.lead.player.name} to ${c.buyer.label}${more}`;
+  // Subject rule (Isaiah, 2026-11-26): lead with the decision, never with
+  // "Brief". The first card sets the deadline day and the offer.
+  const k = m.cards.length;
+  const by = c.tradeBy ? ` before ${c.tradeBy.label.split(",")[0]}` : "";
+  return `${k} ${k === 1 ? "trade" : "trades"} worth trying${by}: offer ${c.lead.player.name} to ${c.buyer.label}`;
 }
 const headerRight = (m: TradeDeskModel, d: Date) =>
   `WEEK ${m.aheadWeek} AHEAD · ${new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric" }).format(d).toUpperCase().replace(",", "")}`;
