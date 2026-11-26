@@ -58,7 +58,7 @@ const items: DecisionItem[] = [
   { ...base, id: decisionItemId("week_row", "2026", 11, "dd", "row"), kind: "week_row", week: 11, league_id: "dd", league_name: "Dynasty Disasters", title: "x", format_record: "Dynasty · 0-11", result: "L 88-131", playoffs: null, playoffs_change: null, recs: 0, refused_reason: "Not enough scored weeks" },
   { ...base, id: decisionItemId("shift", "2026", 12, "12m", "pmac"), kind: "shift", league_id: "12m", league_name: "12 Man", title: "pmac", manager: "pmac", range_from: "bubble", range_to: "no_chance", cause: "Lost 3 straight; 35% to under 2%", for_you: "seller" },
   { ...base, id: decisionItemId("league_call", "2026", 12, "bb", "call"), kind: "league_call", league_id: "bb", league_name: "Smells like jabroni spirit", delivery: { emailed: false }, priority: 105, title: "Nothing to trade this week.", stance: null, stance_label: "Nothing to trade", context: "Playoffs 15% · Best ball · 5-6", reason: "Best ball league: no trades, waivers or lineup moves, so there is nothing to buy or sell.", voices: [] },
-  { ...base, id: decisionItemId("league_call", "2026", 12, "im", "call"), kind: "league_call", league_id: "im", league_name: "Imaginary Football", delivery: { emailed: false }, priority: 209, title: "Keep your roster: no sale beats holding it.", stance: "push", stance_label: "Keep going", context: "Playoffs 90% · Redraft · 7-4", reason: "3 of 3 analysts lean keep; none would sell a starter at today's prices.", voices: [{ voice: "gambler", stance: "push", stance_label: "Keep going", line: "At 7-4 you are a favorite." }] },
+  { ...base, id: decisionItemId("league_call", "2026", 12, "im", "call"), kind: "league_call", league_id: "im", league_name: "Imaginary Football", delivery: { emailed: false }, priority: 209, title: "Keep your roster: no sale beats holding it.", stance: "push", stance_label: "Keep going", context: "Playoffs 90% · Redraft · 7-4", reason: "3 of 3 analysts lean keep; none would sell at today's prices.", voices: [{ voice: "gambler", stance: "push", stance_label: "Keep going", line: "At 7-4 you are a favorite." }] },
   { ...base, id: decisionItemId("trade", "2026", 12, "fc", "idea"), kind: "trade", league_id: "fc", league_name: "The Final Countdown", delivery: { emailed: false }, direction: "buy", kicker: "", title: "dbo is selling after the Josh Allen injury.", manager: "dbo", stats: [], voices: [], verdict: "", if_it_doesnt_land: "", package_note: null, cta_label: "Open" },
 ];
 const digest: DecisionDigest = {
@@ -98,7 +98,7 @@ check("not-emailed item is not in the Needs you feed", (html.match(/<details[^>]
 
 console.log("\n2b. Every league says what to do (Isaiah 2026-11-26)");
 check("league calls render after the trades, highest priority first", html.indexOf(evansId) < html.indexOf("Keep your roster: no sale beats holding it.") && html.indexOf("Keep your roster: no sale beats holding it.") < html.indexOf("Nothing to trade this week."));
-check("a league call carries its reason", html.includes("none would sell a starter at today&#x27;s prices"));
+check("a league call carries its reason", html.includes("none would sell at today&#x27;s prices"));
 check("a league call links into its league", html.includes('href="/leagues/im"'));
 check("week table links to all leagues", html.includes('href="/leagues"') && html.includes("All my leagues"));
 check("a week row with no recs shows the call's stance, linked to the call card", html.includes(`href="#${decisionItemId("league_call", "2026", 12, "bb", "call")}"`));

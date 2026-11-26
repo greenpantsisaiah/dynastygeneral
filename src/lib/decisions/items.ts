@@ -331,16 +331,23 @@ function leagueCall(l: DeskLeague, m: TradeDeskModel, season: string): LeagueCal
   if (sellSide) {
     const c = v.candidates.find((x) => sellLeaningCount(x.panel) >= 2) ?? v.candidates[0];
     title = "The analysts lean sell, but no sale is worth chasing yet.";
+    // Mirrors cardFor's gates in order, so the reason names the gate that failed.
+    const n = c ? sellLeaningCount(c.panel) : 0;
     if (!c) reason = "No player on the roster has a buyer worth pricing.";
+    else if (n < 2) reason = `${n === 0 ? "None" : "Only one"} of the three analysts would sell ${c.player.name} on his own.`;
     else if (c.buyers.filter(isShortAt).length === 0) reason = `No team is short at ${c.player.position}, so nobody needs ${c.player.name} enough to pay full value.`;
-    else if (Math.round(c.decay.value_lost) < MIN_CARD_VALUE_KEPT) reason = `Selling ${c.player.name} now avoids under ${MIN_CARD_VALUE_KEPT} value points of offseason drop, too little to force a deal.`;
-    else reason = `Only one of the three analysts would sell ${c.player.name} on his own.`;
+    else if (Math.round(c.decay.value_now) < 1) reason = `${c.player.name} is worth under 1 value point on our 0 to 100 scale, too little to trade.`;
+    else reason = `Selling ${c.player.name} now avoids under ${MIN_CARD_VALUE_KEPT} value points of offseason drop, too little to force a deal.`;
   } else if (head === "split") {
     title = "The analysts split, so hold your roster.";
     reason = "No move gets two of the three analysts behind it.";
   } else {
     title = "Keep your roster: no sale beats holding it.";
-    reason = `${keepers} of 3 analysts lean keep; none would sell a starter at today's prices.`;
+    const sellers = v.panel.voices.filter((x) => x.stance === "sell" || x.stance === "lean_sell").length;
+    reason =
+      sellers === 0
+        ? `${keepers} of 3 analysts lean keep; none would sell at today's prices.`
+        : `${keepers} of 3 analysts lean keep; ${sellers} would sell but ${sellers === 1 ? "is" : "are"} outvoted.`;
   }
   return {
     ...base,
