@@ -106,7 +106,7 @@ export function sellEffect(c: TradeCard): { big: string; sub: string; tone: stri
 }
 export function verdictLine(c: TradeCard): string {
   const d = c.lead.decay;
-  return `${c.sellLeaning} of 3 lean sell, if the price is right. Open by asking for full value for ${c.lead.player.name}: about ${valuePts(d.value_now)} on our 0 to 100 scale. By August that drops to about ${Math.round(d.value_later)}.`;
+  return `${c.sellLeaning} of 3 lean sell, if the price is right. Open by asking for full value for ${c.lead.player.name}: about ${valuePts(d.value_now)} on the engine's 0 to 100 scale. By August that drops to about ${Math.round(d.value_later)}.`;
 }
 export function fallbackLine(c: TradeCard): string {
   const pos = c.lead.player.position;

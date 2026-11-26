@@ -13,6 +13,10 @@ import { CoachChat } from "@/components/league/coach-chat";
 import { UsageChip } from "@/components/billing/usage-meter";
 import { getOptionalUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { seasonQuickPrompts } from "@/lib/coach/season-prompts";
+import { leagueKind } from "@/lib/email/build-brief";
+import { buildFormatRulesFromRosterPositions } from "@/lib/engine/llm-contract";
+import { tradeWindow } from "@/lib/strategy/verdict/trade-window";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +71,21 @@ export default async function CoachPage({
     getNflState().catch(() => null),
   ]);
   const inSeason = nflState?.season_type === "regular" || nflState?.season_type === "post";
+  const seasonPrompts =
+    inSeason && league
+      ? seasonQuickPrompts({
+          kind: leagueKind(league),
+          tradeOpen: tradeWindow(
+            buildFormatRulesFromRosterPositions({
+              rosterPositions: league.roster_positions ?? [],
+              scoringHighlights: [],
+              isSuperflex: false,
+              leagueSettings: (league.settings ?? null) as Record<string, unknown> | null,
+            }),
+            nflState?.week ?? null,
+          ).open,
+        })
+      : null;
   if (!league) notFound();
 
   const me =
@@ -103,8 +122,11 @@ export default async function CoachPage({
           {!cleanedUsername && (
             <div className="mt-6 rounded-md border border-danger/60 bg-danger/5 px-4 py-3 text-sm text-danger">
               No Sleeper account is saved on your profile, so Coach cannot
-              tell which roster is yours. Connect your Sleeper username in
-              account settings, or open this league from your league page.
+              tell which roster is yours. Add your Sleeper username in{" "}
+              <Link href="/account" className="underline">
+                account settings
+              </Link>
+              .
             </div>
           )}
 
@@ -114,7 +136,7 @@ export default async function CoachPage({
               username={cleanedUsername}
               displayName={me ?? cleanedUsername}
               initialPrompt={initialPrompt}
-              inSeason={inSeason}
+              seasonPrompts={seasonPrompts}
             />
           )}
         </div>

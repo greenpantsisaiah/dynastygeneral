@@ -174,11 +174,11 @@ export function TradeCard({
             </div>
           ))}
         </div>
-        <span className="text-sm text-accent group-open:hidden">Open the analysts and the offer</span>
+        <span className="text-sm text-accent group-open:hidden">{item.voices.length > 0 ? "Open the analysts and the offer" : "Open the offer"}</span>
       </summary>
 
       <div className="mt-4 flex flex-col gap-3">
-        <AnalystScale voices={item.voices} direction={item.direction} />
+        {item.voices.length > 0 && <AnalystScale voices={item.voices} direction={item.direction} />}
         <ul className="space-y-2 text-sm">
           {item.voices.map((v) => (
             <li key={v.voice} className="flex gap-2.5">

@@ -47,15 +47,6 @@ const QUICK_PROMPTS = [
   "Is my strategy still on track? What should I be doing differently?",
 ];
 
-// In-season prompts: the draft prompts above read as stale in week 12
-// (customer council run 1, 2026-11-26).
-const SEASON_QUICK_PROMPTS = [
-  "Should I keep going for the title or sell? Walk me through the three analysts.",
-  "Which of my players should I sell before the offseason, and to whom?",
-  "Who in the league is buying, and what do they need that I have?",
-  "Where is my lineup thinnest, and who could fix it?",
-  "What is my plan for next year's rookie draft?",
-];
 
 // Build the active_plays payload for the Coach request, dropping any
 // malformed commitment and capping the count to match the server. The
@@ -189,7 +180,7 @@ export function CoachChat({
   variant = "page",
   context,
   initialPrompt,
-  inSeason = false,
+  seasonPrompts = null,
 }: {
   leagueId: string;
   username: string;
@@ -199,10 +190,11 @@ export function CoachChat({
   /** Prefills the input when arriving from a card ("Talk it through"). A
    * saved unsent draft wins, so the user's own words are never replaced. */
   initialPrompt?: string;
-  /** Season-stage quick prompts instead of the draft ones. */
-  inSeason?: boolean;
+  /** In-season quick prompts (`seasonQuickPrompts`), replacing the draft
+   * ones. null keeps the draft prompts. */
+  seasonPrompts?: string[] | null;
 }) {
-  const quickPrompts = inSeason ? SEASON_QUICK_PROMPTS : QUICK_PROMPTS;
+  const quickPrompts = seasonPrompts ?? QUICK_PROMPTS;
   const history = useSyncExternalStore(
     subscribe,
     useCallback(() => getCachedHistory(leagueId), [leagueId]),
@@ -517,9 +509,11 @@ export function CoachChat({
             <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-2">
               Try a quick prompt
             </div>
-            <p className="mt-1 text-xs text-muted">
-              Or tap any fork/characterization card to seed a question.
-            </p>
+            {!seasonPrompts && (
+              <p className="mt-1 text-xs text-muted">
+                Or tap any fork/characterization card to seed a question.
+              </p>
+            )}
             <div className="mt-3 space-y-2">
               {quickPrompts.map((p) => (
                 <button

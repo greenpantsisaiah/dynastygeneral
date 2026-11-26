@@ -69,6 +69,8 @@ import { ContendOrSellCard } from "@/components/league/contend-or-sell-card";
 import { SeasonStrip } from "@/components/league/season-strip";
 import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
 import { leagueDecision } from "@/lib/decisions/league-decision";
+import { seasonQuickPrompts } from "@/lib/coach/season-prompts";
+import { leagueKind } from "@/lib/email/build-brief";
 import { TradeCard as WeekTradeCard, LeagueCallCard } from "@/components/home/decision-feed";
 import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
 import { flagOn } from "@/lib/flags/server";
@@ -2400,6 +2402,11 @@ export default async function LeagueHubPage({
               standing={standing}
               totalTeams={totalRosters}
               verdict={contendOrSell}
+              call={
+                weekCall?.kind === "league_call" && showContendOrSellCard
+                  ? { title: weekCall.title, label: weekCall.stance ? weekCall.stance_label : null }
+                  : null
+              }
             />
           )}
           {/* Briefing panel (?diagnose=1 only). Shows the digested
@@ -2575,7 +2582,11 @@ export default async function LeagueHubPage({
                   and league-win chances, trade window), then the
                   keep-or-sell call with the three analysts. Both read the
                   contend-or-sell verdict; neither computes anything. */}
-              {inSeasonLayout && weekCall && (
+              {/* This week's call. A trade gets its own card; otherwise
+                  the call is one line in the season strip and the
+                  keep-or-sell card below carries the reason and the
+                  analysts, so nothing is said twice. */}
+              {inSeasonLayout && weekCall && (weekCall.kind === "trade" || !showContendOrSellCard) && (
                 <section aria-label="This week's call" className="mt-6">
                   <h2 className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
                     This week&apos;s call
@@ -3191,7 +3202,14 @@ export default async function LeagueHubPage({
                     username={cleanedUsername}
                     displayName={String(teamName)}
                     variant="panel"
-                    inSeason={inSeasonLayout}
+                    seasonPrompts={
+                      inSeasonLayout
+                        ? seasonQuickPrompts({
+                            kind: leagueKind(league),
+                            tradeOpen: contendOrSell?.trade_window.open ?? true,
+                          })
+                        : null
+                    }
                     context={{
                       leagueName: league.name,
                       myPickLabel: pickApproach?.my_pick_label ?? null,
