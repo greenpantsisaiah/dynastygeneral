@@ -21,6 +21,7 @@ import { offseasonValueDecay } from "../src/lib/strategy/verdict/decay";
 import { rankBuyers } from "../src/lib/strategy/verdict/buyers";
 import { convene, gambler, moneyball, strategist } from "../src/lib/strategy/verdict/voices";
 import { buildContendOrSellVerdict } from "../src/lib/strategy/verdict/compose";
+import { tradeWindow } from "../src/lib/strategy/verdict/trade-window";
 import { ageRetention } from "../src/lib/players/age-curve";
 import { predictionType } from "../src/lib/predictions/registry";
 import type { SleeperMatchup } from "../src/lib/sleeper/schemas";
@@ -162,7 +163,7 @@ check("moneyball sells when kept value beats priced odds", moneyball(coinflip, 1
 check("moneyball pushes when a title is worth more", ["push", "lean_push"].includes(moneyball(coinflip, 2000).stance));
 
 console.log("\n── composed verdict ──");
-const v = buildContendOrSellVerdict({
+const vArgs: Parameters<typeof buildContendOrSellVerdict>[0] = {
   sim: L,
   rosterId: 8,
   sims: 3000,
@@ -174,7 +175,8 @@ const v = buildContendOrSellVerdict({
   ],
   buyers: (pos) =>
     L.teams.map((t) => ({ roster_id: t.roster_id, label: `T${t.roster_id}`, title_pct: 0, playoff_pct: 0, startable_at_pos: t.roster_id % 4, starters_at_pos: pos === "WR" ? 3 : 2 })),
-});
+};
+const v = buildContendOrSellVerdict(vArgs);
 check("verdict built", v.ok, v.ok ? "" : v.reason);
 if (v.ok) {
   const V = v.verdict;
@@ -185,6 +187,30 @@ if (v.ok) {
   check("contender premium is labelled unknown", V.contender_premium.value === 0 && V.contender_premium.status === "unknown");
   check("three voices on the panel", V.panel.voices.length === 3);
   check("every cited prediction type is registered", V.provenance.prediction_types.every((id) => predictionType(id) !== undefined), V.provenance.prediction_types.filter((id) => !predictionType(id)).join(","));
+}
+
+console.log("\n── trade window (no sell advice where you cannot trade) ──");
+check("best ball closes the window", !tradeWindow({ best_ball: true, trade_deadline_week: 99 }, 12).open);
+check("deadline week itself is still open", tradeWindow({ best_ball: false, trade_deadline_week: 12 }, 12).open);
+check("past the deadline is closed", (() => { const w = tradeWindow({ best_ball: false, trade_deadline_week: 11 }, 12); return !w.open && w.reason === "deadline_passed"; })());
+check("99 means no deadline", tradeWindow({ best_ball: false, trade_deadline_week: 99 }, 17).open);
+check("null deadline is open", tradeWindow({ best_ball: false, trade_deadline_week: null }, 17).open);
+{
+  const closed = buildContendOrSellVerdict({ ...vArgs, tradeWindow: tradeWindow({ best_ball: true, trade_deadline_week: null }, 12) });
+  check("closed window: no sell candidates", closed.ok && closed.verdict.candidates.length === 0 && closed.verdict.package.player_ids.length === 0);
+  check("closed window still reports odds", closed.ok && closed.verdict.odds.title_pct >= 0 && !closed.verdict.trade_window.open);
+}
+
+console.log("\n── voice copy never contradicts or prints zeros ──");
+const zeroFacts = { teams: 12, title_pct: 0.02, playoff_pct: 0.1, title_delta: -0.001, value_kept_by_selling: 0.2, roster_retained_share: 0.99 };
+const mb = moneyball(zeroFacts);
+check("moneyball never prints 'worth 0' or '0%'", !/worth 0\b|costs 0%|about 0 value/.test(mb.line), mb.line);
+const st = strategist(zeroFacts);
+check("young non-contender strategist says keep, not 'not the window' alone", st.stance === "lean_push" && /keep it/.test(st.line), st.line);
+for (const share of [0.85, 0.95, 0.99]) for (const tp of [0.01, 0.3]) {
+  const r2 = strategist({ ...zeroFacts, roster_retained_share: share, title_pct: tp });
+  const says = /Sell|selling/.test(r2.line) && !/rather than selling/.test(r2.line);
+  check(`strategist line matches stance (${share}, ${tp})`, !(says && (r2.stance === "push" || r2.stance === "lean_push")), `${r2.stance}: ${r2.line}`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

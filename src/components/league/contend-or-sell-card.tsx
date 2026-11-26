@@ -39,6 +39,24 @@ const ordinal = (n: number) => {
 
 export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }) {
   const v = verdict;
+  // Trades closed (best ball, past the deadline): show the odds and why
+  // there is no move, never sell advice the user cannot act on.
+  if (!v.trade_window.open) {
+    return (
+      <section className="rounded-lg border border-border-strong bg-surface p-4">
+        <p className="font-mono text-[11px] uppercase tracking-wider text-muted-2">
+          Where you stand · hypothesis, not yet scored
+        </p>
+        <h3 className="mt-1 text-lg font-semibold">
+          Title odds {pct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
+        </h3>
+        <p className="text-sm text-muted">
+          Playoffs {pct(v.odds.playoff_pct)} · fair title share {pct(v.league.fair_title_share)}.
+        </p>
+        <p className="mt-2 text-sm text-muted">{v.trade_window.label}</p>
+      </section>
+    );
+  }
   const headline = STANCE_LABEL[v.panel.headline];
   const consensus = v.panel.consensus ? "The voices agree" : "The voices disagree";
   return (
@@ -106,7 +124,11 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
                 </p>
                 <p className="text-muted">
                   Age curve expects about {valuePts(c.decay.value_lost)} gone by August. Selling him
-                  costs {c.weekly_points_lost.toFixed(1)} pts per week and {pp(c.title_delta)} of title odds{c.title_delta > 0 ? " (a gain: his replacement scores more)" : ""}.
+                  costs {c.weekly_points_lost.toFixed(1)} pts per week
+                  {Math.abs(c.title_delta) < 0.005
+                    ? " and barely moves your title odds"
+                    : ` and ${pp(c.title_delta)} of title odds${c.title_delta > 0 ? " (a gain: his replacement scores more)" : ""}`}
+                  .
                 </p>
                 {c.buyers.length > 0 && (
                   <p className="text-muted-2">

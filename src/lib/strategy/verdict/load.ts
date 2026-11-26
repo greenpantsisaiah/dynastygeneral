@@ -18,6 +18,8 @@ import { getMatchups } from "@/lib/sleeper/client";
 import type { SleeperLeague, SleeperMatchup, SleeperPlayer } from "@/lib/sleeper/schemas";
 import { resolvePlayers } from "@/lib/players/cache";
 import { getRealisticStarterMax } from "@/lib/engine/roster-fit";
+import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
+import { tradeWindow } from "./trade-window";
 import { normalizePosition, type Position } from "../archetypes/schema";
 import type { LeagueSnapshot } from "../league-state/snapshot";
 import { buildContendOrSellVerdict, type VerdictPlayer, type VerdictResult } from "./compose";
@@ -121,5 +123,6 @@ export async function loadContendOrSellVerdict(args: {
     players,
     buyers,
     titleWorth: args.titleWorth,
+    tradeWindow: tradeWindow(buildFormatRulesFromSnapshot(args.snapshot), args.nflWeek),
   });
 }
