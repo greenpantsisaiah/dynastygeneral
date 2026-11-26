@@ -40,7 +40,7 @@ export const RELEASES: Release[] = [
     changes: [
       {
         tag: "ONE-STEP SIGNUP",
-        text: "The homepage takes an email and a Sleeper username in one form. No password and no confirm link; your leagues open right away and the brief starts the next Tuesday.",
+        text: "The homepage takes an email and a Sleeper username in one form. No confirm link; your leagues open right away and the brief starts the next Tuesday.",
       },
       {
         tag: "THREE ANALYSTS",

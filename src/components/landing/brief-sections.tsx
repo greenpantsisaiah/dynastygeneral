@@ -26,7 +26,7 @@ export function InboxSection() {
           />
           <Card
             title="League shifts"
-            body="Which teams fell from contender to long shot, or lost a starter to injury, and why. Those managers are your sellers this week."
+            body="Which managers moved up or down a playoff range, or lost a key starter to injury, and why. Where trades are open, each is marked seller, buyer or rival."
           />
         </div>
         <p className="mt-6 text-sm text-muted">
@@ -52,7 +52,7 @@ export function AnalystsSection() {
               You see the argument, not just the verdict.
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted">
-              Sometimes all three agree. Often they don&apos;t, and that is
+              Sometimes all three agree. When they don&apos;t, that is
               the useful part: you weigh the case the way you would with a
               front office, then make the call.
             </p>
@@ -121,15 +121,15 @@ export function HonestySection() {
           <div>
             <Kicker>What we don&apos;t claim</Kicker>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Odds with ranges. No accuracy boasts.
+              Odds from simulations. No accuracy boasts.
             </h2>
           </div>
           <ul className="space-y-4 text-sm text-foreground">
             <li>
               <span className="font-semibold">No hit-rate claims yet.</span>{" "}
-              Every playoff and title number is a simulation of your league
-              with its range shown. We will publish how often they land once
-              a season of results is logged.
+              Every playoff and title number is a simulation of your league,
+              not a track record. A hit rate gets published only after the
+              odds are logged and scored.
             </li>
             <li>
               <span className="font-semibold">No vibes-only verdicts.</span>{" "}

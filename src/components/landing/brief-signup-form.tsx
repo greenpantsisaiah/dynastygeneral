@@ -112,8 +112,8 @@ export function BriefSignupForm() {
         </p>
       )}
       <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-        Free during the beta · No password · Sleeper read-only · Unsubscribe
-        in one click
+        Free during the beta · Sleeper read-only · Unsubscribe from any
+        email, no login
       </p>
       <p className="mt-2 text-xs text-muted-2">
         By signing up you agree to the{" "}

@@ -49,7 +49,7 @@ export function SampleTradeCard() {
       </p>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
-        <Tile label="Playoffs" value="70%" note="range 60 to 80" />
+        <Tile label="Playoffs" value="70%" note="In the hunt" />
         <Tile label="Win the league" value="15%" note="fair share 10%" />
         <Tile label="Title if you sell" value="12%" note="down 3 points" />
       </div>
@@ -99,7 +99,7 @@ export function SampleTradeCard() {
           2 of 3 lean sell, if the price is right.
         </span>{" "}
         <span className="text-muted">
-          Open by asking for his 2027 1st. If it doesn&apos;t land, two other
+          Open by asking for full value: about 14 on our 0 to 100 scale. If it doesn&apos;t land, two other
           managers are short a WR.
         </span>
       </div>

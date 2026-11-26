@@ -11,8 +11,9 @@ import { getUserByUsername } from "@/lib/sleeper";
  * `handle_new_user` trigger (migration 0002) creates the profiles +
  * subscriptions rows, so the weekly brief cron (which reads `profiles`)
  * picks the account up on the next Tuesday with no change to the send.
- * The user can sign in later with Google or a magic link on the same
- * address; there is no password to forget.
+ * The user can sign in later with Google on the same address. There is
+ * no magic-link or password-reset sign-in yet, so a non-Google address
+ * cannot sign in to the app (the brief still arrives); tracked as a gap.
  *
  * Safety:
  * - Rate limited per IP (shares the waitlist bucket: 3 per minute).
@@ -100,7 +101,7 @@ export async function POST(req: Request) {
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email,
     // No confirm click by design (founder decision: lowest-friction start).
-    // Marking the address confirmed lets a later Google or magic-link
+    // Marking the address confirmed lets a later Google
     // sign-in on the same address land on this account instead of
     // forking a second one.
     email_confirm: true,

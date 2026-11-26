@@ -32,7 +32,7 @@ export function Hero() {
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
               Dynasty General simulates each of your Sleeper leagues 5,000
-              times, names the managers most likely to deal, and has three
+              times, names the managers short at the position you would sell, and has three
               analysts argue the call. One email covers dynasty, redraft,
               keeper and best ball; leagues past their deadline get the odds,
               not a trade.
