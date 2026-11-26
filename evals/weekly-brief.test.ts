@@ -14,7 +14,9 @@ import { buildContendOrSellVerdict, type ContendOrSellVerdict } from "../src/lib
 import { buildSimInputFromSleeper } from "../src/lib/strategy/verdict/from-sleeper";
 import { DEFAULT_SIMS } from "../src/lib/strategy/verdict/season-sim";
 import { lastCompletedWeek } from "../src/lib/strategy/verdict/weeks";
-import { buildLeagueWeek, fmtPct, playoffRange } from "../src/lib/email/trade-desk/league-week";
+import { buildLeagueWeek, fmtPct, playoffRange, shiftAction } from "../src/lib/email/trade-desk/league-week";
+import { buildAskLadder } from "../src/lib/strategy/verdict/ask";
+import { leagueHref } from "../src/lib/email/trade-desk/render";
 import { tradeBy } from "../src/lib/email/trade-desk/deadline";
 import { resolveMailingAddress } from "../src/lib/email/mailing-address";
 import { lintDecisionItems, BANNED_SUBJECT_LEAD } from "../src/lib/email/trade-desk/lint";
@@ -222,7 +224,31 @@ const closedWeek = buildLeagueWeek({
 check("no for-you label where trading is closed", closedWeek.shifts.every((s) => s.role === null));
 const openShifts = week().shifts;
 check("shift why leads with the week's cause", openShifts.length === 0 || openShifts.every((s) => /^(Beat|Lost|Tied|Scored)/.test(s.why)), openShifts.map((s) => s.why).join(" / "));
-check("pro legend defines the for-you labels", pro.text.includes("For you: Seller:"));
+check("no role legend: the for-you column explains itself", !pro.text.includes("For you: Seller:") && !/\bSeller\b/.test(pro.text));
+
+console.log("\n── desk6: ask range, for-you actions, signed-out links ──");
+const offers = [
+  { player_id: "a", name: "Fair Guy", position: "WR", value: 50 },
+  { player_id: "b", name: "Floor Guy", position: "TE", value: 45 },
+  { player_id: "c", name: "Great Guy", position: "QB", value: 61 },
+  { player_id: "d", name: "Same Pos", position: "RB", value: 50 },
+  { player_id: "e", name: "Kicker", position: "K", value: 50 },
+];
+const ladder = buildAskLadder({ targetValue: 50, offers, excludePosition: "RB" });
+check("ask ladder: fair is about even", ladder?.fair?.name === "Fair Guy", JSON.stringify(ladder));
+check("ask ladder: floor sits under value", ladder?.floor?.name === "Floor Guy");
+check("ask ladder: great is an overpay", ladder?.great?.name === "Great Guy");
+check("ask ladder never offers the sold position or a kicker", ![ladder?.fair, ladder?.floor, ladder?.great].some((r) => r?.position === "RB" || r?.position === "K"));
+const pair = buildAskLadder({ targetValue: 50, offers: [{ player_id: "m", name: "Main", position: "WR", value: 40 }, { player_id: "s", name: "Small", position: "TE", value: 12 }, { player_id: "t", name: "Tiny", position: "QB", value: 3 }], excludePosition: "RB" });
+check("ask ladder builds a two-piece package when no single player fits", pair?.fair?.name === "Main" && pair.fair.plus?.name === "Small" && pair.fair.value === 52, JSON.stringify(pair));
+check("ask ladder is null with nothing in band", buildAskLadder({ targetValue: 50, offers: [{ player_id: "x", name: "X", position: "WR", value: 10 }], excludePosition: "RB" }) === null);
+const simT = { teams: [{ roster_id: 1, wins: 7, losses: 4, ties: 0 }, { roster_id: 2, wins: 5, losses: 6, ties: 0 }] };
+const r1 = { roster_id: 1, manager: "Me", is_me: true, player_ids: [], starters: [] };
+const r2 = { roster_id: 2, manager: "Them", is_me: false, player_ids: [], starters: [] };
+check("rival action names the games gap", shiftAction({ role: "rival", roster: r2, me: r1, sim: simT, hurt: null })?.text === "Rival: now 2 games back of you");
+check("buyer action names the injured starter", shiftAction({ role: "buyer", roster: r2, me: r1, sim: simT, hurt: { name: "Bijan Robinson", position: "RB" } })?.text === "Needs a RB with Bijan Robinson out");
+check("pro shift rows print a concrete for-you line, never a bare label", !/For you: (Seller|Buyer|Rival)\./.test(pro.text));
+check("league links carry the username for signed-out readers", leagueHref("https://x.app", { sleeperUsername: "izzy dabomb" } as never, "123", "/trade") === "https://x.app/leagues/123/trade?username=izzy%20dabomb");
 
 
 console.log("\n── shared decision items (email and /home read one list) ──");

@@ -105,6 +105,12 @@ function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): Tra
 
 export interface TradeDeskModel {
   ownerName: string;
+  /**
+   * The reader's Sleeper username. Every league link carries it as
+   * ?username= so the page identifies the roster even when the reader is
+   * signed out (2026-11-26: a signed-out click landed on "Roster not found").
+   */
+  sleeperUsername: string | null;
   tier: BriefTier;
   resultsWeek: number;
   aheadWeek: number;
@@ -120,6 +126,7 @@ export interface TradeDeskModel {
 
 export function buildTradeDeskModel(args: {
   ownerName: string;
+  sleeperUsername?: string | null;
   tier: BriefTier;
   resultsWeek: number;
   leagues: DeskLeague[];
@@ -154,6 +161,7 @@ export function buildTradeDeskModel(args: {
   }
   return {
     ownerName: args.ownerName,
+    sleeperUsername: args.sleeperUsername?.trim() || null,
     tier: args.tier,
     resultsWeek: args.resultsWeek,
     aheadWeek: args.resultsWeek + 1,

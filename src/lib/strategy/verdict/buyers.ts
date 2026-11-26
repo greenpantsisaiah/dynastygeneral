@@ -6,6 +6,8 @@
  * from effectiveStarterReqs). No new depth math lives here.
  */
 
+import type { AskLadder } from "./ask";
+
 export interface BuyerInput {
   roster_id: number;
   label: string;
@@ -18,6 +20,12 @@ export interface BuyerInput {
 }
 
 export interface BuyerRead extends BuyerInput {
+  /**
+   * What to ask this buyer for (acceptable to great, from their roster).
+   * Attached by the loader, which has every roster's values; absent in
+   * pure compose runs.
+   */
+  ask?: AskLadder | null;
   /** 0 (deep) to 1 (no startable player at the position). */
   need: number;
   score: number;
