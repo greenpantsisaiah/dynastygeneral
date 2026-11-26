@@ -20,6 +20,7 @@ import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { WEEKLY_BRIEF_TEMPLATE_VERSION, briefRenderTier, composeWeeklyBrief, type BriefTier } from "@/lib/email/weekly-brief";
 import { flagOn } from "@/lib/flags/server";
+import { resolveMailingAddress } from "@/lib/email/mailing-address";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +69,7 @@ export async function GET(request: Request): Promise<Response> {
     ? await buildBriefLeagues({ username, season: nfl.season, nflWeek: nfl.week, seasonType: nfl.season_type, logTag: "admin:email-preview" })
     : { leagues: [], resultsWeek: nfl.week - 1 };
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dynastygeneral.app";
+  const address = resolveMailingAddress();
   const brief = composeWeeklyBrief({
     ownerName: briefOwnerName(displayName, username),
     tier,
@@ -78,7 +80,7 @@ export async function GET(request: Request): Promise<Response> {
     season: nfl.season,
     appUrl,
     unsubscribeUrl: `${appUrl}/api/email/unsubscribe?preview=1`,
-    mailingAddress: process.env.EMAIL_MAILING_ADDRESS?.trim() || "(mailing address)",
+    mailingAddress: address?.value || "(mailing address)",
     preview: true,
   });
 
@@ -92,6 +94,8 @@ export async function GET(request: Request): Promise<Response> {
       subject: brief.subject,
       tier,
       lint: brief.lint,
+      // The env var name the footer address came from (never the value).
+      mailing_address_source: address?.source ?? null,
       items: brief.items,
       digest: brief.digest,
       leagues: leagues.map((l) => ({ id: l.leagueId, name: l.leagueName, has_verdict: !!l.verdict, note: l.note ?? null })),

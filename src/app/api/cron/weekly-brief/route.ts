@@ -32,6 +32,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { flagOn } from "@/lib/flags/server";
+import { resolveMailingAddress } from "@/lib/email/mailing-address";
 import { effectiveTier } from "@/lib/auth/session";
 import { WEEKLY_BRIEF_TEMPLATE_VERSION, briefRenderTier, composeWeeklyBrief, type DeskLeague } from "@/lib/email/weekly-brief";
 import { briefSendKind, honorForce, resolveSendMode } from "@/lib/email/send-guard";
@@ -65,7 +66,8 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const apiKey = process.env.RESEND_API_KEY;
-  const mailingAddress = process.env.EMAIL_MAILING_ADDRESS?.trim();
+  // Our name first, then whatever name the address was saved under in Vercel.
+  const mailingAddress = resolveMailingAddress()?.value;
   // The brief asks for replies, so it never sends from a dead inbox.
   const replyTo = process.env.EMAIL_REPLY_TO?.trim();
   if (!dry && (!apiKey || !mailingAddress || !replyTo)) {
