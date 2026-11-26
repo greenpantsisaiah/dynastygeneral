@@ -190,6 +190,7 @@ export async function GET(request: Request): Promise<Response> {
       resultsWeek,
       nflWeek: nfl.week,
       seasonStartDate: nfl.season_start_date,
+      season: nfl.season,
       appUrl,
       unsubscribeUrl: unsub,
       mailingAddress: mailingAddress ?? "",

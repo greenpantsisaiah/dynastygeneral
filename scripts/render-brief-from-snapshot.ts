@@ -27,7 +27,7 @@ async function main() {
   const shown = only ? leagues.filter((l) => only.some((n) => l.leagueName.startsWith(n))) : leagues;
   const brief = composeWeeklyBrief({
     ownerName: briefOwnerName(snap.user.display_name, snap.user.username),
-    tier, leagues: shown, resultsWeek, nflWeek: ns.week, seasonStartDate: ns.season_start_date,
+    tier, leagues: shown, resultsWeek, nflWeek: ns.week, seasonStartDate: ns.season_start_date, season: ns.season,
     appUrl: "https://dynastygeneral.app",
     unsubscribeUrl: "https://dynastygeneral.app/api/email/unsubscribe?preview=1",
     mailingAddress: "1 Sample Street, Chicago, IL (sample render)",
@@ -38,6 +38,7 @@ async function main() {
   const tag = only ? `_${only.length}lg` : "";
   writeFileSync(join(outDir, `brief_${tier}${tag}.html`), brief.html);
   writeFileSync(join(outDir, `brief_${tier}${tag}.txt`), `Subject: ${brief.subject}\n\n${brief.text}`);
+  writeFileSync(join(outDir, `items_${tier}${tag}.json`), JSON.stringify({ digest: brief.digest, items: brief.items }, null, 2));
   writeFileSync(join(outDir, "leagues.json"), JSON.stringify(leagues, null, 2));
   console.log(`lint: ${brief.lint.length ? brief.lint.join(" | ") : "clean"}`);
   console.log(`rendered ${leagues.length} leagues (results week ${resultsWeek}) to ${outDir}`);

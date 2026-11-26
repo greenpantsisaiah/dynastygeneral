@@ -16,6 +16,7 @@ import { DEFAULT_SIMS } from "../src/lib/strategy/verdict/season-sim";
 import { lastCompletedWeek } from "../src/lib/strategy/verdict/weeks";
 import { buildLeagueWeek, fmtPct, playoffRange } from "../src/lib/email/trade-desk/league-week";
 import { tradeBy } from "../src/lib/email/trade-desk/deadline";
+import { lintDecisionItems } from "../src/lib/email/trade-desk/lint";
 import { strategist } from "../src/lib/strategy/verdict/voices";
 import type { DeskLeague } from "../src/lib/email/trade-desk/model";
 import { composeWeeklyBrief, WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
@@ -216,6 +217,24 @@ check("no for-you label where trading is closed", closedWeek.shifts.every((s) =>
 const openShifts = week().shifts;
 check("shift why leads with the week's cause", openShifts.length === 0 || openShifts.every((s) => /^(Beat|Lost|Tied|scored)/.test(s.why)), openShifts.map((s) => s.why).join(" / "));
 check("pro legend defines the for-you labels", pro.text.includes("For you: Seller:"));
+
+
+console.log("\n── shared decision items (email and /home read one list) ──");
+const items = dated.items;
+const trades = items.filter((i) => i.kind === "trade");
+check("one trade item per card", trades.length === 1);
+check("every trade sentence the item carries is in the email verbatim", trades.every((t) => t.kind === "trade" && [t.title, t.verdict, t.deadline_label!, ...t.voices.map((v) => v.line)].every((x) => dated.text.includes(x))));
+check("trade item has three stat tiles and a deadline time", trades.every((t) => t.kind === "trade" && t.stats.length === 3 && !!t.deadline));
+check("trade id uses the week ahead", trades.every((t) => t.id.startsWith("trade:2026w12:1:")), trades.map((t) => t.id).join());
+check("one week row per league", items.filter((i) => i.kind === "week_row").length === FIXTURES.trades.length);
+check("digest headline and subline are the email's hero", dated.text.includes(dated.digest.headline) && dated.text.includes(dated.digest.subline));
+const shiftItems = items.filter((i) => i.kind === "shift");
+check("at most 8 shift items are emailed; the rest are app-only", shiftItems.filter((i) => i.delivery.emailed).length <= 8);
+check("item ids are unique", new Set(items.map((i) => i.id)).size === items.length);
+const refusedRow = compose(FIXTURES.sim_refused).items.find((i) => i.kind === "week_row");
+check("refused league row carries its reason", refusedRow?.kind === "week_row" && !!refusedRow.refused_reason && refusedRow.playoffs === null);
+const tampered = items.map((i) => (i.kind === "trade" ? { ...i, verdict: "Push now!" } : i));
+check("the item lint applies the copy rules", lintDecisionItems(tampered, []).some((l) => l.includes("exclamation")));
 
 console.log("\n── unsubscribe tokens ──");
 const uid = "11111111-2222-3333-4444-555555555555";

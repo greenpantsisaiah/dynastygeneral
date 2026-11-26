@@ -11,7 +11,8 @@
  *     panel is not a card),
  *   - a buyer is genuinely short at the position (startable at or below
  *     starter need from rankBuyers' inputs), and
- *   - every value on the card rounds to at least 1.
+ *   - every value on the card rounds to at least 1, and selling keeps at
+ *     least MIN_CARD_VALUE_KEPT value points.
  */
 
 import type { ContendOrSellVerdict, SellCandidate } from "@/lib/strategy/verdict/compose";
@@ -35,6 +36,14 @@ export interface DeskLeague {
 }
 
 export const MAX_CARDS = 3;
+/**
+ * A sale worth trying must keep at least this many value points (0 to 100
+ * scale) by selling before the offseason. 2026-11-26 render: a 0-11 card
+ * selling a player to keep "about 1 value point" read as thin.
+ * FIXME: hardcoded, no canonical yet. It is a product floor, not a model
+ * output; register it with the stats steward when the card hit rate is logged.
+ */
+export const MIN_CARD_VALUE_KEPT = 3;
 const SELL_LEANING: Stance[] = ["sell", "lean_sell"];
 
 export interface TradeCard {
@@ -70,7 +79,7 @@ function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): Tra
     if (n < 2) continue;
     const buyers = c.buyers.filter(isShortAt);
     if (buyers.length === 0) continue;
-    if (Math.round(c.decay.value_now) < 1 || Math.round(c.decay.value_lost) < 1) continue;
+    if (Math.round(c.decay.value_now) < 1 || Math.round(c.decay.value_lost) < MIN_CARD_VALUE_KEPT) continue;
     return {
       leagueId: l.leagueId,
       leagueName: l.leagueName,
