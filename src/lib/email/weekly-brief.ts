@@ -23,7 +23,7 @@ import type { Stance } from "@/lib/strategy/verdict/voices";
  * value, so a new template always goes to the admin preview list first
  * and reaches users only after Isaiah approves that exact version.
  */
-export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-25.beta2";
+export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.beta3";
 
 export type BriefTier = "free" | "pro";
 
