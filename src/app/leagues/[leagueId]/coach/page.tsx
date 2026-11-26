@@ -8,16 +8,17 @@ export const metadata: Metadata = {
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
 import { Ticker } from "@/components/ui/ticker";
-import { getLeague, getUserByUsername } from "@/lib/sleeper";
+import { getLeague, getNflState, getUserByUsername } from "@/lib/sleeper";
 import { CoachChat } from "@/components/league/coach-chat";
 import { UsageChip } from "@/components/billing/usage-meter";
 import { getOptionalUser } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ leagueId: string }>;
-  searchParams: Promise<{ username?: string; season?: string }>;
+  searchParams: Promise<{ username?: string; season?: string; ask?: string }>;
 };
 
 export default async function CoachPage({
@@ -25,8 +26,9 @@ export default async function CoachPage({
   searchParams,
 }: PageProps) {
   const { leagueId } = await params;
-  const { username } = await searchParams;
-  const cleanedUsername = (username ?? "").trim().replace(/^@/, "");
+  const { username, ask } = await searchParams;
+  const urlUsername = (username ?? "").trim().replace(/^@/, "");
+  const initialPrompt = ask ? ask.trim().slice(0, 500) : undefined;
 
   // Coach is a signed-in-only surface. Anonymous visitors get
   // redirected to /login with a return path so they land back here
@@ -34,14 +36,37 @@ export default async function CoachPage({
   // in, it shouldn't even be available."
   const authUser = await getOptionalUser().catch(() => null);
   if (!authUser) {
-    const next = `/leagues/${leagueId}/coach${cleanedUsername ? `?username=${encodeURIComponent(cleanedUsername)}` : ""}`;
+    const q = new URLSearchParams();
+    if (urlUsername) q.set("username", urlUsername);
+    if (initialPrompt) q.set("ask", initialPrompt);
+    const next = `/leagues/${leagueId}/coach${q.size ? `?${q.toString()}` : ""}`;
     redirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
-  const [league, sleeperUser] = await Promise.all([
+  // Signed in without ?username (a bare link, or one from /home): use the
+  // Sleeper username saved on the profile, the same default the hub uses.
+  let savedUsername: string | null = null;
+  if (!urlUsername) {
+    try {
+      const supabase = await createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("sleeper_username")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      savedUsername = (data?.sleeper_username as string | null) ?? null;
+    } catch (err) {
+      console.error("[coach:profile-lookup]", err instanceof Error ? `${err.message}\n${err.stack}` : err);
+    }
+  }
+  const cleanedUsername = urlUsername || savedUsername || "";
+
+  const [league, sleeperUser, nflState] = await Promise.all([
     getLeague(leagueId),
     cleanedUsername ? getUserByUsername(cleanedUsername) : Promise.resolve(null),
+    getNflState().catch(() => null),
   ]);
+  const inSeason = nflState?.season_type === "regular" || nflState?.season_type === "post";
   if (!league) notFound();
 
   const me =
@@ -63,23 +88,23 @@ export default async function CoachPage({
                 <UsageChip feature="coach" />
               </div>
               <p className="mt-2 text-sm text-muted">
-                Debate picks, ask for advice, work a trade angle. Your
-                coach has the live league snapshot loaded each turn.
+                Ask for advice, test a trade idea, or argue with a call.
+                Coach reads the live league snapshot on every turn.
               </p>
             </div>
             <Link
               href={`/leagues/${leagueId}${cleanedUsername ? `?username=${encodeURIComponent(cleanedUsername)}` : ""}`}
               className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2 hover:text-accent"
             >
-              ← Back to hub
+              ← Back to league
             </Link>
           </div>
 
           {!cleanedUsername && (
             <div className="mt-6 rounded-md border border-danger/60 bg-danger/5 px-4 py-3 text-sm text-danger">
-              No username on the URL. Coach needs a Sleeper username to
-              know which roster is yours. Go back to the hub and identify
-              first.
+              No Sleeper account is saved on your profile, so Coach cannot
+              tell which roster is yours. Connect your Sleeper username in
+              account settings, or open this league from your league page.
             </div>
           )}
 
@@ -88,6 +113,8 @@ export default async function CoachPage({
               leagueId={leagueId}
               username={cleanedUsername}
               displayName={me ?? cleanedUsername}
+              initialPrompt={initialPrompt}
+              inSeason={inSeason}
             />
           )}
         </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { track } from "@/lib/analytics";
+import { signupSourceFromLanding } from "@/lib/growth/signup-source";
 
 type State =
   | { kind: "idle" }
@@ -29,7 +30,17 @@ export function BriefSignupForm() {
       const res = await fetch("/api/brief-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, sleeper_username }),
+        body: JSON.stringify({
+          email,
+          sleeper_username,
+          // Which channel sent this signup (utm tags on the landing URL,
+          // or the referring site). Optional; never blocks the signup.
+          source: signupSourceFromLanding({
+            search: window.location.search,
+            referrer: document.referrer,
+            ownHost: window.location.hostname,
+          }),
+        }),
       });
       const json = (await res.json().catch(() => ({}))) as {
         ok?: boolean;

@@ -47,6 +47,16 @@ const QUICK_PROMPTS = [
   "Is my strategy still on track? What should I be doing differently?",
 ];
 
+// In-season prompts: the draft prompts above read as stale in week 12
+// (customer council run 1, 2026-11-26).
+const SEASON_QUICK_PROMPTS = [
+  "Should I keep going for the title or sell? Walk me through the three analysts.",
+  "Which of my players should I sell before the offseason, and to whom?",
+  "Who in the league is buying, and what do they need that I have?",
+  "Where is my lineup thinnest, and who could fix it?",
+  "What is my plan for next year's rookie draft?",
+];
+
 // Build the active_plays payload for the Coach request, dropping any
 // malformed commitment and capping the count to match the server. The
 // server already salvages auxiliary context per-entry; this is the
@@ -178,13 +188,21 @@ export function CoachChat({
   displayName,
   variant = "page",
   context,
+  initialPrompt,
+  inSeason = false,
 }: {
   leagueId: string;
   username: string;
   displayName: string;
   variant?: CoachVariant;
   context?: CoachContext;
+  /** Prefills the input when arriving from a card ("Talk it through"). A
+   * saved unsent draft wins, so the user's own words are never replaced. */
+  initialPrompt?: string;
+  /** Season-stage quick prompts instead of the draft ones. */
+  inSeason?: boolean;
 }) {
+  const quickPrompts = inSeason ? SEASON_QUICK_PROMPTS : QUICK_PROMPTS;
   const history = useSyncExternalStore(
     subscribe,
     useCallback(() => getCachedHistory(leagueId), [leagueId]),
@@ -220,10 +238,12 @@ export function CoachChat({
     try {
       const saved = window.localStorage.getItem(draftKey(leagueId));
       if (saved && saved.length > 0) setDraft(saved);
+      else if (initialPrompt) setDraft(initialPrompt);
     } catch {
       // ignore (private mode, quota, etc.)
+      if (initialPrompt) setDraft(initialPrompt);
     }
-  }, [leagueId]);
+  }, [leagueId, initialPrompt]);
 
   // Save draft on change. setItem is cheap; debouncing isn't worth
   // the complexity for textarea-keystroke rates.
@@ -501,7 +521,7 @@ export function CoachChat({
               Or tap any fork/characterization card to seed a question.
             </p>
             <div className="mt-3 space-y-2">
-              {QUICK_PROMPTS.map((p) => (
+              {quickPrompts.map((p) => (
                 <button
                   key={p}
                   type="button"
@@ -523,7 +543,7 @@ export function CoachChat({
               Skip the typing. Tap one to seed the conversation.
             </p>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {QUICK_PROMPTS.map((p) => (
+              {quickPrompts.map((p) => (
                 <button
                   key={p}
                   type="button"

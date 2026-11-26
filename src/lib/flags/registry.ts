@@ -49,12 +49,21 @@ export const FLAGS = {
   },
   contend_or_sell_verdict: {
     description:
-      "In-season contend-or-sell card on the hub (title odds, sell package, buyers, three voices) mirrored to Coach. Dark until the ledger logs it.",
+      "Coach mirror of the contend-or-sell verdict (prompt section + context field). Dark until a Coach test-set run clears it. The hub card moved to contend_or_sell_card.",
     owner: "trade advisor",
     created: "2026-11-24",
     expires: "2027-03-31",
     variants: ["off", "on"],
     rollout: [0],
+  },
+  contend_or_sell_card: {
+    description:
+      "The keep-or-sell card on the in-season league hub (playoff and league-win chances, sell package, buyers, three voices). On for everyone: /home and the weekly email already show the same calls (coordinator, 2026-11-26, under Isaiah's \"just ship\"). Split from contend_or_sell_verdict, which still gates the Coach prompt section until a Coach test-set run.",
+    owner: "product steward",
+    created: "2026-11-26",
+    expires: "2027-03-31",
+    variants: ["off", "on"],
+    rollout: [100],
   },
   brief_pro_split: {
     description:
