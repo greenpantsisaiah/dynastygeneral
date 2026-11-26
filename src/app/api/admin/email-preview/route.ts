@@ -69,6 +69,7 @@ export async function GET(request: Request): Promise<Response> {
     leagues,
     resultsWeek,
     nflWeek: nfl.week,
+    seasonStartDate: nfl.season_start_date,
     appUrl,
     unsubscribeUrl: `${appUrl}/api/email/unsubscribe?preview=1`,
     mailingAddress: process.env.EMAIL_MAILING_ADDRESS?.trim() || "(mailing address)",

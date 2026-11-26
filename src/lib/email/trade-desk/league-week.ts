@@ -38,6 +38,23 @@ const RANGE_ORDER: PlayoffRange[] = ["no_chance", "long_shot", "bubble", "in_the
 
 export type ShiftRole = "seller" | "buyer" | "rival";
 
+/**
+ * What a shifted manager means for you (desk1 review: the labels were
+ * undefined and showed even where no trade is possible). The legend in the
+ * email prints these same definitions.
+ *   Seller: now a Long shot or No chance, so likely to sell veterans.
+ *   Rival: rose this week while you are in the hunt or better (50%+).
+ *   Buyer: Bubble or better and either lost a key starter or rose into
+ *          Favorite or In the hunt, so likely to pay for help.
+ * Blank (null) when none apply, and always blank in a league whose trade
+ * window is closed.
+ */
+export const ROLE_DEFINITIONS: Record<ShiftRole, string> = {
+  seller: "Seller: now a long shot or out, likely to sell veterans",
+  buyer: "Buyer: still alive and lost a key starter or climbed into the hunt, likely to pay for help",
+  rival: "Rival: climbed this week while you are 50% or better",
+};
+
 export interface LeagueShift {
   roster_id: number;
   manager: string;
@@ -45,8 +62,10 @@ export interface LeagueShift {
   from: PlayoffRange | null;
   to: PlayoffRange | null;
   injury: { player: string; status: string } | null;
+  /** The cause first (result, record, injury), then the odds change. */
   why: string;
-  role: ShiftRole;
+  /** null where no label applies or trading is closed in this league. */
+  role: ShiftRole | null;
 }
 
 export type WeekResult =
@@ -87,6 +106,8 @@ export function buildLeagueWeek(args: {
   playoffWeekStart: number;
   playoffTeams: number;
   bestBall: boolean;
+  /** Trade window open in this league (tradeWindow canonical). Closed: no for-you labels. */
+  tradeOpen?: boolean;
   seed?: number;
   /** Player meta for injury status; values for the top-N cutoff. */
   players?: Map<string, SleeperPlayer>;
@@ -137,6 +158,23 @@ export function buildLeagueWeek(args: {
     }
   }
 
+  /** "Lost 88.2-131.4 to Gridirongoat, now 3-8" for a roster's finished week. */
+  const weekCause = (rid: number): string | null => {
+    const t = sim.teams.find((x) => x.roster_id === rid);
+    const recNow = t ? `now ${t.wins}-${t.losses}${t.ties ? `-${t.ties}` : ""}` : null;
+    const row = rows.find((x) => x.roster_id === rid);
+    if (!row) return recNow;
+    const pts = round1(row.points ?? 0);
+    const opp = !args.bestBall && row.matchup_id != null
+      ? rows.find((x) => x.matchup_id === row.matchup_id && x.roster_id !== rid)
+      : undefined;
+    if (!opp) return [`scored ${fmtScore(pts)}`, recNow].filter(Boolean).join(", ");
+    const o = round1(opp.points ?? 0);
+    const who = label.get(opp.roster_id) ?? "their opponent";
+    const res = pts === o ? `Tied ${who} ${fmtScore(pts)}-${fmtScore(o)}` : pts > o ? `Beat ${who} ${fmtScore(pts)}-${fmtScore(o)}` : `Lost ${fmtScore(pts)}-${fmtScore(o)} to ${who}`;
+    return [res, recNow].filter(Boolean).join(", ");
+  };
+
   const oddsNow: Record<number, TeamOdds> | null = now.ok ? now.odds : null;
   const oddsBefore: Record<number, TeamOdds> | null = before.ok ? before.odds : null;
 
@@ -162,16 +200,23 @@ export function buildLeagueWeek(args: {
         .find((p) => p && p.injury_status && OUT_STATUSES.has(p.injury_status));
       if (!moved && !hurt) continue;
       const up = moved && RANGE_ORDER.indexOf(to) > RANGE_ORDER.indexOf(from!);
-      const pctLine = a == null ? "" : `${fmtPct(a)} to ${fmtPct(b)}`;
       const name = hurt ? hurt.full_name || [hurt.first_name, hurt.last_name].filter(Boolean).join(" ") : "";
       const why = [
+        weekCause(r.roster_id),
         hurt ? `${name} is ${hurt.injury_status}` : null,
-        moved ? `playoff chance ${pctLine}` : null,
+        moved && a != null ? `playoff chance ${fmtPct(a)} to ${fmtPct(b)}` : null,
       ].filter(Boolean).join("; ");
-      // Seller: out of contention now. Rival: climbing while you contend.
-      // Buyer: contending and short a starter (injury) or climbing.
-      const out = to === "long_shot" || to === "no_chance";
-      const role: ShiftRole = out ? "seller" : up && iContend ? "rival" : "buyer";
+      const alive = RANGE_ORDER.indexOf(to) >= RANGE_ORDER.indexOf("bubble");
+      const intoHunt = up && (to === "favorite" || to === "in_the_hunt");
+      const role: ShiftRole | null = args.tradeOpen === false
+        ? null
+        : to === "long_shot" || to === "no_chance"
+          ? "seller"
+          : up && iContend
+            ? "rival"
+            : alive && (hurt || intoHunt)
+              ? "buyer"
+              : null;
       shifts.push({
         roster_id: r.roster_id,
         manager: r.manager,

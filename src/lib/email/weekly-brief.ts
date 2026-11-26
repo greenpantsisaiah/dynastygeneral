@@ -37,6 +37,8 @@ export function composeWeeklyBrief(args: {
   leagues: DeskLeague[];
   resultsWeek: number;
   nflWeek: number;
+  /** nfl_state.season_start_date, so deadlines print as a day and time. */
+  seasonStartDate?: string | null;
   appUrl: string;
   unsubscribeUrl: string;
   mailingAddress: string;
@@ -51,6 +53,7 @@ export function composeWeeklyBrief(args: {
     tier: args.tier,
     resultsWeek: args.resultsWeek,
     leagues: args.leagues,
+    seasonStartDate: args.seasonStartDate,
   });
   const r = {
     model,

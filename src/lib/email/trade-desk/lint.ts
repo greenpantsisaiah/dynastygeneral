@@ -36,6 +36,43 @@ function visibleText(html: string): string {
     .replace(/[ \t]+/g, " ");
 }
 
+/**
+ * Every name a user or their league chose (league, team, manager, player).
+ * The copy rules police OUR words: a team called "Pushkin" or "100% Juice"
+ * must never block that user's brief every week (coordinator, 2026-11-26).
+ */
+export function userSuppliedNames(m: TradeDeskModel): string[] {
+  const names = new Set<string>();
+  const add = (n: string | null | undefined) => {
+    const t = n?.trim();
+    if (t) names.add(t);
+  };
+  add(m.ownerName);
+  for (const l of m.leagues) {
+    add(l.leagueName);
+    const r = l.week?.result;
+    if (r?.kind === "h2h") add(r.opp_label);
+    for (const sh of l.week?.shifts ?? []) {
+      add(sh.manager);
+      add(sh.injury?.player);
+    }
+    for (const c of l.verdict?.candidates ?? []) {
+      add(c.player.name);
+      for (const b of c.buyers) add(b.label);
+    }
+  }
+  return [...names].sort((a, b) => b.length - a.length);
+}
+
+/** Text with every user-supplied name blanked out, for the copy checks. */
+export function withoutNames(text: string, names: string[]): string {
+  let out = text;
+  for (const n of names) out = out.split(n).join(" ");
+  return out;
+}
+
+const PLACEHOLDER_ADDRESS = /\[mailing address|\(mailing address\)/i;
+
 export function lintTradeDesk(args: {
   model: TradeDeskModel;
   html: string;
@@ -75,31 +112,32 @@ export function lintTradeDesk(args: {
   // Zero / NaN / out-of-range probability checks on what a reader sees.
   if (/\bNaN\b|undefined|\bnull\b/.test(body)) f.push("NaN, undefined or null rendered");
   if (/\b0\.0\b/.test(body)) f.push("\"0.0\" rendered");
-  if (/(^|[^\d.<>])(0|100)%/.test(body)) f.push("a 0% or 100% probability (use <2% / >98%)");
+  const names = userSuppliedNames(m);
+  const ours = withoutNames(body, names);
+  if (/(^|[^\d.<>])(0|100)%/.test(ours)) f.push("a 0% or 100% probability (use <2% / >98%)");
   if (/\b0 (value )?(points|pts)\b|about 0\b|worth 0\b/.test(body)) f.push("a zero value line");
 
-  // Same sentence twice.
+  // Same sentence twice, analyst lines included: each card's analysts must
+  // cite that league's own facts (desk1 review, 2026-11-26).
   const sentences = body.split(/(?<=[.?])\s+|\n/).map((s) => s.trim()).filter((s) => s.length > 40 && /[.?]$/.test(s));
-  // Analyst lines are templates over each league's numbers; the same line in
-  // two leagues is two readings, not one decision said twice.
-  const voiceLines = new Set(
-    m.cards.flatMap((c) => c.verdict.panel.voices.flatMap((v) => v.line.split(/(?<=[.?])\s+/).map((x) => x.trim()))),
-  );
-  const dup = sentences.find((s, i) => sentences.indexOf(s) !== i && !voiceLines.has(s));
+  const dup = sentences.find((s, i) => sentences.indexOf(s) !== i);
   if (dup) f.push(`sentence rendered twice: "${dup.slice(0, 80)}"`);
 
   const rendered = new Set(m.leagues.map((l) => l.leagueId));
   for (const id of args.expectedLeagueIds) if (!rendered.has(id)) f.push(`league ${id} is neither rendered nor explained`);
   for (const l of m.leagues) if (!body.includes(l.leagueName.trim())) f.push(`league "${l.leagueName}" missing from the body`);
 
+  const oursText = withoutNames(args.text, names);
+  const oursSubject = withoutNames(args.subject, names);
   for (const [re, what] of BANNED) {
-    if (re.test(body) || re.test(args.text) || re.test(args.subject)) f.push(`contains ${what}`);
+    if (re.test(ours) || re.test(oursText) || re.test(oursSubject)) f.push(`contains ${what}`);
   }
 
   if (Buffer.byteLength(args.html, "utf8") > MAX_HTML_BYTES) f.push(`HTML is ${Math.round(Buffer.byteLength(args.html, "utf8") / 1024)} KB (limit 95)`);
   if (!args.text.trim()) f.push("missing plain-text part");
   if (!args.unsubscribeUrl || !args.html.includes(args.unsubscribeUrl.replace(/&/g, "&amp;")) && !args.html.includes(args.unsubscribeUrl)) f.push("missing unsubscribe link");
   if (!args.mailingAddress || !body.includes(args.mailingAddress)) f.push("missing postal address");
+  else if (PLACEHOLDER_ADDRESS.test(args.mailingAddress)) f.push("postal address is a placeholder (set EMAIL_MAILING_ADDRESS)");
   if (args.subject !== deskSubject(m)) f.push("subject does not match the first card");
   return f;
 }

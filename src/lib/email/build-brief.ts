@@ -14,6 +14,8 @@ import { buildLeagueContext } from "@/lib/engine/league-context";
 import { fetchSeasonMatchups, loadContendOrSellVerdict, playoffSettings } from "@/lib/strategy/verdict/load";
 import { lastCompletedWeek } from "@/lib/strategy/verdict/weeks";
 import { buildLeagueWeek } from "@/lib/email/trade-desk/league-week";
+import { tradeWindow } from "@/lib/strategy/verdict/trade-window";
+import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 import type { DeskLeague, LeagueKind } from "@/lib/email/trade-desk/model";
 
 export function leagueKind(lg: SleeperLeague): LeagueKind {
@@ -80,6 +82,8 @@ export async function buildBriefLeagues(args: {
               playoffWeekStart,
               playoffTeams,
               bestBall: base.kind === "best_ball",
+              // For-you labels only where a trade is possible (canonical window).
+              tradeOpen: tradeWindow(buildFormatRulesFromSnapshot(ctx.snapshot), args.nflWeek).open,
               players,
               valueById: ctx.pricedPool.playerValuesById,
             })
@@ -88,7 +92,7 @@ export async function buildBriefLeagues(args: {
         ...base,
         verdict: res.ok ? res.verdict : null,
         week,
-        note: res.ok ? undefined : `No read this week: ${res.reason}.`,
+        note: res.ok ? undefined : `No read this week (${res.reason}).`,
       });
     } catch (err) {
       console.error(`[${args.logTag}:league]`, lg.league_id, err instanceof Error ? `${err.message}\n${err.stack}` : err);

@@ -189,6 +189,7 @@ export async function GET(request: Request): Promise<Response> {
       leagues,
       resultsWeek,
       nflWeek: nfl.week,
+      seasonStartDate: nfl.season_start_date,
       appUrl,
       unsubscribeUrl: unsub,
       mailingAddress: mailingAddress ?? "",

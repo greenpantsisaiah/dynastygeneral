@@ -6,8 +6,9 @@
  *
  * A trade card exists only when (BUILD_SPEC PR 1, section 3):
  *   - the league's trade window is open (trade_window canonical),
- *   - at least 2 of the 3 analysts lean sell (it is a recommendation to
- *     TRY, so a split panel is not a card),
+ *   - at least 2 of the 3 analysts lean sell on THIS player (the
+ *     candidate's own panel; it is a recommendation to TRY, so a split
+ *     panel is not a card),
  *   - a buyer is genuinely short at the position (startable at or below
  *     starter need from rankBuyers' inputs), and
  *   - every value on the card rounds to at least 1.
@@ -15,9 +16,10 @@
 
 import type { ContendOrSellVerdict, SellCandidate } from "@/lib/strategy/verdict/compose";
 import type { BuyerRead } from "@/lib/strategy/verdict/buyers";
-import type { Stance, VoiceName } from "@/lib/strategy/verdict/voices";
+import type { Panel, Stance, VoiceName } from "@/lib/strategy/verdict/voices";
 import { DEFAULT_SIMS } from "@/lib/strategy/verdict/season-sim";
 import type { LeagueWeek } from "./league-week";
+import { tradeBy, type TradeBy } from "./deadline";
 
 export type LeagueKind = "dynasty" | "keeper" | "redraft" | "best_ball";
 export type BriefTier = "free" | "pro";
@@ -39,11 +41,15 @@ export interface TradeCard {
   leagueId: string;
   leagueName: string;
   deadlineWeek: number | null;
+  /** The safe moment to trade by (first kickoff of the deadline week). */
+  tradeBy: TradeBy | null;
   sellLeaning: number;
+  /** One player per card (desk1 review); other package pieces live in the app. */
   lead: SellCandidate;
+  /** The analysts on selling this player alone. */
+  panel: Panel;
   buyer: BuyerRead;
   fallbackBuyers: BuyerRead[];
-  others: SellCandidate[];
   verdict: ContendOrSellVerdict;
 }
 
@@ -52,16 +58,16 @@ export function isShortAt(b: BuyerRead): boolean {
   return b.startable_at_pos <= b.starters_at_pos;
 }
 
-export function sellLeaningCount(v: ContendOrSellVerdict): number {
-  return v.panel.voices.filter((x) => SELL_LEANING.includes(x.stance)).length;
+export function sellLeaningCount(p: Panel): number {
+  return p.voices.filter((x) => SELL_LEANING.includes(x.stance)).length;
 }
 
-function cardFor(l: DeskLeague): TradeCard | null {
+function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): TradeCard | null {
   const v = l.verdict;
   if (!v || !v.trade_window.open) return null;
-  const n = sellLeaningCount(v);
-  if (n < 2) return null;
   for (const c of v.candidates) {
+    const n = sellLeaningCount(c.panel);
+    if (n < 2) continue;
     const buyers = c.buyers.filter(isShortAt);
     if (buyers.length === 0) continue;
     if (Math.round(c.decay.value_now) < 1 || Math.round(c.decay.value_lost) < 1) continue;
@@ -69,11 +75,12 @@ function cardFor(l: DeskLeague): TradeCard | null {
       leagueId: l.leagueId,
       leagueName: l.leagueName,
       deadlineWeek: v.trade_window.deadline_week,
+      tradeBy: tradeBy(v.trade_window.deadline_week, seasonStartDate),
       sellLeaning: n,
       lead: c,
+      panel: c.panel,
       buyer: buyers[0],
       fallbackBuyers: buyers.slice(1, 3),
-      others: v.candidates.filter((o) => o !== c && Math.round(o.decay.value_lost) >= 1),
       verdict: v,
     };
   }
@@ -100,9 +107,11 @@ export function buildTradeDeskModel(args: {
   tier: BriefTier;
   resultsWeek: number;
   leagues: DeskLeague[];
+  /** nfl_state.season_start_date, for the trade-by day. */
+  seasonStartDate?: string | null;
 }): TradeDeskModel {
   const cards = args.leagues
-    .map(cardFor)
+    .map((l) => cardFor(l, args.seasonStartDate))
     .filter((c): c is TradeCard => c != null)
     .sort(
       (a, b) =>

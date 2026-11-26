@@ -15,6 +15,8 @@ import { buildSimInputFromSleeper } from "../src/lib/strategy/verdict/from-sleep
 import { DEFAULT_SIMS } from "../src/lib/strategy/verdict/season-sim";
 import { lastCompletedWeek } from "../src/lib/strategy/verdict/weeks";
 import { buildLeagueWeek, fmtPct, playoffRange } from "../src/lib/email/trade-desk/league-week";
+import { tradeBy } from "../src/lib/email/trade-desk/deadline";
+import { strategist } from "../src/lib/strategy/verdict/voices";
 import type { DeskLeague } from "../src/lib/email/trade-desk/model";
 import { composeWeeklyBrief, WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
 import { unsubscribeToken, verifyUnsubscribeToken } from "../src/lib/email/unsubscribe";
@@ -102,7 +104,7 @@ const FIXTURES: Record<string, DeskLeague[]> = {
   past_deadline_only: [L("1", "Europa", "dynasty", closed(PAST))],
   no_leagues: [],
   many_leagues: Array.from({ length: 9 }, (_, i) => L(`m${i}`, `League ${i + 1}`, i % 2 ? "redraft" : "dynasty", i < 4 ? verdict({ open: true, deadline_week: 12 }, ` ${i + 1}`) : closed(PAST))),
-  sim_refused: [{ leagueId: "r", leagueName: "Too Early", kind: "redraft", verdict: null, week: null, note: "No read this week: not enough scored weeks this season to estimate weekly variance." }],
+  sim_refused: [{ leagueId: "r", leagueName: "Too Early", kind: "redraft", verdict: null, week: null, note: "No read this week (not enough scored weeks this season to estimate weekly variance)." }],
 };
 
 console.log("\n── every edge fixture renders lint-clean (free and pro) ──");
@@ -181,6 +183,39 @@ check("week final on Tuesday only when every row scored", lastCompletedWeek({ nf
 check("Sunday night is not final even when every team scored", lastCompletedWeek({ nflWeek: 11, matchupsByWeek: matchups, now: sun }) === 10);
 check("after Sleeper flips, the prior week is final", lastCompletedWeek({ nflWeek: 12, matchupsByWeek: matchups, now: tue }) === 11);
 check("template version bumped for the Trade Desk", WEEKLY_BRIEF_TEMPLATE_VERSION.includes("desk"));
+
+
+console.log("\n── desk1 review fixes ──");
+check("trade-by: week 12 is Thanksgiving, 11:30 AM CT", tradeBy(12, "2026-09-09")?.label === "Thu Nov 26, 11:30 AM CT");
+check("trade-by: week 13 is a Thursday night", tradeBy(13, "2026-09-09")?.label === "Thu Dec 3, 7:15 PM CT");
+check("trade-by: no deadline or no start date prints no day", tradeBy(null, "2026-09-09") === null && tradeBy(12, null) === null);
+const dated = composeWeeklyBrief({ ownerName: "Izzy", tier: "pro", leagues: FIXTURES.trades, resultsWeek: RESULTS_WEEK, nflWeek: 12, seasonStartDate: "2026-09-09", appUrl: "https://dynastygeneral.app", unsubscribeUrl: "https://x/u", mailingAddress: "PO Box 1, Chicago IL" });
+check("hero names the trade-by day", dated.text.includes("1 trade worth trying before Thu Nov 26, 11:30 AM CT."), dated.text.split("\n")[3]);
+check("card chip names the trade-by day", dated.text.includes("Trade before Thu Nov 26, 11:30 AM CT"));
+check("dated brief is lint clean", dated.lint.length === 0, dated.lint.join(" | "));
+check("playoffs tile leads with the range label", /Playoffs: (Favorite|In the hunt|Bubble|Long shot|No chance) \(/.test(pro.text));
+check("one player per card: no other-piece line", !pro.text.includes("other piece worth moving"));
+const cardVoices = pro.text.split("\n").filter((l) => /^  (Strategist|Moneyballer|Gambler) · /.test(l));
+const lead = pro.text.match(/Offer (Old Receiver|Vet Back) to/)?.[1] ?? "?";
+check("every analyst line names the card's player", cardVoices.length === 3 && cardVoices.every((l) => l.includes(lead)), cardVoices.join(" / "));
+check("analyst lines cite the league record", cardVoices.some((l) => /At \d+-\d+/.test(l)));
+const lostSeason = strategist({ teams: 12, title_pct: 0.001, playoff_pct: 0.005, title_delta: 0, value_kept_by_selling: 5, roster_retained_share: 0.99 }, { player: "X Y", record: "0-11" });
+check("a lost season never calls the core young", !/young/.test(lostSeason.line) && lostSeason.line.includes("this season is over"), lostSeason.line);
+check("refused: never claims a sale read, no recap headline", !refused.text.includes("no sale worth trying") && !/last week\./.test(refused.text), refused.text.split("\n").slice(3, 8).join(" / "));
+check("refused: no double colon", !/: No read this week:/.test(refused.text));
+check("all-closed hero never says 'in the rest'", !compose(FIXTURES.past_deadline_only).text.includes("in the rest"));
+const weird = composeWeeklyBrief({ ownerName: "Izzy", tier: "pro", leagues: [{ ...FIXTURES.trades[0], leagueName: "Pushkin 100% Juice!" }, FIXTURES.trades[1]], resultsWeek: RESULTS_WEEK, nflWeek: 12, appUrl: "https://dynastygeneral.app", unsubscribeUrl: "https://x/u", mailingAddress: "PO Box 1, Chicago IL" });
+check("lint skips user-chosen names ('Pushkin 100% Juice!')", weird.lint.length === 0, weird.lint.join(" | "));
+const placeholder = composeWeeklyBrief({ ownerName: "Izzy", tier: "pro", leagues: FIXTURES.trades, resultsWeek: RESULTS_WEEK, nflWeek: 12, appUrl: "https://dynastygeneral.app", unsubscribeUrl: "https://x/u", mailingAddress: "(mailing address)" });
+check("lint fails the address placeholder", placeholder.lint.some((l) => l.includes("placeholder")));
+const closedWeek = buildLeagueWeek({
+  rosters: ids.map((id) => ({ roster_id: id, manager: `Team ${id}`, is_me: id === ME, player_ids: [`p${id}`], starters: [`p${id}`] })),
+  matchupsByWeek: matchups, resultsWeek: RESULTS_WEEK, playoffWeekStart: 15, playoffTeams: 6, bestBall: false, tradeOpen: false,
+});
+check("no for-you label where trading is closed", closedWeek.shifts.every((s) => s.role === null));
+const openShifts = week().shifts;
+check("shift why leads with the week's cause", openShifts.length === 0 || openShifts.every((s) => /^(Beat|Lost|Tied|scored)/.test(s.why)), openShifts.map((s) => s.why).join(" / "));
+check("pro legend defines the for-you labels", pro.text.includes("For you: Seller:"));
 
 console.log("\n── unsubscribe tokens ──");
 const uid = "11111111-2222-3333-4444-555555555555";
