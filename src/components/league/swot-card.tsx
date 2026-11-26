@@ -16,8 +16,12 @@ import type {
 } from "@/lib/strategy/swot/compute";
 
 const VOICE_LABEL: Record<SwotVoice, string> = {
-  statistician: "Statistician",
-  coach: "Coach",
+  // Labels map onto the one cast of three analysts (2026-11-26) so the
+  // product never shows two different "Gambler" characters. Internal ids
+  // stay: statistician reads counts and ranks (the Moneyballer's beat),
+  // coach reads roster construction (the Strategist's beat).
+  statistician: "Moneyballer",
+  coach: "Strategist",
   gambler: "Gambler",
 };
 

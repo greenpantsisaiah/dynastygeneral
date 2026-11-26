@@ -4,8 +4,9 @@
  * Doctrine library bar above the dial grid. Each chip loads a stock
  * doctrine config that maps to a canonical strategic archetype:
  * Aggressive Rebuilder, Rebuilder, Pivot, Hold, Patient Contender,
- * Contender, Win-Now Maxer, plus two flavor doctrines (Field
- * General, Gambler) orthogonal to the timeline spectrum.
+ * Contender, Win-Now Maxer. The flavor doctrines (Field General,
+ * Gambler) were retired 2026-05-13; "Gambler" is now only the name of
+ * one of the three analysts.
  *
  * Loading a doctrine = "lean toward this archetype's dial config."
  * "Custom" lights when active dial state matches no doctrine.

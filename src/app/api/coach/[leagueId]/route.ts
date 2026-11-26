@@ -104,8 +104,8 @@ const CONTEND_OR_SELL_PROMPT = `
 board renders: simulated \`title_pct\` and \`playoff_pct\`,
 \`rank_by_title_odds\` of \`teams\`, the sell candidates (value lost by
 August per the age curve, weekly points lost, \`title_delta\` if sold,
-ranked \`buyers\` with reasons), and three \`voices\` (Moneyball,
-Gambler, Strategist) with a \`headline\` and \`consensus\` flag. When the
+ranked \`buyers\` with reasons), and three \`voices\` (the Moneyballer,
+the Gambler, the Strategist; call them by these names) with a \`headline\` and \`consensus\` flag. When the
 user asks whether to keep pushing, sell, or who to trade with, present the
 voices as a debate, name where they agree or split, and cite the numbers
 exactly. Never give a bare verdict without the reasoning. These are
