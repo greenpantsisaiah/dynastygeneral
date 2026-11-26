@@ -24,7 +24,7 @@ const LINES: { key: AnalystKey; stance: string; text: string }[] = [
   {
     key: "moneyballer",
     stance: "Lean sell",
-    text: "Keeps about 9 value points for 3 points of title chance. Selling comes out slightly ahead.",
+    text: "Keeps about 9 value points and gives up 3 points of title chance. Selling comes out slightly ahead.",
   },
   {
     key: "gambler",
@@ -51,7 +51,7 @@ export function SampleTradeCard() {
       <div className="mt-4 grid grid-cols-3 gap-2">
         <Tile label="Playoffs" value="70%" note="range 60 to 80" />
         <Tile label="Win the league" value="15%" note="fair share 10%" />
-        <Tile label="If you sell" value="−3 pts" note="to 12%" />
+        <Tile label="Title if you sell" value="12%" note="down 3 points" />
       </div>
 
       <div className="mt-5">

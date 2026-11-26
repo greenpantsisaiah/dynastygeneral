@@ -58,8 +58,8 @@ export function BriefSignupForm() {
           You&apos;re in
         </div>
         <p className="mt-2 text-base text-foreground">
-          Your first brief arrives Tuesday morning and covers every Sleeper
-          league {state.username} is in. Your leagues are ready to open now.
+          Your leagues are ready to open now. The brief goes to the address
+          on the account on Tuesday mornings during the season.
         </p>
         <Link
           href={href}
@@ -73,7 +73,7 @@ export function BriefSignupForm() {
 
   const submitting = state.kind === "submitting";
   return (
-    <form onSubmit={onSubmit} className="mt-8 max-w-xl">
+    <form onSubmit={onSubmit} className="mt-6 max-w-xl sm:mt-8">
       <div className="grid gap-3 sm:grid-cols-2">
         <label>
           <span className="sr-only">Email</span>

@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LATEST_RELEASE } from "@/lib/changelog/releases";
 
 const LATEST_VERSION = LATEST_RELEASE.version;
@@ -26,6 +27,9 @@ const STORAGE_KEY = "dc:changelog-seen-version";
 export function WhatsNewRibbon() {
   const [visible, setVisible] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // The homepage is for first-time visitors; a release note there sits
+  // over the signup form on phones. Returning testers see it in the app.
+  const onHome = usePathname() === "/";
 
   useEffect(() => {
     try {
@@ -45,7 +49,7 @@ export function WhatsNewRibbon() {
     setVisible(false);
   }
 
-  if (!visible) return null;
+  if (!visible || onHome) return null;
 
   return (
     <div

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ANALYSTS } from "@/components/landing/analysts";
 
 /**
@@ -14,7 +13,7 @@ export function InboxSection() {
       <div className="mx-auto max-w-6xl px-6 py-16">
         <Kicker>What lands in your inbox</Kicker>
         <h2 className="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          One email for all your leagues, before the trade deadline moves.
+          One email for all your leagues, before your trade deadlines pass.
         </h2>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
           <Card
@@ -23,7 +22,7 @@ export function InboxSection() {
           />
           <Card
             title="Your week in every league"
-            body="Last week's result and your playoff chance in each league, with the change since last Tuesday. No cap on how many leagues you're in."
+            body="Last week's result and your playoff chance in each league, with the change since last Tuesday."
           />
           <Card
             title="League shifts"
@@ -108,14 +107,6 @@ export function LeaguesSection() {
             title="Draft day"
             body="During a draft, one call per pick with the reasoning and the odds the player is still there at your next turn."
           />
-        </div>
-        <div className="mt-8">
-          <Link
-            href="/how-it-works"
-            className="font-mono text-xs uppercase tracking-[0.16em] text-muted-2 hover:text-accent"
-          >
-            How it works →
-          </Link>
         </div>
       </div>
     </section>
