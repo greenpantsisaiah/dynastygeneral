@@ -18,14 +18,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { effectiveTier } from "@/lib/auth/session";
 import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
-import {
-  WEEKLY_BRIEF_TEMPLATE_VERSION,
-  briefSubject,
-  renderWeeklyBriefHtml,
-  renderWeeklyBriefText,
-  type BriefArgs,
-  type BriefTier,
-} from "@/lib/email/weekly-brief";
+import { WEEKLY_BRIEF_TEMPLATE_VERSION, composeWeeklyBrief, type BriefTier } from "@/lib/email/weekly-brief";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,33 +59,36 @@ export async function GET(request: Request): Promise<Response> {
   const nfl = await getNflState();
   if (!nfl || !nfl.week) return NextResponse.json({ ok: false, error: "nfl_state_unavailable" }, { status: 502 });
 
-  const leagues = username
-    ? await buildBriefLeagues({ username, season: nfl.season, nflWeek: nfl.week, seasonType: nfl.season_type, tier, logTag: "admin:email-preview" })
-    : [];
+  const { leagues, resultsWeek } = username
+    ? await buildBriefLeagues({ username, season: nfl.season, nflWeek: nfl.week, seasonType: nfl.season_type, logTag: "admin:email-preview" })
+    : { leagues: [], resultsWeek: nfl.week - 1 };
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dynastygeneral.app";
-  const args: BriefArgs = {
+  const brief = composeWeeklyBrief({
     ownerName: briefOwnerName(displayName, username),
     tier,
     leagues,
+    resultsWeek,
+    nflWeek: nfl.week,
     appUrl,
     unsubscribeUrl: `${appUrl}/api/email/unsubscribe?preview=1`,
     mailingAddress: process.env.EMAIL_MAILING_ADDRESS?.trim() || "(mailing address)",
-    weekLabel: `Week ${nfl.week}`,
-  };
+    preview: true,
+  });
 
   if (format === "text") {
-    return new Response(renderWeeklyBriefText(args), { headers: { "content-type": "text/plain; charset=utf-8" } });
+    return new Response(brief.text, { headers: { "content-type": "text/plain; charset=utf-8" } });
   }
   if (format === "json") {
     return NextResponse.json({
       ok: true,
       template: WEEKLY_BRIEF_TEMPLATE_VERSION,
-      subject: briefSubject(args),
+      subject: brief.subject,
       tier,
+      lint: brief.lint,
       leagues: leagues.map((l) => ({ id: l.leagueId, name: l.leagueName, has_verdict: !!l.verdict, note: l.note ?? null })),
     });
   }
-  return new Response(renderWeeklyBriefHtml(args), {
+  return new Response(brief.html, {
     headers: { "content-type": "text/html; charset=utf-8", "x-template-version": WEEKLY_BRIEF_TEMPLATE_VERSION },
   });
 }

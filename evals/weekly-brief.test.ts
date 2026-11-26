@@ -1,22 +1,24 @@
 /**
- * Weekly brief email: free shows who to sell but never who to sell TO;
- * Pro names buyers; every render carries the unsubscribe link and the
- * mailing address; user-controlled names are escaped; unsubscribe tokens
- * verify only for the user they were minted for.
+ * Weekly brief email (Tuesday Trade Desk, BUILD_SPEC PR 1): one fixture per
+ * edge state the spec names (trades, 0 trades, best ball only, past
+ * deadline only, no leagues, 8+ leagues, sim refused), each rendered and
+ * run through the content lint; free vs Pro; escaping; compliance; send
+ * guard; unsubscribe tokens.
  * Run: npm run test:weekly-brief
  */
 
-import { buildContendOrSellVerdict } from "../src/lib/strategy/verdict/compose";
-import type { SimInput } from "../src/lib/strategy/verdict/season-sim";
-import {
-  briefSubject,
-  renderWeeklyBriefHtml,
-  renderWeeklyBriefText,
-  type BriefArgs,
-} from "../src/lib/email/weekly-brief";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import type { SleeperMatchup } from "../src/lib/sleeper/schemas";
+import { buildContendOrSellVerdict, type ContendOrSellVerdict } from "../src/lib/strategy/verdict/compose";
+import { buildSimInputFromSleeper } from "../src/lib/strategy/verdict/from-sleeper";
+import { DEFAULT_SIMS } from "../src/lib/strategy/verdict/season-sim";
+import { lastCompletedWeek } from "../src/lib/strategy/verdict/weeks";
+import { buildLeagueWeek, fmtPct, playoffRange } from "../src/lib/email/trade-desk/league-week";
+import type { DeskLeague } from "../src/lib/email/trade-desk/model";
+import { composeWeeklyBrief, WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
 import { unsubscribeToken, verifyUnsubscribeToken } from "../src/lib/email/unsubscribe";
 import { briefSendKind, honorForce, resolveSendMode } from "../src/lib/email/send-guard";
-import { WEEKLY_BRIEF_TEMPLATE_VERSION } from "../src/lib/email/weekly-brief";
 
 let passed = 0;
 let failed = 0;
@@ -30,72 +32,155 @@ function check(name: string, cond: boolean, detail?: string) {
   }
 }
 
+// ---------- fixture league: 12 teams, weeks 1-11 scored, 12-14 left ----------
 const ids = Array.from({ length: 12 }, (_, i) => i + 1);
-const scored: Record<number, number[]> = {};
-for (const id of ids) scored[id] = Array.from({ length: 10 }, (_, w) => 90 + id * 4 + (((id * 7 + w * 13) % 21) - 10) * 2);
-const teams = ids.map((id) => ({ roster_id: id, wins: Math.round((id - 1) * (10 / 11)), losses: 0, ties: 0, points_for: scored[id].reduce((s, x) => s + x, 0) }));
-for (const t of teams) t.losses = 10 - t.wins;
-const remaining: SimInput["remaining"] = [];
-for (let w = 0; w < 4; w++) {
-  const wk: Array<[number, number]> = [];
-  for (let k = 0; k < 6; k++) wk.push([ids[(k + w) % 12], ids[(11 - k + w) % 12]]);
-  remaining.push(wk);
+const RESULTS_WEEK = 11;
+function season(): Record<number, SleeperMatchup[]> {
+  const out: Record<number, SleeperMatchup[]> = {};
+  for (let w = 1; w <= 14; w++) {
+    const rows: SleeperMatchup[] = [];
+    for (let k = 0; k < 6; k++) {
+      const a = ids[(k + w) % 12];
+      const b = ids[(11 - k + w) % 12];
+      for (const id of [a, b]) {
+        const pts = w <= RESULTS_WEEK ? 90 + id * 4 + (((id * 7 + w * 13) % 21) - 10) * 2 : 0;
+        rows.push({ roster_id: id, matchup_id: k + 1, points: pts, starters: [`p${id}`] } as SleeperMatchup);
+      }
+    }
+    out[w] = rows;
+  }
+  return out;
 }
-const sim: SimInput = { teams, scored, remaining, playoffTeams: 6 };
-const r = buildContendOrSellVerdict({
-  sim,
-  rosterId: 8,
-  sims: 2000,
-  players: [{ player_id: "old", name: "Old WR", position: "WR", age: 33, value: 35, ppg_started: 16, weeks_started: 9, replacement_ppg: 8 }],
-  buyers: () => teams.map((t) => ({ roster_id: t.roster_id, label: t.roster_id === 11 ? "<script>Evil</script>" : `Team ${t.roster_id}`, title_pct: 0, playoff_pct: 0, startable_at_pos: t.roster_id % 4, starters_at_pos: 3 })),
-});
-if (!r.ok) throw new Error(r.reason);
-const buyerNames = r.verdict.candidates[0].buyers.map((b) => b.label);
+const matchups = season();
+const ME = 3; // a weak team, so the analysts lean sell
+const sim = buildSimInputFromSleeper({ rosterIds: ids, matchupsByWeek: matchups, firstUnplayedWeek: RESULTS_WEEK + 1, playoffWeekStart: 15, playoffTeams: 6 });
+function verdict(window: ContendOrSellVerdict["trade_window"] = { open: true, deadline_week: 12 }, tag = ""): ContendOrSellVerdict {
+  const r = buildContendOrSellVerdict({
+    sim,
+    rosterId: ME,
+    sims: 2000,
+    tradeWindow: window,
+    players: [
+      { player_id: "old", name: `Old Receiver${tag}`, position: "WR", age: 33, value: 35, ppg_started: 16, weeks_started: 9, replacement_ppg: 8 },
+      { player_id: "vet", name: `Vet Back${tag}`, position: "RB", age: 29, value: 28, ppg_started: 12, weeks_started: 9, replacement_ppg: 9 },
+    ],
+    buyers: () => ids.map((id) => ({ roster_id: id, label: id === 11 ? `<script>Evil</script>${tag}` : `Team ${id}${tag}`, title_pct: 0, playoff_pct: 0, startable_at_pos: id % 4, starters_at_pos: 3 })),
+  });
+  if (!r.ok) throw new Error(r.reason);
+  return r.verdict;
+}
+const week = (bestBall = false) =>
+  buildLeagueWeek({
+    rosters: ids.map((id) => ({ roster_id: id, manager: `Team ${id}`, is_me: id === ME, player_ids: [`p${id}`], starters: [`p${id}`] })),
+    matchupsByWeek: matchups,
+    resultsWeek: RESULTS_WEEK,
+    playoffWeekStart: 15,
+    playoffTeams: 6,
+    bestBall,
+  });
+const BEST_BALL = { open: false as const, reason: "best_ball" as const, deadline_week: null, label: "Best ball league: no trades, waivers or lineup moves, so there is nothing to buy or sell." };
+const PAST = { open: false as const, reason: "deadline_passed" as const, deadline_week: 11, label: "Trade deadline passed after week 11, so there is nothing to buy or sell until the offseason." };
+const closed = (w: typeof BEST_BALL | typeof PAST) => ({ ...verdict(w), candidates: [] });
 
-const base: BriefArgs = {
-  ownerName: "Izzy",
-  tier: "free",
-  leagues: [{ leagueId: "123", leagueName: "Finders & Keepers", verdict: r.verdict }],
-  appUrl: "https://dynastygeneral.app",
-  unsubscribeUrl: "https://dynastygeneral.app/api/email/unsubscribe?u=x&t=y",
-  mailingAddress: "PO Box 1, Chicago IL",
-  weekLabel: "Week 12",
+const L = (id: string, name: string, kind: DeskLeague["kind"], v: ContendOrSellVerdict | null, bb = false): DeskLeague => ({ leagueId: id, leagueName: name, kind, verdict: v, week: week(bb) });
+const compose = (leagues: DeskLeague[], tier: "free" | "pro" = "pro", ownerName = "Izzy") =>
+  composeWeeklyBrief({
+    ownerName, tier, leagues, resultsWeek: RESULTS_WEEK, nflWeek: 12,
+    appUrl: "https://dynastygeneral.app",
+    unsubscribeUrl: "https://dynastygeneral.app/api/email/unsubscribe?u=x&t=y",
+    mailingAddress: "PO Box 1, Chicago IL",
+    sendDate: new Date("2026-12-01T13:00:00Z"),
+  });
+
+const sv = verdict();
+check("fixture: the analysts lean sell (2+ of 3)", sv.panel.voices.filter((v) => v.stance === "sell" || v.stance === "lean_sell").length >= 2, sv.panel.voices.map((v) => v.stance).join(","));
+
+const FIXTURES: Record<string, DeskLeague[]> = {
+  trades: [L("1", "Finders & Keepers", "dynasty", sv), L("2", "Jabroni", "best_ball", closed(BEST_BALL), true)],
+  zero_trades: [L("1", "Europa", "dynasty", closed(PAST)), L("2", "Jabroni", "best_ball", closed(BEST_BALL), true)],
+  best_ball_only: [L("2", "Jabroni", "best_ball", closed(BEST_BALL), true)],
+  past_deadline_only: [L("1", "Europa", "dynasty", closed(PAST))],
+  no_leagues: [],
+  many_leagues: Array.from({ length: 9 }, (_, i) => L(`m${i}`, `League ${i + 1}`, i % 2 ? "redraft" : "dynasty", i < 4 ? verdict({ open: true, deadline_week: 12 }, ` ${i + 1}`) : closed(PAST))),
+  sim_refused: [{ leagueId: "r", leagueName: "Too Early", kind: "redraft", verdict: null, week: null, note: "No read this week: not enough scored weeks this season to estimate weekly variance." }],
 };
 
-console.log("\n── free vs pro ──");
-const freeHtml = renderWeeklyBriefHtml(base);
-const freeText = renderWeeklyBriefText(base);
-const proHtml = renderWeeklyBriefHtml({ ...base, tier: "pro" });
-const proText = renderWeeklyBriefText({ ...base, tier: "pro" });
-check("free names the sell candidate", freeHtml.includes("Old WR") && freeText.includes("Old WR"));
-check("free never names a buyer", buyerNames.every((n) => !freeText.includes(n)), buyerNames.join(","));
-check("free says how many buyers were ranked", freeText.includes(`${buyerNames.length} managers ranked`));
-check("pro names every buyer (text)", buyerNames.every((n) => proText.includes(n)));
-check("pro has no upgrade pitch", !proText.includes("Pro names") && !proHtml.includes("See who to sell to"));
-
-console.log("\n── compliance ──");
-for (const [name, body] of [["free html", freeHtml], ["free text", freeText], ["pro html", proHtml], ["pro text", proText]] as const) {
-  check(`${name} carries unsubscribe + address`, body.includes("unsubscribe") && body.includes("PO Box 1, Chicago IL"));
-}
-check("no em dashes", ![freeHtml, freeText, proHtml, proText, briefSubject(base)].some((s) => s.includes("—")));
-
-console.log("\n── escaping ──");
-check("team names are escaped in html", !proHtml.includes("<script>") && proHtml.includes("&lt;script&gt;"));
-check("league name is escaped", proHtml.includes("Finders &amp; Keepers"));
-
-console.log("\n── no-league nudge ──");
-const nudge = renderWeeklyBriefText({ ...base, leagues: [] });
-check("accounts without a Sleeper username get the connect nudge", nudge.includes("/connect"));
-check("no copy promises every league (caps are 3 free / 10 Pro)", ![freeHtml, freeText, proHtml, proText, nudge, renderWeeklyBriefHtml({ ...base, leagues: [] })].some((s) => s.includes("every league")));
-
-console.log("\n── beta + feedback ask ──");
-for (const [name, body] of [["free html", freeHtml], ["free text", freeText], ["pro html", proHtml], ["pro text", proText]] as const) {
-  check(`${name} says beta and asks for a reply`, /beta/i.test(body) && body.includes("hit reply") && body.includes("Isaiah, founder"));
+console.log("\n── every edge fixture renders lint-clean (free and pro) ──");
+for (const [name, leagues] of Object.entries(FIXTURES)) {
+  for (const tier of ["free", "pro"] as const) {
+    const b = compose(leagues, tier);
+    check(`${name} / ${tier}: lint clean`, b.lint.length === 0, b.lint.join(" | "));
+    // RENDER_DIR=<dir> writes each fixture for screenshots (QUALITY_BAR item 3).
+    if (process.env.RENDER_DIR) writeFileSync(join(process.env.RENDER_DIR, `fixture_${name}_${tier}.html`), b.html);
+  }
 }
 
-console.log("\n── nameless owner ──");
-const nameless = renderWeeklyBriefHtml({ ...base, ownerName: "" });
-check("no dangling comma when the owner has no name", nameless.includes("Keep going or sell?") && !nameless.includes("sell, ?"));
+console.log("\n── trade cards ──");
+const pro = compose(FIXTURES.trades, "pro");
+const free = compose(FIXTURES.trades, "free");
+check("one card for the open league, none for best ball", (pro.text.match(/WORTH TRYING/g) ?? []).length === 1);
+check("card is phrased as an attempt to a short buyer", /Offer (Old Receiver|Vet Back) to Team \d+, who (is short a starting|has no)/.test(pro.text));
+check("subject names the first card", pro.subject.startsWith("Worth trying in Finders & Keepers: offer "));
+check("hero counts the cards and cites the simulator constant", pro.text.includes("1 trade worth trying") && pro.text.includes(`${DEFAULT_SIMS.toLocaleString("en-US")} simulated seasons`));
+check("verdict says 'if the price is right'", pro.text.includes("lean sell, if the price is right"));
+check("fallback names next buyers or why keeping is fine", pro.text.includes("If it doesn't land:"));
+check("best ball league is in the week table, never a card", pro.text.includes("Jabroni (Best ball") && !/WORTH TRYING[^\n]*Jabroni/.test(pro.text));
+check("pro gets the offer button, free the locked panel", pro.html.includes("Open the offer to") && !free.html.includes("Open the offer to") && free.html.includes("Pro · The offer"));
+check("free still sees the analysts and the buyer", free.text.includes("Moneyballer") && /Offer .* to Team \d+/.test(free.text));
+check("no card title appears twice (no abbreviated preview up top)", (pro.text.match(/Offer (Old Receiver|Vet Back) to/g) ?? []).length === 1);
+
+console.log("\n── zero trades and closed-only states ──");
+const zero = compose(FIXTURES.zero_trades);
+check("0 trades: says so in the headline", zero.text.includes("No trades worth trying this week."));
+check("0 trades: explains the closed leagues", zero.text.includes("past the trade deadline or best ball"));
+check("0 trades: founder ask changes", zero.text.includes("What would you want this email to tell you next Tuesday?"));
+check("0 trades: subject is the week, not a card", zero.subject.startsWith("Week 11 is in"));
+check("closed leagues never show sell words", !/Sell now|Lean sell|Open the offer/.test(compose(FIXTURES.best_ball_only).text + compose(FIXTURES.past_deadline_only).text));
+
+console.log("\n── no leagues, many leagues, sim refused ──");
+const none = compose(FIXTURES.no_leagues);
+check("no leagues: connect nudge", none.html.includes("/connect") && none.text.includes("Connect Sleeper"));
+const many = compose(FIXTURES.many_leagues);
+check("9 leagues: every league rendered (no cap)", FIXTURES.many_leagues.every((l) => many.text.includes(l.leagueName)));
+check("9 leagues: at most 3 cards", (many.text.match(/WORTH TRYING/g) ?? []).length <= 3);
+const refused = compose(FIXTURES.sim_refused);
+check("sim refused: shows the reason, no numbers", refused.text.includes("not enough scored weeks") && refused.text.includes("no odds yet"));
+
+console.log("\n── week table ──");
+check("record and result render with one-decimal scores", /\(Dynasty, \d+-\d+\): [WL] \d+\.\d-\d+\.\d/.test(pro.text), pro.text.split("\n").find((l) => l.includes("Finders")));
+check("winning score bold in html", /<b style="font-weight:700;[^"]*">\d+\.\d<\/b>/.test(pro.html), (pro.html.match(/<b style="font-weight:700[^<]*<\/b>/g) ?? []).slice(0, 2).join(" "));
+check("best ball shows points rank", /Jabroni \(Best ball[^)]*\): \d+(st|nd|rd|th) in pts of 12/.test(pro.text));
+
+console.log("\n── compliance + escaping ──");
+for (const [n, b] of [["free", free], ["pro", pro], ["none", none]] as const) {
+  check(`${n}: unsubscribe + address in html and text`, b.html.includes("unsubscribe") && b.text.includes("PO Box 1, Chicago IL") && b.html.includes("PO Box 1, Chicago IL"));
+  check(`${n}: beta + reply ask`, /BETA/.test(b.html) && b.text.includes("Hit reply") && b.text.includes("Isaiah, founder"));
+}
+check("team names are escaped in html", !pro.html.includes("<script>Evil") );
+check("league name is escaped", pro.html.includes("Finders &amp; Keepers"));
+const nameless = compose(FIXTURES.trades, "pro", "");
+check("nameless owner: no dangling separator", !nameless.text.includes("· Week 11 is in") || nameless.text.split("\n")[2].startsWith("Week 11 is in"));
+
+console.log("\n── content lint catches what it should ──");
+const atName = compose(FIXTURES.trades, "pro", "someone@example.com");
+check("lint: @ in greeting", atName.lint.some((l) => l.includes("@")));
+const bad = composeWeeklyBrief({ ownerName: "Izzy", tier: "pro", leagues: FIXTURES.trades, resultsWeek: RESULTS_WEEK, nflWeek: 12, appUrl: "https://dynastygeneral.app", unsubscribeUrl: "https://x/u", mailingAddress: "", expectedLeagueIds: ["1", "2", "ghost"] });
+check("lint: missing postal address", bad.lint.some((l) => l.includes("postal address")));
+check("lint: a league neither rendered nor explained", bad.lint.some((l) => l.includes("ghost")));
+const wrongWeek = composeWeeklyBrief({ ownerName: "Izzy", tier: "pro", leagues: FIXTURES.trades, resultsWeek: 7, nflWeek: 12, appUrl: "https://dynastygeneral.app", unsubscribeUrl: "https://x/u", mailingAddress: "PO" });
+check("lint: week label disagrees with nfl_state", wrongWeek.lint.some((l) => l.includes("disagrees")));
+const preview = composeWeeklyBrief({ ownerName: "a@b.c", tier: "pro", leagues: FIXTURES.trades, resultsWeek: RESULTS_WEEK, nflWeek: 12, appUrl: "https://dynastygeneral.app", unsubscribeUrl: "https://x/u", mailingAddress: "PO", preview: true });
+check("preview lists lint failures on top", preview.text.startsWith("PREVIEW ONLY"));
+
+console.log("\n── helpers ──");
+check("fmtPct clamps the ends", fmtPct(0.001) === "<2%" && fmtPct(0.995) === ">98%" && fmtPct(0.43) === "45%");
+check("ranges per spec", playoffRange(0.85) === "favorite" && playoffRange(0.6) === "in_the_hunt" && playoffRange(0.3) === "bubble" && playoffRange(0.1) === "long_shot" && playoffRange(0.01) === "no_chance" && playoffRange(0.24) === "bubble");
+const tue = new Date("2026-12-01T15:00:00Z");
+const sun = new Date("2026-11-29T23:00:00Z");
+check("week final on Tuesday only when every row scored", lastCompletedWeek({ nflWeek: 11, matchupsByWeek: matchups, now: tue }) === 11);
+check("Sunday night is not final even when every team scored", lastCompletedWeek({ nflWeek: 11, matchupsByWeek: matchups, now: sun }) === 10);
+check("after Sleeper flips, the prior week is final", lastCompletedWeek({ nflWeek: 12, matchupsByWeek: matchups, now: tue }) === 11);
+check("template version bumped for the Trade Desk", WEEKLY_BRIEF_TEMPLATE_VERSION.includes("desk"));
 
 console.log("\n── unsubscribe tokens ──");
 const uid = "11111111-2222-3333-4444-555555555555";
@@ -104,15 +189,6 @@ check("token verifies for its user", verifyUnsubscribeToken(uid, tok, "weekly_br
 check("token fails for another user", !verifyUnsubscribeToken("11111111-2222-3333-4444-555555555556", tok, "weekly_brief", "k1"));
 check("token fails under another key", !verifyUnsubscribeToken(uid, tok, "weekly_brief", "k2"));
 check("no key, no token", unsubscribeToken(uid, "weekly_brief", null) === null);
-
-console.log("\n── best ball / past deadline: no sell advice ──");
-const closedV = { ...r.verdict, candidates: [], trade_window: { open: false as const, reason: "best_ball" as const, deadline_week: null, label: "Best ball league: no trades, waivers or lineup moves, so there is nothing to buy or sell." } };
-const bb = { ...base, leagues: [{ leagueId: "9", leagueName: "Jabroni", verdict: closedV }] };
-const bbHtml = renderWeeklyBriefHtml(bb);
-const bbText = renderWeeklyBriefText(bb);
-check("closed league states why", bbHtml.includes("Best ball league") && bbText.includes("Best ball league"));
-check("closed league has no voices or sell words", !/Moneyball|Sell to|Sell candidate|Lean sell/.test(bbHtml + bbText));
-check("no '0.0 pts' lines anywhere", !/0\.0 pts/.test(freeHtml + proHtml));
 
 console.log("\n── send guard (no broadcast without an approved template) ──");
 const V = WEEKLY_BRIEF_TEMPLATE_VERSION;
