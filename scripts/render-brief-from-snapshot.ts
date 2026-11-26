@@ -27,6 +27,7 @@ async function main() {
   const shown = only ? leagues.filter((l) => only.some((n) => l.leagueName.startsWith(n))) : leagues;
   const brief = composeWeeklyBrief({
     ownerName: briefOwnerName(snap.user.display_name, snap.user.username),
+    sleeperUsername: snap.user.username,
     tier, leagues: shown, resultsWeek, nflWeek: ns.week, seasonStartDate: ns.season_start_date, season: ns.season,
     appUrl: "https://dynastygeneral.app",
     unsubscribeUrl: "https://dynastygeneral.app/api/email/unsubscribe?preview=1",

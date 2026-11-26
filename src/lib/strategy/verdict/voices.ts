@@ -149,7 +149,7 @@ export function gambler(f: VoiceFacts, ctx?: VoiceContext): VoiceRead {
       stance,
       line: over
         ? `${atRecord(f, ctx)} your chance to win the league is ${pct(f.title_pct)}. The ticket is spent.`
-        : `${atRecord(f, ctx)} your chance to win the league is ${pct(f.title_pct)} against a fair share of ${pct(fair)}. ${
+        : `${atRecord(f, ctx)} your chance to win the league is ${pct(f.title_pct)} against an average team's ${pct(fair)}. ${
             r >= 0.6 ? "That is a live ticket; ride it." : "There is nothing to cash out in redraft, so swing for upside."
           }`,
     };
@@ -159,8 +159,8 @@ export function gambler(f: VoiceFacts, ctx?: VoiceContext): VoiceRead {
     voice: "gambler",
     stance,
     line: ctx
-      ? `At ${ctx.record}, your chance to win the league is ${pct(f.title_pct)} against a fair share of ${pct(fair)}: ${GAMBLER_CARD_TAKE[stance](ctx.player)}.`
-      : `Chance to win the league ${pct(f.title_pct)} against a fair share of ${pct(fair)}. ${GAMBLER_TAKE[stance]}`,
+      ? `At ${ctx.record}, your chance to win the league is ${pct(f.title_pct)} against an average team's ${pct(fair)}: ${GAMBLER_CARD_TAKE[stance](ctx.player)}.`
+      : `Chance to win the league ${pct(f.title_pct)} against an average team's ${pct(fair)}. ${GAMBLER_TAKE[stance]}`,
   };
 }
 

@@ -20,7 +20,7 @@ import { buildDecisionItems, type DecisionDigest, type DecisionItem } from "@/li
  * value, so a new template always goes to the admin preview list first
  * and reaches users only after Isaiah approves that exact version.
  */
-export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk5";
+export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk6";
 
 export type { BriefTier, DeskLeague };
 
@@ -47,6 +47,8 @@ export interface ComposedBrief {
 
 export function composeWeeklyBrief(args: {
   ownerName: string;
+  /** The reader's Sleeper username, carried on every league link. */
+  sleeperUsername?: string | null;
   tier: BriefTier;
   leagues: DeskLeague[];
   resultsWeek: number;
@@ -66,6 +68,7 @@ export function composeWeeklyBrief(args: {
 }): ComposedBrief {
   const model = buildTradeDeskModel({
     ownerName: args.ownerName,
+    sleeperUsername: args.sleeperUsername,
     tier: args.tier,
     resultsWeek: args.resultsWeek,
     leagues: args.leagues,

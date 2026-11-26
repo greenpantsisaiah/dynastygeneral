@@ -72,6 +72,7 @@ export async function GET(request: Request): Promise<Response> {
   const address = resolveMailingAddress();
   const brief = composeWeeklyBrief({
     ownerName: briefOwnerName(displayName, username),
+    sleeperUsername: username,
     tier,
     leagues,
     resultsWeek,

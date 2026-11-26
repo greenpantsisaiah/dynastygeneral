@@ -83,8 +83,12 @@ function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): Tra
   for (const c of v.candidates) {
     const n = sellLeaningCount(c.panel);
     if (n < 2) continue;
-    const buyers = c.buyers.filter(isShortAt);
-    if (buyers.length === 0) continue;
+    const short = c.buyers.filter(isShortAt);
+    if (short.length === 0) continue;
+    // The buyer with a priced fair package leads (design QA, 2026-11-26): a
+    // card never points at a manager it then says has nothing to give.
+    const priced = (b: BuyerRead) => (b.ask?.fair ? 2 : b.ask && (b.ask.floor || b.ask.great) ? 1 : 0);
+    const buyers = [...short].sort((a, b) => priced(b) - priced(a));
     if (Math.round(c.decay.value_now) < 1 || Math.round(c.decay.value_lost) < MIN_CARD_VALUE_KEPT) continue;
     return {
       leagueId: l.leagueId,
@@ -105,6 +109,12 @@ function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): Tra
 
 export interface TradeDeskModel {
   ownerName: string;
+  /**
+   * The reader's Sleeper username. Every league link carries it as
+   * ?username= so the page identifies the roster even when the reader is
+   * signed out (2026-11-26: a signed-out click landed on "Roster not found").
+   */
+  sleeperUsername: string | null;
   tier: BriefTier;
   resultsWeek: number;
   aheadWeek: number;
@@ -120,6 +130,7 @@ export interface TradeDeskModel {
 
 export function buildTradeDeskModel(args: {
   ownerName: string;
+  sleeperUsername?: string | null;
   tier: BriefTier;
   resultsWeek: number;
   leagues: DeskLeague[];
@@ -154,6 +165,7 @@ export function buildTradeDeskModel(args: {
   }
   return {
     ownerName: args.ownerName,
+    sleeperUsername: args.sleeperUsername?.trim() || null,
     tier: args.tier,
     resultsWeek: args.resultsWeek,
     aheadWeek: args.resultsWeek + 1,

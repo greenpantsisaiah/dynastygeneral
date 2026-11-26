@@ -56,10 +56,17 @@ export function userSuppliedNames(m: TradeDeskModel): string[] {
     for (const sh of l.week?.shifts ?? []) {
       add(sh.manager);
       add(sh.injury?.player);
+      for (const n of sh.action_players ?? []) add(n);
     }
     for (const c of l.verdict?.candidates ?? []) {
       add(c.player.name);
-      for (const b of c.buyers) add(b.label);
+      for (const b of c.buyers) {
+        add(b.label);
+        for (const r of [b.ask?.floor, b.ask?.fair, b.ask?.great]) {
+          add(r?.name);
+          add(r?.plus?.name);
+        }
+      }
     }
   }
   return [...names].sort((a, b) => b.length - a.length);
