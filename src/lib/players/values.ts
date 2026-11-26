@@ -53,6 +53,7 @@ const fantasyCalcEntrySchema = z
   .passthrough();
 
 const fantasyCalcResponseSchema = z.array(fantasyCalcEntrySchema);
+export type FantasyCalcEntry = z.infer<typeof fantasyCalcEntrySchema>;
 
 export type PlayerValue = {
   player_id: string; // Sleeper player_id
@@ -146,10 +147,30 @@ async function fetchValues(
     }
   }
 
+  const { byPlayerId, byNamePosKey, scale_max } = normalizeFantasyCalcValues(
+    parsed.data,
+    (key) => sleeperByNameKey.get(key) ?? null,
+  );
+  return { byPlayerId, byNamePosKey, fetchedAt: Date.now(), scale_max };
+}
+
+/**
+ * Pure half of the FantasyCalc fetch: raw FantasyCalc entries -> the 0-100
+ * normalized PlayerValue maps every surface reads. Exported so the value
+ * sanity test (evals/value-sanity.test.ts) runs the exact production
+ * normalization against the committed real-league snapshot, offline.
+ * `fallbackSleeper` resolves a name+position key when FantasyCalc carries
+ * no sleeperId.
+ */
+export function normalizeFantasyCalcValues(
+  entries: FantasyCalcEntry[],
+  fallbackSleeper: (key: string) => { id: string; team: string | null } | null = () => null,
+): { byPlayerId: Map<string, PlayerValue>; byNamePosKey: Map<string, PlayerValue>; scale_max: number } {
+  const sleeperByNameKey = { get: fallbackSleeper };
   // Find the top value to normalize to 0-100. Use top-3 average so a
   // single outlier (rookie with anomalous early value) doesn't
   // compress everyone else.
-  const sorted = [...parsed.data].sort((a, b) => b.value - a.value);
+  const sorted = [...entries].sort((a, b) => b.value - a.value);
   const topThree = sorted.slice(0, 3);
   const scaleMax =
     topThree.length > 0
@@ -158,7 +179,7 @@ async function fetchValues(
 
   const byPlayerId = new Map<string, PlayerValue>();
   const byNamePosKey = new Map<string, PlayerValue>();
-  for (const entry of parsed.data) {
+  for (const entry of entries) {
     const fcName = entry.player.name;
     const fcPos = entry.player.position ?? null;
     const fcTeam = entry.player.maybeTeam ?? null;
@@ -188,12 +209,7 @@ async function fetchValues(
     byNamePosKey.set(key, pv);
   }
 
-  return {
-    byPlayerId,
-    byNamePosKey,
-    fetchedAt: Date.now(),
-    scale_max: scaleMax,
-  };
+  return { byPlayerId, byNamePosKey, scale_max: scaleMax };
 }
 
 export async function getPlayerValues(args: {

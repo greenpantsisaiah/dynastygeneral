@@ -105,6 +105,8 @@ export function buildLeagueWeek(args: {
   resultsWeek: number;
   playoffWeekStart: number;
   playoffTeams: number;
+  /** Sleeper league_average_match (playoffSettings().medianGame). */
+  medianGame?: boolean;
   bestBall: boolean;
   /** Trade window open in this league (tradeWindow canonical). Closed: no for-you labels. */
   tradeOpen?: boolean;
@@ -125,6 +127,7 @@ export function buildLeagueWeek(args: {
         firstUnplayedWeek,
         playoffWeekStart: args.playoffWeekStart,
         playoffTeams: args.playoffTeams,
+        medianGame: args.medianGame,
       }),
       { seed: args.seed },
     );
@@ -136,6 +139,7 @@ export function buildLeagueWeek(args: {
     firstUnplayedWeek: args.resultsWeek + 1,
     playoffWeekStart: args.playoffWeekStart,
     playoffTeams: args.playoffTeams,
+    medianGame: args.medianGame,
   });
   const mine = me ? sim.teams.find((t) => t.roster_id === me.roster_id) : undefined;
   const record = { wins: mine?.wins ?? 0, losses: mine?.losses ?? 0, ties: mine?.ties ?? 0 };

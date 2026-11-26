@@ -32,9 +32,15 @@ const DEFAULT_PLAYOFF_WEEK_START = 15;
 /** Sleeper's default playoff field. */
 const DEFAULT_PLAYOFF_TEAMS = 6;
 
-export function playoffSettings(league: SleeperLeague): { playoffWeekStart: number; playoffTeams: number } {
+export function playoffSettings(league: SleeperLeague): {
+  playoffWeekStart: number;
+  playoffTeams: number;
+  medianGame: boolean;
+} {
   const settings = (league.settings ?? {}) as Record<string, unknown>;
   return {
+    // Sleeper league_average_match: a second weekly game against the league median.
+    medianGame: settings.league_average_match === 1,
     playoffWeekStart:
       typeof settings.playoff_week_start === "number" && settings.playoff_week_start > 1
         ? settings.playoff_week_start
@@ -75,7 +81,7 @@ export async function loadContendOrSellVerdict(args: {
   if (args.seasonType !== "regular" || !args.nflWeek || args.nflWeek < 2) {
     return { ok: false, reason: "needs at least one finished regular-season week" };
   }
-  const { playoffWeekStart, playoffTeams } = playoffSettings(args.league);
+  const { playoffWeekStart, playoffTeams, medianGame } = playoffSettings(args.league);
   if (args.nflWeek >= playoffWeekStart) {
     return { ok: false, reason: "regular season is over; playoff brackets are not simulated mid-bracket yet" };
   }
@@ -90,6 +96,7 @@ export async function loadContendOrSellVerdict(args: {
     firstUnplayedWeek,
     playoffWeekStart,
     playoffTeams,
+    medianGame,
   });
 
   const playersMap = args.playersMap ?? (await resolvePlayers(me.player_ids));

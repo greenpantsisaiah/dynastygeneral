@@ -64,7 +64,7 @@ export async function buildBriefLeagues(args: {
         matchupsByWeek,
         resultsWeek,
       });
-      const { playoffWeekStart, playoffTeams } = playoffSettings(lg);
+      const { playoffWeekStart, playoffTeams, medianGame } = playoffSettings(lg);
       const resultRows = matchupsByWeek[resultsWeek] ?? [];
       const players = await resolvePlayers(ctx.snapshot.rosters.flatMap((r) => r.player_ids));
       const week =
@@ -81,6 +81,7 @@ export async function buildBriefLeagues(args: {
               resultsWeek,
               playoffWeekStart,
               playoffTeams,
+              medianGame,
               bestBall: base.kind === "best_ball",
               // For-you labels only where a trade is possible (canonical window).
               tradeOpen: tradeWindow(buildFormatRulesFromSnapshot(ctx.snapshot), args.nflWeek).open,
