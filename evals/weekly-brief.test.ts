@@ -16,6 +16,7 @@ import { DEFAULT_SIMS } from "../src/lib/strategy/verdict/season-sim";
 import { lastCompletedWeek } from "../src/lib/strategy/verdict/weeks";
 import { buildLeagueWeek, fmtPct, playoffRange } from "../src/lib/email/trade-desk/league-week";
 import { tradeBy } from "../src/lib/email/trade-desk/deadline";
+import { resolveMailingAddress } from "../src/lib/email/mailing-address";
 import { lintDecisionItems } from "../src/lib/email/trade-desk/lint";
 import { strategist } from "../src/lib/strategy/verdict/voices";
 import type { DeskLeague } from "../src/lib/email/trade-desk/model";
@@ -244,6 +245,13 @@ check("card playoffs tile and the league row read one number", card0?.kind === "
 check("the Moneyballer names the offseason drop, not a value", card0?.kind === "trade" && card0.voices.some((v) => v.voice === "moneyball" && /offseason drop/.test(v.line)) && !/keeps about \d+ value/.test(dated.text));
 const oneClosed = compose([FIXTURES.past_deadline_only[0]]);
 check("one closed league reads singular", oneClosed.text.includes("Your 1 league is past the trade deadline") && !oneClosed.text.includes("All 1 league"));
+
+console.log("\n── mailing address from any env var name ──");
+const SAMPLE = "1 Sample Rd., Springfield, IL 62701";
+check("our name wins", resolveMailingAddress({ EMAIL_MAILING_ADDRESS: SAMPLE, MAILING_ADDRESS: "2 Other St, Austin, TX 78701" })?.source === "EMAIL_MAILING_ADDRESS");
+check("a common alternate is found", resolveMailingAddress({ MAILING_ADDRESS: SAMPLE })?.value === SAMPLE);
+check("any *ADDRESS* var holding a postal address is found", resolveMailingAddress({ RESEND_FOOTER_ADDRESS: SAMPLE })?.source === "RESEND_FOOTER_ADDRESS");
+check("an email address or URL is never taken as postal", resolveMailingAddress({ FROM_ADDRESS: "brief@dynastygeneral.app", SITE_ADDRESS: "https://dynastygeneral.app" }) === null);
 
 console.log("\n── beta: no paywall in the email until the split is switched on ──");
 check("split off: a free account renders the full brief", briefRenderTier("free", false) === "pro");

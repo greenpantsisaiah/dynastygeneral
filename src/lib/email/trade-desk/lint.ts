@@ -138,7 +138,7 @@ export function lintTradeDesk(args: {
   if (!args.text.trim()) f.push("missing plain-text part");
   if (!args.unsubscribeUrl || !args.html.includes(args.unsubscribeUrl.replace(/&/g, "&amp;")) && !args.html.includes(args.unsubscribeUrl)) f.push("missing unsubscribe link");
   if (!args.mailingAddress || !body.includes(args.mailingAddress)) f.push("missing postal address");
-  else if (PLACEHOLDER_ADDRESS.test(args.mailingAddress)) f.push("postal address is a placeholder (set EMAIL_MAILING_ADDRESS)");
+  else if (PLACEHOLDER_ADDRESS.test(args.mailingAddress)) f.push("postal address is a placeholder (no address found in the environment)");
   if (args.subject !== deskSubject(m)) f.push("subject does not match the first card");
   return f;
 }
