@@ -2579,7 +2579,7 @@ export default async function LeagueHubPage({
                       open={false}
                       focused={false}
                       offerHref={tradeIncomingHref}
-                      coachHref={`/leagues/${leagueId}/coach${qs({ username: cleanedUsername, season })}`}
+                      coachHref={`/leagues/${leagueId}/coach${qs({ username: cleanedUsername, season, ask: `Talk me through this call: ${weekCall.title}` })}`}
                     />
                   ) : (
                     <LeagueCallCard item={weekCall} focused={false} leagueHref={null} />
@@ -3172,6 +3172,7 @@ export default async function LeagueHubPage({
                     username={cleanedUsername}
                     displayName={String(teamName)}
                     variant="panel"
+                    inSeason={inSeasonLayout}
                     context={{
                       leagueName: league.name,
                       myPickLabel: pickApproach?.my_pick_label ?? null,
