@@ -56,6 +56,15 @@ export const FLAGS = {
     variants: ["off", "on"],
     rollout: [0],
   },
+  brief_pro_split: {
+    description:
+      "Free vs Pro split in the weekly brief (locked offer panel, /pricing links, blurred for-you labels). Off = beta: every account gets the full brief, matching the site's \"Free during the beta\". Turn on only after Isaiah makes the free/Pro call and billing is live.",
+    owner: "product steward",
+    created: "2026-11-26",
+    expires: "2027-06-30",
+    variants: ["off", "on"],
+    rollout: [0],
+  },
   // example_experiment: {
   //   description: "Lead the first-run Team Card with the verdict line.",
   //   owner: "product steward",
