@@ -102,7 +102,7 @@ export function AnalystScale({ voices, direction }: { voices: DecisionVoice[]; d
       <div className="mt-1 grid grid-cols-5 border-t-2 border-border-strong pt-2 text-center">
         {labels.map((label, col) => (
           <div key={label} className="flex flex-col items-center gap-1">
-            <span className="min-h-4 text-[11px] text-muted-2">{label}</span>
+            <span className="min-h-4 px-0.5 text-[10px] leading-tight text-muted-2 sm:text-[11px]">{label}</span>
             {voices
               .filter((v) => COLUMN[v.stance] === col)
               .map((v) => (
@@ -297,7 +297,7 @@ export function WeekTable({
               </a>
               <span className="text-right font-mono text-xs">
                 {r.refused_reason ? (
-                  <span className="text-muted-2">{r.refused_reason}</span>
+                  <span className="text-muted-2">No read</span>
                 ) : r.playoffs != null ? (
                   <>
                     {pct(r.playoffs)}
@@ -314,8 +314,9 @@ export function WeekTable({
                   {r.recs} rec{r.recs === 1 ? "" : "s"} →
                 </a>
               ) : (
-                <span className="min-w-14 text-right text-xs text-muted-2">0 recs</span>
+                <span className="min-w-14" aria-hidden />
               )}
+              {r.refused_reason && <p className="col-span-3 text-xs text-muted">{r.refused_reason}</p>}
             </li>
           );
         })}
