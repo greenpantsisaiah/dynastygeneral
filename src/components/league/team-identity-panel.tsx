@@ -17,7 +17,20 @@
 
 import type { TeamIdentity } from "@/lib/strategy/team-identity";
 
-export function TeamIdentityPanel({ data }: { data: TeamIdentity | null }) {
+export function TeamIdentityPanel({
+  data,
+  inSeason = false,
+  movesClosed = false,
+}: {
+  data: TeamIdentity | null;
+  /** In-season the archetype tagline (a generic scenario, e.g. "Anchor
+   * went down") is not an observation about this roster, so it is left
+   * out. */
+  inSeason?: boolean;
+  /** Best ball or past the deadline: no trades or (best ball) roster
+   * moves, so the weak room is an observation, not a to-do. */
+  movesClosed?: boolean;
+}) {
   if (!data) return null;
   // Only render when at least the build readout has confidence.
   if (data.build.primary_name === "Forming") return null;
@@ -58,7 +71,7 @@ export function TeamIdentityPanel({ data }: { data: TeamIdentity | null }) {
             ? `${data.build.primary_name} + ${data.build.secondary_name}`
             : data.build.primary_name}
         </div>
-        {data.build.description && (
+        {data.build.description && !inSeason && (
           <p className="mt-1 text-xs leading-snug text-muted">
             {data.build.description}
           </p>
@@ -91,7 +104,7 @@ export function TeamIdentityPanel({ data }: { data: TeamIdentity | null }) {
           {data.position_room.weakest && (
             <div className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2">
               <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
-                Address next
+                {movesClosed ? "Weakest room" : "Address next"}
               </div>
               <div className="mt-1 text-sm font-semibold text-foreground">
                 {data.position_room.weakest.position} · rank{" "}
@@ -190,7 +203,7 @@ export function TeamIdentityPanel({ data }: { data: TeamIdentity | null }) {
               {data.forward.keeper_slate.map((p) => (
                 <li key={p.player_id}>
                   · <span className="font-semibold">{p.player_name}</span>{" "}
-                  <span className="text-muted">(value {p.value})</span>
+                  <span className="text-muted">(value {Math.round(p.value)})</span>
                 </li>
               ))}
             </ul>

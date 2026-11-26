@@ -92,19 +92,27 @@ const LENS_COPY: Record<
   },
 };
 
-export function PostureBanner({ posture }: { posture: RosterPosture }) {
+export function PostureBanner({
+  posture,
+  longTerm = false,
+}: {
+  posture: RosterPosture;
+  /** In-season: the weekly call leads the page, so this reads as the
+   * multi-year build, not this week's stance. */
+  longTerm?: boolean;
+}) {
   const tone = POSTURE_TONE[posture.category];
   const lens = LENS_COPY[posture.recommended_lens];
   const confidencePct = Math.round(posture.confidence * 100);
   return (
     <section
       className={`mt-4 rounded-lg ${tone.border} ${tone.bg} px-5 py-4`}
-      aria-label="Roster posture"
+      aria-label={longTerm ? "Long-term build" : "Roster posture"}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="flex flex-wrap items-baseline gap-3">
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-2">
-            Posture
+            {longTerm ? "Long-term build" : "Posture"}
           </span>
           <span
             className={`font-mono text-xs font-semibold uppercase tracking-[0.18em] ${tone.labelTone}`}
@@ -139,13 +147,21 @@ export function PostureBanner({ posture }: { posture: RosterPosture }) {
         )}
       </div>
 
+      {longTerm && (
+        <p className="mt-2 text-xs text-muted">
+          The roster&apos;s multi-year shape, from player ages and future picks. This week&apos;s keep-or-sell call reads this season&apos;s results and sits at the top of the page.
+        </p>
+      )}
+
       <p className="mt-3 text-lg font-semibold leading-tight text-foreground">
         {posture.headline}
       </p>
 
-      <p className="mt-1 text-xs leading-snug text-muted">
-        {posture.contender_window.why}
-      </p>
+      {!(longTerm && posture.contender_window.peak_year == null) && (
+        <p className="mt-1 text-xs leading-snug text-muted">
+          {posture.contender_window.why}
+        </p>
+      )}
 
       {posture.signals.length > 0 && (
         <ul className="mt-3 space-y-0.5 text-[11px] leading-snug text-muted-2">
