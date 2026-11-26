@@ -11,9 +11,9 @@ import { getUserByUsername } from "@/lib/sleeper";
  * `handle_new_user` trigger (migration 0002) creates the profiles +
  * subscriptions rows, so the weekly brief cron (which reads `profiles`)
  * picks the account up on the next Tuesday with no change to the send.
- * The user can sign in later with Google on the same address. There is
- * no magic-link or password-reset sign-in yet, so a non-Google address
- * cannot sign in to the app (the brief still arrives); tracked as a gap.
+ * The user signs in later with Google on the same address, or with the
+ * "Email me a sign-in link" option on /login (signInWithOtp with
+ * shouldCreateUser false, so it only reaches accounts that exist).
  *
  * Safety:
  * - Rate limited per IP (shares the waitlist bucket: 3 per minute).

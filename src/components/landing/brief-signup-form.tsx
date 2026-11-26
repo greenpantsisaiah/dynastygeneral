@@ -58,8 +58,8 @@ export function BriefSignupForm() {
           You&apos;re in
         </div>
         <p className="mt-2 text-base text-foreground">
-          Your leagues are ready to open now. The brief goes to the address
-          on the account on Tuesday mornings during the season.
+          Your leagues are ready to open now. Your first brief arrives soon
+          after signup, then weekly during the season.
         </p>
         <Link
           href={href}
@@ -104,7 +104,7 @@ export function BriefSignupForm() {
         disabled={submitting}
         className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-md bg-accent px-6 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
       >
-        {submitting ? "Finding your leagues…" : "Start my Tuesday brief"}
+        {submitting ? "Finding your leagues…" : "Start my weekly brief"}
       </button>
       {state.kind === "error" && (
         <p role="alert" className="mt-3 text-sm text-danger">

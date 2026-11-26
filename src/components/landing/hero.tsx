@@ -28,7 +28,7 @@ export function Hero() {
         <div className="mt-6 grid items-start gap-12 sm:mt-8 lg:grid-cols-[1.05fr_1fr]">
           <div>
             <h1 className="text-3xl font-semibold leading-[1.08] tracking-tight text-foreground sm:text-5xl">
-              Every Tuesday: your odds in every league, and the trades worth trying.
+              Every week: your odds in every league, and the trades worth trying.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
               Dynasty General simulates each of your Sleeper leagues 5,000

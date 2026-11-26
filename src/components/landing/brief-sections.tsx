@@ -22,7 +22,7 @@ export function InboxSection() {
           />
           <Card
             title="Your week in every league"
-            body="Last week's result and your playoff chance in each league, with the change since last Tuesday."
+            body="Last week's result and your playoff chance in each league, with the change since last week."
           />
           <Card
             title="League shifts"
@@ -30,7 +30,7 @@ export function InboxSection() {
           />
         </div>
         <p className="mt-6 text-sm text-muted">
-          Arrives Tuesday morning during the NFL season.{" "}
+          Arrives weekly during the NFL season.{" "}
           <span className="text-muted-2">
             Coming next: a Sunday Game Day email with your swing game and
             who to root for.

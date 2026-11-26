@@ -36,11 +36,11 @@ export const RELEASES: Release[] = [
     version: "2026-11-26",
     title: "A weekly brief for every league you're in",
     summary:
-      "Leave an email and a Sleeper username and Dynasty General reads every league you're in each Tuesday of the season: playoff odds from 5,000 simulated seasons, the moves worth making, and three analysts arguing the call.",
+      "Leave an email and a Sleeper username and Dynasty General reads every league you're in each week of the season: playoff odds from 5,000 simulated seasons, the moves worth making, and three analysts arguing the call.",
     changes: [
       {
         tag: "ONE-STEP SIGNUP",
-        text: "The homepage takes an email and a Sleeper username in one form. No confirm link; your leagues open right away and the brief starts the next Tuesday.",
+        text: "The homepage takes an email and a Sleeper username in one form. No confirm link; your leagues open right away and the first brief follows soon after.",
       },
       {
         tag: "THREE ANALYSTS",
