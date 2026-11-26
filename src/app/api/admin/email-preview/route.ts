@@ -70,6 +70,7 @@ export async function GET(request: Request): Promise<Response> {
     resultsWeek,
     nflWeek: nfl.week,
     seasonStartDate: nfl.season_start_date,
+    season: nfl.season,
     appUrl,
     unsubscribeUrl: `${appUrl}/api/email/unsubscribe?preview=1`,
     mailingAddress: process.env.EMAIL_MAILING_ADDRESS?.trim() || "(mailing address)",
@@ -86,6 +87,8 @@ export async function GET(request: Request): Promise<Response> {
       subject: brief.subject,
       tier,
       lint: brief.lint,
+      items: brief.items,
+      digest: brief.digest,
       leagues: leagues.map((l) => ({ id: l.leagueId, name: l.leagueName, has_verdict: !!l.verdict, note: l.note ?? null })),
     });
   }

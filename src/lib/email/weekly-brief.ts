@@ -11,7 +11,8 @@
 
 import { buildTradeDeskModel, type BriefTier, type DeskLeague } from "@/lib/email/trade-desk/model";
 import { deskSubject, renderDeskHtml, renderDeskText, esc } from "@/lib/email/trade-desk/render";
-import { lintTradeDesk } from "@/lib/email/trade-desk/lint";
+import { lintDecisionItems, lintTradeDesk, userSuppliedNames } from "@/lib/email/trade-desk/lint";
+import { buildDecisionItems, type DecisionDigest, type DecisionItem } from "@/lib/decisions/items";
 
 /**
  * Version of this template. Bump it on ANY change to the rendered email.
@@ -27,8 +28,11 @@ export interface ComposedBrief {
   subject: string;
   html: string;
   text: string;
-  /** Content-lint failures. Non-empty blocks a broadcast. */
+  /** Content-lint failures (items first, then the email). Non-empty blocks a broadcast. */
   lint: string[];
+  /** The shared decision items and digest the email was written from (/home reads the same). */
+  items: DecisionItem[];
+  digest: DecisionDigest;
 }
 
 export function composeWeeklyBrief(args: {
@@ -39,6 +43,8 @@ export function composeWeeklyBrief(args: {
   nflWeek: number;
   /** nfl_state.season_start_date, so deadlines print as a day and time. */
   seasonStartDate?: string | null;
+  /** nfl_state.season, for the item ids. Defaults to the send date's year. */
+  season?: string;
   appUrl: string;
   unsubscribeUrl: string;
   mailingAddress: string;
@@ -65,7 +71,9 @@ export function composeWeeklyBrief(args: {
   const subject = deskSubject(model);
   let html = renderDeskHtml(r);
   let text = renderDeskText(r);
-  const lint = lintTradeDesk({
+  const sendDate = args.sendDate ?? new Date();
+  const { items, digest } = buildDecisionItems({ model, season: args.season ?? String(sendDate.getUTCFullYear()) });
+  const lint = [...lintDecisionItems(items, userSuppliedNames(model)), ...lintTradeDesk({
     model,
     html,
     text,
@@ -74,11 +82,11 @@ export function composeWeeklyBrief(args: {
     expectedLeagueIds: args.expectedLeagueIds ?? args.leagues.map((l) => l.leagueId),
     unsubscribeUrl: args.unsubscribeUrl,
     mailingAddress: args.mailingAddress,
-  });
+  })];
   if (args.preview && lint.length > 0) {
     const banner = `<div style="background:#FBE8E3;color:#AE3823;font:13px/1.5 sans-serif;padding:12px 16px;">Preview only. The content lint would block this broadcast:<br>${lint.map(esc).join("<br>")}</div>`;
     html = html.replace(/<body([^>]*)>/, `<body$1>${banner}`);
     text = `PREVIEW ONLY. The content lint would block this broadcast:\n${lint.map((l) => `- ${l}`).join("\n")}\n\n${text}`;
   }
-  return { subject, html, text, lint };
+  return { subject, html, text, lint, items, digest };
 }

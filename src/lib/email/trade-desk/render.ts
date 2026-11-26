@@ -48,7 +48,7 @@ export function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"], v = n % 100;
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
-const KIND_LABEL: Record<LeagueKind, string> = { dynasty: "Dynasty", keeper: "Keeper", redraft: "Redraft", best_ball: "Best ball" };
+export const KIND_LABEL: Record<LeagueKind, string> = { dynasty: "Dynasty", keeper: "Keeper", redraft: "Redraft", best_ball: "Best ball" };
 const RANGE_TONE: Record<PlayoffRange, Tone> = { favorite: "green", in_the_hunt: "green", bubble: "amber", long_shot: "red", no_chance: "grey" };
 const ROLE: Record<ShiftRole, [string, Tone]> = { seller: ["Seller", "green"], buyer: ["Buyer", "blue"], rival: ["Rival", "amber"] };
 const lastName = (n: string) => n.split(" ").slice(1).join(" ") || n;
@@ -92,11 +92,11 @@ function buyerReason(b: BuyerRead, pos: string): string {
 export function cardTitle(c: TradeCard): string {
   return `Offer ${c.lead.player.name} to ${c.buyer.label}, who ${buyerReason(c.buyer, c.lead.player.position)}.`;
 }
-function sellingLabel(c: TradeCard): string {
+export function sellingLabel(c: TradeCard): string {
   return `If you sell ${lastName(c.lead.player.name)}`;
 }
 /** The titled move only: this player's odds change and decay (desk1 review). */
-function sellEffect(c: TradeCard): { big: string; sub: string; tone: string } {
+export function sellEffect(c: TradeCard): { big: string; sub: string; tone: string } {
   const d = Math.round(c.lead.title_delta * 100);
   const kept = Math.round(c.lead.decay.value_lost);
   const keptLine = `keeps about ${valuePts(kept)}`;
@@ -104,11 +104,11 @@ function sellEffect(c: TradeCard): { big: string; sub: string; tone: string } {
   if (d >= 1) return { big: `+${d} pts`, sub: `the replacement scores more; ${keptLine}`, tone: C.green };
   return { big: "&lt;1 pt", sub: `barely moves it; ${keptLine}`, tone: C.ink };
 }
-function verdictLine(c: TradeCard): string {
+export function verdictLine(c: TradeCard): string {
   const d = c.lead.decay;
   return `${c.sellLeaning} of 3 lean sell, if the price is right. Open by asking for full value for ${c.lead.player.name}: about ${valuePts(d.value_now)} on our 0 to 100 scale. By August that drops to about ${Math.round(d.value_later)}.`;
 }
-function fallbackLine(c: TradeCard): string {
+export function fallbackLine(c: TradeCard): string {
   const pos = c.lead.player.position;
   const keeper = c.panel.voices.find((v) => v.stance === "push" || v.stance === "lean_push");
   const keepNote = keeper ? ` The ${VOICE_NAME[keeper.voice]} would keep ${lastName(c.lead.player.name)} anyway.` : "";
@@ -118,7 +118,7 @@ function fallbackLine(c: TradeCard): string {
   }
   return `No other manager is short at ${pos}. Keeping ${lastName(c.lead.player.name)} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
 }
-function deadlineChip(c: TradeCard): string {
+export function deadlineChip(c: TradeCard): string {
   if (c.deadlineWeek == null) return "No trade deadline";
   return c.tradeBy ? `Trade before ${c.tradeBy.label}` : `Deadline: Week ${c.deadlineWeek}`;
 }
@@ -141,7 +141,7 @@ export function heroHeadline(m: TradeDeskModel): string {
   return same ? `${n} worth trying before ${first.label}.` : `${n} worth trying. The first must go before ${first.label}.`;
 }
 const NUDGE = "Add your Sleeper username and every Tuesday you get each league's playoff chance, the trades worth trying, and who in your leagues is buying or selling.";
-function heroSub(m: TradeDeskModel): string {
+export function heroSub(m: TradeDeskModel): string {
   const n = m.leagues.length;
   if (n === 0) return NUDGE;
   const k = m.cards.length;
@@ -164,7 +164,7 @@ function heroSub(m: TradeDeskModel): string {
   return `${parts.join(" ")}${read + closed > 0 ? ` ${sims}` : ""}`;
 }
 /** null when no league has a result: never a "0-0 last week" recap. */
-function weekHeadline(m: TradeDeskModel): string | null {
+export function weekHeadline(m: TradeDeskModel): string | null {
   if (!m.leagues.some((l) => l.week?.result)) return null;
   const r = m.record;
   const rec = `${r.wins}-${r.losses}${r.ties ? `-${r.ties}` : ""} last week.`;
@@ -172,7 +172,7 @@ function weekHeadline(m: TradeDeskModel): string | null {
   const parts = [m.rose ? `rose in ${plural(m.rose, "league")}` : null, m.fell ? `fell in ${plural(m.fell, "league")}` : null].filter(Boolean);
   return `${rec} Your playoff chances ${parts.join(", ")}.`;
 }
-function biggestSwing(m: TradeDeskModel): string | null {
+export function biggestSwing(m: TradeDeskModel): string | null {
   let best: DeskLeague | null = null;
   let bd = 0;
   for (const l of m.leagues) {
@@ -184,22 +184,22 @@ function biggestSwing(m: TradeDeskModel): string | null {
   const how = r?.kind === "h2h" && r.won != null ? ` after a ${fmtScore(r.my)}-${fmtScore(r.opp)} ${r.won ? "win" : "loss"}` : "";
   return `The biggest swing: ${best.leagueName}, where your playoff chance went from ${fmtPct(best.week.playoff_before!)} to ${fmtPct(best.week.playoff_now!)}${how}.`;
 }
-const MAX_SHIFT_ROWS = 8;
+export const MAX_SHIFT_ROWS = 8;
 const ORDER: PlayoffRange[] = ["no_chance", "long_shot", "bubble", "in_the_hunt", "favorite"];
-function allShifts(m: TradeDeskModel): Array<LeagueShift & { league: string }> {
+export function allShifts(m: TradeDeskModel, limit = MAX_SHIFT_ROWS): Array<LeagueShift & { league: string; leagueId: string }> {
   const carded = new Set(m.cards.map((c) => c.leagueId));
   const size = (s: LeagueShift) => (s.from && s.to ? Math.abs(ORDER.indexOf(s.to) - ORDER.indexOf(s.from)) : 0);
   return m.leagues
-    .flatMap((l) => (l.week?.shifts ?? []).map((s) => ({ ...s, league: l.leagueName.trim(), carded: carded.has(l.leagueId) })))
+    .flatMap((l) => (l.week?.shifts ?? []).map((s) => ({ ...s, league: l.leagueName.trim(), leagueId: l.leagueId, carded: carded.has(l.leagueId) })))
     .sort((a, b) => Number(b.carded) - Number(a.carded) || Number(!!b.injury) - Number(!!a.injury) || size(b) - size(a))
-    .slice(0, MAX_SHIFT_ROWS);
+    .slice(0, limit);
 }
-function shiftsHeadline(rows: LeagueShift[]): string {
+export function shiftsHeadline(rows: LeagueShift[]): string {
   const sellers = rows.filter((r) => r.role === "seller").length;
   return `${plural(rows.length, "team")} changed ${rows.length === 1 ? "its" : "their"} season.${sellers ? ` ${sellers} ${sellers === 1 ? "is" : "are"} now ${sellers === 1 ? "a seller" : "sellers"}.` : ""}`;
 }
-const RANGES_LEGEND = "Ranges: Favorite 80%+ playoffs, In the hunt 50 to 80, Bubble 25 to 50, Long shot 2 to 25, No chance under 2%.";
-const ROLES_LEGEND = `For you: ${ROLE_DEFINITIONS.seller}. ${ROLE_DEFINITIONS.buyer}. ${ROLE_DEFINITIONS.rival}. Blank where none applies or trading is closed.`;
+export const RANGES_LEGEND = "Ranges: Favorite 80%+ playoffs, In the hunt 50 to 80, Bubble 25 to 50, Long shot 2 to 25, No chance under 2%.";
+export const ROLES_LEGEND = `For you: ${ROLE_DEFINITIONS.seller}. ${ROLE_DEFINITIONS.buyer}. ${ROLE_DEFINITIONS.rival}. Blank where none applies or trading is closed.`;
 export function founderAsk(m: TradeDeskModel): string {
   if (m.leagues.length === 0) return "What would make this brief worth connecting a league for? Reply now.";
   if (m.cards.length === 0) return "What would you want this email to tell you next Tuesday? Reply now.";
