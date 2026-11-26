@@ -408,6 +408,15 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: a surface that re-runs the simulator with its own inputs, re-derives decay from age, or writes its own sell / push call. Consume the verdict.
 - **Bug class avoided**: board, Coach and email giving three different contend-or-sell answers for one roster.
 
+### Signup source attribution (which channel sent a signup)
+
+- **Canonical**: `parseSignupSource(input)` and `signupSourceFromLanding({ search, referrer, ownHost })` in `src/lib/growth/signup-source.ts`
+- **Returns**: `SignupSource | null` (lowercased `utm_source` / `utm_medium` / `utm_campaign` / `utm_content` / `ref` / `referrer_host`, each `[a-z0-9_.-]`, max 64 chars; null when nothing usable)
+- **Inputs**: the landing URL query string + `document.referrer` (client), or the untrusted `source` body field (server). Stored on the account as `user_metadata.signup_utm` by `/api/brief-signup`.
+- **Rule**: attribution never blocks a signup; parse per field (same salvage discipline as `parseCoachRequest`).
+- **Anti-pattern**: reading `utm_*` params inline in another signup surface, or putting `source` inside the strict body schema so a bad tag 400s the signup.
+- **Bug class avoided**: 2026-11-26 traffic plan had no way to count signups per channel (league chats, Reddit, podcasters, paid tests). Locked by `evals/signup-source.test.ts`.
+
 ### Feature flags and experiments
 
 - **Canonical**: the registry `FLAGS` in `src/lib/flags/registry.ts`, evaluated by `variantFor` / `isEnabled` in `src/lib/flags/evaluate.ts`, read server-side via `flagVariant(key, unitId)` / `flagOn(key, unitId)` in `src/lib/flags/server.ts`.
