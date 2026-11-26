@@ -15,6 +15,7 @@ import type {
   DecisionDigest,
   DecisionItem,
   DecisionVoice,
+  LeagueCallItem,
   LineupItem,
   RootForItem,
   ShiftItem,
@@ -265,14 +266,62 @@ export function QuietList({ items, hrefFor }: { items: Array<TradeItem | LineupI
   );
 }
 
+/** App only: one compact call per league with no trade card, so every league says what to do and why. */
+export function LeagueCallCard({ item, focused, leagueHref }: { item: LeagueCallItem; focused: boolean; leagueHref: string }) {
+  return (
+    <article
+      id={item.id}
+      className={`rounded-xl border bg-surface p-4 ${focused ? "border-accent" : "border-border-soft"}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Kicker>{item.league_name}</Kicker>
+        <span className="rounded-full border border-border-strong px-2.5 py-0.5 text-xs text-foreground">{item.stance_label}</span>
+      </div>
+      <h3 className="mt-2 text-base font-semibold leading-snug text-foreground">{item.title}</h3>
+      <p className="mt-1 font-mono text-[11px] text-muted-2">{item.context}</p>
+      <p className="mt-2 text-sm text-muted">{item.reason}</p>
+      {item.voices.length > 0 && (
+        <details className="mt-2 group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-muted-2 hover:text-foreground">
+            <span className="flex -space-x-1">
+              {item.voices.map((v) => (
+                <AnalystDot key={v.voice} voice={v.voice} />
+              ))}
+            </span>
+            What the three analysts say
+          </summary>
+          <ul className="mt-2 flex flex-col gap-2">
+            {item.voices.map((v) => (
+              <li key={v.voice} className="text-sm text-muted">
+                <span className="font-semibold" style={{ color: ANALYST[v.voice].color }}>
+                  {ANALYST[v.voice].name} · {v.stance_label}.
+                </span>{" "}
+                {v.line}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <a href={leagueHref} className="mt-3 inline-block text-sm font-semibold text-accent hover:underline">
+        Open {item.league_name} →
+      </a>
+    </article>
+  );
+}
+
 export function WeekTable({
   rows,
   summary,
   week,
   leagueHref,
   recHref,
+  calls,
+  allLeaguesHref,
 }: {
   rows: WeekRowItem[];
+  /** The app-only call per league, so a league with no rec still says what to do. */
+  calls: LeagueCallItem[];
+  allLeaguesHref: string;
   summary: string | null;
   week: number;
   leagueHref: (leagueId: string) => string;
@@ -281,17 +330,25 @@ export function WeekTable({
 }) {
   return (
     <section className="rounded-xl border border-border-soft bg-surface p-4">
-      <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
-        Week {week} across your {rows.length} league{rows.length === 1 ? "" : "s"}
-      </h2>
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
+          Week {week} across your {rows.length} league{rows.length === 1 ? "" : "s"}
+        </h2>
+        <a href={allLeaguesHref} className="shrink-0 text-xs text-accent hover:underline">
+          All my leagues →
+        </a>
+      </div>
       {summary && <p className="mt-1 text-sm text-muted">{summary}</p>}
       <ul className="mt-1">
         {rows.map((r) => {
           const change = r.playoffs_change;
+          const call = calls.find((c) => c.league_id === r.league_id) ?? null;
           return (
             <li key={r.id} id={r.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 border-t border-border-soft py-2.5">
-              <a href={leagueHref(r.league_id ?? "")} className="min-w-0 text-foreground">
-                <span className="block truncate text-sm font-semibold">{r.league_name}</span>
+              <a href={leagueHref(r.league_id ?? "")} className="group min-w-0 text-foreground">
+                <span className="block truncate text-sm font-semibold group-hover:underline">
+                  {r.league_name} <span className="text-muted-2">›</span>
+                </span>
                 <span className="text-[11px] text-muted-2">
                   {r.format_record}
                   {r.result ? ` · ${r.result}` : ""}
@@ -315,6 +372,10 @@ export function WeekTable({
                 <a href={recHref(r.league_id ?? "")} className="min-w-14 rounded-full bg-foreground px-2.5 py-1 text-center text-xs font-semibold text-background">
                   {r.recs} rec{r.recs === 1 ? "" : "s"} →
                 </a>
+              ) : call ? (
+                <a href={`#${call.id}`} className="min-w-14 rounded-full border border-border-strong px-2.5 py-1 text-center text-xs text-foreground hover:border-foreground">
+                  {call.stance_label}
+                </a>
               ) : (
                 <span className="min-w-14" aria-hidden />
               )}
@@ -323,7 +384,7 @@ export function WeekTable({
           );
         })}
       </ul>
-      <p className="mt-2 text-xs text-muted-2">Playoff chance, with the change since last week.</p>
+      <p className="mt-2 text-xs text-muted-2">Playoff chance, with the change since last week. Tap a league to open it.</p>
     </section>
   );
 }
@@ -439,6 +500,7 @@ export function DecisionHome({
     sleeper: (item: LineupItem) => string;
     league: (leagueId: string) => string;
     item: (item: DecisionItem) => string;
+    allLeagues: string;
   };
 }) {
   const feed = feedItems(items);
@@ -447,6 +509,9 @@ export function DecisionHome({
   const rows = items.filter((i): i is WeekRowItem => i.kind === "week_row");
   const shifts = items.filter((i): i is ShiftItem => i.kind === "shift");
   const roots = items.filter((i): i is RootForItem => i.kind === "rootfor");
+  const calls = items
+    .filter((i): i is LeagueCallItem => i.kind === "league_call")
+    .sort((a, b) => b.priority - a.priority);
   const focused = focusId ? items.find((i) => i.id === focusId) ?? null : null;
   const firstTrade = feed.find((i) => i.kind === "trade")?.id ?? null;
   const openTrade = focused?.kind === "trade" ? focused.id : firstTrade;
@@ -483,6 +548,17 @@ export function DecisionHome({
         )}
 
         <QuietList items={quiet} hrefFor={hrefs.item} />
+
+        {calls.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
+              {feed.length > 0 ? "Your other leagues · the analysts' call" : "Your leagues · the analysts' call"}
+            </h2>
+            {calls.map((c) => (
+              <LeagueCallCard key={c.id} item={c} focused={c.id === focusId} leagueHref={hrefs.league(c.league_id ?? "")} />
+            ))}
+          </section>
+        )}
         <RootForList items={roots} />
       </div>
 
@@ -493,6 +569,8 @@ export function DecisionHome({
             summary={digest.week_summary}
             week={rows[0].week}
             leagueHref={hrefs.league}
+            calls={calls}
+            allLeaguesHref={hrefs.allLeagues}
             recHref={(leagueId) => {
               const first = feed.find((i) => i.league_id === leagueId);
               return first ? `#${first.id}` : hrefs.league(leagueId);
