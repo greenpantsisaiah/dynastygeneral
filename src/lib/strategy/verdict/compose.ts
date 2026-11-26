@@ -53,6 +53,8 @@ export interface SellCandidate {
 export interface ContendOrSellVerdict {
   roster_id: number;
   odds: TeamOdds;
+  /** Every team's odds from the same simulator run (standings table). */
+  league_odds: Record<number, TeamOdds>;
   league: { teams: number; fair_title_share: number; rank_by_title_odds: number };
   candidates: SellCandidate[];
   package: {
@@ -205,6 +207,7 @@ export function buildContendOrSellVerdict(args: {
     verdict: {
       roster_id: args.rosterId,
       odds: mine,
+      league_odds: base.odds,
       league: { teams, fair_title_share: 1 / teams, rank_by_title_odds: rank },
       candidates,
       package: {
