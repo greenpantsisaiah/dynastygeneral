@@ -26,7 +26,7 @@ export interface TradeBy {
 }
 
 /** Central time offset in hours for a date (CDT -5 from the second Sunday of March to the first Sunday of November, else CST -6). */
-function ctOffset(d: Date): number {
+export function ctOffset(d: Date): number {
   const y = d.getUTCFullYear();
   const nthSunday = (month: number, n: number) => {
     const first = new Date(Date.UTC(y, month, 1));

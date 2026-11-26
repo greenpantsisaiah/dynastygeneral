@@ -202,6 +202,11 @@ const dated = composeWeeklyBrief({ ownerName: "Izzy", tier: "pro", leagues: FIXT
 check("hero names the trade-by day", dated.text.includes("1 trade worth trying before Thu Nov 26, 11:30 AM CT."), dated.text.split("\n")[3]);
 check("card chip names the trade-by day", dated.text.includes("Trade before Thu Nov 26, 11:30 AM CT"));
 check("dated brief is lint clean", dated.lint.length === 0, dated.lint.join(" | "));
+const late = composeWeeklyBrief({ ownerName: "Izzy", tier: "pro", leagues: FIXTURES.trades, resultsWeek: RESULTS_WEEK, nflWeek: 12, seasonStartDate: "2026-09-09", appUrl: "https://dynastygeneral.app", unsubscribeUrl: "https://x/u", mailingAddress: "PO Box 1, Chicago IL", sendDate: new Date("2026-11-26T20:23:00Z") });
+check("a send after the trade-by time drops that trade", !late.text.includes("before Thu Nov 26") && !late.text.includes("WORTH TRYING"), late.text.split("\n")[3]);
+check("past-deadline brief is lint clean", late.lint.length === 0, late.lint.join(" | "));
+const early = composeWeeklyBrief({ ownerName: "Izzy", tier: "pro", leagues: FIXTURES.trades, resultsWeek: RESULTS_WEEK, nflWeek: 12, seasonStartDate: "2026-09-09", appUrl: "https://dynastygeneral.app", unsubscribeUrl: "https://x/u", mailingAddress: "PO Box 1, Chicago IL", sendDate: new Date("2026-11-24T13:00:00Z") });
+check("a send before the trade-by time keeps the trade", early.text.includes("1 trade worth trying before Thu Nov 26, 11:30 AM CT."));
 check("playoffs tile leads with the range label", /Playoffs: (Favorite|In the hunt|Bubble|Long shot|No chance) \(/.test(pro.text));
 check("one player per card: no other-piece line", !pro.text.includes("other piece worth moving"));
 const cardVoices = pro.text.split("\n").filter((l) => /^  (Strategist|Moneyballer|Gambler) · /.test(l));

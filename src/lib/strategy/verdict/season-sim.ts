@@ -68,6 +68,22 @@ export interface SimOptions {
   seed?: number;
   /** Points added to a roster's weekly mean (negative = weaker), by roster_id. */
   meanShift?: Record<number, number>;
+  /**
+   * Record one roster's head-to-head result in the FIRST remaining week and
+   * its playoff chance split by that result (the Sunday swing game). Reads
+   * the same draws, so it never changes any other output.
+   */
+  trackWeekOne?: number;
+}
+
+/** The tracked roster's next game, from the same simulated seasons. */
+export interface WeekOneSplit {
+  roster_id: number;
+  opponent_id: number;
+  /** Share of simulated seasons in which the roster won that game (ties count half). */
+  win_pct: number;
+  playoff_if_win: number;
+  playoff_if_loss: number;
 }
 
 export interface TeamOdds {
@@ -92,6 +108,8 @@ export type SimResult =
         playoff_teams: number;
         median_game: boolean;
       };
+      /** Present when SimOptions.trackWeekOne named a roster with a game in week one. */
+      week_one?: WeekOneSplit;
     }
   | { ok: false; reason: string };
 
@@ -200,17 +218,27 @@ export function simulateSeason(input: SimInput, opts: SimOptions = {}): SimResul
   const median = input.medianGame === true;
   const weekPts = new Float64Array(ids.length * 2);
   const weekIdx = new Int32Array(ids.length * 2);
+  const tracked = opts.trackWeekOne != null ? idx.get(opts.trackWeekOne) : undefined;
+  const trackedGame = tracked == null ? undefined : games[0]?.find(([a, b]) => a === tracked || b === tracked);
+  let trackWins = 0, playoffWin = 0, playoffLoss = 0, nWin = 0, nLoss = 0;
 
   for (let s = 0; s < sims; s++) {
     for (let i = 0; i < ids.length; i++) {
       wins[i] = teams[i].wins + teams[i].ties * 0.5;
       pf[i] = teams[i].points_for;
     }
-    for (const wk of games) {
+    let trackedResult = 0;
+    for (let w = 0; w < games.length; w++) {
+      const wk = games[w];
       let n = 0;
       for (const [a, b] of wk) {
         const pa = draw(a);
         const pb = draw(b);
+        if (w === 0 && trackedGame && a === trackedGame[0] && b === trackedGame[1]) {
+          const mine = a === tracked ? pa : pb;
+          const theirs = a === tracked ? pb : pa;
+          trackedResult = mine > theirs ? 1 : mine < theirs ? -1 : 0;
+        }
         pf[a] += pa;
         pf[b] += pb;
         if (pa > pb) wins[a] += 1;
@@ -238,6 +266,12 @@ export function simulateSeason(input: SimInput, opts: SimOptions = {}): SimResul
     seedOrder.sort((x, y) => wins[y] - wins[x] || pf[y] - pf[x] || x - y);
     for (let i = 0; i < ids.length; i++) winSum[i] += wins[i] - (teams[i].wins + teams[i].ties * 0.5);
     for (let k = 0; k < playoffTeams; k++) playoffHits[seedOrder[k]]++;
+    if (trackedGame && tracked != null) {
+      const made = seedOrder.indexOf(tracked) < playoffTeams ? 1 : 0;
+      trackWins += trackedResult > 0 ? 1 : trackedResult === 0 ? 0.5 : 0;
+      if (trackedResult > 0) { nWin++; playoffWin += made; }
+      else if (trackedResult < 0) { nLoss++; playoffLoss += made; }
+    }
 
     // Bracket: slots hold team index or -1 for a bye.
     let field = order.map((seedNo) => (seedNo <= playoffTeams ? seedOrder[seedNo - 1] : -1));
@@ -278,5 +312,16 @@ export function simulateSeason(input: SimInput, opts: SimOptions = {}): SimResul
       playoff_teams: playoffTeams,
       median_game: median,
     },
+    ...(trackedGame && tracked != null && nWin > 0 && nLoss > 0
+      ? {
+          week_one: {
+            roster_id: ids[tracked],
+            opponent_id: ids[trackedGame[0] === tracked ? trackedGame[1] : trackedGame[0]],
+            win_pct: trackWins / sims,
+            playoff_if_win: playoffWin / nWin,
+            playoff_if_loss: playoffLoss / nLoss,
+          },
+        }
+      : {}),
   };
 }

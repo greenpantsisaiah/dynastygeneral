@@ -12,7 +12,7 @@ import { itemSentences, type DecisionItem } from "@/lib/decisions/items";
 
 export const MAX_HTML_BYTES = 95 * 1024;
 
-const BANNED: Array<[RegExp, string]> = [
+export const BANNED: Array<[RegExp, string]> = [
   [/—/, "em dash"],
   [/!/, "exclamation point"],
   [/\bpush/i, "the word \"push\""],
@@ -21,7 +21,7 @@ const BANNED: Array<[RegExp, string]> = [
   [/receipts/i, "the word \"receipts\""],
 ];
 
-function visibleText(html: string): string {
+export function visibleText(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     // Cell and block ends become line breaks, so a stat tile never fuses with a sentence.

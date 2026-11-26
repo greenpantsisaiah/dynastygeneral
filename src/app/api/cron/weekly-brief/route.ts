@@ -207,6 +207,8 @@ export async function GET(request: Request): Promise<Response> {
       appUrl,
       unsubscribeUrl: unsub,
       mailingAddress: mailingAddress ?? "",
+      // Send time, so a trade whose trade-by time has passed never prints.
+      sendDate: new Date(),
       preview: !!preview,
     });
     // The content lint blocks a broadcast; a preview still goes out with
