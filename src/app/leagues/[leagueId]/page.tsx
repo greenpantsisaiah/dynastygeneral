@@ -1997,10 +1997,12 @@ export default async function LeagueHubPage({
   // email already show everyone). Only the full card stays behind the
   // contend_or_sell_card flag (Coach keeps contend_or_sell_verdict).
   let contendOrSell: ContendOrSellVerdict | null = null;
-  const showContendOrSellCard = flagOn(
-    "contend_or_sell_card",
-    sleeperUser?.username ?? null,
-  );
+  // The card's sell math is offseason value decay, which only means
+  // something where rosters carry over. Redraft leagues get the season
+  // strip only until the verdict learns league type (design-qa, PR #142).
+  const showContendOrSellCard =
+    flagOn("contend_or_sell_card", sleeperUser?.username ?? null) &&
+    leagueSnapshot?.league_type !== "redraft";
   if (leagueSnapshot && !draftActive) {
     try {
       const res = await loadContendOrSellVerdict({
@@ -2195,7 +2197,7 @@ export default async function LeagueHubPage({
       <main className="flex-1 bg-grid">
         <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 sm:py-12">
           <Ticker
-            label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${draftLive ? " · 🔴 NFL Draft live · refresh between picks" : ""}${betaOpen ? " · Beta · everything open" : ""}`}
+            label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${draftLive ? " · 🔴 NFL Draft live · refresh between picks" : ""}${betaOpen ? " · Beta · all features free" : ""}`}
           />
 
           <LastVisitDigest
@@ -2345,6 +2347,9 @@ export default async function LeagueHubPage({
               {tierState.user && <RefreshButton leagueId={leagueId} />}
               {!cleanedUsername ? (
                 <UsernamePrompt leagueId={leagueId} season={season} />
+              ) : contendOrSell && !contendOrSell.trade_window.open ? (
+                // Best ball or past the deadline: no trades to check or find.
+                null
               ) : (
                 <>
                   <Link
@@ -2364,6 +2369,16 @@ export default async function LeagueHubPage({
             </div>
           </div>
 
+          {/* In-season lead: the season strip sits right under the
+              header, above any banner, so it is the first read on a phone. */}
+          {inSeasonLayout && (
+            <SeasonStrip
+              week={nflState?.week ?? null}
+              standing={standing}
+              totalTeams={totalRosters}
+              verdict={contendOrSell}
+            />
+          )}
           {/* Briefing panel (?diagnose=1 only). Shows the digested
               per-position room health so the founder can verify
               SWOT and Decision are reading the same numbers. Renders
@@ -2537,14 +2552,6 @@ export default async function LeagueHubPage({
                   and league-win chances, trade window), then the
                   keep-or-sell call with the three analysts. Both read the
                   contend-or-sell verdict; neither computes anything. */}
-              {inSeasonLayout && (
-                <SeasonStrip
-                  week={nflState?.week ?? null}
-                  standing={standing}
-                  totalTeams={totalRosters}
-                  verdict={contendOrSell}
-                />
-              )}
               {inSeasonLayout && contendOrSell && showContendOrSellCard && (
                 <div className="mt-6">
                   <ContendOrSellCard verdict={contendOrSell} />
@@ -2956,12 +2963,12 @@ export default async function LeagueHubPage({
                       label="The league"
                       title={
                         inSeasonLayout
-                          ? "Who is the team to beat?"
+                          ? "Standings and opponents"
                           : "Trade leverage and opponent reads"
                       }
                       tagline={
                         inSeasonLayout
-                          ? "League standings, trade leverage, opponent reads."
+                          ? "Who is the team to beat, who is buying, who is selling."
                           : "Where the soft spots are, who needs what, what to send."
                       }
                       defaultOpen={!draftActive}

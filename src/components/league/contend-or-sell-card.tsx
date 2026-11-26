@@ -49,7 +49,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
           Where you stand · hypothesis, not yet scored
         </p>
         <h3 className="mt-1 text-lg font-semibold">
-          Win the league {fmtPct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
+          Win the league {fmtPct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)}-best chance of {v.league.teams}
         </h3>
         <p className="text-sm text-muted">
           Playoffs {fmtPct(v.odds.playoff_pct)} · fair share {pct(v.league.fair_title_share)}.
@@ -68,7 +68,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
             Keep going or sell · hypothesis, not yet scored
           </p>
           <h3 className="mt-1 text-lg font-semibold">
-            {headline}: win the league {fmtPct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
+            {headline}: win the league {fmtPct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)}-best chance of {v.league.teams}
           </h3>
           <p className="text-sm text-muted">
             Playoffs {fmtPct(v.odds.playoff_pct)} · fair share {pct(v.league.fair_title_share)} · {consensus}.
@@ -124,8 +124,10 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
                   </span>
                 </p>
                 <p className="text-muted">
-                  Age curve expects about {valuePts(c.decay.value_lost)} gone by August. Selling him
-                  costs {c.weekly_points_lost.toFixed(1)} pts per week
+                  Age curve expects about {valuePts(c.decay.value_lost)} gone by August.{" "}
+                  {c.weekly_points_lost >= 0.05
+                    ? `Selling him costs ${c.weekly_points_lost.toFixed(1)} pts per week`
+                    : "Selling him costs your lineup almost nothing each week"}
                   {Math.abs(c.title_delta) < 0.005
                     ? " and barely moves your chance to win the league"
                     : ` and ${pp(c.title_delta)} of your chance to win the league${c.title_delta > 0 ? " (a gain: his replacement scores more)" : ""}`}
