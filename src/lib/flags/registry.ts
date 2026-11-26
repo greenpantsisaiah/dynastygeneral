@@ -38,6 +38,15 @@ export const FLAGS = {
     variants: ["off", "on"],
     rollout: [0],
   },
+  multi_league_home: {
+    description:
+      "Logged-in /home: one decisions feed across all leagues, built from the same DecisionItem builder as the weekly email so every email button lands on its matching item. On for everyone (Isaiah 2026-11-26: \"just ship\"); set FLAG_OVERRIDES=multi_league_home=off to send users back to /leagues.",
+    owner: "product steward",
+    created: "2026-11-26",
+    expires: "2027-03-31",
+    variants: ["off", "on"],
+    rollout: [100],
+  },
   contend_or_sell_verdict: {
     description:
       "In-season contend-or-sell card on the hub (title odds, sell package, buyers, three voices) mirrored to Coach. Dark until the ledger logs it.",
