@@ -157,9 +157,11 @@ export function PostureBanner({
         {posture.headline}
       </p>
 
-      <p className="mt-1 text-xs leading-snug text-muted">
-        {posture.contender_window.why}
-      </p>
+      {!(longTerm && posture.contender_window.peak_year == null) && (
+        <p className="mt-1 text-xs leading-snug text-muted">
+          {posture.contender_window.why}
+        </p>
+      )}
 
       {posture.signals.length > 0 && (
         <ul className="mt-3 space-y-0.5 text-[11px] leading-snug text-muted-2">

@@ -103,7 +103,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
           })}
         </div>
         <div className="mt-1 flex justify-between text-[11px] text-muted-2">
-          <span>{v.horizon === "this_season" ? "Season over" : "Sell to contenders"}</span>
+          <span>Sell to contenders</span>
           <span>Keep going for the title</span>
         </div>
       </div>

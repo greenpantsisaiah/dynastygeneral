@@ -3015,7 +3015,13 @@ export default async function LeagueHubPage({
                       }
                     />
                   )}
-                  {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                  {teamIdentity && (
+                      <TeamIdentityPanel
+                        data={teamIdentity}
+                        inSeason={inSeasonLayout}
+                        movesClosed={inSeasonLayout && contendOrSell != null && !contendOrSell.trade_window.open}
+                      />
+                    )}
                   <LibraryTeaser
                     contextTags={(() => {
                       const tags: string[] = ["ADP", "rookies"];
@@ -3073,7 +3079,13 @@ export default async function LeagueHubPage({
                     {inSeasonLayout && rosterPosture && !thisSeasonOnly && (
                       <PostureBanner posture={rosterPosture} longTerm />
                     )}
-                    {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                    {teamIdentity && (
+                      <TeamIdentityPanel
+                        data={teamIdentity}
+                        inSeason={inSeasonLayout}
+                        movesClosed={inSeasonLayout && contendOrSell != null && !contendOrSell.trade_window.open}
+                      />
+                    )}
                     {inSeasonLayout && !thisSeasonOnly && rosterLaneMemberships.length > 0 && (
                       <LaneCohortDistribution memberships={rosterLaneMemberships} />
                     )}
@@ -3096,7 +3108,12 @@ export default async function LeagueHubPage({
                     )}
                     {/* A 5-year contender forecast is dynasty and keeper
                         framing; redraft and best ball rosters reset. */}
-                    {contenderOutlook && !(inSeasonLayout && thisSeasonOnly) && (
+                    {/* In-season, one multi-year read: the long-term
+                        build banner above. The year-by-year outlook is a
+                        second model that can disagree with it (a 0-11
+                        rebuilder read as a 2027 contender), so it shows
+                        before and after the season only. */}
+                    {contenderOutlook && !inSeasonLayout && (
                       <ContenderOutlookCard outlook={contenderOutlook} />
                     )}
                   </DashboardSection>

@@ -91,7 +91,7 @@ export function SeasonStandings({
         {medianGames
           ? "Records are Sleeper's and include a game against the league median each week. "
           : "Records are Sleeper's. "}
-        {odds ? "Favorite, In the hunt, Bubble, Long shot: each team's playoff outlook. " : ""}
+        {odds ? "Favorite, In the hunt, Bubble, Long shot, No chance: each team's playoff outlook. " : ""}
         {odds && showSellers ? `${ROLE_DEFINITIONS.seller}. ` : ""}
         {odds && sims
           ? `Chances from ${sims.toLocaleString("en-US")} simulated seasons of this league's remaining schedule${medianGames ? ", median games included" : ""}.`
