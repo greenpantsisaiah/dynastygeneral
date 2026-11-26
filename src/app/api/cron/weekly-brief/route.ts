@@ -197,6 +197,7 @@ export async function GET(request: Request): Promise<Response> {
     const brief = composeWeeklyBrief({
       // display_name holds the email for email signups: never greet with an address.
       ownerName: briefOwnerName(profile.display_name as string | null, username),
+      sleeperUsername: username,
       tier,
       leagues,
       resultsWeek,

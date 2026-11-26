@@ -17,6 +17,7 @@
  * writes every sentence once, with the same copy functions the email uses,
  * so the email and /home cannot word a decision two ways.
  */
+import type { AskLadder } from "@/lib/strategy/verdict/ask";
 
 import type { Stance, VoiceName } from "@/lib/strategy/verdict/voices";
 import { MIN_CARD_VALUE_KEPT, STANCE_LABEL, isShortAt, playoffDelta, sellLeaningCount, type DeskLeague, type TradeCard, type TradeDeskModel } from "@/lib/email/trade-desk/model";
@@ -34,7 +35,9 @@ import {
   sellEffect,
   sellingLabel,
   shiftsHeadline,
+  forYou,
   verdictLine,
+  avgTeamLine,
   weekHeadline,
 } from "@/lib/email/trade-desk/render";
 
@@ -111,8 +114,10 @@ export interface TradeItem extends BaseItem {
   /** Exactly three tiles: playoffs, win the league, effect of the move. */
   stats: DecisionStat[];
   voices: DecisionVoice[];
-  /** "2 of 3 lean sell, if the price is right. Open by asking for ..." */
+  /** "2 of 3 lean sell, if the price is right. Ask X for Y ..." */
   verdict: string;
+  /** What to ask the buyer for: real players on their roster, floor to great. */
+  ask?: AskLadder | null;
   /** "If it doesn't land: ..." (the clause after the colon). */
   if_it_doesnt_land: string;
   /** Counterparty manager display name. */
@@ -132,6 +137,8 @@ export interface ShiftItem extends BaseItem {
   cause: string;
   /** Null when trading is impossible (best ball, past the deadline). */
   for_you: "seller" | "buyer" | "rival" | null;
+  /** The concrete line behind for_you: "Could buy your Jaylen Warren", "Rival: now 2 games back of you". */
+  for_you_line?: string | null;
 }
 
 export interface SwingItem extends BaseItem {
@@ -251,11 +258,12 @@ function tradeItem(c: TradeCard, i: number, m: TradeDeskModel, season: string): 
     kicker: `Worth trying · ${i + 1} of ${m.cards.length} · ${c.leagueName}`,
     stats: [
       { label: "Playoffs", value: RANGE_LABEL[rangeOf(c.playoffPct)], sub: `${fmtPct(c.playoffPct)} · ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds` },
-      { label: "Win the league", value: fmtPct(v.odds.title_pct), sub: `fair share is ${Math.round(v.league.fair_title_share * 100)}%` },
+      { label: "Win the league", value: fmtPct(v.odds.title_pct), sub: avgTeamLine(v) },
       { label: sellingLabel(c), value: deEntity(eff.big), sub: deEntity(eff.sub) },
     ],
     voices: c.panel.voices.map((x) => ({ voice: x.voice, stance: x.stance, stance_label: STANCE_LABEL[x.stance], line: x.line })),
     verdict: verdictLine(c),
+    ask: c.buyer.ask ?? null,
     if_it_doesnt_land: fallbackLine(c),
     manager: c.buyer.label,
     package_note: pkg,
@@ -402,7 +410,8 @@ export function buildDecisionItems(args: { model: TradeDeskModel; season: string
       range_from: s.from,
       range_to: s.to,
       cause: s.why,
-      for_you: s.role,
+      for_you: forYou(s, m)?.role ?? null,
+      for_you_line: forYou(s, m)?.text ?? null,
     });
   });
   for (const l of m.leagues) items.push(weekRow(l, m, args.season));
@@ -420,7 +429,7 @@ export function buildDecisionItems(args: { model: TradeDeskModel; season: string
       headline: heroHeadline(m),
       subline: heroSub(m),
       week_summary: m.leagues.length ? weekHeadline(m) : null,
-      shifts_summary: emailedShifts.length ? shiftsHeadline(emailedShifts) : null,
+      shifts_summary: emailedShifts.length ? shiftsHeadline(emailedShifts, m) : null,
     },
   };
 }
@@ -434,7 +443,7 @@ export function itemSentences(item: DecisionItem): string[] {
     for (const st of item.stats) out.push(st.label, st.value, st.sub ?? "");
     if (item.package_note) out.push(item.package_note);
   }
-  if (item.kind === "shift") out.push(item.cause);
+  if (item.kind === "shift") out.push(item.cause, ...(item.for_you_line ? [item.for_you_line] : []));
   if (item.kind === "league_call") out.push(item.stance_label, item.context, item.reason, ...item.voices.map((v) => v.line));
   if (item.kind === "week_row") out.push(item.format_record, item.result ?? "", item.refused_reason ?? "");
   return out.filter(Boolean);

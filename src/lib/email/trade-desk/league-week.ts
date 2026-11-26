@@ -66,6 +66,16 @@ export interface LeagueShift {
   why: string;
   /** null where no label applies or trading is closed in this league. */
   role: ShiftRole | null;
+  /**
+   * What this manager means for you, said concretely (Isaiah, 2026-11-26:
+   * "I genuinely don't understand what buyer/seller is telling me").
+   * "Could sell you Ja'Marr Chase or Kyren Williams", "Rival: 1 game back
+   * of you", "Needs a RB with Bijan Robinson out". null with no role.
+   * The email may replace a buyer's action with the trade card it ties to.
+   */
+  action: string | null;
+  /** Player names inside `action` (user-supplied names for the copy lint). */
+  action_players: string[];
 }
 
 export type WeekResult =
@@ -217,6 +227,7 @@ export function buildLeagueWeek(args: {
             : alive && (hurt || intoHunt)
               ? "buyer"
               : null;
+      const act = role ? shiftAction({ role, roster: r, me, sim, hurt: hurt ? { name, position: hurt.position ?? null } : null, players: args.players, valueById: args.valueById }) : null;
       shifts.push({
         roster_id: r.roster_id,
         manager: r.manager,
@@ -225,6 +236,8 @@ export function buildLeagueWeek(args: {
         injury: hurt ? { player: name, status: hurt.injury_status! } : null,
         why,
         role,
+        action: act?.text ?? null,
+        action_players: act?.players ?? [],
       });
     }
   }
@@ -238,6 +251,48 @@ export function buildLeagueWeek(args: {
     shifts,
     odds_note: now.ok ? null : now.reason,
   };
+}
+
+const SKILL = new Set(["QB", "RB", "WR", "TE"]);
+const playerName = (p: SleeperPlayer | undefined) =>
+  p ? p.full_name || [p.first_name, p.last_name].filter(Boolean).join(" ") : "";
+
+/** The concrete "for you" line behind a role. Pure over the week's inputs. */
+export function shiftAction(a: {
+  role: ShiftRole;
+  roster: WeekRosterInput;
+  me: WeekRosterInput;
+  sim: { teams: Array<{ roster_id: number; wins: number; losses: number; ties: number }> };
+  hurt: { name: string; position: string | null } | null;
+  players?: Map<string, SleeperPlayer>;
+  valueById?: Record<string, number>;
+}): { text: string; players: string[] } | null {
+  if (a.role === "rival") {
+    const t = a.sim.teams.find((x) => x.roster_id === a.roster.roster_id);
+    const mine = a.sim.teams.find((x) => x.roster_id === a.me.roster_id);
+    if (!t || !mine) return null;
+    const gap = mine.wins + mine.ties / 2 - (t.wins + t.ties / 2);
+    const g = Math.abs(gap);
+    const games = `${g % 1 ? g.toFixed(1) : g} ${g === 1 ? "game" : "games"}`;
+    return { text: gap === 0 ? "Rival: now tied with you" : gap > 0 ? `Rival: now ${games} back of you` : `Rival: now ${games} ahead of you`, players: [] };
+  }
+  if (a.role === "seller") {
+    const top = a.roster.player_ids
+      .map((id) => ({ id, v: a.valueById?.[id] ?? 0, p: a.players?.get(id) }))
+      .filter((x) => x.v > 0 && x.p && SKILL.has((x.p.position ?? "").toUpperCase()))
+      .sort((x, y) => y.v - x.v || x.id.localeCompare(y.id))
+      .slice(0, 2)
+      .map((x) => playerName(x.p))
+      .filter(Boolean);
+    if (top.length === 0) return null;
+    return { text: `Could sell you ${top.join(" or ")}`, players: top };
+  }
+  // Buyer.
+  if (a.hurt) {
+    const pos = (a.hurt.position ?? "").toUpperCase();
+    return { text: `Needs ${SKILL.has(pos) ? `a ${pos}` : "help"} with ${a.hurt.name} out`, players: [a.hurt.name] };
+  }
+  return { text: "Now contending; likely to pay for help", players: [] };
 }
 
 /** Probabilities as printed in the brief: rounded to 5, clamped to "<2%" / ">98%". */

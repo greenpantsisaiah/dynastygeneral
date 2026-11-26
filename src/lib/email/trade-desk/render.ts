@@ -6,7 +6,7 @@
  */
 
 import type { BuyerRead } from "@/lib/strategy/verdict/buyers";
-import { fmtPct, fmtScore, playoffRange, RANGE_LABEL, ROLE_DEFINITIONS, type LeagueShift, type PlayoffRange, type ShiftRole } from "./league-week";
+import { fmtPct, fmtScore, playoffRange, RANGE_LABEL, type LeagueShift, type PlayoffRange, type ShiftRole } from "./league-week";
 import {
   playoffDelta,
   round5,
@@ -18,7 +18,14 @@ import {
   type LeagueKind,
   type TradeCard,
   type TradeDeskModel,
+  isShortAt,
 } from "./model";
+
+/** A league page link that identifies the reader's roster even when signed out. */
+export function leagueHref(appUrl: string, m: TradeDeskModel, leagueId: string, sub = ""): string {
+  const base = `${appUrl.replace(/\/$/, "")}/leagues/${leagueId}${sub}`;
+  return m.sleeperUsername ? `${base}?username=${encodeURIComponent(m.sleeperUsername)}` : base;
+}
 
 export interface DeskRenderArgs {
   model: TradeDeskModel;
@@ -50,7 +57,7 @@ export function ordinal(n: number): string {
 }
 export const KIND_LABEL: Record<LeagueKind, string> = { dynasty: "Dynasty", keeper: "Keeper", redraft: "Redraft", best_ball: "Best ball" };
 const RANGE_TONE: Record<PlayoffRange, Tone> = { favorite: "green", in_the_hunt: "green", bubble: "amber", long_shot: "red", no_chance: "grey" };
-const ROLE: Record<ShiftRole, [string, Tone]> = { seller: ["Seller", "green"], buyer: ["Buyer", "blue"], rival: ["Rival", "amber"] };
+const ROLE_TONE: Record<ShiftRole, string> = { seller: C.green, buyer: C.blue, rival: C.amber };
 const lastName = (n: string) => n.split(" ").slice(1).join(" ") || n;
 
 // ---------- kit ----------
@@ -104,19 +111,56 @@ export function sellEffect(c: TradeCard): { big: string; sub: string; tone: stri
   if (d >= 1) return { big: `+${d} pts`, sub: `the replacement scores more; ${keptLine}`, tone: C.green };
   return { big: "&lt;1 pt", sub: `barely moves it; ${keptLine}`, tone: C.ink };
 }
+/** Replaces "fair share is 8%" (council: jargon). */
+export const avgTeamLine = (v: TradeCard["verdict"]) => `an average team has ${Math.round(v.league.fair_title_share * 100)}%`;
+const rung = (r: { name: string; position: string; plus?: { name: string; position: string } }): string =>
+  `${r.name} (${r.position})${r.plus ? ` plus ${r.plus.name} (${r.plus.position})` : ""}`;
+/**
+ * What to ask for (Isaiah, 2026-11-26: "a range of acceptable to awesome").
+ * Rungs are real players on the buyer's roster priced on our trade values
+ * (ask.ts); without a ladder the line falls back to the value drop.
+ */
+export function askLine(c: TradeCard): string | null {
+  const a = c.buyer.ask;
+  if (!a || (!a.fair && !a.floor && !a.great)) return null;
+  const out: string[] = [];
+  const open = a.fair ?? a.great ?? a.floor!;
+  const openWhat = open === a.fair ? "about even by our trade values" : open === a.great ? "a little over his value by our trade values, so expect a counter" : "a little under his value by our trade values";
+  out.push(`Ask ${c.buyer.label} for ${rung(open)}, ${openWhat}.`);
+  if (a.floor && open !== a.floor) out.push(`${rung(a.floor)} is the least worth taking.`);
+  if (a.great && open !== a.great) out.push(`${rung(a.great)} would be a great return.`);
+  return out.join(" ");
+}
+const verdictHead = (c: TradeCard) => `${c.sellLeaning} of 3 lean sell, if the price is right.`;
 export function verdictLine(c: TradeCard): string {
   const d = c.lead.decay;
-  return `${c.sellLeaning} of 3 lean sell, if the price is right. Open by asking for full value for ${c.lead.player.name}: about ${valuePts(d.value_now)} on our 0 to 100 scale. By August that drops to about ${Math.round(d.value_later)}.`;
+  const head = verdictHead(c);
+  const ask = askLine(c);
+  if (ask) return `${head} ${ask}`;
+  const drop = d.value_now > 0 ? Math.round((d.value_lost / d.value_now) * 100) : 0;
+  const last = lastName(c.lead.player.name);
+  return [
+    head,
+    `Nothing on ${c.buyer.label}'s bench is a fair return for ${last} by our trade values, so ask for their draft picks.`,
+    drop >= 1 ? `${last}'s trade value drops about ${drop}% by August.` : null,
+  ].filter(Boolean).join(" ");
 }
 export function fallbackLine(c: TradeCard): string {
   const pos = c.lead.player.position;
+  const last = lastName(c.lead.player.name);
   const keeper = c.panel.voices.find((v) => v.stance === "push" || v.stance === "lean_push");
-  const keepNote = keeper ? ` The ${VOICE_NAME[keeper.voice]} would keep ${lastName(c.lead.player.name)} anyway.` : "";
+  const keepNote = keeper ? ` The ${VOICE_NAME[keeper.voice]} would keep ${last} anyway.` : "";
   if (c.fallbackBuyers.length > 0) {
-    const names = c.fallbackBuyers.map((b) => b.label);
-    return `${names.join(" and ")} ${names.length > 1 ? "are" : "is"} also short at ${pos}. If nobody pays full value, keeping ${lastName(c.lead.player.name)} is a fine outcome.${keepNote}`;
+    // Each fallback said once: a priced ask where one exists, else picks.
+    const asks = c.fallbackBuyers.map((b) => {
+      const r = b.ask ? (b.ask.fair ?? b.ask.floor ?? b.ask.great) : null;
+      return r
+        ? `ask ${b.label} for ${rung(r)}`
+        : `ask ${b.label} for draft picks (also short at ${pos}, no fair bench return)`;
+    });
+    return `${asks.join(", or ")}. If nobody pays full value, keeping ${last} is a fine outcome.${keepNote}`.replace(/^a/, "A");
   }
-  return `No other manager is short at ${pos}. Keeping ${lastName(c.lead.player.name)} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
+  return `No other manager is short at ${pos}. Keeping ${last} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
 }
 export function deadlineChip(c: TradeCard): string {
   if (c.deadlineWeek == null) return "No trade deadline";
@@ -194,12 +238,33 @@ export function allShifts(m: TradeDeskModel, limit = MAX_SHIFT_ROWS): Array<Leag
     .sort((a, b) => Number(b.carded) - Number(a.carded) || Number(!!b.injury) - Number(!!a.injury) || size(b) - size(a))
     .slice(0, limit);
 }
-export function shiftsHeadline(rows: LeagueShift[]): string {
-  const sellers = rows.filter((r) => r.role === "seller").length;
-  return `${plural(rows.length, "team")} changed ${rows.length === 1 ? "its" : "their"} season.${sellers ? ` ${sellers} ${sellers === 1 ? "is" : "are"} now ${sellers === 1 ? "a seller" : "sellers"}.` : ""}`;
+/**
+ * The concrete "for you" line (replaces the Buyer / Seller / Rival chips).
+ * A manager named on one of this email's trade cards reads as the buyer of
+ * that player, so the shifts table and the cards tell one story.
+ */
+export function forYou(s: LeagueShift & { leagueId: string }, m: TradeDeskModel): { text: string; role: ShiftRole } | null {
+  for (const c of m.cards) {
+    if (c.leagueId !== s.leagueId) continue;
+    const named = [c.buyer, ...c.fallbackBuyers, ...c.lead.buyers.filter(isShortAt)];
+    if (named.some((b) => b.roster_id === s.roster_id)) return { text: `Could buy your ${c.lead.player.name}`, role: "buyer" };
+    // Newly contending in the card's league: a backup call for the same player.
+    if (s.role === "buyer" && !s.injury) return { text: `Now contending: a backup call for your ${c.lead.player.name}`, role: "buyer" };
+  }
+  return s.role && s.action ? { text: s.action, role: s.role } : null;
+}
+export function shiftsHeadline(rows: Array<LeagueShift & { leagueId: string }>, m: TradeDeskModel): string {
+  const fy = rows.map((r) => forYou(r, m));
+  const sell = fy.filter((x) => x?.role === "seller").length;
+  const buy = fy.filter((x) => x?.role === "buyer").length;
+  const parts = [
+    sell ? `${sell} could sell to you` : null,
+    buy ? `${buy} could buy from you` : null,
+  ].filter(Boolean);
+  const head = `${plural(rows.length, "team")} changed ${rows.length === 1 ? "its" : "their"} season.`;
+  return m.tier === "pro" && parts.length ? `${head} ${parts.join(", ")}.` : head;
 }
 export const RANGES_LEGEND = "Ranges: Favorite 80%+ playoffs, In the hunt 50 to 80, Bubble 25 to 50, Long shot 2 to 25, No chance under 2%.";
-export const ROLES_LEGEND = `For you: ${ROLE_DEFINITIONS.seller}. ${ROLE_DEFINITIONS.buyer}. ${ROLE_DEFINITIONS.rival}. Blank where none applies or trading is closed.`;
 export function founderAsk(m: TradeDeskModel): string {
   if (m.leagues.length === 0) return "What would make this brief worth connecting a league for? Reply now.";
   if (m.cards.length === 0) return "What would you want this email to tell you next Tuesday? Reply now.";
@@ -231,12 +296,12 @@ function tradeCardHtml(c: TradeCard, i: number, m: TradeDeskModel, appUrl: strin
     `<td width="33%" valign="top">${kicker(a)}<div style="font:700 24px ${SERIF};color:${col};margin-top:4px;">${b}</div><div style="font:12px ${SANS};color:${C.mute};">${esc(d)}</div></td>`;
   const tiles =
     tile("Playoffs", RANGE_LABEL[playoffRange(c.playoffPct)], `${fmtPct(c.playoffPct)} · ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds`) +
-    tile("Win the league", fmtPct(v.odds.title_pct), `fair share is ${Math.round(v.league.fair_title_share * 100)}%`) +
+    tile("Win the league", fmtPct(v.odds.title_pct), avgTeamLine(v)) +
     tile(esc(sellingLabel(c)), eff.big, eff.sub.replace("&minus;", "-"), eff.tone);
   const voices = c.panel.voices
     .map((x) => `<tr><td valign="top" width="26" style="padding:8px 10px 8px 0;"><div style="width:22px;height:22px;border-radius:11px;background:${VOICE_COLOR[x.voice]};color:#fff;font:700 10px/22px ${SANS};text-align:center;">${VOICE_NAME[x.voice][0]}</div></td><td style="padding:8px 0;border-top:1px solid ${C.rule};font-family:${SANS};font-size:13px;line-height:1.5;color:${C.ink2};"><b style="color:${C.ink};">${VOICE_NAME[x.voice]} · ${STANCE_LABEL[x.stance]}.</b> ${esc(x.line)}</td></tr>`)
     .join("");
-  const offerUrl = `${appUrl}/leagues/${c.leagueId}/trade`;
+  const offerUrl = leagueHref(appUrl, m, c.leagueId, "/trade");
   const action =
     m.tier === "pro"
       ? `<div style="margin-top:14px;">${button(`Open the offer to ${esc(c.buyer.label)}`, offerUrl)}</div>`
@@ -247,10 +312,20 @@ ${h(esc(cardTitle(c)), 21, 10)}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;"><tr>${tiles}</tr></table>
 <div style="margin-top:18px;">${kicker("Where the three analysts land")}</div><div style="margin-top:10px;">${scale(c)}</div>
 <div style="margin-top:10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${voices}</table></div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:${C.amberBg};border-radius:8px;"><tr><td style="padding:12px 14px;font:14px/1.5 ${SANS};color:${C.ink};"><b>${esc(verdictLine(c).split(". ")[0])}.</b> ${esc(verdictLine(c).split(". ").slice(1).join(". "))}<div style="margin-top:8px;font:13px/1.5 ${SANS};color:${C.ink2};"><b style="color:${C.ink};">If it doesn't land:</b> ${esc(fallbackLine(c))}</div></td></tr></table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:${C.amberBg};border-radius:8px;"><tr><td style="padding:12px 14px;font:14px/1.5 ${SANS};color:${C.ink};"><b>${esc(verdictHead(c))}</b> ${askRowsHtml(c) ?? esc(verdictLine(c).slice(verdictHead(c).length + 1))}<div style="margin-top:8px;font:13px/1.5 ${SANS};color:${C.ink2};"><b style="color:${C.ink};">If it doesn't land:</b> ${esc(fallbackLine(c))}</div></td></tr></table>
 ${action}`,
     C.amber,
   );
+}
+/** The ask range as three scannable rows (same rungs as askLine). */
+function askRowsHtml(c: TradeCard): string | null {
+  const a = c.buyer.ask;
+  if (!a || (!a.fair && !a.floor && !a.great)) return null;
+  const rows = ([["Great return", a.great], ["Fair, about even", a.fair], ["Least worth taking", a.floor]] as const)
+    .filter(([, r]) => r)
+    .map(([l, r]) => `<tr><td valign="top" style="padding:6px 10px 0 0;font:600 11px ${SANS};color:${C.amber};white-space:nowrap;text-transform:uppercase;letter-spacing:.06em;">${l}</td><td style="padding:5px 0 0;font:600 14px/1.4 ${SANS};color:${C.ink};">${esc(rung(r!))}</td></tr>`)
+    .join("");
+  return `Ask ${esc(c.buyer.label)} for one of these, best first. All are bench players no older than him, within 15% of his value by our trade values:<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px;">${rows}</table>`;
 }
 function locked(appUrl: string): string {
   const rows = [["A message ready to paste", 130], ["Fallback ask if they say no", 90]] as const;
@@ -270,32 +345,46 @@ function resultCell(l: DeskLeague): string {
     ? `${tag} ${strong(fmtScore(r.my))}${light(`-${fmtScore(r.opp)}`)}`
     : `${tag} ${light(`${fmtScore(r.my)}-`)}${strong(fmtScore(r.opp))}`;
 }
+/** A playoff move this size or bigger is a headline mover in the week table. */
+export const BIG_MOVE_PTS = 10;
 function playoffCell(l: DeskLeague): string {
   const w = l.week;
-  if (!w || w.playoff_now == null) return `<span style="font:12px ${SANS};color:${C.mute};">${esc(w?.odds_note ? "No odds yet" : l.note ? "No odds" : "No odds")}</span>`;
+  if (!w || w.playoff_now == null) return `<span style="font:12px ${SANS};color:${C.mute};">No odds yet</span>`;
   const d = playoffDelta(w) ?? 0;
+  const big = Math.abs(d) >= BIG_MOVE_PTS;
+  const tone = d > 0 ? C.green : C.red;
+  // Big movers pop as a filled pill; small moves stay quiet; no change prints nothing.
   const arrow = d === 0
-    ? `<span style="font:11px ${SANS};color:${C.mute};">no change</span>`
-    : `<span style="font:600 11px ${SANS};color:${d > 0 ? C.green : C.red};">${d > 0 ? "&#9650;" : "&#9660;"} ${Math.abs(d)}</span>`;
-  return `<span style="font:700 14px ${SANS};color:${C.ink};">${fmtPct(w.playoff_now)}</span> ${arrow}`;
+    ? ""
+    : big
+      ? ` <span style="display:inline-block;font:700 12px/1 ${SANS};color:#fff;background:${tone};padding:4px 7px;border-radius:999px;white-space:nowrap;">${d > 0 ? "+" : "&minus;"}${Math.abs(d)}</span>`
+      : ` <span style="font:600 11px ${SANS};color:${tone};white-space:nowrap;">${d > 0 ? "+" : "&minus;"}${Math.abs(d)}</span>`;
+  return `<span style="font:700 ${big ? 17 : 15}px ${SANS};color:${C.ink};">${fmtPct(w.playoff_now)}</span>${arrow}`;
 }
 function recsCell(n: number, href: string): string {
-  if (n === 0) return `<span style="font:12px ${SANS};color:${C.mute};">0 recs</span>`;
-  return `<a href="${esc(href)}" style="display:inline-block;font:700 12px ${SANS};color:#fff;background:${C.ink};padding:5px 9px;border-radius:999px;text-decoration:none;white-space:nowrap;">${n} rec${n > 1 ? "s" : ""} &rarr;</a>`;
+  if (n === 0) return "";
+  return `<a href="${esc(href)}" style="display:inline-block;font:700 12px ${SANS};color:#fff;background:${C.amber};padding:6px 10px;border-radius:999px;text-decoration:none;white-space:nowrap;">${n} ${n > 1 ? "trades" : "trade"} &rarr;</a>`;
+}
+/** Leagues that need you first, then the biggest playoff swings, then quiet ones. */
+export function weekOrder(m: TradeDeskModel): DeskLeague[] {
+  const recs = (l: DeskLeague) => m.recsByLeague[l.leagueId] ?? 0;
+  const move = (l: DeskLeague) => Math.abs(playoffDelta(l.week) ?? 0);
+  return [...m.leagues].sort((a, b) => recs(b) - recs(a) || move(b) - move(a) || Number(!!b.week) - Number(!!a.week));
 }
 function weekHtml(m: TradeDeskModel, appUrl: string): string {
-  const td = (x: string, extra = "") => `<td style="padding:9px 6px 9px 0;border-top:1px solid ${C.rule};${extra}">${x}</td>`;
-  const rows = m.leagues
+  const td = (x: string, extra = "") => `<td style="padding:10px 6px 10px 0;border-top:1px solid ${C.rule};${extra}">${x}</td>`;
+  const rows = weekOrder(m)
     .map((l) => {
       const rec = l.week ? `${l.week.record.wins}-${l.week.record.losses}${l.week.record.ties ? `-${l.week.record.ties}` : ""}` : "";
-      return `<tr>${td(`<div style="font:600 13px/1.3 ${SANS};color:${C.ink};">${esc(l.leagueName)}</div><div style="font:11px ${SANS};color:${C.mute};">${KIND_LABEL[l.kind]}${rec ? ` · ${rec}` : ""}</div>`)}${td(resultCell(l), `font:600 12px ${SANS};color:${C.ink2};white-space:nowrap;`)}${td(playoffCell(l))}<td align="right" style="padding:9px 0;border-top:1px solid ${C.rule};">${recsCell(m.recsByLeague[l.leagueId] ?? 0, `${appUrl}/leagues/${l.leagueId}`)}</td></tr>`;
+      const quiet = (m.recsByLeague[l.leagueId] ?? 0) === 0 && Math.abs(playoffDelta(l.week) ?? 0) < BIG_MOVE_PTS;
+      return `<tr>${td(`<div style="font:${quiet ? 400 : 600} 13px/1.3 ${SANS};color:${quiet ? C.ink2 : C.ink};">${esc(l.leagueName)}</div><div style="font:11px ${SANS};color:${C.mute};">${KIND_LABEL[l.kind]}${rec ? ` · ${rec}` : ""}</div>`)}${td(resultCell(l), `font:600 13px ${SANS};color:${C.ink2};white-space:nowrap;`)}${td(playoffCell(l), "white-space:nowrap;")}<td align="right" style="padding:10px 0;border-top:1px solid ${C.rule};">${recsCell(m.recsByLeague[l.leagueId] ?? 0, leagueHref(appUrl, m, l.leagueId))}</td></tr>`;
     })
     .join("");
   const notes = m.leagues.filter((l) => !l.week && l.note).map((l) => `${esc(l.leagueName)}: ${esc(l.note!)}`);
   const swing = biggestSwing(m);
   return card(`${kicker(`Week ${m.resultsWeek} across your ${plural(m.leagues.length, "league")}`)}
 ${weekHeadline(m) ? h(esc(weekHeadline(m)!), 20, 8) : ""}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;"><tr><td style="padding-bottom:6px;">${kicker("League")}</td><td style="padding:0 6px 6px 0;">${kicker(`Week ${m.resultsWeek}`)}</td><td style="padding:0 6px 6px 0;">${kicker("Playoffs")}</td><td align="right" style="padding-bottom:6px;">${kicker("This week")}</td></tr>${rows}</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;"><tr><td style="padding-bottom:6px;">${kicker("League")}</td><td style="padding:0 6px 6px 0;">${kicker(`Week ${m.resultsWeek}`)}</td><td style="padding:0 6px 6px 0;">${kicker("Playoffs")}</td><td align="right" style="padding-bottom:6px;">${kicker("Worth trying")}</td></tr>${rows}</table>
 ${swing ? p(esc(swing), 13, C.mute, 10) : ""}${notes.length ? p(notes.join("<br>"), 12, C.mute, 8) : ""}`);
 }
 function shiftsHtml(m: TradeDeskModel, appUrl: string): string {
@@ -306,15 +395,18 @@ function shiftsHtml(m: TradeDeskModel, appUrl: string): string {
       const mv = s.from && s.to
         ? `${chip(RANGE_LABEL[s.from], RANGE_TONE[s.from])}<span style="color:${C.mute};font:12px ${SANS};padding:0 3px;">&rarr;</span>${chip(RANGE_LABEL[s.to], RANGE_TONE[s.to])}`
         : chip("Key injury", "red");
-      const role = s.role == null ? "" : m.tier === "pro" ? chip(...ROLE[s.role]) : `<span style="display:inline-block;width:52px;height:10px;border-radius:5px;background:#E2DCCF;"></span>`;
-      return `<tr><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};"><div style="font:600 13px/1.3 ${SANS};color:${C.ink};">${esc(s.manager)}</div><div style="font:11px/1.3 ${SANS};color:${C.mute};">${esc(s.league)}</div></td><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};line-height:2;">${mv}</td><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};font:12px/1.4 ${SANS};color:${C.ink2};">${esc(s.why)}</td><td align="right" style="padding:8px 0;border-top:1px solid ${C.rule};">${role}</td></tr>`;
+      const fy = forYou(s, m);
+      const role = fy == null ? "" : m.tier === "pro"
+        ? `<span style="font:600 12px/1.35 ${SANS};color:${ROLE_TONE[fy.role]};">${esc(fy.text)}</span>`
+        : `<span style="display:inline-block;width:80px;height:10px;border-radius:5px;background:#E2DCCF;"></span>`;
+      return `<tr><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};"><div style="font:600 13px/1.3 ${SANS};color:${C.ink};">${esc(s.manager)}</div><div style="font:11px/1.3 ${SANS};color:${C.mute};">${esc(s.league)}</div></td><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};line-height:2;">${mv}</td><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};font:12px/1.4 ${SANS};color:${C.ink2};">${esc(s.why)}</td><td align="right" width="30%" style="padding:8px 0;border-top:1px solid ${C.rule};">${role}</td></tr>`;
     })
     .join("");
-  const freeLink = m.tier === "free" ? `<p style="margin:10px 0 0;font:13px ${SANS};"><a href="${esc(appUrl)}/pricing" style="color:${C.amber};font-weight:600;text-decoration:none;">See who is a seller or buyer for you &rarr;</a></p>` : "";
+  const freeLink = m.tier === "free" ? `<p style="margin:10px 0 0;font:13px ${SANS};"><a href="${esc(appUrl)}/pricing" style="color:${C.amber};font-weight:600;text-decoration:none;">See who could buy or sell to you &rarr;</a></p>` : "";
   return card(`${kicker("League shifts since last week")}
-${h(esc(shiftsHeadline(rows)), 20, 8)}
+${h(esc(shiftsHeadline(rows, m)), 20, 8)}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;"><tr><td style="padding-bottom:6px;">${kicker("Manager")}</td><td style="padding-bottom:6px;">${kicker("Range")}</td><td style="padding-bottom:6px;">${kicker("Why")}</td><td align="right" style="padding-bottom:6px;">${kicker("For you")}</td></tr>${body}</table>
-${p(RANGES_LEGEND, 11, C.mute, 10)}${m.tier === "pro" ? p(esc(ROLES_LEGEND), 11, C.mute, 4) : ""}${freeLink}`);
+${p(RANGES_LEGEND, 11, C.mute, 10)}${freeLink}`);
 }
 
 export function renderDeskHtml(a: DeskRenderArgs): string {
@@ -349,33 +441,32 @@ export function renderDeskText(a: DeskRenderArgs): string {
     const eff = sellEffect(c);
     out.push(`WORTH TRYING ${i + 1} OF ${m.cards.length} · ${c.leagueName} · ${deadlineChip(c)}`);
     out.push(cardTitle(c));
-    out.push(`Playoffs: ${RANGE_LABEL[playoffRange(c.playoffPct)]} (${fmtPct(c.playoffPct)}, ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds). Win the league ${fmtPct(v.odds.title_pct)} (fair share is ${Math.round(v.league.fair_title_share * 100)}%). ${sellingLabel(c)}: ${eff.big.replace("&minus;", "-").replace("&lt;", "<")}, ${eff.sub}.`);
+    out.push(`Playoffs: ${RANGE_LABEL[playoffRange(c.playoffPct)]} (${fmtPct(c.playoffPct)}, ${ordinal(v.league.rank_by_title_odds)} of ${v.league.teams} by odds). Win the league ${fmtPct(v.odds.title_pct)} (${avgTeamLine(v)}). ${sellingLabel(c)}: ${eff.big.replace("&minus;", "-").replace("&lt;", "<")}, ${eff.sub}.`);
     for (const x of c.panel.voices) out.push(`  ${VOICE_NAME[x.voice]} · ${STANCE_LABEL[x.stance]}. ${x.line}`);
     out.push(verdictLine(c), `If it doesn't land: ${fallbackLine(c)}`);
-    out.push(m.tier === "pro" ? `Open the offer to ${c.buyer.label}: ${a.appUrl}/leagues/${c.leagueId}/trade` : `Pro: the ready-to-send offer and message. ${a.appUrl}/pricing`, "");
+    out.push(m.tier === "pro" ? `Open the offer to ${c.buyer.label}: ${leagueHref(a.appUrl, m, c.leagueId, "/trade")}` : `Pro: the ready-to-send offer and message. ${a.appUrl}/pricing`, "");
   });
   if (m.leagues.length) out.push(`WEEK ${m.resultsWeek} ACROSS YOUR ${plural(m.leagues.length, "LEAGUE").toUpperCase()}`);
   const wh = weekHeadline(m);
   if (m.leagues.length && wh) out.push(wh);
-  for (const l of m.leagues) {
+  for (const l of weekOrder(m)) {
     const w = l.week;
     const r = w?.result;
     const res = !r ? "no result" : r.kind === "points_rank" ? `${ordinal(r.rank)} in pts of ${r.teams}` : `${r.won == null ? "T" : r.won ? "W" : "L"} ${fmtScore(r.my)}-${fmtScore(r.opp)}`;
     const po = w?.playoff_now != null ? `playoffs ${fmtPct(w.playoff_now)}${(playoffDelta(w) ?? 0) !== 0 ? ` (${(playoffDelta(w) ?? 0) > 0 ? "up" : "down"} ${Math.abs(playoffDelta(w) ?? 0)})` : ""}` : "no odds yet";
     const recs = m.recsByLeague[l.leagueId] ?? 0;
-    out.push(`  ${l.leagueName} (${KIND_LABEL[l.kind]}${w ? `, ${w.record.wins}-${w.record.losses}` : ""}): ${res}, ${po}, ${plural(recs, "rec")}${!w && l.note ? `. ${l.note}` : ""}`);
+    out.push(`  ${l.leagueName} (${KIND_LABEL[l.kind]}${w ? `, ${w.record.wins}-${w.record.losses}` : ""}): ${res}, ${po}${recs ? `, ${plural(recs, "trade")} worth trying` : ""}${!w && l.note ? `. ${l.note}` : ""}`);
   }
   const swing = biggestSwing(m);
   if (swing) out.push(swing);
   const shifts = allShifts(m);
   if (shifts.length) {
-    out.push("", "LEAGUE SHIFTS SINCE LAST WEEK", shiftsHeadline(shifts));
+    out.push("", "LEAGUE SHIFTS SINCE LAST WEEK", shiftsHeadline(shifts, m));
     for (const s of shifts) {
       const mv = s.from && s.to ? `${RANGE_LABEL[s.from]} to ${RANGE_LABEL[s.to]}` : "Key injury";
-      out.push(`  ${s.manager} (${s.league}): ${mv}. ${s.why}.${m.tier === "pro" && s.role ? ` For you: ${ROLE[s.role][0]}.` : ""}`);
+      out.push(`  ${s.manager} (${s.league}): ${mv}. ${s.why}.${m.tier === "pro" && forYou(s, m) ? ` For you: ${forYou(s, m)!.text}.` : ""}`);
     }
     out.push(RANGES_LEGEND);
-    if (m.tier === "pro") out.push(ROLES_LEGEND);
   }
   out.push("", founderAsk(m), "Hit reply. One word is fine. I read every reply myself, and the next brief gets built from them.", "Isaiah, founder", "");
   out.push(METHOD(m), `Unsubscribe: ${a.unsubscribeUrl}`, `Dynasty General · ${a.mailingAddress}`);

@@ -24,7 +24,8 @@ import { normalizePosition, type Position } from "../archetypes/schema";
 import type { LeagueSnapshot } from "../league-state/snapshot";
 import { buildContendOrSellVerdict, type VerdictPlayer, type VerdictResult } from "./compose";
 import { buildSimInputFromSleeper, replacementPpg, startedPoints } from "./from-sleeper";
-import type { BuyerInput } from "./buyers";
+import type { BuyerInput, BuyerRead } from "./buyers";
+import { buildAskLadder, type AskRung } from "./ask";
 
 const SKILL: Position[] = ["QB", "RB", "WR", "TE"];
 /** Sleeper's default when a league does not set playoff_week_start. */
@@ -135,7 +136,7 @@ export async function loadContendOrSellVerdict(args: {
     }));
   };
 
-  return buildContendOrSellVerdict({
+  const result = buildContendOrSellVerdict({
     sim,
     rosterId: me.roster_id,
     players,
@@ -144,4 +145,51 @@ export async function loadContendOrSellVerdict(args: {
     leagueType: args.snapshot.league_type,
     tradeWindow: tradeWindow(buildFormatRulesFromSnapshot(args.snapshot), args.nflWeek),
   });
+  if (result.ok && result.verdict.candidates.length > 0) {
+    // Last finished week's lineups: a contender's starters are not on the table.
+    const lastRows = matchupsByWeek[firstUnplayedWeek - 1] ?? [];
+    const starters = new Set(lastRows.flatMap((m) => m.starters ?? []));
+    await attachAskLadders(result.verdict.candidates, args.snapshot, args.playerValuesById, playersMap, starters);
+  }
+  return result;
+}
+
+/**
+ * Puts an acceptable-to-great ask on every ranked buyer: real players from
+ * that buyer's roster, priced on the same scoring values as the player sold.
+ */
+async function attachAskLadders(
+  candidates: { player: VerdictPlayer; buyers: BuyerRead[] }[],
+  snapshot: LeagueSnapshot,
+  values: Record<string, number>,
+  known: Map<string, SleeperPlayer>,
+  starters: Set<string>,
+): Promise<void> {
+  const buyerIds = new Set(candidates.flatMap((c) => c.buyers.map((b) => b.roster_id)));
+  const rosters = snapshot.rosters.filter((r) => buyerIds.has(r.roster_id));
+  const ids = rosters.flatMap((r) => r.player_ids).filter((id) => !known.has(id));
+  const fetched = ids.length > 0 ? await resolvePlayers(ids) : new Map<string, SleeperPlayer>();
+  const meta = (id: string) => known.get(id) ?? fetched.get(id);
+  const offersFor = (rosterId: number): AskRung[] => {
+    const r = rosters.find((x) => x.roster_id === rosterId);
+    if (!r) return [];
+    const out: AskRung[] = [];
+    for (const id of r.player_ids) {
+      const p = meta(id);
+      const position = normalizePosition(p?.position ?? null);
+      const value = values[id];
+      if (!p || !position || typeof value !== "number") continue;
+      // Never ask a seller to take back a hurt player (design QA, 2026-11-26).
+      if (p.injury_status) continue;
+      const name = p.full_name || [p.first_name, p.last_name].filter(Boolean).join(" ");
+      if (!name) continue;
+      out.push({ player_id: id, name, position, value, age: typeof p.age === "number" ? p.age : null, starter: starters.has(id) });
+    }
+    return out;
+  };
+  for (const c of candidates) {
+    for (const b of c.buyers) {
+      b.ask = buildAskLadder({ targetValue: c.player.value, offers: offersFor(b.roster_id), excludePosition: c.player.position, soldAge: c.player.age });
+    }
+  }
 }
