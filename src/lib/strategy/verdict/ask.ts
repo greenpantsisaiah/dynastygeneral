@@ -22,7 +22,8 @@ export interface AskRung {
   value: number;
   /**
    * A smaller second piece from the same roster when no single player lands
-   * in the band ("DJ Moore plus Rome Odunze"). `value` is then the package total.
+   * in the band ("DJ Moore plus Rome Odunze"). `value` is then the package
+   * value with the add-on discounted by ADDON_WEIGHT (consolidation premium).
    */
   plus?: Omit<AskRung, "plus">;
 }
@@ -45,6 +46,14 @@ export const ASK_BANDS = {
 } as const;
 const ANCHOR = { floor: 0.9, fair: 1.0, great: 1.2 } as const;
 const SKILL = new Set(["QB", "RB", "WR", "TE"]);
+/**
+ * Consolidation premium: in a two-for-one the second piece counts at a
+ * discount, because two mid players are worth less than one better one
+ * (roster spots, one lineup slot; trade calculators apply the same kind of
+ * value adjustment to the side with the best player). FIXME: hardcoded, no
+ * canonical yet; calibrate against logged trade acceptances.
+ */
+export const ADDON_WEIGHT = 0.5;
 /** Pairs are searched among the buyer's top N players only. */
 const PAIR_POOL = 25;
 
@@ -80,7 +89,7 @@ export function buildAskLadder(args: {
         if (main.value >= v * lo) continue;
         for (const add of [...free].reverse()) {
           if (add.player_id === main.player_id || add.value > main.value) continue;
-          const total = main.value + add.value;
+          const total = main.value + ADDON_WEIGHT * add.value;
           if (total >= v * lo && total < v * hi) return { main, add, total };
         }
       }

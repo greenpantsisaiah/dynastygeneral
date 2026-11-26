@@ -239,8 +239,9 @@ check("ask ladder: fair is about even", ladder?.fair?.name === "Fair Guy", JSON.
 check("ask ladder: floor sits under value", ladder?.floor?.name === "Floor Guy");
 check("ask ladder: great is an overpay", ladder?.great?.name === "Great Guy");
 check("ask ladder never offers the sold position or a kicker", ![ladder?.fair, ladder?.floor, ladder?.great].some((r) => r?.position === "RB" || r?.position === "K"));
-const pair = buildAskLadder({ targetValue: 50, offers: [{ player_id: "m", name: "Main", position: "WR", value: 40 }, { player_id: "s", name: "Small", position: "TE", value: 12 }, { player_id: "t", name: "Tiny", position: "QB", value: 3 }], excludePosition: "RB" });
+const pair = buildAskLadder({ targetValue: 50, offers: [{ player_id: "m", name: "Main", position: "WR", value: 40 }, { player_id: "s", name: "Small", position: "TE", value: 24 }, { player_id: "t", name: "Tiny", position: "QB", value: 12 }], excludePosition: "RB" });
 check("ask ladder builds a two-piece package when no single player fits", pair?.fair?.name === "Main" && pair.fair.plus?.name === "Small" && pair.fair.value === 52, JSON.stringify(pair));
+check("two-piece package discounts the add-on (consolidation premium)", pair?.fair?.plus?.name !== "Tiny");
 check("ask ladder is null with nothing in band", buildAskLadder({ targetValue: 50, offers: [{ player_id: "x", name: "X", position: "WR", value: 10 }], excludePosition: "RB" }) === null);
 const simT = { teams: [{ roster_id: 1, wins: 7, losses: 4, ties: 0 }, { roster_id: 2, wins: 5, losses: 6, ties: 0 }] };
 const r1 = { roster_id: 1, manager: "Me", is_me: true, player_ids: [], starters: [] };
