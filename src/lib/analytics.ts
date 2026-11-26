@@ -3,6 +3,7 @@
 import { sendGTMEvent } from "@next/third-parties/google";
 
 type DGEvent =
+  | { event: "brief_signup" }
   | { event: "sleeper_username_submit"; username: string }
   | {
       event: "leagues_fetched";
