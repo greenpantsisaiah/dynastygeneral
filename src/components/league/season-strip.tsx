@@ -68,7 +68,7 @@ export function SeasonStrip({ week, standing, totalTeams, verdict, call }: Seaso
   }
   if (tradeLine) cells.push({ label: "Trades", value: tw?.open ? "Open" : "Closed", note: tradeLine });
 
-  if (cells.length === 0 && week == null && !call) return null;
+  if (cells.length === 0 && !call) return null;
 
   return (
     <section
