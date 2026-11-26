@@ -18,7 +18,8 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { effectiveTier } from "@/lib/auth/session";
 import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
-import { WEEKLY_BRIEF_TEMPLATE_VERSION, composeWeeklyBrief, type BriefTier } from "@/lib/email/weekly-brief";
+import { WEEKLY_BRIEF_TEMPLATE_VERSION, briefRenderTier, composeWeeklyBrief, type BriefTier } from "@/lib/email/weekly-brief";
+import { flagOn } from "@/lib/flags/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +41,10 @@ export async function GET(request: Request): Promise<Response> {
 
   let username = url.searchParams.get("username");
   let displayName: string | null = null;
-  let tier: BriefTier = url.searchParams.get("tier") === "pro" ? "pro" : "free";
+  // ?tier= previews a tier as-is (so the free/Pro split can be reviewed);
+  // otherwise the account's tier goes through the beta switch, like the cron.
+  const tierParam = url.searchParams.get("tier");
+  let tier: BriefTier = tierParam === "pro" ? "pro" : "free";
   if (userId) {
     const admin = getAdminClient();
     const [{ data: profile }, { data: sub }] = await Promise.all([
@@ -55,6 +59,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!userId && !username) {
     return NextResponse.json({ ok: false, error: "pass ?user=<id> or ?username=<sleeper name>" }, { status: 400 });
   }
+  if (!tierParam) tier = briefRenderTier(tier, flagOn("brief_pro_split", userId ?? username));
 
   const nfl = await getNflState();
   if (!nfl || !nfl.week) return NextResponse.json({ ok: false, error: "nfl_state_unavailable" }, { status: 502 });

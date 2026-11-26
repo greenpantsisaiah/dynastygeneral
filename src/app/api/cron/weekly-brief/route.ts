@@ -33,7 +33,7 @@ import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { flagOn } from "@/lib/flags/server";
 import { effectiveTier } from "@/lib/auth/session";
-import { WEEKLY_BRIEF_TEMPLATE_VERSION, composeWeeklyBrief, type DeskLeague } from "@/lib/email/weekly-brief";
+import { WEEKLY_BRIEF_TEMPLATE_VERSION, briefRenderTier, composeWeeklyBrief, type DeskLeague } from "@/lib/email/weekly-brief";
 import { briefSendKind, honorForce, resolveSendMode } from "@/lib/email/send-guard";
 import { OPT_OUT, WEEKLY_BRIEF_LIST, unsubscribeUrl } from "@/lib/email/unsubscribe";
 
@@ -171,7 +171,8 @@ export async function GET(request: Request): Promise<Response> {
       continue;
     }
     result.eligible++;
-    const tier = tierBy.get(userId) ?? "free";
+    // Beta: everyone gets the full brief until the free/Pro split is switched on.
+    const tier = briefRenderTier(tierBy.get(userId) ?? "free", flagOn("brief_pro_split", userId));
     const username = (profile.sleeper_username as string | null) ?? null;
     let leagues: DeskLeague[] = [];
     let resultsWeek = nfl.week - 1;
