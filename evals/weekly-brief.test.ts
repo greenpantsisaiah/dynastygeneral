@@ -230,7 +230,7 @@ console.log("\n── desk6: ask range, for-you actions, signed-out links ──
 const offers = [
   { player_id: "a", name: "Fair Guy", position: "WR", value: 50 },
   { player_id: "b", name: "Floor Guy", position: "TE", value: 45 },
-  { player_id: "c", name: "Great Guy", position: "QB", value: 61 },
+  { player_id: "c", name: "Great Guy", position: "QB", value: 55 },
   { player_id: "d", name: "Same Pos", position: "RB", value: 50 },
   { player_id: "e", name: "Kicker", position: "K", value: 50 },
 ];
@@ -242,6 +242,14 @@ check("ask ladder never offers the sold position or a kicker", ![ladder?.fair, l
 const pair = buildAskLadder({ targetValue: 50, offers: [{ player_id: "m", name: "Main", position: "WR", value: 40 }, { player_id: "s", name: "Small", position: "TE", value: 24 }, { player_id: "t", name: "Tiny", position: "QB", value: 12 }], excludePosition: "RB" });
 check("ask ladder builds a two-piece package when no single player fits", pair?.fair?.name === "Main" && pair.fair.plus?.name === "Small" && pair.fair.value === 52, JSON.stringify(pair));
 check("two-piece package discounts the add-on (consolidation premium)", pair?.fair?.plus?.name !== "Tiny");
+const aged = buildAskLadder({ targetValue: 50, soldAge: 25, excludePosition: "RB", offers: [
+  { player_id: "o", name: "Old Vet", position: "TE", value: 50, age: 31 },
+  { player_id: "st", name: "Their Starter", position: "WR", value: 50, age: 23, starter: true },
+  { player_id: "y", name: "Young Bench", position: "WR", value: 49, age: 22 },
+  { player_id: "y2", name: "Younger Bench", position: "WR", value: 51, age: 21 },
+] });
+check("ask ladder skips older players and the buyer's starters", aged?.fair?.name === "Younger Bench" && ![aged?.floor, aged?.great].some((r) => r?.name === "Old Vet" || r?.name === "Their Starter"), JSON.stringify(aged));
+check("every rung sits within 15% of the sold value", [ladder?.fair, ladder?.floor, ladder?.great].every((r) => !r || (r.value >= 42.5 && r.value <= 57.5)));
 check("ask ladder is null with nothing in band", buildAskLadder({ targetValue: 50, offers: [{ player_id: "x", name: "X", position: "WR", value: 10 }], excludePosition: "RB" }) === null);
 const simT = { teams: [{ roster_id: 1, wins: 7, losses: 4, ties: 0 }, { roster_id: 2, wins: 5, losses: 6, ties: 0 }] };
 const r1 = { roster_id: 1, manager: "Me", is_me: true, player_ids: [], starters: [] };

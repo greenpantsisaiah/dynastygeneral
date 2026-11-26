@@ -125,7 +125,7 @@ export function askLine(c: TradeCard): string | null {
   if (!a || (!a.fair && !a.floor && !a.great)) return null;
   const out: string[] = [];
   const open = a.fair ?? a.great ?? a.floor!;
-  const openWhat = open === a.fair ? "about even by our trade values" : open === a.great ? "more than he is worth by our trade values, so expect a counter" : "a little under his value by our trade values";
+  const openWhat = open === a.fair ? "about even by our trade values" : open === a.great ? "a little over his value by our trade values, so expect a counter" : "a little under his value by our trade values";
   out.push(`Ask ${c.buyer.label} for ${rung(open)}, ${openWhat}.`);
   if (a.floor && open !== a.floor) out.push(`${rung(a.floor)} is the least worth taking.`);
   if (a.great && open !== a.great) out.push(`${rung(a.great)} would be a great return.`);
@@ -138,7 +138,15 @@ export function verdictLine(c: TradeCard): string {
   const ask = askLine(c);
   if (ask) return `${head} ${ask}`;
   const drop = d.value_now > 0 ? Math.round((d.value_lost / d.value_now) * 100) : 0;
-  return `${head} Ask for a starter of equal value for ${c.lead.player.name}.${drop >= 1 ? ` ${lastName(c.lead.player.name)}'s trade value drops about ${drop}% by August.` : ""}`;
+  const last = lastName(c.lead.player.name);
+  const alt = c.fallbackBuyers.find((b) => b.ask && (b.ask.fair || b.ask.floor || b.ask.great));
+  const altRung = alt?.ask ? (alt.ask.fair ?? alt.ask.floor ?? alt.ask.great) : null;
+  return [
+    head,
+    `Nothing on ${c.buyer.label}'s bench is a fair return for ${last} by our trade values, so ask for their draft picks.`,
+    alt && altRung ? `${alt.label} could pay with ${rung(altRung)}.` : null,
+    drop >= 1 ? `${last}'s trade value drops about ${drop}% by August.` : null,
+  ].filter(Boolean).join(" ");
 }
 export function fallbackLine(c: TradeCard): string {
   const pos = c.lead.player.position;
@@ -313,7 +321,7 @@ function askRowsHtml(c: TradeCard): string | null {
     .filter(([, r]) => r)
     .map(([l, r]) => `<tr><td valign="top" style="padding:6px 10px 0 0;font:600 11px ${SANS};color:${C.amber};white-space:nowrap;text-transform:uppercase;letter-spacing:.06em;">${l}</td><td style="padding:5px 0 0;font:600 14px/1.4 ${SANS};color:${C.ink};">${esc(rung(r!))}</td></tr>`)
     .join("");
-  return `Ask ${esc(c.buyer.label)} for one of these, best first, priced on our trade values:<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px;">${rows}</table>`;
+  return `Ask ${esc(c.buyer.label)} for one of these, best first. All are bench players no older than him, within 15% of his value by our trade values:<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px;">${rows}</table>`;
 }
 function locked(appUrl: string): string {
   const rows = [["A message ready to paste", 130], ["Fallback ask if they say no", 90]] as const;

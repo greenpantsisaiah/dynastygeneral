@@ -146,7 +146,10 @@ export async function loadContendOrSellVerdict(args: {
     tradeWindow: tradeWindow(buildFormatRulesFromSnapshot(args.snapshot), args.nflWeek),
   });
   if (result.ok && result.verdict.candidates.length > 0) {
-    await attachAskLadders(result.verdict.candidates, args.snapshot, args.playerValuesById, playersMap);
+    // Last finished week's lineups: a contender's starters are not on the table.
+    const lastRows = matchupsByWeek[firstUnplayedWeek - 1] ?? [];
+    const starters = new Set(lastRows.flatMap((m) => m.starters ?? []));
+    await attachAskLadders(result.verdict.candidates, args.snapshot, args.playerValuesById, playersMap, starters);
   }
   return result;
 }
@@ -160,6 +163,7 @@ async function attachAskLadders(
   snapshot: LeagueSnapshot,
   values: Record<string, number>,
   known: Map<string, SleeperPlayer>,
+  starters: Set<string>,
 ): Promise<void> {
   const buyerIds = new Set(candidates.flatMap((c) => c.buyers.map((b) => b.roster_id)));
   const rosters = snapshot.rosters.filter((r) => buyerIds.has(r.roster_id));
@@ -177,13 +181,13 @@ async function attachAskLadders(
       if (!p || !position || typeof value !== "number") continue;
       const name = p.full_name || [p.first_name, p.last_name].filter(Boolean).join(" ");
       if (!name) continue;
-      out.push({ player_id: id, name, position, value });
+      out.push({ player_id: id, name, position, value, age: typeof p.age === "number" ? p.age : null, starter: starters.has(id) });
     }
     return out;
   };
   for (const c of candidates) {
     for (const b of c.buyers) {
-      b.ask = buildAskLadder({ targetValue: c.player.value, offers: offersFor(b.roster_id), excludePosition: c.player.position });
+      b.ask = buildAskLadder({ targetValue: c.player.value, offers: offersFor(b.roster_id), excludePosition: c.player.position, soldAge: c.player.age });
     }
   }
 }

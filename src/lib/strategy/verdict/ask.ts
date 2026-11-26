@@ -8,10 +8,11 @@
  * priced pool already computed for every roster). No new value math lives
  * here: the bands only place the buyer's players around the seller's value.
  *
- * Bands are relative to the sold player's value. The floor band sits inside
- * the +/-15% fairness band the trade-realism tester enforces; "great" is
- * above it, an overpay the buyer may still accept when they are short at
- * the position. FIXME: hardcoded, no canonical yet. Register with the
+ * Seller rules (design QA, 2026-11-26): every rung sits inside the +/-15%
+ * fairness band the trade-realism tester enforces; asks come from the
+ * buyer's bench (never their current starters, which a contender will not
+ * move); no return older than the player sold; younger pieces preferred.
+ * In a two-for-one the second piece is discounted (consolidation premium). FIXME: hardcoded, no canonical yet. Register with the
  * trade advisor once acceptance outcomes are logged.
  */
 
@@ -20,6 +21,9 @@ export interface AskRung {
   name: string;
   position: string;
   value: number;
+  age?: number | null;
+  /** In the buyer's lineup last week: never asked for. */
+  starter?: boolean;
   /**
    * A smaller second piece from the same roster when no single player lands
    * in the band ("DJ Moore plus Rome Odunze"). `value` is then the package
@@ -33,18 +37,19 @@ export interface AskLadder {
   floor: AskRung | null;
   /** About even by value: what to open with. */
   fair: AskRung | null;
-  /** A clearly better return, worth asking for if the buyer is desperate. */
+  /** A clearly better return, still inside the fairness band. */
   great: AskRung | null;
   /** The sold player's value the bands are relative to. */
   target_value: number;
 }
 
+/** All inside +/-15% of the sold player's value. */
 export const ASK_BANDS = {
   floor: [0.85, 0.95],
-  fair: [0.95, 1.1],
-  great: [1.1, 1.35],
+  fair: [0.95, 1.05],
+  great: [1.05, 1.15],
 } as const;
-const ANCHOR = { floor: 0.9, fair: 1.0, great: 1.2 } as const;
+const ANCHOR = { floor: 0.9, fair: 1.0, great: 1.1 } as const;
 const SKILL = new Set(["QB", "RB", "WR", "TE"]);
 /**
  * Consolidation premium: in a two-for-one the second piece counts at a
@@ -54,44 +59,60 @@ const SKILL = new Set(["QB", "RB", "WR", "TE"]);
  * canonical yet; calibrate against logged trade acceptances.
  */
 export const ADDON_WEIGHT = 0.5;
-/** Pairs are searched among the buyer's top N players only. */
+/** Pairs are searched among the buyer's top N eligible players only. */
 const PAIR_POOL = 25;
+/** Unknown age sorts after every known age (prefer what we can vouch for). */
+const ageKey = (o: AskRung) => (typeof o.age === "number" ? o.age : 99);
 
 export function buildAskLadder(args: {
   targetValue: number;
-  /** Players the buyer rosters, with scoring values. */
+  /** Players the buyer rosters, with scoring values, age and starter flag. */
   offers: AskRung[];
   /** The sold player's position: the buyer is short there, so their players at it are not a return. */
   excludePosition: string;
+  /** The sold player's age: no return older than him. */
+  soldAge?: number | null;
 }): AskLadder | null {
   const v = args.targetValue;
   if (!(v > 0)) return null;
+  const maxAge = typeof args.soldAge === "number" ? args.soldAge : null;
   const pool = args.offers.filter(
-    (o) => o.value > 0 && SKILL.has(o.position) && o.position !== args.excludePosition,
+    (o) =>
+      o.value > 0 &&
+      SKILL.has(o.position) &&
+      o.position !== args.excludePosition &&
+      !o.starter &&
+      (maxAge == null || (typeof o.age === "number" && o.age <= maxAge)),
   );
   const used = new Set<string>();
+  // Youngest first, then closest to the band's anchor.
   const pick = (band: keyof typeof ASK_BANDS): AskRung | null => {
     const [lo, hi] = ASK_BANDS[band];
-    const inBand = pool.filter((o) => !used.has(o.player_id) && o.value >= v * lo && o.value < v * hi);
+    const inBand = pool.filter((o) => !used.has(o.player_id) && o.value >= v * lo && o.value <= v * hi);
     if (inBand.length === 0) return null;
     const anchor = v * ANCHOR[band];
-    inBand.sort((a, b) => Math.abs(a.value - anchor) - Math.abs(b.value - anchor) || a.player_id.localeCompare(b.player_id));
+    inBand.sort((a, b) => ageKey(a) - ageKey(b) || Math.abs(a.value - anchor) - Math.abs(b.value - anchor) || a.player_id.localeCompare(b.player_id));
     used.add(inBand[0].player_id);
     return inBand[0];
   };
-  // No single player in the band: try a main piece plus the smallest add-on
-  // that lands the package in it (largest main piece first, fewest moving parts).
+  // No single player in the band: a main piece plus an add-on (discounted)
+  // that lands the package in it. Youngest main piece first.
   const pickPair = (band: keyof typeof ASK_BANDS): AskRung | null => {
     const [lo, hi] = ASK_BANDS[band];
-    const free = pool.filter((o) => !used.has(o.player_id)).sort((a, b) => b.value - a.value || a.player_id.localeCompare(b.player_id)).slice(0, PAIR_POOL);
+    const free = pool
+      .filter((o) => !used.has(o.player_id))
+      .sort((a, b) => b.value - a.value || a.player_id.localeCompare(b.player_id))
+      .slice(0, PAIR_POOL);
+    const mains = [...free].sort((a, b) => ageKey(a) - ageKey(b) || b.value - a.value);
     const find = (): { main: AskRung; add: AskRung; total: number } | null => {
-      for (const main of free) {
+      for (const main of mains) {
         if (main.value >= v * lo) continue;
-        for (const add of [...free].reverse()) {
-          if (add.player_id === main.player_id || add.value > main.value) continue;
-          const total = main.value + ADDON_WEIGHT * add.value;
-          if (total >= v * lo && total < v * hi) return { main, add, total };
-        }
+        const adds = free
+          .filter((a) => a.player_id !== main.player_id && a.value <= main.value)
+          .map((a) => ({ a, total: main.value + ADDON_WEIGHT * a.value }))
+          .filter((x) => x.total >= v * lo && x.total <= v * hi)
+          .sort((x, y) => ageKey(x.a) - ageKey(y.a) || x.a.value - y.a.value);
+        if (adds.length) return { main, add: adds[0].a, total: adds[0].total };
       }
       return null;
     };
@@ -101,14 +122,9 @@ export function buildAskLadder(args: {
     used.add(best.add.player_id);
     return { ...best.main, value: Math.round(best.total * 100) / 100, plus: best.add };
   };
-  const fair = pick("fair");
+  const fair = pick("fair") ?? pickPair("fair");
   const floor = pick("floor");
-  const great = pick("great");
-  const out = {
-    fair: fair ?? pickPair("fair"),
-    floor,
-    great: great ?? pickPair("great"),
-  };
-  if (!out.fair && !out.floor && !out.great) return null;
-  return { ...out, target_value: v };
+  const great = pick("great") ?? pickPair("great");
+  if (!fair && !floor && !great) return null;
+  return { fair, floor, great, target_value: v };
 }
