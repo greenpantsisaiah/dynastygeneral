@@ -44,7 +44,7 @@ export const RELEASES: Release[] = [
       },
       {
         tag: "THREE ANALYSTS",
-        text: "The Moneyballer, The Strategist and The Gambler weigh in on every keep-or-sell call, in the brief and on the hub. When they disagree, you see each case and make the call.",
+        text: "The Moneyballer, The Strategist and The Gambler weigh in on every keep-or-sell call in the brief. When they disagree, you see each case and make the call.",
       },
       {
         tag: "EVERY FORMAT",
