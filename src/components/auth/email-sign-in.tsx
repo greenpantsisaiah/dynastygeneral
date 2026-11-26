@@ -71,11 +71,7 @@ export function EmailSignInForm({ next = "/" }: { next?: string }) {
     });
     setLoading(false);
     if (err) {
-      setError(
-        /signups not allowed|not found/i.test(err.message)
-          ? "No account uses that email. Sign up on the homepage."
-          : err.message,
-      );
+      setError(magicLinkErrorMessage(err));
     } else {
       setSuccess("Sign-in link sent. Open it on this device.");
     }
@@ -172,4 +168,27 @@ export function EmailSignInForm({ next = "/" }: { next?: string }) {
       </p>
     </form>
   );
+}
+
+/**
+ * Supabase's raw magic-link errors read as system noise ("For security
+ * purposes, you can only request this after 52 seconds."). Map the two
+ * a real user hits to plain lines; anything else passes through.
+ */
+function magicLinkErrorMessage(err: {
+  message: string;
+  status?: number;
+  code?: string;
+}): string {
+  if (/signups not allowed|not found/i.test(err.message)) {
+    return "No account uses that email. Sign up on the homepage.";
+  }
+  if (
+    err.status === 429 ||
+    /rate_limit/i.test(err.code ?? "") ||
+    /for security purposes|rate limit/i.test(err.message)
+  ) {
+    return "Link already sent. Check your inbox, or try again in a minute.";
+  }
+  return err.message;
 }
