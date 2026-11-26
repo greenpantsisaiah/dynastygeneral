@@ -60,7 +60,7 @@ const items: DecisionItem[] = [
   { ...base, id: decisionItemId("trade", "2026", 12, "fc", "idea"), kind: "trade", league_id: "fc", league_name: "The Final Countdown", delivery: { emailed: false }, direction: "buy", kicker: "", title: "dbo is selling after the Josh Allen injury.", manager: "dbo", stats: [], voices: [], verdict: "", if_it_doesnt_land: "", package_note: null, cta_label: "Open" },
 ];
 const digest: DecisionDigest = {
-  season: "2026", week: 12, kicker: "Tue Nov 24 · Week 11 is in · Week 12 ahead",
+  kicker: "Tue Nov 24 · Week 11 is in · Week 12 ahead",
   headline: "2 trades worth trying before Thursday's deadline.",
   subline: "Your other 6 leagues need nothing from you this week.",
   week_summary: "4-3 last week. Your playoff chances rose in 4 leagues, fell in 2.",

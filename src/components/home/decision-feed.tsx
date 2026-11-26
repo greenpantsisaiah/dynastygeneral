@@ -331,6 +331,24 @@ export function ShiftList({ shifts, summary }: { shifts: ShiftItem[]; summary: s
     <section className="rounded-xl border border-border-soft bg-surface p-4">
       <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">League shifts since last Tuesday</h2>
       <p className="mt-1 text-sm text-muted">{summary}</p>
+      <ShiftRows shifts={shifts.filter((s) => s.delivery.emailed)} />
+      {shifts.some((s) => !s.delivery.emailed) && (
+        <details className="border-t border-border-soft pt-2">
+          <summary className="cursor-pointer text-sm text-accent">
+            {shifts.filter((s) => !s.delivery.emailed).length} more teams moved
+          </summary>
+          <ShiftRows shifts={shifts.filter((s) => !s.delivery.emailed)} />
+        </details>
+      )}
+      <p className="mt-2 text-[11px] text-muted-2">
+        Ranges: Favorite 80%+ playoffs, In the hunt 50-80, Bubble 25-50, Long shot 2-25, No chance under 2%.
+      </p>
+    </section>
+  );
+}
+
+function ShiftRows({ shifts }: { shifts: ShiftItem[] }) {
+  return (
       <ul className="mt-1">
         {shifts.map((s) => (
           <li key={s.id} id={s.id} className="scroll-mt-4 border-t border-border-soft py-2.5 text-sm">
@@ -351,10 +369,6 @@ export function ShiftList({ shifts, summary }: { shifts: ShiftItem[]; summary: s
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[11px] text-muted-2">
-        Ranges: Favorite 80%+ playoffs, In the hunt 50-80, Bubble 25-50, Long shot 2-25, No chance under 2%.
-      </p>
-    </section>
   );
 }
 
