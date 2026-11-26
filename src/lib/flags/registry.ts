@@ -27,7 +27,7 @@ export const FLAGS = {
     created: "2026-11-24",
     expires: "2027-03-31",
     variants: ["off", "on"],
-    rollout: [0],
+    rollout: [100],
   },
   aar_ready_email: {
     description:
