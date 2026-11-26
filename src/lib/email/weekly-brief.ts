@@ -20,7 +20,7 @@ import { buildDecisionItems, type DecisionDigest, type DecisionItem } from "@/li
  * value, so a new template always goes to the admin preview list first
  * and reaches users only after Isaiah approves that exact version.
  */
-export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk7";
+export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk8";
 
 export type { BriefTier, DeskLeague };
 
@@ -73,6 +73,7 @@ export function composeWeeklyBrief(args: {
     resultsWeek: args.resultsWeek,
     leagues: args.leagues,
     seasonStartDate: args.seasonStartDate,
+    now: args.sendDate,
   });
   const r = {
     model,

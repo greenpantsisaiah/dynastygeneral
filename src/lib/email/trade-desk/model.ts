@@ -77,9 +77,13 @@ export function sellLeaningCount(p: Panel): number {
   return p.voices.filter((x) => SELL_LEANING.includes(x.stance)).length;
 }
 
-function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): TradeCard | null {
+function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined, now?: Date): TradeCard | null {
   const v = l.verdict;
   if (!v || !v.trade_window.open) return null;
+  const by = tradeBy(v.trade_window.deadline_week, seasonStartDate);
+  // A send after the safe trade-by time never asks for a trade by then
+  // (2026-11-26 preview went out at 2:23 PM CT saying "before 11:30 AM CT").
+  if (by && now && new Date(by.iso).getTime() <= now.getTime()) return null;
   for (const c of v.candidates) {
     const n = sellLeaningCount(c.panel);
     if (n < 2) continue;
@@ -94,7 +98,7 @@ function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined): Tra
       leagueId: l.leagueId,
       leagueName: l.leagueName,
       deadlineWeek: v.trade_window.deadline_week,
-      tradeBy: tradeBy(v.trade_window.deadline_week, seasonStartDate),
+      tradeBy: by,
       sellLeaning: n,
       lead: c,
       panel: c.panel,
@@ -136,9 +140,11 @@ export function buildTradeDeskModel(args: {
   leagues: DeskLeague[];
   /** nfl_state.season_start_date, for the trade-by day. */
   seasonStartDate?: string | null;
+  /** Send time: cards whose trade-by time has passed are dropped. */
+  now?: Date;
 }): TradeDeskModel {
   const cards = args.leagues
-    .map((l) => cardFor(l, args.seasonStartDate))
+    .map((l) => cardFor(l, args.seasonStartDate, args.now))
     .filter((c): c is TradeCard => c != null)
     .sort(
       (a, b) =>
