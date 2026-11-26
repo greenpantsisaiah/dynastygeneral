@@ -45,11 +45,14 @@ export function leagueDecision(args: {
   if (found.kind === "league_call") return found;
   // A one-league model numbers the card "1 of 1" and assumes it was
   // emailed; neither is known from this page, so neither is claimed. The
-  // playoff and league-win stats sit in the season strip right above.
+  // playoff stat sits in the season strip right above; "Win the league"
+  // stays because the sale stat beside it reads against it. The analysts
+  // live in the keep-or-sell card below, so the card does not repeat them.
   return {
     ...found,
     kicker: "Worth trying",
     delivery: { emailed: false },
-    stats: found.stats.filter((x) => x.label !== "Playoffs" && x.label !== "Win the league"),
+    stats: found.stats.filter((x) => x.label !== "Playoffs"),
+    voices: [],
   };
 }

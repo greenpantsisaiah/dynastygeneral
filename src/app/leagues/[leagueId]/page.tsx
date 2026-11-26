@@ -69,6 +69,8 @@ import { ContendOrSellCard } from "@/components/league/contend-or-sell-card";
 import { SeasonStrip } from "@/components/league/season-strip";
 import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
 import { leagueDecision } from "@/lib/decisions/league-decision";
+import { seasonQuickPrompts } from "@/lib/coach/season-prompts";
+import { leagueKind } from "@/lib/email/build-brief";
 import { TradeCard as WeekTradeCard, LeagueCallCard } from "@/components/home/decision-feed";
 import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
 import { flagOn } from "@/lib/flags/server";
@@ -2086,6 +2088,15 @@ export default async function LeagueHubPage({
   // workflows the hub doesn't cover inline; they get small header
   // buttons. The coach used to be a third card; now it's the always-
   // visible right column on desktop.
+  // No roster matched this viewer (signed out, no ?username, or a name
+  // not in this league). That is a missing identity, not a data fault:
+  // show a sign-in prompt instead of the red integrity banner (Isaiah,
+  // 2026-11-26, from an email link while signed out).
+  const noRosterIdentified = !!leagueSnapshot && !leagueSnapshot.rosters.some((r) => r.is_me);
+  const bannerSevere = integrityReport.issues.filter(
+    (i) => i.severity === "severe" && !(noRosterIdentified && i.kind === "roster_not_found"),
+  );
+
   const tradeIncomingHref = `/leagues/${leagueId}/trade${qs({ username: cleanedUsername, season })}`;
   const tradeOutboundHref = `/leagues/${leagueId}/trade?mode=outbound${qsTail({
     username: cleanedUsername,
@@ -2394,12 +2405,39 @@ export default async function LeagueHubPage({
 
           {/* In-season lead: the season strip sits right under the
               header, above any banner, so it is the first read on a phone. */}
-          {inSeasonLayout && (
+          {noRosterIdentified && (
+            <section className="mt-6 rounded-lg border border-border-soft bg-surface px-4 py-4 sm:px-5">
+              <p className="text-base font-semibold text-foreground">
+                {cleanedUsername
+                  ? `No team for ${cleanedUsername} in ${league.name}.`
+                  : "Sign in or enter your Sleeper name to see your team."}
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                {cleanedUsername
+                  ? "Check the Sleeper name, or sign in to use the one saved on your account."
+                  : "Your record, playoff chances and this week's call show once the page knows which team is yours. The league below is visible to everyone."}
+              </p>
+              {!authUser && (
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/leagues/${leagueId}`)}`}
+                  className="mt-3 inline-flex min-h-10 items-center rounded-md bg-accent px-4 text-sm font-semibold text-black"
+                >
+                  Sign in
+                </Link>
+              )}
+            </section>
+          )}
+          {inSeasonLayout && !noRosterIdentified && (
             <SeasonStrip
               week={nflState?.week ?? null}
               standing={standing}
               totalTeams={totalRosters}
               verdict={contendOrSell}
+              call={
+                weekCall?.kind === "league_call" && showContendOrSellCard
+                  ? { title: weekCall.title, label: weekCall.stance ? weekCall.stance_label : null }
+                  : null
+              }
             />
           )}
           {/* Briefing panel (?diagnose=1 only). Shows the digested
@@ -2502,10 +2540,10 @@ export default async function LeagueHubPage({
               availability coherence, and cross-source position. Better
               to scare the user with a visible alarm than to silently
               mislead. */}
-          {integrityReport.severity === "severe" && (
+          {bannerSevere.length > 0 && (
             <section className="mt-6 rounded-md border-2 border-danger/60 bg-danger/10 px-4 py-3">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-danger">
-                ⚠ Engine integrity issue · {integrityReport.severe_count} severe
+                ⚠ Engine integrity issue · {bannerSevere.length} severe
                 {integrityReport.warning_count > 0
                   ? ` + ${integrityReport.warning_count} warning${integrityReport.warning_count === 1 ? "" : "s"}`
                   : ""}
@@ -2517,8 +2555,7 @@ export default async function LeagueHubPage({
                 served silently.
               </p>
               <ul className="mt-2 space-y-1 text-xs text-muted">
-                {integrityReport.issues
-                  .filter((i) => i.severity === "severe")
+                {bannerSevere
                   .slice(0, 6)
                   .map((it, idx) => (
                     <li key={`${it.kind}-${idx}`}>
@@ -2528,9 +2565,9 @@ export default async function LeagueHubPage({
                       <span className="ml-2 text-foreground">{it.headline}</span>
                     </li>
                   ))}
-                {integrityReport.severe_count > 6 && (
+                {bannerSevere.length > 6 && (
                   <li className="text-muted-2">
-                    + {integrityReport.severe_count - 6} more severe
+                    + {bannerSevere.length - 6} more severe
                   </li>
                 )}
               </ul>
@@ -2575,7 +2612,11 @@ export default async function LeagueHubPage({
                   and league-win chances, trade window), then the
                   keep-or-sell call with the three analysts. Both read the
                   contend-or-sell verdict; neither computes anything. */}
-              {inSeasonLayout && weekCall && (
+              {/* This week's call. A trade gets its own card; otherwise
+                  the call is one line in the season strip and the
+                  keep-or-sell card below carries the reason and the
+                  analysts, so nothing is said twice. */}
+              {inSeasonLayout && weekCall && (weekCall.kind === "trade" || !showContendOrSellCard) && (
                 <section aria-label="This week's call" className="mt-6">
                   <h2 className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
                     This week&apos;s call
@@ -3191,7 +3232,14 @@ export default async function LeagueHubPage({
                     username={cleanedUsername}
                     displayName={String(teamName)}
                     variant="panel"
-                    inSeason={inSeasonLayout}
+                    seasonPrompts={
+                      inSeasonLayout
+                        ? seasonQuickPrompts({
+                            kind: leagueKind(league),
+                            tradeOpen: contendOrSell?.trade_window.open ?? true,
+                          })
+                        : null
+                    }
                     context={{
                       leagueName: league.name,
                       myPickLabel: pickApproach?.my_pick_label ?? null,
