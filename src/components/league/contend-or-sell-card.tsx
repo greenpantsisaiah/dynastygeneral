@@ -9,14 +9,15 @@
  */
 
 import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
+import { fmtPct } from "@/lib/email/trade-desk/league-week";
 import { STANCE_SCORE, type Stance, type VoiceName } from "@/lib/strategy/verdict/voices";
 
 const STANCE_LABEL: Record<Stance, string> = {
   sell: "Sell",
   lean_sell: "Lean sell",
   split: "Split",
-  lean_push: "Lean push",
-  push: "Push",
+  lean_push: "Lean keep",
+  push: "Keep going",
 };
 
 const VOICE: Record<VoiceName, { label: string; dot: string; text: string }> = {
@@ -48,10 +49,10 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
           Where you stand · hypothesis, not yet scored
         </p>
         <h3 className="mt-1 text-lg font-semibold">
-          Title odds {pct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
+          Win the league {fmtPct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
         </h3>
         <p className="text-sm text-muted">
-          Playoffs {pct(v.odds.playoff_pct)} · fair title share {pct(v.league.fair_title_share)}.
+          Playoffs {fmtPct(v.odds.playoff_pct)} · fair share {pct(v.league.fair_title_share)}.
         </p>
         <p className="mt-2 text-sm text-muted">{v.trade_window.label}</p>
       </section>
@@ -67,10 +68,10 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
             Keep going or sell · hypothesis, not yet scored
           </p>
           <h3 className="mt-1 text-lg font-semibold">
-            {headline}: title odds {pct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
+            {headline}: win the league {fmtPct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
           </h3>
           <p className="text-sm text-muted">
-            Playoffs {pct(v.odds.playoff_pct)} · fair title share {pct(v.league.fair_title_share)} · {consensus}.
+            Playoffs {fmtPct(v.odds.playoff_pct)} · fair share {pct(v.league.fair_title_share)} · {consensus}.
           </p>
         </div>
       </div>
@@ -92,7 +93,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
         </div>
         <div className="mt-1 flex justify-between text-[11px] text-muted-2">
           <span>Sell to contenders</span>
-          <span>Push for the title</span>
+          <span>Keep going for the title</span>
         </div>
       </div>
 
@@ -126,8 +127,8 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
                   Age curve expects about {valuePts(c.decay.value_lost)} gone by August. Selling him
                   costs {c.weekly_points_lost.toFixed(1)} pts per week
                   {Math.abs(c.title_delta) < 0.005
-                    ? " and barely moves your title odds"
-                    : ` and ${pp(c.title_delta)} of title odds${c.title_delta > 0 ? " (a gain: his replacement scores more)" : ""}`}
+                    ? " and barely moves your chance to win the league"
+                    : ` and ${pp(c.title_delta)} of your chance to win the league${c.title_delta > 0 ? " (a gain: his replacement scores more)" : ""}`}
                   .
                 </p>
                 {c.buyers.length > 0 && (
@@ -139,7 +140,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
             ))}
           </ul>
           <p className="mt-2 text-xs text-muted-2">
-            Selling all {v.candidates.length}: title odds {pct(v.odds.title_pct)} to {pct(v.package.title_pct_if_sold)},
+            Selling all {v.candidates.length}: chance to win the league {fmtPct(v.odds.title_pct)} to {fmtPct(v.package.title_pct_if_sold)},
             about {valuePts(v.package.value_kept_by_selling)} kept. Contender premium is unknown and priced
             at 0, so ask for market value, not more.
           </p>

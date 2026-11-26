@@ -146,8 +146,20 @@ export function UserMenu({ name, email, avatarUrl, tier }: Props) {
             <MenuLink href="/leagues" onClick={() => setOpen(false)}>
               My leagues
             </MenuLink>
+            <MenuLink href="/home" onClick={() => setOpen(false)}>
+              Home
+            </MenuLink>
             <MenuLink href="/rankings" onClick={() => setOpen(false)}>
               Rankings lab
+            </MenuLink>
+            <MenuLink href="/library" onClick={() => setOpen(false)}>
+              Library
+            </MenuLink>
+            <MenuLink href="/scout" onClick={() => setOpen(false)}>
+              Scout a manager
+            </MenuLink>
+            <MenuLink href="/methodology" onClick={() => setOpen(false)}>
+              Methodology
             </MenuLink>
             <MenuLink href="/pricing" onClick={() => setOpen(false)}>
               {tier === "pro" ? "Manage plan" : "Upgrade to Pro"}

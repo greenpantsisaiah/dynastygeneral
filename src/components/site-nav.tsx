@@ -9,8 +9,10 @@ export async function SiteNav() {
   return (
     <header className="sticky top-0 z-40 border-b border-border-soft bg-background/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        {/* Signed in, the logo goes home (every league's decisions), not
+            back to the marketing page. */}
         <Link
-          href="/"
+          href={user ? "/home" : "/"}
           className="flex items-center gap-2"
         >
           <DynastyGeneralLogo
@@ -22,31 +24,41 @@ export async function SiteNav() {
             Dynasty General
           </span>
         </Link>
-        <nav className="flex items-center gap-6 text-sm">
-          <Link
-            href="/rankings"
-            className="hidden text-muted transition hover:text-foreground sm:inline"
-          >
-            Rankings
-          </Link>
-          <Link
-            href="/methodology"
-            className="hidden text-muted transition hover:text-foreground sm:inline"
-          >
-            Methodology
-          </Link>
-          <Link
-            href="/library"
-            className="hidden text-muted transition hover:text-foreground sm:inline"
-          >
-            Library
-          </Link>
-          <Link
-            href="/scout"
-            className="hidden text-muted transition hover:text-foreground sm:inline"
-          >
-            Scout
-          </Link>
+        <nav className="flex items-center gap-4 text-sm sm:gap-6">
+          {/* Signed in, the bar leads with the in-season jobs: Home (every
+              league's decisions) and My leagues. Methodology and Scout move
+              into the account menu; nothing is removed. */}
+          {user ? (
+            <>
+              <Link href="/home" className="text-muted transition hover:text-foreground">
+                Home
+              </Link>
+              <Link href="/leagues" className="text-muted transition hover:text-foreground">
+                My leagues
+              </Link>
+              <Link href="/rankings" className="hidden text-muted transition hover:text-foreground sm:inline">
+                Rankings
+              </Link>
+              <Link href="/library" className="hidden text-muted transition hover:text-foreground sm:inline">
+                Library
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/rankings" className="hidden text-muted transition hover:text-foreground sm:inline">
+                Rankings
+              </Link>
+              <Link href="/methodology" className="hidden text-muted transition hover:text-foreground sm:inline">
+                Methodology
+              </Link>
+              <Link href="/library" className="hidden text-muted transition hover:text-foreground sm:inline">
+                Library
+              </Link>
+              <Link href="/scout" className="hidden text-muted transition hover:text-foreground sm:inline">
+                Scout
+              </Link>
+            </>
+          )}
           {user ? (
             <UserMenu
               name={user.name}
