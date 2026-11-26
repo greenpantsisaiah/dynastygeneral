@@ -33,13 +33,7 @@ import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { flagOn } from "@/lib/flags/server";
 import { effectiveTier } from "@/lib/auth/session";
-import {
-  WEEKLY_BRIEF_TEMPLATE_VERSION,
-  briefSubject,
-  renderWeeklyBriefHtml,
-  renderWeeklyBriefText,
-  type BriefLeague,
-} from "@/lib/email/weekly-brief";
+import { WEEKLY_BRIEF_TEMPLATE_VERSION, composeWeeklyBrief, type DeskLeague } from "@/lib/email/weekly-brief";
 import { briefSendKind, honorForce, resolveSendMode } from "@/lib/email/send-guard";
 import { OPT_OUT, WEEKLY_BRIEF_LIST, unsubscribeUrl } from "@/lib/email/unsubscribe";
 
@@ -111,7 +105,6 @@ export async function GET(request: Request): Promise<Response> {
   const sendMode = preview ? "preview" : "broadcast";
   const sendKind = briefSendKind(weekKind, WEEKLY_BRIEF_TEMPLATE_VERSION, sendMode);
   const forceResend = honorForce(force, sendMode);
-  const weekLabel = `Week ${nfl.week}`;
 
   const admin = getAdminClient();
   const { data: profiles, error } = await admin
@@ -137,7 +130,7 @@ export async function GET(request: Request): Promise<Response> {
     (marks ?? []).filter((m) => m.kind === sendKind && m.status === "sent" && !forceResend).map((m) => m.user_id as string),
   );
 
-  const result = { ok: true, dry, mode: guard.mode, template: WEEKLY_BRIEF_TEMPLATE_VERSION, not_admin: 0, week: sendKind, eligible: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, flag_off: 0 };
+  const result = { ok: true, dry, mode: guard.mode, template: WEEKLY_BRIEF_TEMPLATE_VERSION, not_admin: 0, lint_blocked: 0, week: sendKind, eligible: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, flag_off: 0 };
   const { Resend } = dry ? { Resend: null } : await import("resend");
   const resend = Resend && apiKey ? new Resend(apiKey) : null;
 
@@ -180,32 +173,43 @@ export async function GET(request: Request): Promise<Response> {
     result.eligible++;
     const tier = tierBy.get(userId) ?? "free";
     const username = (profile.sleeper_username as string | null) ?? null;
-    let leagues: BriefLeague[] = [];
+    let leagues: DeskLeague[] = [];
+    let resultsWeek = nfl.week - 1;
     if (username) {
       try {
-        leagues = await buildBriefLeagues({ username, season: nfl.season, nflWeek: nfl.week, seasonType: nfl.season_type, tier, logTag: "cron:weekly-brief" });
+        ({ leagues, resultsWeek } = await buildBriefLeagues({ username, season: nfl.season, nflWeek: nfl.week, seasonType: nfl.season_type, logTag: "cron:weekly-brief" }));
       } catch (err) {
         console.error("[cron:weekly-brief:sleeper]", userId, err instanceof Error ? err.message : err);
       }
     }
-    const args = {
+    const brief = composeWeeklyBrief({
       // display_name holds the email for email signups: never greet with an address.
       ownerName: briefOwnerName(profile.display_name as string | null, username),
       tier,
       leagues,
+      resultsWeek,
+      nflWeek: nfl.week,
+      seasonStartDate: nfl.season_start_date,
       appUrl,
       unsubscribeUrl: unsub,
       mailingAddress: mailingAddress ?? "",
-      weekLabel,
-    };
+      preview: !!preview,
+    });
+    // The content lint blocks a broadcast; a preview still goes out with
+    // the failures listed on top so the owner sees what would be blocked.
+    if (!preview && brief.lint.length > 0) {
+      result.lint_blocked++;
+      console.error("[cron:weekly-brief:lint]", userId, JSON.stringify(brief.lint));
+      continue;
+    }
     if (dry || !resend) continue;
     const { error: sendErr } = await resend.emails.send({
       from,
       to: email,
       replyTo,
-      subject: preview ? `[Preview] ${briefSubject(args)}` : briefSubject(args),
-      html: renderWeeklyBriefHtml(args),
-      text: renderWeeklyBriefText(args),
+      subject: preview ? `[Preview] ${brief.subject}` : brief.subject,
+      html: brief.html,
+      text: brief.text,
       headers: { "List-Unsubscribe": `<${unsub}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
     });
     await admin.from("notifications").upsert(
