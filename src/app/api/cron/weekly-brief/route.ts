@@ -33,6 +33,7 @@ import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { flagOn } from "@/lib/flags/server";
 import { resolveMailingAddress } from "@/lib/email/mailing-address";
+import { briefFrom } from "@/lib/email/sender";
 import { effectiveTier } from "@/lib/auth/session";
 import { WEEKLY_BRIEF_TEMPLATE_VERSION, briefRenderTier, composeWeeklyBrief, type DeskLeague } from "@/lib/email/weekly-brief";
 import { briefSendKind, honorForce, resolveSendMode } from "@/lib/email/send-guard";
@@ -97,7 +98,7 @@ export async function GET(request: Request): Promise<Response> {
   }
   const preview = guard.mode === "preview" ? new Set(guard.to) : null;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dynastygeneral.app";
-  const from = process.env.EMAIL_FROM ?? "brief@dynastygeneral.app";
+  const from = briefFrom();
 
   const nfl = await getNflState();
   if (!nfl || nfl.season_type !== "regular" || !nfl.week) {
