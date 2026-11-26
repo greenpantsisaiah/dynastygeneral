@@ -57,6 +57,8 @@ const items: DecisionItem[] = [
   { ...base, id: decisionItemId("week_row", "2026", 11, "bb", "row"), kind: "week_row", week: 11, league_id: "bb", league_name: "Smells like jabroni spirit", title: "x", format_record: "Best ball · 4th", result: "3rd in pts", playoffs: null, playoffs_change: null, recs: 0, refused_reason: null },
   { ...base, id: decisionItemId("week_row", "2026", 11, "dd", "row"), kind: "week_row", week: 11, league_id: "dd", league_name: "Dynasty Disasters", title: "x", format_record: "Dynasty · 0-11", result: "L 88-131", playoffs: null, playoffs_change: null, recs: 0, refused_reason: "Not enough scored weeks" },
   { ...base, id: decisionItemId("shift", "2026", 12, "12m", "pmac"), kind: "shift", league_id: "12m", league_name: "12 Man", title: "pmac", manager: "pmac", range_from: "bubble", range_to: "no_chance", cause: "Lost 3 straight; 35% to under 2%", for_you: "seller" },
+  { ...base, id: decisionItemId("league_call", "2026", 12, "bb", "call"), kind: "league_call", league_id: "bb", league_name: "Smells like jabroni spirit", delivery: { emailed: false }, priority: 105, title: "Nothing to trade this week.", stance: null, stance_label: "Nothing to trade", context: "Playoffs 15% · Best ball · 5-6", reason: "Best ball league: no trades, waivers or lineup moves, so there is nothing to buy or sell.", voices: [] },
+  { ...base, id: decisionItemId("league_call", "2026", 12, "im", "call"), kind: "league_call", league_id: "im", league_name: "Imaginary Football", delivery: { emailed: false }, priority: 209, title: "Keep your roster: no sale beats holding it.", stance: "push", stance_label: "Keep going", context: "Playoffs 90% · Redraft · 7-4", reason: "3 of 3 analysts lean keep; none would sell at today's prices.", voices: [{ voice: "gambler", stance: "push", stance_label: "Keep going", line: "At 7-4 you are a favorite." }] },
   { ...base, id: decisionItemId("trade", "2026", 12, "fc", "idea"), kind: "trade", league_id: "fc", league_name: "The Final Countdown", delivery: { emailed: false }, direction: "buy", kicker: "", title: "dbo is selling after the Josh Allen injury.", manager: "dbo", stats: [], voices: [], verdict: "", if_it_doesnt_land: "", package_note: null, cta_label: "Open" },
 ];
 const digest: DecisionDigest = {
@@ -72,6 +74,7 @@ const hrefs = {
   sleeper: (i: { league_id: string | null }) => `https://sleeper.com/leagues/${i.league_id}/team`,
   league: (id: string) => `/leagues/${id}`,
   item: (i: { id: string }) => `/home?item=${encodeURIComponent(i.id)}`,
+  allLeagues: "/leagues",
 };
 
 const html = renderToStaticMarkup(<DecisionHome digest={digest} items={items} focusId={henryId} hrefs={hrefs} />);
@@ -91,7 +94,14 @@ check("other trade is closed when another is focused", detailsTags.some((t) => t
 check("with no focus, the first trade is opened", (plain.match(/<details[^>]*>/g) ?? []).some((t) => t.includes(`id="${evansId}"`) && t.includes(" open")));
 check("feed is ordered by priority", html.indexOf(evansId) < html.indexOf(henryId));
 check("item below the email bar lands in 'Only in the app'", html.includes("Only in the app") && html.includes("dbo is selling"));
-check("not-emailed item is not in the Needs you feed", (html.match(/<details/g) ?? []).length === 2);
+check("not-emailed item is not in the Needs you feed", (html.match(/<details[^>]*id="trade:/g) ?? []).length === 2);
+
+console.log("\n2b. Every league says what to do (Isaiah 2026-11-26)");
+check("league calls render after the trades, highest priority first", html.indexOf(evansId) < html.indexOf("Keep your roster: no sale beats holding it.") && html.indexOf("Keep your roster: no sale beats holding it.") < html.indexOf("Nothing to trade this week."));
+check("a league call carries its reason", html.includes("none would sell at today&#x27;s prices"));
+check("a league call links into its league", html.includes('href="/leagues/im"'));
+check("week table links to all leagues", html.includes('href="/leagues"') && html.includes("All my leagues"));
+check("a week row with no recs shows the call's stance, linked to the call card", html.includes(`href="#${decisionItemId("league_call", "2026", 12, "bb", "call")}"`));
 
 console.log("\n3. Analysts");
 const dots = (html.match(/title="(Strategist|Moneyballer|Gambler): /g) ?? []).length;
@@ -103,7 +113,8 @@ console.log("\n4. Leagues table");
 check("week table rounds playoff % with the email's fmtPct (0.6836 -> 70%, never 68%)", html.includes("70%") && !html.includes("68%"));
 check("refused sim shows its reason, not a number", html.includes("Not enough scored weeks"));
 check("rec chip links to that league's card", html.includes(`href="#${evansId}"`));
-check("best ball row has no playoff percent", !/jabroni[\s\S]{0,400}\d+%/.test(html.split("Dynasty Disasters")[0]));
+const bbRow = html.slice(html.indexOf(`id="${decisionItemId("week_row", "2026", 11, "bb", "row")}"`)).split("</li>")[0];
+check("best ball row has no playoff percent", bbRow.includes("jabroni") && !/\d+%/.test(bbRow));
 
 console.log("\n5. Voice");
 check("no em dash", !html.includes("—"));

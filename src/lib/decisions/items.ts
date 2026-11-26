@@ -19,7 +19,7 @@
  */
 
 import type { Stance, VoiceName } from "@/lib/strategy/verdict/voices";
-import { STANCE_LABEL, playoffDelta, type DeskLeague, type TradeCard, type TradeDeskModel } from "@/lib/email/trade-desk/model";
+import { MIN_CARD_VALUE_KEPT, STANCE_LABEL, isShortAt, playoffDelta, sellLeaningCount, type DeskLeague, type TradeCard, type TradeDeskModel } from "@/lib/email/trade-desk/model";
 import { fmtPct, fmtScore, playoffRange as rangeOf, RANGE_LABEL } from "@/lib/email/trade-desk/league-week";
 import {
   allShifts,
@@ -50,7 +50,9 @@ export type DecisionKind =
   /** An NFL player the user should root for or against across all games. */
   | "rootfor"
   /** One row per league in the "Week n across your leagues" table. */
-  | "week_row";
+  | "week_row"
+  /** App only: the analysts' call for a league with no trade worth trying, and why. */
+  | "league_call";
 
 /** Which surfaces an item is allowed on. */
 export interface DecisionDelivery {
@@ -181,7 +183,26 @@ export interface WeekRowItem extends BaseItem {
   refused_reason: string | null;
 }
 
-export type DecisionItem = TradeItem | ShiftItem | SwingItem | LineupItem | RootForItem | WeekRowItem;
+/**
+ * App only. Every league with a season read and no trade card gets one, so
+ * the feed never ends at the last trade and each league says what the
+ * analysts think and why nothing needs doing (2026-11-26, Isaiah: "it's
+ * unclear what calls to action there are on any of my leagues").
+ */
+export interface LeagueCallItem extends BaseItem {
+  kind: "league_call";
+  /** The panel's headline stance, or null when trading is closed. */
+  stance: Stance | null;
+  /** "Keep going", "Lean sell", "Nothing to trade". */
+  stance_label: string;
+  /** "Playoffs 90% · Redraft · 7-4". */
+  context: string;
+  /** Why there is no trade card, one sentence. */
+  reason: string;
+  voices: DecisionVoice[];
+}
+
+export type DecisionItem = TradeItem | ShiftItem | SwingItem | LineupItem | RootForItem | WeekRowItem | LeagueCallItem;
 
 /** Stable item id; the email link and the home anchor both use it. */
 export function decisionItemId(kind: DecisionKind, season: string, week: number, leagueId: string | null, subject: string): string {
@@ -272,6 +293,73 @@ function weekRow(l: DeskLeague, m: TradeDeskModel, season: string): WeekRowItem 
   };
 }
 
+function leagueCall(l: DeskLeague, m: TradeDeskModel, season: string): LeagueCallItem | null {
+  const v = l.verdict;
+  if (!v) return null;
+  const playoffs = l.week?.playoff_now ?? v.odds.playoff_pct;
+  const rec = l.week ? `${l.week.record.wins}-${l.week.record.losses}${l.week.record.ties ? `-${l.week.record.ties}` : ""}` : null;
+  const context = [`Playoffs ${fmtPct(playoffs)}`, KIND_LABEL[l.kind], rec].filter(Boolean).join(" · ");
+  const base = {
+    id: decisionItemId("league_call", season, m.aheadWeek, l.leagueId, "call"),
+    kind: "league_call" as const,
+    season,
+    week: m.aheadWeek,
+    league_id: l.leagueId,
+    league_name: l.leagueName,
+    deadline: null,
+    deadline_label: null,
+    delivery: { emailed: false } as DecisionDelivery,
+    context,
+  };
+  if (!v.trade_window.open) {
+    return {
+      ...base,
+      priority: 100 + Math.round(playoffs * 10),
+      title: "Nothing to trade this week.",
+      stance: null,
+      stance_label: "Nothing to trade",
+      reason: v.trade_window.label,
+      voices: [],
+    };
+  }
+  const head = v.panel.headline;
+  const voices = v.panel.voices.map((x) => ({ voice: x.voice, stance: x.stance, stance_label: STANCE_LABEL[x.stance], line: x.line }));
+  const keepers = v.panel.voices.filter((x) => x.stance === "push" || x.stance === "lean_push").length;
+  const sellSide = head === "sell" || head === "lean_sell";
+  let title: string;
+  let reason: string;
+  if (sellSide) {
+    const c = v.candidates.find((x) => sellLeaningCount(x.panel) >= 2) ?? v.candidates[0];
+    title = "The analysts lean sell, but no sale is worth chasing yet.";
+    // Mirrors cardFor's gates in order, so the reason names the gate that failed.
+    const n = c ? sellLeaningCount(c.panel) : 0;
+    if (!c) reason = "No player on the roster has a buyer worth pricing.";
+    else if (n < 2) reason = `${n === 0 ? "None" : "Only one"} of the three analysts would sell ${c.player.name} on his own.`;
+    else if (c.buyers.filter(isShortAt).length === 0) reason = `No team is short at ${c.player.position}, so nobody needs ${c.player.name} enough to pay full value.`;
+    else if (Math.round(c.decay.value_now) < 1) reason = `${c.player.name} is worth under 1 value point on our 0 to 100 scale, too little to trade.`;
+    else reason = `Selling ${c.player.name} now avoids under ${MIN_CARD_VALUE_KEPT} value points of offseason drop, too little to force a deal.`;
+  } else if (head === "split") {
+    title = "The analysts split, so hold your roster.";
+    reason = "No move gets two of the three analysts behind it.";
+  } else {
+    title = "Keep your roster: no sale beats holding it.";
+    const sellers = v.panel.voices.filter((x) => x.stance === "sell" || x.stance === "lean_sell").length;
+    reason =
+      sellers === 0
+        ? `${keepers} of 3 analysts lean keep; none would sell at today's prices.`
+        : `${keepers} of 3 analysts lean keep; ${sellers} would sell but ${sellers === 1 ? "is" : "are"} outvoted.`;
+  }
+  return {
+    ...base,
+    priority: (sellSide ? 300 : head === "split" ? 250 : 200) + Math.round(playoffs * 10),
+    title,
+    stance: head,
+    stance_label: STANCE_LABEL[head],
+    reason,
+    voices,
+  };
+}
+
 /**
  * Every Tuesday item for one user: trade cards, league shifts (all of them;
  * the first MAX_SHIFT_ROWS are emailed, the rest are app-only) and one week
@@ -303,6 +391,12 @@ export function buildDecisionItems(args: { model: TradeDeskModel; season: string
     });
   });
   for (const l of m.leagues) items.push(weekRow(l, m, args.season));
+  const carded = new Set(m.cards.map((c) => c.leagueId));
+  for (const l of m.leagues) {
+    if (carded.has(l.leagueId)) continue;
+    const call = leagueCall(l, m, args.season);
+    if (call) items.push(call);
+  }
   const emailedShifts = shifts.slice(0, MAX_SHIFT_ROWS);
   return {
     items,
@@ -326,6 +420,7 @@ export function itemSentences(item: DecisionItem): string[] {
     if (item.package_note) out.push(item.package_note);
   }
   if (item.kind === "shift") out.push(item.cause);
+  if (item.kind === "league_call") out.push(item.stance_label, item.context, item.reason, ...item.voices.map((v) => v.line));
   if (item.kind === "week_row") out.push(item.format_record, item.result ?? "", item.refused_reason ?? "");
   return out.filter(Boolean);
 }
