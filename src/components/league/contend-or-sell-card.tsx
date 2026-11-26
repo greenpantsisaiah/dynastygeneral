@@ -1,7 +1,7 @@
 /**
  * Contend-or-sell card (in-season). Renders the canonical verdict from
  * buildContendOrSellVerdict; it computes nothing. Behind the
- * contend_or_sell_verdict flag.
+ * contend_or_sell_card flag.
  *
  * Layer 1: the headline stance and the odds line. Layer 2: the voice
  * scale and the sell package with buyers. Layer 3: provenance (model,

@@ -1995,10 +1995,10 @@ export default async function LeagueHubPage({
   // The verdict loads for every in-season hub: its odds feed the season
   // strip (the same playoff / league-win chances /home and the weekly
   // email already show everyone). Only the full card stays behind the
-  // contend_or_sell_verdict flag.
+  // contend_or_sell_card flag (Coach keeps contend_or_sell_verdict).
   let contendOrSell: ContendOrSellVerdict | null = null;
   const showContendOrSellCard = flagOn(
-    "contend_or_sell_verdict",
+    "contend_or_sell_card",
     sleeperUser?.username ?? null,
   );
   if (leagueSnapshot && !draftActive) {
