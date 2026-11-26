@@ -2221,14 +2221,21 @@ export default async function LeagueHubPage({
             disruptionAcknowledgment={lastVisitDisruptionAck}
           />
 
-          <CompanionCheckIn
-            beats={companionBeats}
-            leagueId={leagueId}
-            latestPick={companionLatestPick}
-            snipes={companionSnipes}
-          />
-
-          {rosterPosture && <PostureBanner posture={rosterPosture} />}
+          {/* Draft-time and pre-season: the companion and posture lead.
+              In-season they move below the season strip and this
+              week's call (prod review of #142, 2026-11-26: Week 12 still
+              opened on "Value vs ADP 9th of 10" and "Mid-pack"). */}
+          {!inSeasonLayout && (
+            <>
+              <CompanionCheckIn
+                beats={companionBeats}
+                leagueId={leagueId}
+                latestPick={companionLatestPick}
+                snipes={companionSnipes}
+              />
+              {rosterPosture && <PostureBanner posture={rosterPosture} />}
+            </>
+          )}
 
           {/* Pre-draft only: the Draft Position banner is the intended
               lead hero before the clock starts (no Call yet). Once the
@@ -2591,6 +2598,18 @@ export default async function LeagueHubPage({
                 <div className="mt-6">
                   <ContendOrSellCard verdict={contendOrSell} />
                 </div>
+              )}
+
+              {inSeasonLayout && (
+                <>
+                  <CompanionCheckIn
+                    beats={companionBeats.filter((b) => b.source.signal !== "analyzeLeagueEvBank")}
+                    leagueId={leagueId}
+                    latestPick={companionLatestPick}
+                    snipes={companionSnipes}
+                  />
+                  {rosterPosture && <PostureBanner posture={rosterPosture} />}
+                </>
               )}
 
               {/* AAR pre-launch banner. Surfaces at 75 percent draft
