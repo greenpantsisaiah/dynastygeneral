@@ -122,7 +122,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
       {v.candidates.length > 0 && worthListing.length === 0 && (
         <p className="mt-4 border-t border-border-soft pt-3 text-sm text-muted">
           {v.panel.headline === "sell" || v.panel.headline === "lean_sell"
-            ? "The odds say sell, but no player here loses real value by August or moves your chance to win the league. There is nothing worth selling now; hold the roster into the offseason."
+            ? "The odds say sell, but no sale here saves enough value by August, or moves your chance to win the league enough, to force a deal. Hold the roster into the offseason."
             : "No player here loses enough value by August, or moves your chance to win the league enough, to be worth selling."}
         </p>
       )}
@@ -161,7 +161,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
           </ul>
           {worthListing.length === v.candidates.length && v.candidates.length > 1 && (
           <p className="mt-2 text-xs text-muted-2">
-            Selling all {v.candidates.length}: chance to win the league {fmtPct(v.odds.title_pct)} to {fmtPct(v.package.title_pct_if_sold)},
+            Selling {v.candidates.map((c) => c.player.name.split(" ").slice(-1)[0]).join(" and ")} together: chance to win the league {fmtPct(v.odds.title_pct)} to {fmtPct(v.package.title_pct_if_sold)},
             about {valuePts(v.package.value_kept_by_selling)} kept. Contender premium is unknown and priced
             at 0, so ask for market value, not more.
           </p>

@@ -24,9 +24,12 @@ export interface SeasonStripProps {
   standing: { rank: number; wins: number; losses: number; ties: number } | null;
   totalTeams: number | null;
   verdict: ContendOrSellVerdict | null;
+  /** This week's call as one line (the league_call decision item /home
+   * shows), when no trade card carries it. */
+  call?: { title: string; label: string | null } | null;
 }
 
-export function SeasonStrip({ week, standing, totalTeams, verdict }: SeasonStripProps) {
+export function SeasonStrip({ week, standing, totalTeams, verdict, call }: SeasonStripProps) {
   const odds = verdict?.odds ?? null;
   const tw = verdict?.trade_window ?? null;
 
@@ -65,7 +68,7 @@ export function SeasonStrip({ week, standing, totalTeams, verdict }: SeasonStrip
   }
   if (tradeLine) cells.push({ label: "Trades", value: tw?.open ? "Open" : "Closed", note: tradeLine });
 
-  if (cells.length === 0 && week == null) return null;
+  if (cells.length === 0 && !call) return null;
 
   return (
     <section
@@ -75,6 +78,16 @@ export function SeasonStrip({ week, standing, totalTeams, verdict }: SeasonStrip
       <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-2">
         {week != null ? `Week ${week} · ` : ""}Your season
       </div>
+      {call && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <p className="text-lg font-semibold leading-snug text-foreground">{call.title}</p>
+          {call.label && (
+            <span className="rounded-full border border-border-strong px-2.5 py-0.5 text-xs text-foreground">
+              {call.label}
+            </span>
+          )}
+        </div>
+      )}
       {cells.length > 0 && (
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
           {cells.map((c) => (
