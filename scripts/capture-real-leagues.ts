@@ -14,7 +14,8 @@
  * enforces that.
  *
  * Contents per league: league settings, rosters, users (public Sleeper
- * profile fields only), every regular-season matchup week so far,
+ * profile fields only), every regular-season matchup week (played AND
+ * scheduled: the season simulator needs the remaining schedule),
  * traded picks, drafts + picks; plus nfl_state, the trimmed Sleeper
  * player records for every rostered or drafted player, and FantasyCalc
  * values for each distinct format. Privacy: no emails, tokens, or postal
@@ -63,7 +64,6 @@ async function captureUser(username: string, nflState: Json, players: Record<str
   const user = await get<Json | null>(`${SLEEPER}/user/${encodeURIComponent(username)}`);
   if (!user) throw new Error(`Sleeper user not found: ${username}`);
   const season = String(nflState.season);
-  const week = Number(nflState.week) || 1;
   const leagues = await get<Json[]>(`${SLEEPER}/user/${user.user_id}/leagues/nfl/${season}`);
 
   const playerIds = new Set<string>();
@@ -78,7 +78,11 @@ async function captureUser(username: string, nflState: Json, players: Record<str
       get<Json[]>(`${SLEEPER}/league/${id}/drafts`),
     ]);
     const matchups: Record<number, Json[]> = {};
-    for (let w = 1; w <= Math.min(week, 18); w++) {
+    // Every week of the season, not just weeks so far: the remaining
+    // schedule drives the playoff odds (2026-11-26: a capture that stopped
+    // at the current week made the simulator think one game was left).
+    const lastWeek = Math.max(18, Number((league.settings as Record<string, unknown> | undefined)?.playoff_week_start ?? 0) - 1);
+    for (let w = 1; w <= lastWeek; w++) {
       matchups[w] = await get<Json[]>(`${SLEEPER}/league/${id}/matchups/${w}`);
     }
     const draftPicks: Record<string, Json[]> = {};
@@ -95,7 +99,7 @@ async function captureUser(username: string, nflState: Json, players: Record<str
     formats.set(`${numQbs}:${ppr}`, { numQbs, ppr, numTeams: 12 });
 
     out.push({ league, rosters, users: users.map(publicUser), traded_picks: tradedPicks, drafts, draft_picks: draftPicks, matchups });
-    console.log(`  ${league.name}: ${rosters.length} rosters, weeks 1-${Math.min(week, 18)}`);
+    console.log(`  ${league.name}: ${rosters.length} rosters, weeks 1-${Object.keys(matchups).length}`);
   }
 
   const fantasycalc: Record<string, unknown> = {};

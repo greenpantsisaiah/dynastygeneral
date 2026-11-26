@@ -32,6 +32,33 @@ const DEFAULT_PLAYOFF_WEEK_START = 15;
 /** Sleeper's default playoff field. */
 const DEFAULT_PLAYOFF_TEAMS = 6;
 
+export function playoffSettings(league: SleeperLeague): { playoffWeekStart: number; playoffTeams: number } {
+  const settings = (league.settings ?? {}) as Record<string, unknown>;
+  return {
+    playoffWeekStart:
+      typeof settings.playoff_week_start === "number" && settings.playoff_week_start > 1
+        ? settings.playoff_week_start
+        : DEFAULT_PLAYOFF_WEEK_START,
+    playoffTeams:
+      typeof settings.playoff_teams === "number" && settings.playoff_teams > 0
+        ? settings.playoff_teams
+        : DEFAULT_PLAYOFF_TEAMS,
+  };
+}
+
+/** Every regular-season week's matchups, one fetch per week. */
+export async function fetchSeasonMatchups(league: SleeperLeague): Promise<Record<number, SleeperMatchup[]>> {
+  const { playoffWeekStart } = playoffSettings(league);
+  const weeks = Array.from({ length: playoffWeekStart - 1 }, (_, i) => i + 1);
+  const out: Record<number, SleeperMatchup[]> = {};
+  await Promise.all(
+    weeks.map(async (w) => {
+      out[w] = await getMatchups(league.league_id, w);
+    }),
+  );
+  return out;
+}
+
 export async function loadContendOrSellVerdict(args: {
   league: SleeperLeague;
   snapshot: LeagueSnapshot;
@@ -40,36 +67,27 @@ export async function loadContendOrSellVerdict(args: {
   playerValuesById: Record<string, number>;
   playersMap?: Map<string, SleeperPlayer>;
   titleWorth?: number;
+  /** Pre-fetched season matchups (fetchSeasonMatchups); fetched here when absent. */
+  matchupsByWeek?: Record<number, SleeperMatchup[]>;
+  /** Latest week with final scores (lastCompletedWeek). Defaults to nflWeek - 1. */
+  resultsWeek?: number;
 }): Promise<VerdictResult> {
   if (args.seasonType !== "regular" || !args.nflWeek || args.nflWeek < 2) {
     return { ok: false, reason: "needs at least one finished regular-season week" };
   }
-  const settings = (args.league.settings ?? {}) as Record<string, unknown>;
-  const playoffWeekStart =
-    typeof settings.playoff_week_start === "number" && settings.playoff_week_start > 1
-      ? settings.playoff_week_start
-      : DEFAULT_PLAYOFF_WEEK_START;
-  const playoffTeams =
-    typeof settings.playoff_teams === "number" && settings.playoff_teams > 0
-      ? settings.playoff_teams
-      : DEFAULT_PLAYOFF_TEAMS;
+  const { playoffWeekStart, playoffTeams } = playoffSettings(args.league);
   if (args.nflWeek >= playoffWeekStart) {
     return { ok: false, reason: "regular season is over; playoff brackets are not simulated mid-bracket yet" };
   }
   const me = args.snapshot.rosters.find((r) => r.is_me);
   if (!me) return { ok: false, reason: "your roster was not identified in this league" };
 
-  const weeks = Array.from({ length: playoffWeekStart - 1 }, (_, i) => i + 1);
-  const matchupsByWeek: Record<number, SleeperMatchup[]> = {};
-  await Promise.all(
-    weeks.map(async (w) => {
-      matchupsByWeek[w] = await getMatchups(args.league.league_id, w);
-    }),
-  );
+  const matchupsByWeek = args.matchupsByWeek ?? (await fetchSeasonMatchups(args.league));
+  const firstUnplayedWeek = (args.resultsWeek ?? args.nflWeek - 1) + 1;
   const sim = buildSimInputFromSleeper({
     rosterIds: args.snapshot.rosters.map((r) => r.roster_id),
     matchupsByWeek,
-    firstUnplayedWeek: args.nflWeek,
+    firstUnplayedWeek,
     playoffWeekStart,
     playoffTeams,
   });
@@ -89,9 +107,9 @@ export async function loadContendOrSellVerdict(args: {
     if (!m.position || !SKILL.includes(m.position)) continue;
     const value = args.playerValuesById[m.id];
     if (typeof value !== "number" || value <= 0) continue;
-    const started = startedPoints(matchupsByWeek, me.roster_id, m.id, args.nflWeek);
+    const started = startedPoints(matchupsByWeek, me.roster_id, m.id, firstUnplayedWeek);
     const others = meta.filter((o) => o.id !== m.id && o.position === m.position).map((o) => o.id);
-    const repl = replacementPpg(matchupsByWeek, me.roster_id, others, args.nflWeek);
+    const repl = replacementPpg(matchupsByWeek, me.roster_id, others, firstUnplayedWeek);
     players.push({
       player_id: m.id,
       name: m.name,

@@ -50,7 +50,8 @@ export interface VoiceRead {
  * title is worth one elite player (value 100). */
 export const DEFAULT_TITLE_WORTH = 100;
 
-const pct = (p: number) => `${Math.round(p * 100)}%`;
+// Clamp the ends so no voice prints "0%" or "100%" (BUILD_SPEC content lint).
+const pct = (p: number) => (p < 0.02 ? "under 2%" : p > 0.98 ? "over 98%" : `${Math.round(p * 100)}%`);
 const pts = (v: number) => `${Math.round(v)}`;
 
 export function moneyball(f: VoiceFacts, titleWorth = DEFAULT_TITLE_WORTH): VoiceRead {
@@ -64,8 +65,8 @@ export function moneyball(f: VoiceFacts, titleWorth = DEFAULT_TITLE_WORTH): Voic
   // Never print "costs 0%, worth 0": say the odds barely move instead.
   const oddsClause =
     Math.round(lost * 100) < 1
-      ? "barely moves your title odds (under 1 pt)"
-      : `costs ${pct(lost)} of title odds, worth ${pts(cost)} value points at ${titleWorth} per title`;
+      ? "barely moves your chance to win the league (under 1 point)"
+      : `costs ${Math.round(lost * 100)} points of league-win chance, worth ${pts(cost)} value points at ${titleWorth} per title`;
   const keptClause = Math.round(gain) < 1 ? "keeps almost no value" : `keeps about ${pts(gain)} value points`;
   return {
     voice: "moneyball",
@@ -89,7 +90,7 @@ export function gambler(f: VoiceFacts): VoiceRead {
   return {
     voice: "gambler",
     stance,
-    line: `Title odds ${pct(f.title_pct)} against a fair share of ${pct(fair)}. ${GAMBLER_TAKE[stance]}`,
+    line: `Chance to win the league ${pct(f.title_pct)} against a fair share of ${pct(fair)}. ${GAMBLER_TAKE[stance]}`,
   };
 }
 
@@ -98,7 +99,10 @@ export function strategist(f: VoiceFacts): VoiceRead {
   const contender = f.title_pct >= fair;
   const aging = f.roster_retained_share < 0.92;
   const young = f.roster_retained_share >= 0.98;
-  const kept = `The roster keeps about ${pct(f.roster_retained_share)} of its value through the offseason`;
+  const kept =
+    f.roster_retained_share > 0.98
+      ? "The roster keeps nearly all of its value through the offseason"
+      : `The roster keeps about ${pct(f.roster_retained_share)} of its value through the offseason`;
   // One sentence per case, so the line always agrees with the stance
   // (2026-11-25: "this core still rises. This is not the window." read as
   // a contradiction next to a lean-push stance).
@@ -106,19 +110,19 @@ export function strategist(f: VoiceFacts): VoiceRead {
   let line: string;
   if (young && contender) {
     stance = "push";
-    line = `${kept}, and this is a real window. Push now; the core holds its value either way.`;
+    line = `${kept}, and this is a real window. Keep going now; the core holds its value either way.`;
   } else if (young) {
     stance = "lean_push";
     line = `${kept}. This year is not the window, but the core is young, so keep it for next season rather than selling.`;
   } else if (aging && contender) {
     stance = "split";
-    line = `${kept}, so the core is shrinking, but this is a real window. Push only if you accept selling later at a lower price.`;
+    line = `${kept}, so the core is shrinking, but this is a real window. Keep going only if you accept selling later at a lower price.`;
   } else if (aging) {
     stance = "sell";
     line = `${kept}, so the core is shrinking and this is not the window. Sell the aging pieces before they lose more.`;
   } else if (contender) {
     stance = "lean_push";
-    line = `${kept} and this is a real window. Lean toward pushing.`;
+    line = `${kept} and this is a real window. Lean toward keeping going.`;
   } else {
     stance = "lean_sell";
     line = `${kept}, but this is not the window. Lean toward selling.`;
