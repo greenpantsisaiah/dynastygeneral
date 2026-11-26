@@ -71,5 +71,18 @@ check("small offseason drop names the floor", !!sl?.reason.includes("avoids unde
 const ok = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"] })]));
 check("a sale that clears every gate becomes a trade card, not a call", ok === undefined);
 
+console.log("\nRedraft reads this season only");
+const rd = (head: Stance, stances: Stance[]) => {
+  const l = league(head, stances, []);
+  l.kind = "redraft";
+  (l.verdict as unknown as { horizon: string }).horizon = "this_season";
+  return call(l);
+};
+const rLive = rd("lean_push", ["lean_push", "push", "push"]);
+check("redraft live team: play to win this season", rLive?.title === "Play to win this season.", rLive?.title);
+check("redraft reason says a sale banks nothing, no offseason copy", !!rLive?.reason.includes("a sale banks nothing") && !/offseason|August|value point/.test(rLive?.reason ?? ""), rLive?.reason);
+const rDead = rd("split", ["split", "split", "split"]);
+check("redraft lost season says so", !!rDead?.title.startsWith("Season is over"), rDead?.title);
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

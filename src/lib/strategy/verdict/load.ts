@@ -141,6 +141,7 @@ export async function loadContendOrSellVerdict(args: {
     players,
     buyers,
     titleWorth: args.titleWorth,
+    leagueType: args.snapshot.league_type,
     tradeWindow: tradeWindow(buildFormatRulesFromSnapshot(args.snapshot), args.nflWeek),
   });
 }
