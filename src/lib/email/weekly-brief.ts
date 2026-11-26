@@ -19,7 +19,7 @@ import { lintTradeDesk } from "@/lib/email/trade-desk/lint";
  * value, so a new template always goes to the admin preview list first
  * and reaches users only after Isaiah approves that exact version.
  */
-export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk1";
+export const WEEKLY_BRIEF_TEMPLATE_VERSION = "2026-11-26.desk2";
 
 export type { BriefTier, DeskLeague };
 

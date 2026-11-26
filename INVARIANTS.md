@@ -105,7 +105,7 @@ Failure mode to ban (anywhere in Coach output): "I don't have [their roster / sp
 
 ### SWOT framework (the analyst voice)
 
-- **Three voices per quadrant.** Statistician (counts, ranks, percentiles), Coach (roster construction, lineup math, starter-room health), Gambler (composite odds, market-implied risk). Voices CAN disagree on the same data.
+- **Three voices per quadrant.** Labeled as the one cast of analysts (2026-11-26): Moneyballer (internal id `statistician`: counts, ranks, percentiles), Strategist (internal id `coach`: roster construction, lineup math, starter-room health), Gambler (composite odds, market-implied risk). Voices CAN disagree on the same data.
 - **Rank-based, not absolute thresholds.** Clustered league data never crosses absolute cutoffs (myCount >= median + 2). Use top-3 / bottom-3 of 12 so meaningful relative ordering always surfaces.
 - **Force-fill: ≥3 items per quadrant.** If rule-based fires don't fill, surface next-tier candidates so briefings always have substance.
 - **Posture line anchored on composite rank** (contender / longshot / mid-pack), not whether any rule fired.
