@@ -11,6 +11,10 @@
  *   measures week-to-week luck, not the spread between teams.
  * - Remaining regular-season weeks are played on the real Sleeper
  *   schedule. Seeding: wins (ties count half), then points for.
+ * - Leagues with a weekly game against the median (Sleeper
+ *   league_average_match) play it in every simulated week too: the top
+ *   half of that week's draws gets a second win, so those leagues have
+ *   two decisions per week, the same as Sleeper's standings.
  * - Playoffs: fixed single-elimination bracket of `playoffTeams`, byes to
  *   the top seeds when the bracket is not a power of two (Sleeper's
  *   default 6-team shape gives seeds 1 and 2 a bye). One week per round.
@@ -49,6 +53,14 @@ export interface SimInput {
   /** Remaining regular-season weeks, each a list of [roster_id, roster_id] games. */
   remaining: Array<Array<[number, number]>>;
   playoffTeams: number;
+  /**
+   * The league also plays the median each week (Sleeper
+   * league_average_match). Each simulated week then awards one extra win to
+   * every roster in the top half of that week's scores and a loss to the
+   * bottom half, on top of the head-to-head game. `teams[].wins` must
+   * already include the median games played (buildSimInputFromSleeper does).
+   */
+  medianGame?: boolean;
 }
 
 export interface SimOptions {
@@ -78,6 +90,7 @@ export type SimResult =
         shrink_games: number;
         weeks_remaining: number;
         playoff_teams: number;
+        median_game: boolean;
       };
     }
   | { ok: false; reason: string };
@@ -184,6 +197,9 @@ export function simulateSeason(input: SimInput, opts: SimOptions = {}): SimResul
   const wins = new Float64Array(ids.length);
   const pf = new Float64Array(ids.length);
   const seedOrder = ids.map((_, i) => i);
+  const median = input.medianGame === true;
+  const weekPts = new Float64Array(ids.length * 2);
+  const weekIdx = new Int32Array(ids.length * 2);
 
   for (let s = 0; s < sims; s++) {
     for (let i = 0; i < ids.length; i++) {
@@ -191,6 +207,7 @@ export function simulateSeason(input: SimInput, opts: SimOptions = {}): SimResul
       pf[i] = teams[i].points_for;
     }
     for (const wk of games) {
+      let n = 0;
       for (const [a, b] of wk) {
         const pa = draw(a);
         const pb = draw(b);
@@ -202,6 +219,20 @@ export function simulateSeason(input: SimInput, opts: SimOptions = {}): SimResul
           wins[a] += 0.5;
           wins[b] += 0.5;
         }
+        if (median) {
+          weekIdx[n] = a;
+          weekPts[n++] = pa;
+          weekIdx[n] = b;
+          weekPts[n++] = pb;
+        }
+      }
+      if (median && n >= 2) {
+        // Top half of this week's scores beats the median. Ties at the
+        // median are measure-zero with continuous draws, so ignore them.
+        const order = Array.from({ length: n }, (_, k) => k).sort((x, y) => weekPts[y] - weekPts[x]);
+        const half = Math.floor(n / 2);
+        for (let k = 0; k < half; k++) wins[weekIdx[order[k]]] += 1;
+        if (n % 2 === 1) wins[weekIdx[order[half]]] += 0.5;
       }
     }
     seedOrder.sort((x, y) => wins[y] - wins[x] || pf[y] - pf[x] || x - y);
@@ -245,6 +276,7 @@ export function simulateSeason(input: SimInput, opts: SimOptions = {}): SimResul
       shrink_games: SHRINK_GAMES,
       weeks_remaining: games.length,
       playoff_teams: playoffTeams,
+      median_game: median,
     },
   };
 }

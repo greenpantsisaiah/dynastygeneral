@@ -67,6 +67,7 @@ import { enrichArchetypeWithTargets } from "@/lib/strategy/player-suggestions/pl
 import { ContenderOutlookCard } from "@/components/league/contender-outlook-card";
 import { ContendOrSellCard } from "@/components/league/contend-or-sell-card";
 import { SeasonStrip } from "@/components/league/season-strip";
+import { SeasonStandings, type SeasonStandingsRow } from "@/components/league/season-standings";
 import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
 import { leagueDecision } from "@/lib/decisions/league-decision";
 import { seasonQuickPrompts } from "@/lib/coach/season-prompts";
@@ -1982,7 +1983,18 @@ export default async function LeagueHubPage({
   if (leagueSnapshot) {
     try {
       const meSnap = getMyRoster(leagueSnapshot);
-      const years = await computeContenderForecast(leagueSnapshot, meSnap);
+      const allYears = await computeContenderForecast(leagueSnapshot, meSnap);
+      // In-season the current year is answered by this season's results
+      // (the strip and the keep-or-sell odds), not by a roster-value
+      // projection, so the outlook starts at next season.
+      const seasonUnderway =
+        !draftActive &&
+        (draftState?.status === "complete" ||
+          nflState?.season_type === "regular" ||
+          nflState?.season_type === "post");
+      const years = seasonUnderway
+        ? allYears.filter((y) => y.season !== leagueSnapshot!.season)
+        : allYears;
       contenderOutlook = synthesizeContenderOutlook({
         years,
         snap: leagueSnapshot,
@@ -2126,6 +2138,23 @@ export default async function LeagueHubPage({
     nflState?.season_type === "regular" || nflState?.season_type === "post";
   const inSeasonLayout =
     !draftActive && (draftState?.status === "complete" || nflInSeason);
+  // Redraft and best ball reset after the season: a multi-year posture
+  // (rebuilder, patient build, future capital) does not apply there.
+  const thisSeasonOnly = ["redraft", "best_ball"].includes(leagueKind(league));
+  const seasonStripShown = inSeasonLayout && !noRosterIdentified && standing != null;
+  const ownerNameByRoster = new Map(
+    (leagueSnapshot?.rosters ?? []).map((r) => [r.roster_id, r.owner_name] as const),
+  );
+  const seasonStandingsRows: SeasonStandingsRow[] = inSeasonLayout
+    ? sortedStandings(rosters).map((r) => ({
+        ...r,
+        name: ownerNameByRoster.get(r.roster_id) ?? `Team ${r.roster_id}`,
+        is_me: r.roster_id === myRoster?.roster_id,
+      }))
+    : [];
+  const seasonGamesPlayed = seasonStandingsRows.some((r) => r.wins + r.losses + r.ties > 0);
+  const medianGames =
+    ((league.settings ?? {}) as Record<string, unknown>).league_average_match === 1;
 
   // Draft bank section. Leads during and right after a draft; in-season it
   // is reference ("Your draft"), collapsed and rendered last.
@@ -2346,7 +2375,8 @@ export default async function LeagueHubPage({
                 </div>
               )}
               <div className="mt-2 text-sm text-muted">
-                {String(teamName)}
+                {/* No matched roster: name the league size, not "Your team". */}
+                {myRoster ? String(teamName) : `${totalRosters} teams`}
                 {standing && (
                   <>
                     <span className="text-muted-2"> · </span>
@@ -2420,7 +2450,7 @@ export default async function LeagueHubPage({
               {!authUser && (
                 <Link
                   href={`/login?next=${encodeURIComponent(`/leagues/${leagueId}`)}`}
-                  className="mt-3 inline-flex min-h-10 items-center rounded-md bg-accent px-4 text-sm font-semibold text-black"
+                  className="mt-3 inline-flex min-h-10 items-center rounded-md border border-border-strong px-4 text-sm font-semibold text-foreground hover:border-accent"
                 >
                   Sign in
                 </Link>
@@ -2643,13 +2673,20 @@ export default async function LeagueHubPage({
 
               {inSeasonLayout && (
                 <>
+                  {/* The season strip already states the record and
+                      place, so the record beat would repeat it (and its
+                      top-third "in the hunt" read can contradict the
+                      simulated odds beside it). */}
                   <CompanionCheckIn
-                    beats={companionBeats.filter((b) => b.source.signal !== "analyzeLeagueEvBank")}
+                    beats={companionBeats.filter(
+                      (b) =>
+                        b.source.signal !== "analyzeLeagueEvBank" &&
+                        !(b.source.signal === "calcStanding" && seasonStripShown),
+                    )}
                     leagueId={leagueId}
                     latestPick={companionLatestPick}
                     snipes={companionSnipes}
                   />
-                  {rosterPosture && <PostureBanner posture={rosterPosture} />}
                 </>
               )}
 
@@ -2883,7 +2920,10 @@ export default async function LeagueHubPage({
                   frame for trade leverage and belongs near the decision,
                   not buried in Your team. Renders whenever the roster has
                   lane memberships (all stages), not just active draft. */}
-              {rosterLaneMemberships.length > 0 && (
+              {/* In-season it moves under "Your team" (dynasty and
+                  keeper only: the benchmark is 82 dynasty rosters, so it
+                  says nothing about a redraft or best ball team). */}
+              {rosterLaneMemberships.length > 0 && !inSeasonLayout && (
                 <div className="mb-8">
                   <LaneCohortDistribution memberships={rosterLaneMemberships} />
                 </div>
@@ -2975,7 +3015,13 @@ export default async function LeagueHubPage({
                       }
                     />
                   )}
-                  {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                  {teamIdentity && (
+                      <TeamIdentityPanel
+                        data={teamIdentity}
+                        inSeason={inSeasonLayout}
+                        movesClosed={inSeasonLayout && contendOrSell != null && !contendOrSell.trade_window.open}
+                      />
+                    )}
                   <LibraryTeaser
                     contextTags={(() => {
                       const tags: string[] = ["ADP", "rookies"];
@@ -3026,8 +3072,25 @@ export default async function LeagueHubPage({
                         : undefined
                     }
                   >
-                    {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
+                    {/* In-season the weekly call leads the page; the
+                        multi-year posture is a long-term read, so it sits
+                        here under the team, and only in leagues that
+                        carry rosters into next year. */}
+                    {inSeasonLayout && rosterPosture && !thisSeasonOnly && (
+                      <PostureBanner posture={rosterPosture} longTerm />
+                    )}
+                    {teamIdentity && (
+                      <TeamIdentityPanel
+                        data={teamIdentity}
+                        inSeason={inSeasonLayout}
+                        movesClosed={inSeasonLayout && contendOrSell != null && !contendOrSell.trade_window.open}
+                      />
+                    )}
+                    {inSeasonLayout && !thisSeasonOnly && rosterLaneMemberships.length > 0 && (
+                      <LaneCohortDistribution memberships={rosterLaneMemberships} />
+                    )}
                     {rosterPosture &&
+                      !(inSeasonLayout && thisSeasonOnly) &&
                       Object.keys(rosterPosture.future_capital.by_season)
                         .length > 0 && (
                         <FuturePickCabinet
@@ -3043,12 +3106,20 @@ export default async function LeagueHubPage({
                     {contendOrSell && showContendOrSellCard && !inSeasonLayout && (
                       <ContendOrSellCard verdict={contendOrSell} />
                     )}
-                    {contenderOutlook && (
+                    {/* A 5-year contender forecast is dynasty and keeper
+                        framing; redraft and best ball rosters reset. */}
+                    {/* In-season, one multi-year read: the long-term
+                        build banner above. The year-by-year outlook is a
+                        second model that can disagree with it (a 0-11
+                        rebuilder read as a 2027 contender), so it shows
+                        before and after the season only. */}
+                    {contenderOutlook && !inSeasonLayout && (
                       <ContenderOutlookCard outlook={contenderOutlook} />
                     )}
                   </DashboardSection>
                 );
                 const theLeagueSection =
+                  (inSeasonLayout && seasonGamesPlayed) ||
                   leagueRead ||
                   leagueOutlook ||
                   opponentCharacterizations.length > 0 ||
@@ -3081,28 +3152,77 @@ export default async function LeagueHubPage({
                     >
                       {/* In-season: lead with standings so the table to
                           beat is the first thing the user sees. */}
-                      {inSeasonLayout && leagueOutlook && leagueSnapshot && (
-                        <>
-                          <LeagueDivergence outlook={leagueOutlook} />
-                          <LeagueTable outlook={leagueOutlook} />
-                        </>
+                      {inSeasonLayout && seasonGamesPlayed && (
+                        <SeasonStandings
+                          rows={seasonStandingsRows}
+                          odds={contendOrSell?.league_odds ?? null}
+                          sims={contendOrSell?.provenance.sims ?? null}
+                          medianGames={medianGames}
+                          showSellers={(contendOrSell?.trade_window.open ?? false) && !thisSeasonOnly}
+                        />
                       )}
                       {leagueRead && (inSeasonLayout || draftState?.status !== "pre_draft") && (
                         <TradeStrategyPanel data={leagueRead} />
                       )}
-                      {opponentCharacterizations.length > 0 &&
-                        (inSeasonLayout || draftState?.status !== "pre_draft") && (
-                          <OpponentCharacterizations
-                            items={opponentCharacterizations}
-                            leagueId={leagueId}
-                            notesByRoster={opponentNotesByRoster}
-                            tradeHistoryByRoster={opponentTradeHistoryByRoster}
-                            canWriteNotes={authUser != null}
-                          />
-                        )}
-                      {pathCompetition && (inSeasonLayout || draftState?.status !== "pre_draft") && (
-                        <SamePathThreatsCard competition={pathCompetition} />
-                      )}
+                      {(() => {
+                        const opponentReads = (
+                          <>
+                            {opponentCharacterizations.length > 0 &&
+                              (inSeasonLayout || draftState?.status !== "pre_draft") && (
+                                <OpponentCharacterizations
+                                  items={opponentCharacterizations}
+                                  leagueId={leagueId}
+                                  notesByRoster={opponentNotesByRoster}
+                                  tradeHistoryByRoster={opponentTradeHistoryByRoster}
+                                  canWriteNotes={authUser != null}
+                                />
+                              )}
+                            {pathCompetition && (inSeasonLayout || draftState?.status !== "pre_draft") && (
+                              <SamePathThreatsCard competition={pathCompetition} />
+                            )}
+                          </>
+                        );
+                        // In-season these reads describe how each roster
+                        // was drafted, not how its season is going (the
+                        // standings above carry that), so they sit one
+                        // tap down instead of leading the section.
+                        if (!inSeasonLayout) return opponentReads;
+                        const rosterValue = leagueOutlook && leagueSnapshot ? (
+                          <>
+                            <LeagueDivergence outlook={leagueOutlook} />
+                            <LeagueTable outlook={leagueOutlook} />
+                          </>
+                        ) : null;
+                        // The SWOT plays are trade and draft moves written
+                        // for the preseason (future picks included); none
+                        // apply once trades close or in a redraft or best
+                        // ball league.
+                        const preseasonSwot =
+                          leagueOutlook &&
+                          leagueSnapshot &&
+                          !thisSeasonOnly &&
+                          (contendOrSell?.trade_window.open ?? true) ? (
+                            <SwotCard swot={computeSwot(leagueSnapshot, leagueOutlook)} />
+                          ) : null;
+                        if (!rosterValue && !preseasonSwot && opponentCharacterizations.length === 0 && !pathCompetition) {
+                          return null;
+                        }
+                        return (
+                          <details className="rounded-lg border border-border-soft bg-surface px-4 py-3 sm:px-5">
+                            <summary className="cursor-pointer text-sm text-foreground">
+                              Roster value and preseason reads
+                              <span className="ml-2 text-xs text-muted-2">
+                                ranked by player value, not this season&apos;s results; written at the draft
+                              </span>
+                            </summary>
+                            <div className="mt-4 space-y-6">
+                              {rosterValue}
+                              {opponentReads}
+                              {preseasonSwot}
+                            </div>
+                          </details>
+                        );
+                      })()}
                       {/* Off-season / non-in-season layout retains the
                           original section order (SWOT > divergence >
                           table) under the trade-leverage framing.
@@ -3125,13 +3245,7 @@ export default async function LeagueHubPage({
                             <LeagueTable outlook={leagueOutlook} />
                           </>
                         )}
-                      {inSeasonLayout &&
-                        leagueOutlook &&
-                        leagueSnapshot && (
-                          <SwotCard
-                            swot={computeSwot(leagueSnapshot, leagueOutlook)}
-                          />
-                        )}
+
                       {draftState?.status === "pre_draft" && !inSeasonLayout && (
                         <div className="rounded-md border border-border-soft bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
                           League-shape surfaces (SWOT, standings,
@@ -3365,13 +3479,23 @@ function UsernamePrompt({
   );
 }
 
-function calcStanding(
+type StandingRow = {
+  roster_id: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  fpts: number;
+};
+
+/** Sleeper's own record and points for, sorted the way Sleeper ranks a
+ * league (wins, then ties, then points for). One sort for the strip's
+ * place and the standings table. */
+function sortedStandings(
   rosters: Array<{
     roster_id: number;
     settings?: Record<string, unknown> | null;
   }>,
-  myRosterId: number,
-) {
+): StandingRow[] {
   const scored = rosters.map((r) => {
     const s = (r.settings ?? {}) as Record<string, unknown>;
     const wins = num(s.wins);
@@ -3384,6 +3508,17 @@ function calcStanding(
     (a, b) =>
       b.wins - a.wins || b.ties - a.ties || b.fpts - a.fpts || a.losses - b.losses,
   );
+  return scored;
+}
+
+function calcStanding(
+  rosters: Array<{
+    roster_id: number;
+    settings?: Record<string, unknown> | null;
+  }>,
+  myRosterId: number,
+) {
+  const scored = sortedStandings(rosters);
   const rank = scored.findIndex((x) => x.roster_id === myRosterId) + 1;
   const me = scored.find((x) => x.roster_id === myRosterId);
   if (!me || rank === 0) return null;

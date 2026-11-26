@@ -59,7 +59,7 @@ export function LeagueDivergence({
     <section className="rounded-lg border border-border-soft bg-surface px-4 py-5 sm:px-5">
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-          League standings · win-now + future
+          Roster strength · win-now + future
         </div>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground">
           Who is the team to beat?

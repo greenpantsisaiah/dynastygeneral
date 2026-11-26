@@ -22,6 +22,28 @@ export interface SleeperSimArgs {
   playoffWeekStart: number;
   /** league.settings.playoff_teams (Sleeper default 6). */
   playoffTeams: number;
+  /**
+   * league.settings.league_average_match === 1: every roster also plays the
+   * league median each week (a win for a score above it, a loss below).
+   * Sleeper folds those games into roster.settings.wins / losses, so a
+   * 11-week season reads 11-11, not 5-6. Off by default.
+   */
+  medianGame?: boolean;
+}
+
+/**
+ * The median game for one finished week: win above the league median, loss
+ * below, tie on it. With an even field this is the top half winning, which
+ * is how Sleeper scores league_average_match. Exported for the tests.
+ */
+export function medianResults(points: Map<number, number>): Map<number, "W" | "L" | "T"> {
+  const vals = [...points.values()].sort((a, b) => a - b);
+  const out = new Map<number, "W" | "L" | "T">();
+  if (vals.length < 2) return out;
+  const mid = Math.floor(vals.length / 2);
+  const median = vals.length % 2 === 0 ? (vals[mid - 1] + vals[mid]) / 2 : vals[mid];
+  for (const [id, p] of points) out.set(id, p > median ? "W" : p < median ? "L" : "T");
+  return out;
 }
 
 function pairs(rows: SleeperMatchup[]): Array<[number, number]> {
@@ -59,6 +81,16 @@ export function buildSimInputFromSleeper(args: SleeperSimArgs): SimInput {
       scored[r.roster_id].push(p);
       teams.get(r.roster_id)!.points_for += p;
     }
+    if (args.medianGame) {
+      const weekPts = new Map<number, number>();
+      for (const r of rows) if (teams.has(r.roster_id)) weekPts.set(r.roster_id, r.points ?? 0);
+      for (const [id, res] of medianResults(weekPts)) {
+        const t = teams.get(id)!;
+        if (res === "W") t.wins++;
+        else if (res === "L") t.losses++;
+        else t.ties++;
+      }
+    }
     for (const [a, b] of pairs(rows)) {
       const ta = teams.get(a);
       const tb = teams.get(b);
@@ -77,7 +109,13 @@ export function buildSimInputFromSleeper(args: SleeperSimArgs): SimInput {
       }
     }
   }
-  return { teams: [...teams.values()], scored, remaining, playoffTeams: args.playoffTeams };
+  return {
+    teams: [...teams.values()],
+    scored,
+    remaining,
+    playoffTeams: args.playoffTeams,
+    medianGame: args.medianGame === true,
+  };
 }
 
 function pointsMap(row: SleeperMatchup): Record<string, number> {

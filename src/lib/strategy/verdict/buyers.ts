@@ -7,6 +7,7 @@
  */
 
 import type { AskLadder } from "./ask";
+import { fmtPct } from "@/lib/email/trade-desk/league-week";
 
 export interface BuyerInput {
   roster_id: number;
@@ -53,7 +54,7 @@ export function rankBuyers(args: {
       ...r,
       need,
       score,
-      reason: `${Math.round(r.title_pct * 100)}% to win the league, ${depth}`,
+      reason: `${fmtPct(r.title_pct)} to win the league, ${depth}`,
     });
   }
   out.sort((a, b) => b.score - a.score || a.roster_id - b.roster_id);
