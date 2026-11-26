@@ -139,7 +139,7 @@ export function LeagueTable({ outlook }: { outlook: LeagueOutlook }) {
     // width it needs. See REDESIGN_INTENTIONS "The league" section.
     <section className="hidden rounded-lg border border-border-soft bg-surface px-5 py-5 sm:block">
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-        League standings · all 12 teams
+        League standings · all {outlook.teams.length} teams
       </div>
       <p className="mt-1 text-xs text-muted">
         Click any column to sort. Your row is highlighted.

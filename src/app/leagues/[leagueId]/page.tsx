@@ -66,6 +66,7 @@ import {
 import { enrichArchetypeWithTargets } from "@/lib/strategy/player-suggestions/play-targets";
 import { ContenderOutlookCard } from "@/components/league/contender-outlook-card";
 import { ContendOrSellCard } from "@/components/league/contend-or-sell-card";
+import { SeasonStrip } from "@/components/league/season-strip";
 import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
 import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
 import { flagOn } from "@/lib/flags/server";
@@ -1991,12 +1992,18 @@ export default async function LeagueHubPage({
   // Contend-or-sell verdict (in-season, flag contend_or_sell_verdict,
   // dark). One canonical object; Coach reads the same loader. Uses the
   // snapshot + scoring values buildLeagueContext already produced.
+  // The verdict loads for every in-season hub: its odds feed the season
+  // strip (the same playoff / league-win chances /home and the weekly
+  // email already show everyone). Only the full card stays behind the
+  // contend_or_sell_card flag (Coach keeps contend_or_sell_verdict).
   let contendOrSell: ContendOrSellVerdict | null = null;
-  if (
-    leagueSnapshot &&
-    !draftActive &&
-    flagOn("contend_or_sell_verdict", sleeperUser?.username ?? null)
-  ) {
+  // Redraft leagues read the verdict's "this_season" horizon (PR #143):
+  // no offseason decay, no sell package.
+  const showContendOrSellCard = flagOn(
+    "contend_or_sell_card",
+    sleeperUser?.username ?? null,
+  );
+  if (leagueSnapshot && !draftActive) {
     try {
       const res = await loadContendOrSellVerdict({
         league,
@@ -2083,6 +2090,99 @@ export default async function LeagueHubPage({
   const betaOpen = isBetaOpenMode();
   const draftLive = isNflDraftWindowActive();
 
+  // In-season layout (2026-11-26, "Rethink the app for in-season play").
+  // The season is the activity once this year's draft is done OR the NFL
+  // regular season / playoffs are running. The second clause matters for
+  // dynasty leagues whose next rookie draft already exists as pre_draft:
+  // without it the hub fell back to the pre-draft layout mid-season.
+  const nflInSeason =
+    nflState?.season_type === "regular" || nflState?.season_type === "post";
+  const inSeasonLayout =
+    !draftActive && (draftState?.status === "complete" || nflInSeason);
+
+  // Draft bank section. Leads during and right after a draft; in-season it
+  // is reference ("Your draft"), collapsed and rendered last.
+  const draftSection =
+    draftActive || draftState?.status === "complete" ? (
+                <DashboardSection
+                  label={inSeasonLayout ? "Your draft" : "How you're doing"}
+                  title={
+                    inSeasonLayout
+                      ? "How this year's draft is aging"
+                      : "Your bank, your fits, your sharp positioning"
+                  }
+                  tagline="Per-pick value-vs-ADP breakdown + position fits + sharp positioning. Tap inside the section to compare to your league."
+                  defaultOpen={!inSeasonLayout}
+                  hasChanges={
+                    lastVisitPicksMadeTotal > 0 ||
+                    (lastVisitEvBankDelta != null &&
+                      Math.abs(lastVisitEvBankDelta) >= 0.5)
+                  }
+                  changeHint={(() => {
+                    const parts: string[] = [];
+                    if (lastVisitPicksMadeTotal > 0) {
+                      parts.push(
+                        `${lastVisitPicksMadeTotal} new pick${lastVisitPicksMadeTotal === 1 ? "" : "s"}`,
+                      );
+                    }
+                    if (
+                      lastVisitEvBankDelta != null &&
+                      Math.abs(lastVisitEvBankDelta) >= 0.5
+                    ) {
+                      const sign = lastVisitEvBankDelta >= 0 ? "+" : "";
+                      parts.push(
+                        `vsADP ${sign}${lastVisitEvBankDelta.toFixed(1)}`,
+                      );
+                    }
+                    return parts.join(" · ") || undefined;
+                  })()}
+                >
+                  {inSeasonLayout && draftState?.status === "complete" && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-soft bg-surface px-4 py-3 text-sm">
+                      <span className="text-muted">
+                        Your After-Action Report: draft breakdown, grade and playbook.
+                      </span>
+                      <Link
+                        href={`/leagues/${leagueId}/aar${
+                          username ? `?username=${encodeURIComponent(username)}` : ""
+                        }`}
+                        className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:underline"
+                      >
+                        Read your report →
+                      </Link>
+                    </div>
+                  )}
+                  {draftProgress && (
+                    <DraftProgressPanel
+                      data={draftProgress}
+                      leagueBank={leagueEvBank}
+                      evBankDelta={lastVisitEvBankDelta}
+                      positionCountDeltas={lastVisitPositionCountDeltas}
+                      leagueRankDelta={lastVisitLeagueRankDelta}
+                      leagueName={league?.name ?? null}
+                    />
+                  )}
+                  {/* Draft Position lives here during an active draft:
+                      slot schedule + traded picks are reference the user
+                      consults occasionally, not the headline they scroll
+                      past every refresh (founder, 2026-05-23). Pre-draft
+                      keeps it as the lead hero at the top of the hub. */}
+                  {draftActive && upcomingDraft && (
+                    <DraftPositionBanner
+                      summary={upcomingDraft}
+                      ownerNameByRosterId={
+                        new Map(
+                          leagueSnapshot?.rosters.map((r) => [
+                            r.roster_id,
+                            r.owner_name ?? `roster #${r.roster_id}`,
+                          ]) ?? [],
+                        )
+                      }
+                    />
+                  )}
+                </DashboardSection>
+    ) : null;
+
   return (
     <>
       <SiteNav />
@@ -2097,7 +2197,7 @@ export default async function LeagueHubPage({
       <main className="flex-1 bg-grid">
         <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 sm:py-12">
           <Ticker
-            label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${draftLive ? " · 🔴 NFL Draft live · refresh between picks" : ""}${betaOpen ? " · Beta · everything open" : ""}`}
+            label={`League · ${league.season}${nflState?.week ? ` · Week ${nflState.week}` : ""}${draftLive ? " · 🔴 NFL Draft live · refresh between picks" : ""}${betaOpen ? " · Beta · all features free" : ""}`}
           />
 
           <LastVisitDigest
@@ -2124,7 +2224,7 @@ export default async function LeagueHubPage({
               was the duplicate and is retired (one EV bank glance, not
               two). The deep per-pick EV bank stays in "How you're
               doing". */}
-          {draftState?.status === "pre_draft" && upcomingDraft && (
+          {draftState?.status === "pre_draft" && upcomingDraft && !inSeasonLayout && (
             <DraftPositionBanner
               summary={upcomingDraft}
               ownerNameByRosterId={
@@ -2180,7 +2280,9 @@ export default async function LeagueHubPage({
                   {league.name}
                 </h1>
               )}
-              {doctrineLine && (
+              {/* Doctrine dials tune draft rankings; in-season the header
+                  carries the season instead (Rankings stays in the top bar). */}
+              {doctrineLine && !inSeasonLayout && (
                 <div className="mt-2 flex flex-wrap items-baseline gap-2 text-xs">
                   <span className="font-mono uppercase tracking-[0.14em] text-muted-2">
                     Doctrine ·
@@ -2245,25 +2347,38 @@ export default async function LeagueHubPage({
               {tierState.user && <RefreshButton leagueId={leagueId} />}
               {!cleanedUsername ? (
                 <UsernamePrompt leagueId={leagueId} season={season} />
+              ) : contendOrSell && !contendOrSell.trade_window.open ? (
+                // Best ball or past the deadline: no trades to check or find.
+                null
               ) : (
                 <>
                   <Link
                     href={tradeIncomingHref}
                     className="rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 hover:text-accent"
                   >
-                    Incoming trade
+                    Check an offer
                   </Link>
                   <Link
                     href={tradeOutboundHref}
                     className="rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 hover:text-accent"
                   >
-                    Attack a trade
+                    Find a trade
                   </Link>
                 </>
               )}
             </div>
           </div>
 
+          {/* In-season lead: the season strip sits right under the
+              header, above any banner, so it is the first read on a phone. */}
+          {inSeasonLayout && (
+            <SeasonStrip
+              week={nflState?.week ?? null}
+              standing={standing}
+              totalTeams={totalRosters}
+              verdict={contendOrSell}
+            />
+          )}
           {/* Briefing panel (?diagnose=1 only). Shows the digested
               per-position room health so the founder can verify
               SWOT and Decision are reading the same numbers. Renders
@@ -2375,8 +2490,8 @@ export default async function LeagueHubPage({
               <p className="mt-1.5 text-sm text-foreground leading-relaxed">
                 The engine detected one or more data-correctness issues
                 that may make recommendations on this page incomplete
-                or wrong. We surface this banner instead of silently
-                serving you a partial answer.
+                or wrong. This banner shows so a partial answer is never
+                served silently.
               </p>
               <ul className="mt-2 space-y-1 text-xs text-muted">
                 {integrityReport.issues
@@ -2404,7 +2519,10 @@ export default async function LeagueHubPage({
             </section>
           )}
 
-          {driftSummary && (
+          {/* Doctrine drift reads the last N draft picks against the
+              Horizon dial: a draft-time signal. In-season it returns with
+              the next draft instead of leading the page. */}
+          {driftSummary && !inSeasonLayout && (
             <div className="mt-6 rounded-md border border-warning/40 bg-warning/5 px-4 py-3 text-sm text-foreground">
               <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <div>
@@ -2428,6 +2546,16 @@ export default async function LeagueHubPage({
             <div className="min-w-0">
               {draftActive && draftState && (
                 <DraftBanner state={draftState} />
+              )}
+
+              {/* In-season lead: the season strip (week, record, playoff
+                  and league-win chances, trade window), then the
+                  keep-or-sell call with the three analysts. Both read the
+                  contend-or-sell verdict; neither computes anything. */}
+              {inSeasonLayout && contendOrSell && showContendOrSellCard && (
+                <div className="mt-6">
+                  <ContendOrSellCard verdict={contendOrSell} />
+                </div>
               )}
 
               {/* AAR pre-launch banner. Surfaces at 75 percent draft
@@ -2475,7 +2603,9 @@ export default async function LeagueHubPage({
                   );
                 })()}
 
-              {draftState?.status === "complete" && (
+              {/* In-season the After-Action Report link lives inside the
+                  collapsed "Your draft" section, not above the season. */}
+              {draftState?.status === "complete" && !inSeasonLayout && (
                 <div className="mt-6 rounded-lg border-2 border-accent/60 bg-accent/10 px-5 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -2727,14 +2857,29 @@ export default async function LeagueHubPage({
                   started, the most-actionable thing is preparing the
                   build, not making a pick. Surfaces Team Identity
                   preview + Library articles for prep. */}
-              {!draftActive && draftState?.status !== "complete" && (
+              {!draftActive &&
+                draftState?.status !== "complete" &&
+                (!inSeasonLayout || draftState?.status === "pre_draft") && (
                 <DashboardSection
-                  label="Pre-draft prep"
+                  label={inSeasonLayout ? "Next rookie draft" : "Pre-draft prep"}
                   title="Plan the build before the clock starts"
                   tagline="Keepers, comparator, expected build, prep articles."
-                  defaultOpen={true}
-                  emphasize={true}
+                  defaultOpen={!inSeasonLayout}
+                  emphasize={!inSeasonLayout}
                 >
+                  {inSeasonLayout && draftState?.status === "pre_draft" && upcomingDraft && (
+                    <DraftPositionBanner
+                      summary={upcomingDraft}
+                      ownerNameByRosterId={
+                        new Map(
+                          leagueSnapshot?.rosters.map((r) => [
+                            r.roster_id,
+                            r.owner_name ?? `roster #${r.roster_id}`,
+                          ]) ?? [],
+                        )
+                      }
+                    />
+                  )}
                   {teamIdentity && <TeamIdentityPanel data={teamIdentity} />}
                   <LibraryTeaser
                     contextTags={(() => {
@@ -2763,66 +2908,7 @@ export default async function LeagueHubPage({
                   the same widget. Founder feedback 2026-05-08:
                   "showing me mine and then expanding to theirs would
                   be the obvious thing to do." */}
-              {(draftActive || draftState?.status === "complete") && (
-                <DashboardSection
-                  label="How you're doing"
-                  title="Your bank, your fits, your sharp positioning"
-                  tagline="Per-pick value-vs-ADP breakdown + position fits + sharp positioning. Tap inside the section to compare to your league."
-                  defaultOpen={true}
-                  hasChanges={
-                    lastVisitPicksMadeTotal > 0 ||
-                    (lastVisitEvBankDelta != null &&
-                      Math.abs(lastVisitEvBankDelta) >= 0.5)
-                  }
-                  changeHint={(() => {
-                    const parts: string[] = [];
-                    if (lastVisitPicksMadeTotal > 0) {
-                      parts.push(
-                        `${lastVisitPicksMadeTotal} new pick${lastVisitPicksMadeTotal === 1 ? "" : "s"}`,
-                      );
-                    }
-                    if (
-                      lastVisitEvBankDelta != null &&
-                      Math.abs(lastVisitEvBankDelta) >= 0.5
-                    ) {
-                      const sign = lastVisitEvBankDelta >= 0 ? "+" : "";
-                      parts.push(
-                        `vsADP ${sign}${lastVisitEvBankDelta.toFixed(1)}`,
-                      );
-                    }
-                    return parts.join(" · ") || undefined;
-                  })()}
-                >
-                  {draftProgress && (
-                    <DraftProgressPanel
-                      data={draftProgress}
-                      leagueBank={leagueEvBank}
-                      evBankDelta={lastVisitEvBankDelta}
-                      positionCountDeltas={lastVisitPositionCountDeltas}
-                      leagueRankDelta={lastVisitLeagueRankDelta}
-                      leagueName={league?.name ?? null}
-                    />
-                  )}
-                  {/* Draft Position lives here during an active draft:
-                      slot schedule + traded picks are reference the user
-                      consults occasionally, not the headline they scroll
-                      past every refresh (founder, 2026-05-23). Pre-draft
-                      keeps it as the lead hero at the top of the hub. */}
-                  {draftActive && upcomingDraft && (
-                    <DraftPositionBanner
-                      summary={upcomingDraft}
-                      ownerNameByRosterId={
-                        new Map(
-                          leagueSnapshot?.rosters.map((r) => [
-                            r.roster_id,
-                            r.owner_name ?? `roster #${r.roster_id}`,
-                          ]) ?? [],
-                        )
-                      }
-                    />
-                  )}
-                </DashboardSection>
-              )}
+              {!inSeasonLayout && draftSection}
 
               {/* "Your team" and "The league" are siblings. For in-
                   season leagues (no active draft AND draft already
@@ -2831,8 +2917,6 @@ export default async function LeagueHubPage({
                   draft we keep Your Team first. Per founder feedback
                   2026-05-15: surface standings higher in-season. */}
               {(() => {
-                const inSeasonLayout =
-                  !draftActive && draftState?.status === "complete";
                 const yourTeamSection = (
                   <DashboardSection
                     key="your-team"
@@ -2861,7 +2945,7 @@ export default async function LeagueHubPage({
                         rubricByPlayerId={rubricByPlayerId}
                       />
                     )}
-                    {contendOrSell && (
+                    {contendOrSell && showContendOrSellCard && !inSeasonLayout && (
                       <ContendOrSellCard verdict={contendOrSell} />
                     )}
                     {contenderOutlook && (
@@ -2879,12 +2963,12 @@ export default async function LeagueHubPage({
                       label="The league"
                       title={
                         inSeasonLayout
-                          ? "Who is the team to beat?"
+                          ? "Standings and opponents"
                           : "Trade leverage and opponent reads"
                       }
                       tagline={
                         inSeasonLayout
-                          ? "League standings, trade leverage, opponent reads."
+                          ? "Where every team stands and what each one needs."
                           : "Where the soft spots are, who needs what, what to send."
                       }
                       defaultOpen={!draftActive}
@@ -2908,11 +2992,11 @@ export default async function LeagueHubPage({
                           <LeagueTable outlook={leagueOutlook} />
                         </>
                       )}
-                      {leagueRead && draftState?.status !== "pre_draft" && (
+                      {leagueRead && (inSeasonLayout || draftState?.status !== "pre_draft") && (
                         <TradeStrategyPanel data={leagueRead} />
                       )}
                       {opponentCharacterizations.length > 0 &&
-                        draftState?.status !== "pre_draft" && (
+                        (inSeasonLayout || draftState?.status !== "pre_draft") && (
                           <OpponentCharacterizations
                             items={opponentCharacterizations}
                             leagueId={leagueId}
@@ -2921,7 +3005,7 @@ export default async function LeagueHubPage({
                             canWriteNotes={authUser != null}
                           />
                         )}
-                      {pathCompetition && draftState?.status !== "pre_draft" && (
+                      {pathCompetition && (inSeasonLayout || draftState?.status !== "pre_draft") && (
                         <SamePathThreatsCard competition={pathCompetition} />
                       )}
                       {/* Off-season / non-in-season layout retains the
@@ -2953,7 +3037,7 @@ export default async function LeagueHubPage({
                             swot={computeSwot(leagueSnapshot, leagueOutlook)}
                           />
                         )}
-                      {draftState?.status === "pre_draft" && (
+                      {draftState?.status === "pre_draft" && !inSeasonLayout && (
                         <div className="rounded-md border border-border-soft bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
                           League-shape surfaces (SWOT, standings,
                           opponent reads) start firing once the rookie
@@ -2968,6 +3052,7 @@ export default async function LeagueHubPage({
                   <>
                     {theLeagueSection}
                     {yourTeamSection}
+                    {draftSection}
                   </>
                 ) : (
                   <>
@@ -3214,7 +3299,17 @@ function toSwitcherItem(l: SleeperLeague): LeagueSwitcherItem {
     total_rosters: l.total_rosters ?? null,
     status: l.status ?? null,
     is_dynasty: isDynastyLeague(l),
+    kind_label: leagueKindLabel(l),
   };
+}
+
+/** Plain league kind for the switcher: Best ball, Keeper, Redraft; null for dynasty. */
+function leagueKindLabel(l: SleeperLeague): string | null {
+  const settings = (l.settings ?? {}) as Record<string, unknown>;
+  if (Number(settings.best_ball) === 1) return "Best ball";
+  if (isDynastyLeague(l)) return null;
+  if (Number(settings.type) === 1) return "Keeper";
+  return "Redraft";
 }
 
 function qs(params: Record<string, string>): string {

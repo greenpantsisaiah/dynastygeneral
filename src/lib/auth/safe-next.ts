@@ -6,7 +6,7 @@
  *
  * Rule: accept ONLY paths starting with "/" and not "//" (which would
  * be protocol-relative and resolve to a different origin). Everything
- * else falls back to the supplied default (typically "/account").
+ * else falls back to the supplied default (typically "/home", the signed-in home across every league).
  *
  * Per security-auditor 2026-04-23: this exact vector was the only
  * HIGH finding in the auth flow.
@@ -16,7 +16,7 @@ const PATH_RE = /^\/(?!\/)/;
 
 export function safeNextPath(
   raw: string | null | undefined,
-  fallback = "/account",
+  fallback = "/home",
 ): string {
   if (typeof raw !== "string" || raw.length === 0) return fallback;
   if (raw.length > 256) return fallback; // bound the size too

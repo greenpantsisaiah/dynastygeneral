@@ -21,6 +21,15 @@ export type LeagueSwitcherItem = {
   total_rosters: number | null;
   status: string | null;
   is_dynasty: boolean;
+  /** "Keeper", "Best ball" or "Redraft" for non-dynasty leagues; null for dynasty. */
+  kind_label?: string | null;
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  pre_draft: "pre-draft",
+  drafting: "drafting",
+  in_season: "in season",
+  complete: "season over",
 };
 
 export function LeagueSwitcher({
@@ -126,12 +135,12 @@ export function LeagueSwitcher({
                     </div>
                     <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
                       {l.season} · {l.total_rosters ?? "?"} teams ·{" "}
-                      {l.status ?? "unknown"}
+                      {l.status ? (STATUS_LABEL[l.status] ?? l.status.replace(/_/g, " ")) : "status unknown"}
                     </div>
                   </div>
-                  {!l.is_dynasty && (
+                  {(l.kind_label ?? (!l.is_dynasty ? "Redraft" : null)) && (
                     <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                      Redraft
+                      {l.kind_label ?? "Redraft"}
                     </span>
                   )}
                 </Link>

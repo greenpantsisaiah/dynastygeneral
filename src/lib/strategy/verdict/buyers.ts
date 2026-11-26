@@ -45,7 +45,7 @@ export function rankBuyers(args: {
       ...r,
       need,
       score,
-      reason: `${Math.round(r.title_pct * 100)}% title odds, ${depth}`,
+      reason: `${Math.round(r.title_pct * 100)}% to win the league, ${depth}`,
     });
   }
   out.sort((a, b) => b.score - a.score || a.roster_id - b.roster_id);

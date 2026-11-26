@@ -1,7 +1,7 @@
 /**
  * Contend-or-sell card (in-season). Renders the canonical verdict from
  * buildContendOrSellVerdict; it computes nothing. Behind the
- * contend_or_sell_verdict flag.
+ * contend_or_sell_card flag.
  *
  * Layer 1: the headline stance and the odds line. Layer 2: the voice
  * scale and the sell package with buyers. Layer 3: provenance (model,
@@ -9,14 +9,15 @@
  */
 
 import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
+import { fmtPct } from "@/lib/email/trade-desk/league-week";
 import { STANCE_SCORE, type Stance, type VoiceName } from "@/lib/strategy/verdict/voices";
 
 const STANCE_LABEL: Record<Stance, string> = {
   sell: "Sell",
   lean_sell: "Lean sell",
   split: "Split",
-  lean_push: "Lean push",
-  push: "Push",
+  lean_push: "Lean keep",
+  push: "Keep going",
 };
 
 const VOICE: Record<VoiceName, { label: string; dot: string; text: string }> = {
@@ -28,6 +29,7 @@ const VOICE: Record<VoiceName, { label: string; dot: string; text: string }> = {
   gambler: { label: "Gambler", dot: "bg-amber-500", text: "text-amber-400" },
 };
 
+const MIN_VALUE_SAVED = 2;
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 const pp = (d: number) => `${Math.abs(d * 100).toFixed(1)} pts`;
 const valuePts = (n: number) => `${Math.round(n)} value point${Math.round(n) === 1 ? "" : "s"}`;
@@ -48,16 +50,26 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
           Where you stand · hypothesis, not yet scored
         </p>
         <h3 className="mt-1 text-lg font-semibold">
-          Title odds {pct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
+          Win the league {fmtPct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)}-best chance of {v.league.teams}
         </h3>
         <p className="text-sm text-muted">
-          Playoffs {pct(v.odds.playoff_pct)} · fair title share {pct(v.league.fair_title_share)}.
+          Playoffs {fmtPct(v.odds.playoff_pct)} · fair share {pct(v.league.fair_title_share)}.
         </p>
         <p className="mt-2 text-sm text-muted">{v.trade_window.label}</p>
       </section>
     );
   }
   const headline = STANCE_LABEL[v.panel.headline];
+  // A sell candidate earns a line only if selling changes something: at
+  // least 2 value points saved by August, half a point a week, or a
+  // visible move in the chance to win the league. Bench filler that
+  // changes nothing is left out (design-qa, PR #142).
+  const worthListing = v.candidates.filter(
+    (c) =>
+      c.decay.value_lost >= MIN_VALUE_SAVED ||
+      c.weekly_points_lost >= 0.5 ||
+      Math.abs(c.title_delta) >= 0.005,
+  );
   const consensus = v.panel.consensus ? "The voices agree" : "The voices disagree";
   return (
     <section className="rounded-lg border border-border-strong bg-surface p-4">
@@ -67,10 +79,10 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
             Keep going or sell · hypothesis, not yet scored
           </p>
           <h3 className="mt-1 text-lg font-semibold">
-            {headline}: title odds {pct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)} of {v.league.teams}
+            {headline}: win the league {fmtPct(v.odds.title_pct)}, {ordinal(v.league.rank_by_title_odds)}-best chance of {v.league.teams}
           </h3>
           <p className="text-sm text-muted">
-            Playoffs {pct(v.odds.playoff_pct)} · fair title share {pct(v.league.fair_title_share)} · {consensus}.
+            Playoffs {fmtPct(v.odds.playoff_pct)} · fair share {pct(v.league.fair_title_share)} · {consensus}.
           </p>
         </div>
       </div>
@@ -92,7 +104,7 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
         </div>
         <div className="mt-1 flex justify-between text-[11px] text-muted-2">
           <span>{v.horizon === "this_season" ? "Season over" : "Sell to contenders"}</span>
-          <span>Push for the title</span>
+          <span>Keep going for the title</span>
         </div>
       </div>
 
@@ -107,13 +119,20 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
         ))}
       </ul>
 
-      {v.candidates.length > 0 && (
+      {v.candidates.length > 0 && worthListing.length === 0 && (
+        <p className="mt-4 border-t border-border-soft pt-3 text-sm text-muted">
+          {v.panel.headline === "sell" || v.panel.headline === "lean_sell"
+            ? "The odds say sell, but no player here loses real value by August or moves your chance to win the league. There is nothing worth selling now; hold the roster into the offseason."
+            : "No player here loses enough value by August, or moves your chance to win the league enough, to be worth selling."}
+        </p>
+      )}
+      {worthListing.length > 0 && (
         <div className="mt-4 border-t border-border-soft pt-3">
           <p className="font-mono text-[11px] uppercase tracking-wider text-muted-2">
             If you sell · who loses value by August, who should buy
           </p>
           <ul className="mt-2 space-y-3 text-sm">
-            {v.candidates.map((c) => (
+            {worthListing.map((c) => (
               <li key={c.player.player_id}>
                 <p>
                   <span className="font-semibold">{c.player.name}</span>{" "}
@@ -123,11 +142,13 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
                   </span>
                 </p>
                 <p className="text-muted">
-                  Age curve expects about {valuePts(c.decay.value_lost)} gone by August. Selling him
-                  costs {c.weekly_points_lost.toFixed(1)} pts per week
+                  Age curve expects about {valuePts(c.decay.value_lost)} gone by August.{" "}
+                  {c.weekly_points_lost >= 0.05
+                    ? `Selling him costs ${c.weekly_points_lost.toFixed(1)} pts per week`
+                    : "Selling him costs your lineup almost nothing each week"}
                   {Math.abs(c.title_delta) < 0.005
-                    ? " and barely moves your title odds"
-                    : ` and ${pp(c.title_delta)} of title odds${c.title_delta > 0 ? " (a gain: his replacement scores more)" : ""}`}
+                    ? " and barely moves your chance to win the league"
+                    : ` and ${pp(c.title_delta)} of your chance to win the league${c.title_delta > 0 ? " (a gain: his replacement scores more)" : ""}`}
                   .
                 </p>
                 {c.buyers.length > 0 && (
@@ -138,11 +159,13 @@ export function ContendOrSellCard({ verdict }: { verdict: ContendOrSellVerdict }
               </li>
             ))}
           </ul>
+          {worthListing.length === v.candidates.length && v.candidates.length > 1 && (
           <p className="mt-2 text-xs text-muted-2">
-            Selling all {v.candidates.length}: title odds {pct(v.odds.title_pct)} to {pct(v.package.title_pct_if_sold)},
+            Selling all {v.candidates.length}: chance to win the league {fmtPct(v.odds.title_pct)} to {fmtPct(v.package.title_pct_if_sold)},
             about {valuePts(v.package.value_kept_by_selling)} kept. Contender premium is unknown and priced
             at 0, so ask for market value, not more.
           </p>
+          )}
         </div>
       )}
 
