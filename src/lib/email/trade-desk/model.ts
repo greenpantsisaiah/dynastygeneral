@@ -135,8 +135,8 @@ export interface TradeDeskModel {
   rose: number;
   fell: number;
   /**
-   * Leagues whose safe trade-by time had passed at `now`, keyed by league id
-   * to the trade-by label. cardFor drops their cards; the league call reads
+   * Leagues that would have had a trade card but whose safe trade-by time had
+   * passed at `now`, keyed by league id to the trade-by label. cardFor drops their cards; the league call reads
    * this so its reason names the closed window instead of a later gate.
    */
   tradeByPassed?: Record<string, string>;
@@ -167,7 +167,10 @@ export function buildTradeDeskModel(args: {
     const v = l.verdict;
     if (!v || !v.trade_window.open || !args.now) continue;
     const by = tradeBy(v.trade_window.deadline_week, args.seasonStartDate);
-    if (by && new Date(by.iso).getTime() <= args.now.getTime()) tradeByPassed[l.leagueId] = by.label;
+    // Only a league that would have had a card: a league with no trade
+    // keeps its own reason (design-qa, PR #161: 12 Man. read "this week's
+    // trade is off" though it never had one).
+    if (by && new Date(by.iso).getTime() <= args.now.getTime() && cardFor(l, args.seasonStartDate) != null) tradeByPassed[l.leagueId] = by.label;
   }
   const recsByLeague: Record<string, number> = {};
   for (const c of cards) recsByLeague[c.leagueId] = (recsByLeague[c.leagueId] ?? 0) + 1;
