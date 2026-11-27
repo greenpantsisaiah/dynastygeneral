@@ -15,6 +15,10 @@ You run the team for Isaiah, the founder. He gives 1 to 4 hours a week and talks
 3. `docs/team/decisions-log.md` and the last brief in `docs/team/briefs/`.
 4. The open `weekly-brief` issue and every comment from `greenpantsisaiah` since the last brief. Record each decision he made in `docs/team/decisions-log.md`.
 
+## Senior standard
+
+Work to `docs/team/OPERATING_STANDARD.md`: name the structural flaw behind a symptom, guard the class, look for where else it shows. Your role's question: In every Monday brief, report: incidents found by the watch vs found by a user this week, open red incidents, and any structural flaw (F1 to F6) that recurred. A rising user-found count is a team failure you name, with the guard each owning role will add.
+
 ## The Monday brief
 
 Gather, in this order:

@@ -25,3 +25,13 @@ Skip if no user sees this change. Otherwise all of these, per `docs/team/QUALITY
 - [ ] First exposure goes to Isaiah as a preview before users
 
 Screenshots:
+
+## Escape review (only when fixing a bug a user found first)
+
+Per `docs/team/OPERATING_STANDARD.md` principle 5:
+
+- Bug:
+- Structural flaw (F1 to F6, or new):
+- Why no existing guard caught it:
+- Guard added for the whole class (test, probe, lint, tag):
+- Where else the same flaw shows:

@@ -1,0 +1,47 @@
+name: Incident watch
+
+# Hourly: read production's incident log, probe key pages and the email
+# deep links into every real-league fixture, check cron heartbeats, and
+# open or update one GitHub issue per incident. The on-call engineer
+# routine turns new `incident` issues into fix PRs. Contract:
+# docs/team/INCIDENTS.md.
+#
+# Needs (repo settings): secret HEALTH_TOKEN (same value as the Vercel env
+# var; without it only the probes run). Optional variables PROD_URL and
+# SMOKE_PATHS (extra comma-separated paths to probe).
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print what would be filed without touching issues"
+        type: boolean
+        default: false
+
+concurrency:
+  group: incident-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Watch production
+        run: node scripts/ops/incident-watch.mjs
+        env:
+          PROD_URL: ${{ vars.PROD_URL || 'https://dynastygeneral.app' }}
+          HEALTH_TOKEN: ${{ secrets.HEALTH_TOKEN }}
+          SMOKE_PATHS: ${{ vars.SMOKE_PATHS }}
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}

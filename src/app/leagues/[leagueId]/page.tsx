@@ -26,6 +26,7 @@ import {
   type SleeperLeague,
 } from "@/lib/sleeper";
 import { resolveDraftState, type DraftStatus } from "@/lib/sleeper/draft-state";
+import { userFacingIntegrityNotes } from "@/lib/players/integrity";
 import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { buildLeagueContext } from "@/lib/engine/league-context";
@@ -928,6 +929,20 @@ export default async function LeagueHubPage({
               "[hub:integrity]",
               summarizeIntegrityReport(integrityReport),
             );
+            // Each severe issue becomes (or bumps) one incident per kind,
+            // which the hourly incident watch turns into a fix ticket.
+            // position_unknown is a warning (no banner for users) but is
+            // still a data-shape fault we must hear about, so it records too.
+            const { recordIncidentSoon } = await import("@/lib/ops/incidents");
+            for (const it of integrityReport.issues) {
+              if (it.severity !== "severe" && it.kind !== "position_unknown") continue;
+              recordIncidentSoon({
+                source: "integrity",
+                key: it.kind,
+                message: it.headline,
+                context: { league_id: leagueId, evidence: it.evidence },
+              });
+            }
             if (issues) {
               for (const it of integrityReport.issues.slice(0, 16)) {
                 issues.push({
@@ -2575,51 +2590,50 @@ export default async function LeagueHubPage({
             </div>
           )}
 
-          {/* Engine integrity banner. Renders ALWAYS (not gated by
-              diagnose=1) when the integrity suite finds severe issues.
-              The full check list lives in players/integrity.ts and
-              covers pool completeness, drafted-in-pool, roster
-              identification, position normalization, format
-              detection, cache freshness, starter-reqs drift,
-              availability coherence, and cross-source position. Better
-              to scare the user with a visible alarm than to silently
-              mislead. */}
-          {bannerSevere.length > 0 && (
+          {/* Engine integrity notice. Renders ALWAYS (not gated by
+              diagnose=1) when the integrity suite finds severe issues, so
+              a partial answer is never served silently (INVARIANTS "pool
+              completeness" layer 3). Users see one plain line per issue
+              saying what on the page is affected; the engine vocabulary,
+              evidence, and the ?diagnose=1 hint render only in diagnose
+              mode. Every severe issue is also recorded as an incident
+              (lib/ops/incidents.ts) that the hourly incident watch turns
+              into a fix ticket, so nobody has to notice the banner for
+              it to get fixed. */}
+          {bannerSevere.length > 0 && !diagnose && (
+            <section className="mt-6 rounded-md border border-warning/50 bg-warning/5 px-4 py-3">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-warning">
+                Data note
+              </div>
+              <ul className="mt-1.5 space-y-1 text-sm leading-relaxed text-foreground">
+                {userFacingIntegrityNotes(bannerSevere).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[11px] text-muted-2">
+                Logged automatically for a fix.
+              </p>
+            </section>
+          )}
+          {bannerSevere.length > 0 && diagnose && (
             <section className="mt-6 rounded-md border-2 border-danger/60 bg-danger/10 px-4 py-3">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-danger">
-                ⚠ Engine integrity issue · {bannerSevere.length} severe
+                Engine integrity issue · {bannerSevere.length} severe
                 {integrityReport.warning_count > 0
                   ? ` + ${integrityReport.warning_count} warning${integrityReport.warning_count === 1 ? "" : "s"}`
                   : ""}
               </div>
-              <p className="mt-1.5 text-sm text-foreground leading-relaxed">
-                The engine detected one or more data-correctness issues
-                that may make recommendations on this page incomplete
-                or wrong. This banner shows so a partial answer is never
-                served silently.
-              </p>
               <ul className="mt-2 space-y-1 text-xs text-muted">
-                {bannerSevere
-                  .slice(0, 6)
-                  .map((it, idx) => (
-                    <li key={`${it.kind}-${idx}`}>
-                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-danger">
-                        {it.kind.replace(/_/g, " ")}
-                      </span>
-                      <span className="ml-2 text-foreground">{it.headline}</span>
-                    </li>
-                  ))}
-                {bannerSevere.length > 6 && (
-                  <li className="text-muted-2">
-                    + {bannerSevere.length - 6} more severe
+                {bannerSevere.map((it, idx) => (
+                  <li key={`${it.kind}-${idx}`}>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-danger">
+                      {it.kind.replace(/_/g, " ")}
+                    </span>
+                    <span className="ml-2 text-foreground">{it.headline}</span>
+                    <div className="text-[11px] text-muted-2 break-words">{it.evidence}</div>
                   </li>
-                )}
+                ))}
               </ul>
-              <p className="mt-2 text-[11px] text-muted-2">
-                Append <code className="font-mono">?diagnose=1</code> to
-                the URL for full evidence. A server-log alarm fires too,
-                so regressions show up in production logs.
-              </p>
             </section>
           )}
 

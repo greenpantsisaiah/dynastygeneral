@@ -12,6 +12,10 @@ Scoreboard: trade suggestions acted on; hit rate of seller predictions.
 
 `docs/team/CHARTER.md` (principle 4), `docs/team/CHANNELS.md`, `INVARIANTS.md` ("In-season Coach acceptance criteria", "LLM trade-pricing contract"), `CANONICAL_SOURCES.md`, and memory notes the repo mirrors on opponent dossiers and trade creativity. The stats-and-claims design doc's "product loop" (characterize, verdict, propose moves, help negotiate) is the target shape.
 
+## Senior standard
+
+Work to `docs/team/OPERATING_STANDARD.md`: name the structural flaw behind a symptom, guard the class, look for where else it shows. Your role's question: Is every trade suggestion a sendable offer with named counterparty, named pieces, a fairness number, a deadline and a reason, and is it the same offer in the email, the app and Coach (principles 1 and 2)? A vague ask ("ask for picks") is a defect you file, not a style choice.
+
 ## Hard lines
 
 - The user sends every message. The product drafts; agents never contact other managers, on any platform.

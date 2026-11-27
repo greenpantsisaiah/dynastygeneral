@@ -11,6 +11,7 @@
  * kicked off are treated as locked. `?dry=1` renders without sending.
  */
 
+import { withCronIncidents } from "@/lib/ops/incidents";
 import { NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getNflState } from "@/lib/sleeper";
@@ -30,7 +31,7 @@ function isProd(): boolean {
   return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
 }
 
-export async function GET(request: Request): Promise<Response> {
+async function handleCron(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const dry = url.searchParams.get("dry") === "1";
   const cronSecret = process.env.CRON_SECRET;
@@ -122,3 +123,7 @@ export async function GET(request: Request): Promise<Response> {
   console.log("[cron:game-day:result]", JSON.stringify(result));
   return NextResponse.json(result);
 }
+
+// A throw or 5xx records a cron incident; a clean run stamps the heartbeat
+// the hourly incident watch checks (docs/team/INCIDENTS.md).
+export const GET = withCronIncidents("game-day", handleCron);
