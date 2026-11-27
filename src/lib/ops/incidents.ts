@@ -164,6 +164,43 @@ export async function recordIncident(input: IncidentInput, nowMs = Date.now()): 
   return fp;
 }
 
+/** New client_error fingerprints admitted per hour before the rest fold into one overflow incident. */
+export const CLIENT_ERROR_NEW_PER_HOUR = 25;
+const CLIENT_FP_PREFIX = "ops:client_fp:";
+
+/**
+ * Bound how many distinct client_error incidents the public beacon can
+ * create (issue #162). A fingerprint already seen this hour passes; a new
+ * one passes while the hour's set is under CLIENT_ERROR_NEW_PER_HOUR;
+ * past that the report becomes the single "client_error / overflow"
+ * incident, so a flood of junk messages shows as one entry with a count.
+ * Fails open (returns the input) when the store is unavailable.
+ */
+export async function admitClientIncident(input: IncidentInput, nowMs = Date.now()): Promise<IncidentInput> {
+  if (input.source !== "client_error") return input;
+  const r = redis();
+  if (!r) return input;
+  const fp = fingerprintOf(input);
+  const setKey = CLIENT_FP_PREFIX + Math.floor(nowMs / 3_600_000);
+  try {
+    if (await r.sismember(setKey, fp)) return input;
+    const n = Number(await r.scard(setKey));
+    if (n >= CLIENT_ERROR_NEW_PER_HOUR) {
+      return {
+        source: "client_error",
+        key: "overflow",
+        message: `More than ${CLIENT_ERROR_NEW_PER_HOUR} distinct client errors this hour; extra reports grouped here`,
+        context: { sample_key: input.key.slice(0, 120), sample_message: input.message.slice(0, 200) },
+      };
+    }
+    await r.sadd(setKey, fp);
+    await r.expire(setKey, 7200);
+  } catch (err) {
+    console.warn("[incidents] client cap check failed:", err instanceof Error ? err.message : String(err));
+  }
+  return input;
+}
+
 /** Fire-and-forget form for hot paths and log hooks. */
 export function recordIncidentSoon(input: IncidentInput): void {
   void recordIncident(input).catch(() => {});
