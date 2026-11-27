@@ -33,6 +33,34 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-11-27",
+    title: "Every league in one feed, and trades that name the return",
+    summary:
+      "Home now lists the call in each of your leagues, the league page opens on this season, and every trade worth trying names what to ask for.",
+    changes: [
+      {
+        tag: "ONE FEED, EVERY LEAGUE",
+        text: "Home lists what to do in each of your leagues, built from the same items the weekly brief emails you. A trade from the email stays marked as emailed until its trade-by time, then drops off.",
+      },
+      {
+        tag: "ASK FOR A NAMED RETURN",
+        text: "Each trade worth trying names a player or future pick the other manager owns, priced on the engine's trade values, with the least worth taking and a great return where one exists.",
+      },
+      {
+        tag: "THIS SEASON FIRST",
+        text: "In-season, the league page opens on this week's call and real standings with playoff odds; draft cards sit below. Redraft and best ball leagues read this season only.",
+      },
+      {
+        tag: "ONE ANSWER EVERYWHERE",
+        text: "The email, the league page and Coach read the same results week, so all three name the same trade.",
+      },
+      {
+        tag: "TWO-WAY PLAYERS",
+        text: "Travis Hunter and other two-way players count at their fantasy position instead of triggering a 'position unknown' warning.",
+      },
+    ],
+  },
+  {
     version: "2026-11-26",
     title: "A weekly brief for every league you're in",
     summary:
