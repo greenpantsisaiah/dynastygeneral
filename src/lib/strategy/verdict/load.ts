@@ -20,6 +20,7 @@ import { resolvePlayers } from "@/lib/players/cache";
 import { getRealisticStarterMax } from "@/lib/engine/roster-fit";
 import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 import { tradeWindow } from "./trade-window";
+import { lastCompletedWeek } from "./weeks";
 import { normalizePosition, playerPosition, type Position } from "../archetypes/schema";
 import type { LeagueSnapshot } from "../league-state/snapshot";
 import { buildContendOrSellVerdict, type VerdictPlayer, type VerdictResult } from "./compose";
@@ -70,6 +71,9 @@ export async function fetchSeasonMatchups(league: SleeperLeague): Promise<Record
   return out;
 }
 
+/** A verdict plus the results week it was built on, so every surface labels the same week. */
+export type LoadedVerdict = (VerdictResult & { ok: false }) | (VerdictResult & { ok: true; resultsWeek: number });
+
 export async function loadContendOrSellVerdict(args: {
   league: SleeperLeague;
   snapshot: LeagueSnapshot;
@@ -80,9 +84,11 @@ export async function loadContendOrSellVerdict(args: {
   titleWorth?: number;
   /** Pre-fetched season matchups (fetchSeasonMatchups); fetched here when absent. */
   matchupsByWeek?: Record<number, SleeperMatchup[]>;
-  /** Latest week with final scores (lastCompletedWeek). Defaults to nflWeek - 1. */
+  /** Latest week with final scores. Defaults to lastCompletedWeek over the matchups. */
   resultsWeek?: number;
-}): Promise<VerdictResult> {
+  /** Clock for lastCompletedWeek when resultsWeek is absent. Defaults to now. */
+  now?: Date;
+}): Promise<LoadedVerdict> {
   if (args.seasonType !== "regular" || !args.nflWeek || args.nflWeek < 2) {
     return { ok: false, reason: "needs at least one finished regular-season week" };
   }
@@ -94,7 +100,13 @@ export async function loadContendOrSellVerdict(args: {
   if (!me) return { ok: false, reason: "your roster was not identified in this league" };
 
   const matchupsByWeek = args.matchupsByWeek ?? (await fetchSeasonMatchups(args.league));
-  const firstUnplayedWeek = (args.resultsWeek ?? args.nflWeek - 1) + 1;
+  // One rule for "which week just finished", shared with the email
+  // (buildBriefLeagues), the league page and Coach. Before 2026-11-27 the page
+  // and Coach used nflWeek - 1 while the email used lastCompletedWeek, so on a
+  // Tuesday or Wednesday the sim started a week apart and could name a
+  // different trade partner (Warren: email ladovina11, app Revolver420).
+  const resultsWeek = args.resultsWeek ?? lastCompletedWeek({ nflWeek: args.nflWeek, matchupsByWeek, now: args.now });
+  const firstUnplayedWeek = resultsWeek + 1;
   const sim = buildSimInputFromSleeper({
     rosterIds: args.snapshot.rosters.map((r) => r.roster_id),
     matchupsByWeek,
@@ -162,7 +174,7 @@ export async function loadContendOrSellVerdict(args: {
     const starters = new Set(lastRows.flatMap((m) => m.starters ?? []));
     await attachAskLadders(result.verdict.candidates, args.snapshot, args.playerValuesById, playersMap, starters, result.verdict.league_odds);
   }
-  return result;
+  return result.ok ? { ...result, resultsWeek } : result;
 }
 
 /**
