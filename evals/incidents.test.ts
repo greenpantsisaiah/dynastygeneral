@@ -12,7 +12,7 @@
  */
 
 import { fingerprintOf, incidentFromConsoleArgs, withCronIncidents, recordIncident, __setIncidentStore } from "../src/lib/ops/incidents";
-import { userFacingIntegrityNote, type IntegrityKind } from "../src/lib/players/integrity";
+import { userFacingIntegrityNote, userFacingIntegrityNotes, type IntegrityIssue, type IntegrityKind } from "../src/lib/players/integrity";
 import { playerPosition } from "../src/lib/strategy/archetypes/schema";
 
 let passed = 0;
@@ -71,6 +71,15 @@ async function main() {
     const bad = /engine integrity|diagnose|snap\.|player_ids|severe|—/i.test(line) || line.length < 20;
     check(`${kind}: plain line`, !bad, line);
   }
+
+  const iss = (kind: IntegrityKind, value?: number): IntegrityIssue => ({ kind, severity: "severe", headline: "", detail: "", evidence: "", value });
+  check("pool line names top 200, not top 100", /top-200/.test(userFacingIntegrityNote(iss("pool_missing_player"))));
+  check("pool line counts several players", /^3 top-200 players are/.test(userFacingIntegrityNotes([iss("pool_missing_player"), iss("pool_missing_player"), iss("pool_missing_player")])[0]));
+  check("stale line states the real age", /52 hours old/.test(userFacingIntegrityNote(iss("cache_stale", 52))));
+  check("no line says nothing for you to do", kinds.every((k) => !/nothing for you/i.test(userFacingIntegrityNote(iss(k)))));
+  const many = userFacingIntegrityNotes([iss("cache_stale", 50), iss("drafted_in_available"), iss("format_mismatch"), iss("pricing_unresolved"), iss("roster_identity_mismatch")]);
+  check("lines sorted by impact (identity first)", /another manager/.test(many[0]) && /values did not load/.test(many[1]));
+  check("cap adds a hidden-count line", many.length === 4 && many[3] === "2 more data issues logged for a fix.", many.join(" | "));
 
   console.log("canonical player position (two-way players)");
   check("Travis Hunter (DB, [DB, WR]) reads WR", playerPosition({ position: "DB", fantasy_positions: ["DB", "WR"] }) === "WR");

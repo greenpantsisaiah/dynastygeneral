@@ -57,7 +57,7 @@ export type SanityIssue = {
 //   binary and answerable regardless of ordering signal strength.
 //   COMPLETENESS_LIMIT extends the membership check accordingly.
 const SANITY_LIMIT = 100;
-const COMPLETENESS_LIMIT = 200;
+export const COMPLETENESS_LIMIT = 200;
 function toleranceFor(consensusRank: number): number {
   if (consensusRank <= 12) return 8;
   if (consensusRank <= 50) return 15;

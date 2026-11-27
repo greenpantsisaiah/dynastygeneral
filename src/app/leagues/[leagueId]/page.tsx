@@ -26,7 +26,7 @@ import {
   type SleeperLeague,
 } from "@/lib/sleeper";
 import { resolveDraftState, type DraftStatus } from "@/lib/sleeper/draft-state";
-import { userFacingIntegrityNote } from "@/lib/players/integrity";
+import { userFacingIntegrityNotes } from "@/lib/players/integrity";
 import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
 import type { LeagueSnapshot } from "@/lib/strategy/league-state/snapshot";
 import { buildLeagueContext } from "@/lib/engine/league-context";
@@ -2592,14 +2592,12 @@ export default async function LeagueHubPage({
                 Data note
               </div>
               <ul className="mt-1.5 space-y-1 text-sm leading-relaxed text-foreground">
-                {Array.from(new Set(bannerSevere.map(userFacingIntegrityNote)))
-                  .slice(0, 3)
-                  .map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
+                {userFacingIntegrityNotes(bannerSevere).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
               </ul>
               <p className="mt-1.5 text-[11px] text-muted-2">
-                Logged automatically for a fix. Nothing for you to do.
+                Logged automatically for a fix.
               </p>
             </section>
           )}
