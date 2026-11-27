@@ -134,6 +134,12 @@ export interface TradeDeskModel {
   record: { wins: number; losses: number; ties: number };
   rose: number;
   fell: number;
+  /**
+   * Leagues whose safe trade-by time had passed at `now`, keyed by league id
+   * to the trade-by label. cardFor drops their cards; the league call reads
+   * this so its reason names the closed window instead of a later gate.
+   */
+  tradeByPassed?: Record<string, string>;
 }
 
 export function buildTradeDeskModel(args: {
@@ -156,6 +162,13 @@ export function buildTradeDeskModel(args: {
         b.lead.decay.value_lost - a.lead.decay.value_lost,
     )
     .slice(0, MAX_CARDS);
+  const tradeByPassed: Record<string, string> = {};
+  for (const l of args.leagues) {
+    const v = l.verdict;
+    if (!v || !v.trade_window.open || !args.now) continue;
+    const by = tradeBy(v.trade_window.deadline_week, args.seasonStartDate);
+    if (by && new Date(by.iso).getTime() <= args.now.getTime()) tradeByPassed[l.leagueId] = by.label;
+  }
   const recsByLeague: Record<string, number> = {};
   for (const c of cards) recsByLeague[c.leagueId] = (recsByLeague[c.leagueId] ?? 0) + 1;
 
@@ -186,6 +199,7 @@ export function buildTradeDeskModel(args: {
     record,
     rose,
     fell,
+    tradeByPassed,
   };
 }
 

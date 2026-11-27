@@ -151,7 +151,7 @@ export function askLine(c: TradeCard): string | null {
   if (!a || (!a.fair && !a.floor && !a.great)) return null;
   const out: string[] = [];
   const open = a.fair ?? a.great ?? a.floor!;
-  const openWhat = open === a.fair ? "about even by our trade values" : open === a.great ? "a little over his value by our trade values, so expect a counter" : "a little under his value by our trade values";
+  const openWhat = open === a.fair ? "about even by the engine's trade values" : open === a.great ? "a little over his value by the engine's trade values, so expect a counter" : "a little under his value by the engine's trade values";
   out.push(`Ask ${c.buyer.label} for ${rung(open)}, ${openWhat}.`);
   if (a.floor && open !== a.floor) out.push(`${rung(a.floor, c.buyer.label)} is the least worth taking.`);
   if (a.great && open !== a.great) out.push(`${rung(a.great, c.buyer.label)} would be a great return.`);
@@ -167,7 +167,7 @@ export function verdictLine(c: TradeCard): string {
   const last = lastName(c.lead.player.name);
   return [
     head,
-    `Nothing on ${c.buyer.label}'s bench is a fair return for ${last} by our trade values, so ask for their draft picks.`,
+    `Nothing on ${c.buyer.label}'s bench is a fair return for ${last} by the engine's trade values, so ask for their draft picks.`,
     drop >= 1 ? `${last}'s trade value drops about ${drop}% by August.` : null,
   ].filter(Boolean).join(" ");
 }
@@ -187,7 +187,7 @@ export function fallbackLine(c: TradeCard): string {
     });
     return `${asks.join(", or ")}. If nobody pays full value, keeping ${last} is a fine outcome.${keepNote}`.replace(/^a/, "A");
   }
-  return `No other manager short at ${pos} has a fair return on our trade values. Keeping ${last} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
+  return `No other manager short at ${pos} has a fair return on the engine's trade values. Keeping ${last} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
 }
 export function deadlineChip(c: TradeCard): string {
   if (c.deadlineWeek == null) return "No trade deadline";
@@ -370,7 +370,7 @@ function askRowsHtml(c: TradeCard): string | null {
     .filter(([, r]) => r)
     .map(([l, r]) => `<tr><td valign="top" style="padding:6px 10px 0 0;font:600 11px ${SANS};color:${C.amber};white-space:nowrap;text-transform:uppercase;letter-spacing:.06em;">${l}</td><td style="padding:5px 0 0;font:600 14px/1.4 ${SANS};color:${C.ink};">${esc(rung(r!, c.buyer.label))}</td></tr>`)
     .join("");
-  return `Ask ${esc(c.buyer.label)} for one of these, best first. ${askPoolLine(a)} within 15% of his value by our trade values:<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px;">${rows}</table>`;
+  return `Ask ${esc(c.buyer.label)} for one of these, best first. ${askPoolLine(a)} within 15% of his value by the engine's trade values:<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px;">${rows}</table>`;
 }
 function locked(appUrl: string): string {
   const rows = [["A message ready to paste", 130], ["Fallback ask if they say no", 90]] as const;

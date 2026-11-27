@@ -72,6 +72,18 @@ const sl = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell
 check("small offseason drop names the floor", !!sl?.reason.includes("avoids under 3 value points"), sl?.reason);
 const na = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"], buyers: [shortNoAsk] })]));
 check("short buyer with no fair return says there is nothing concrete to ask for", !!na?.reason.includes("nothing concrete to ask for"), na?.reason);
+// Past the trade-by time cardFor drops the card first; the reason must say
+// that, not fall through to the drop-size gate with a false number
+// (design-qa, PR #161: Europa read "avoids under 3 value points" after the
+// email said a 4-point drop).
+{
+  const l = league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"] })]);
+  const model = buildTradeDeskModel({ ownerName: "x", tier: "pro", resultsWeek: 11, leagues: [l], seasonStartDate: "2026-09-09", now: new Date("2026-12-04T01:16:00Z") });
+  const pc = buildDecisionItems({ model, season: "2026" }).items.find((i): i is LeagueCallItem => i.kind === "league_call");
+  check("past trade-by: no trade card", model.cards.length === 0);
+  check("past trade-by: reason names the closed window", !!pc?.reason.includes("Thu Dec 3, 7:15 PM CT, has passed"), pc?.reason);
+  check("past trade-by: no drop-size reason", !!pc && !/value point/.test(pc.reason), pc?.reason);
+}
 const ok = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"] })]));
 check("a sale that clears every gate becomes a trade card, not a call", ok === undefined);
 
