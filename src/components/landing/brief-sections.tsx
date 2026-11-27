@@ -18,7 +18,7 @@ export function InboxSection() {
         <div className="mt-10 grid gap-4 md:grid-cols-3">
           <Card
             title="Trades worth trying"
-            body="Up to 3 per week, one per league where a move is worth making. Each names the player, the manager to ask, an opening price, and who else to call if it doesn't land."
+            body="Up to 3 per week, one per league where a move is worth making. Each names the player, the manager to ask, what to ask for from their roster or picks, and who else to call if it doesn't land."
           />
           <Card
             title="Your week in every league"
@@ -32,8 +32,8 @@ export function InboxSection() {
         <p className="mt-6 text-sm text-muted">
           Arrives weekly during the NFL season.{" "}
           <span className="text-muted-2">
-            Coming next: a Sunday Game Day email with your swing game and
-            who to root for.
+            Coming: a Sunday Game Day email with lineup fixes before kickoff
+            and the one game that moves your season.
           </span>
         </p>
       </div>
