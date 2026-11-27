@@ -37,7 +37,7 @@ import type {
 } from "../archetypes/schema";
 import {
   FANTASY_POSITIONS,
-  normalizePosition,
+  playerPosition,
 } from "../archetypes/schema";
 
 export type RosterSnapshot = {
@@ -587,7 +587,7 @@ export async function buildLeagueSnapshot(args: {
     });
     for (const id of merged) {
       const p = playerMap.get(id);
-      const pos = normalizePosition(p?.position ?? null);
+      const pos = playerPosition(p);
       if (pos) counts[pos] += 1;
       // search_rank is Sleeper's positional/global ranking. Treat
       // missing or non-positive as "no rank known" and skip; only real
@@ -765,7 +765,7 @@ export async function buildLeagueSnapshot(args: {
         round,
         roster_id: rosterId,
         player_id: p.player_id ?? "",
-        position: normalizePosition(player?.position ?? null),
+        position: playerPosition(player),
         age: typeof player?.age === "number" ? player.age : null,
         years_exp:
           typeof player?.years_exp === "number" ? player.years_exp : null,

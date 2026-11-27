@@ -408,6 +408,16 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: a surface that re-runs the simulator with its own inputs, re-derives decay from age, or writes its own sell / push call. Consume the verdict.
 - **Bug class avoided**: board, Coach and email giving three different contend-or-sell answers for one roster.
 
+### Future rookie pick market value (trade asks)
+
+- **Canonical**: `resolveFuturePickValues({ isSuperflex, isPpr, isHalfPpr })` in `src/lib/players/values.ts`, keyed by `futurePickKey(season, round)`
+- **Returns**: `Map<"season:round", number>` on the SAME 0-100 scale as player values: FantasyCalc prices picks in its player feed, so `normalizeFantasyCalcValues` runs one normalization (top-3 average) over both. Only the slot-unknown entry ("2027 1st") is read; the Early/Mid/Late variants need a draft slot we do not know.
+- **Inputs**: league format. Ownership comes from `computeOwnedFuturePicks` (traded_picks aware).
+- **Consumers**: `attachAskLadders` in `strategy/verdict/load.ts`, so a sell card can ask for "their 2028 1st plus their 2028 4th" when no bench player fits (Isaiah, 2026-11-27: "what would I trade Warren for?").
+- **Distinct (NOT this canonical)**: `startupPickValue` (startup draft slots) and `valueForFuturePick` (the scout's 180-point roster-strength scale). Neither composes with player values in a trade ask.
+- **Anti-pattern**: pricing a future pick for a trade ask from the scout scale or a hand-written round table.
+- **Bug class avoided**: a trade card that names a buyer but no return, or tells the user to "ask for their draft picks" with no pick named.
+
 ### Signup source attribution (which channel sent a signup)
 
 - **Canonical**: `parseSignupSource(input)` and `signupSourceFromLanding({ search, referrer, ownHost })` in `src/lib/growth/signup-source.ts`

@@ -126,12 +126,25 @@ export function sellEffect(c: TradeCard): { big: string; sub: string; tone: stri
 }
 /** Replaces "fair share is 8%" (council: jargon). */
 export const avgTeamLine = (v: TradeCard["verdict"]) => `an average team has ${Math.round(v.league.fair_title_share * 100)}%`;
-const rung = (r: { name: string; position: string; plus?: { name: string; position: string } }): string =>
-  `${r.name} (${r.position})${r.plus ? ` plus ${r.plus.name} (${r.plus.position})` : ""}`;
+type RungLike = { name: string; position: string; plus?: { name: string; position: string } };
+/**
+ * "Jaylen Wright (RB)". A future pick is "their 2027 2nd" right after the
+ * manager is named, else "Revolver420's 2027 2nd" so the sentence stands
+ * alone (and two leagues never repeat one sentence).
+ */
+const piece = (r: { name: string; position: string }, owner: string | null): string =>
+  r.position !== "PICK" ? `${r.name} (${r.position})` : `${owner ? `${owner}'s` : "their"} ${r.name}`;
+const rung = (r: RungLike, owner: string | null = null): string => {
+  if (r.plus && r.position === "PICK" && r.plus.position === "PICK" && r.plus.name === r.name) {
+    return `two of ${owner ? `${owner}'s` : "their"} ${r.name}s`;
+  }
+  return `${piece(r, owner)}${r.plus ? ` plus ${piece(r.plus, null)}` : ""}`;
+};
 /**
  * What to ask for (Isaiah, 2026-11-26: "a range of acceptable to awesome").
- * Rungs are real players on the buyer's roster priced on our trade values
- * (ask.ts); without a ladder the line falls back to the value drop.
+ * Rungs are real players or future picks the buyer owns, priced on our
+ * trade values (ask.ts). The model drops a buyer with no ladder, so a card
+ * always names a concrete return.
  */
 export function askLine(c: TradeCard): string | null {
   const a = c.buyer.ask;
@@ -140,8 +153,8 @@ export function askLine(c: TradeCard): string | null {
   const open = a.fair ?? a.great ?? a.floor!;
   const openWhat = open === a.fair ? "about even by our trade values" : open === a.great ? "a little over his value by our trade values, so expect a counter" : "a little under his value by our trade values";
   out.push(`Ask ${c.buyer.label} for ${rung(open)}, ${openWhat}.`);
-  if (a.floor && open !== a.floor) out.push(`${rung(a.floor)} is the least worth taking.`);
-  if (a.great && open !== a.great) out.push(`${rung(a.great)} would be a great return.`);
+  if (a.floor && open !== a.floor) out.push(`${rung(a.floor, c.buyer.label)} is the least worth taking.`);
+  if (a.great && open !== a.great) out.push(`${rung(a.great, c.buyer.label)} would be a great return.`);
   return out.join(" ");
 }
 const verdictHead = (c: TradeCard) => `${c.sellLeaning} of 3 lean sell, if the price is right.`;
@@ -164,7 +177,8 @@ export function fallbackLine(c: TradeCard): string {
   const keeper = c.panel.voices.find((v) => v.stance === "push" || v.stance === "lean_push");
   const keepNote = keeper ? ` The ${VOICE_NAME[keeper.voice]} would keep ${last} anyway.` : "";
   if (c.fallbackBuyers.length > 0) {
-    // Each fallback said once: a priced ask where one exists, else picks.
+    // Each fallback said once, with a named return (the model keeps only
+    // buyers with a priced ask; the picks line is a defensive fallback).
     const asks = c.fallbackBuyers.map((b) => {
       const r = b.ask ? (b.ask.fair ?? b.ask.floor ?? b.ask.great) : null;
       return r
@@ -173,7 +187,7 @@ export function fallbackLine(c: TradeCard): string {
     });
     return `${asks.join(", or ")}. If nobody pays full value, keeping ${last} is a fine outcome.${keepNote}`.replace(/^a/, "A");
   }
-  return `No other manager is short at ${pos}. Keeping ${last} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
+  return `No other manager short at ${pos} has a fair return on our trade values. Keeping ${last} costs about ${valuePts(c.lead.decay.value_lost)} by August, which is a fine outcome.${keepNote}`;
 }
 export function deadlineChip(c: TradeCard): string {
   if (c.deadlineWeek == null) return "No trade deadline";
@@ -259,10 +273,16 @@ export function allShifts(m: TradeDeskModel, limit = MAX_SHIFT_ROWS): Array<Leag
 export function forYou(s: LeagueShift & { leagueId: string }, m: TradeDeskModel): { text: string; role: ShiftRole } | null {
   for (const c of m.cards) {
     if (c.leagueId !== s.leagueId) continue;
+    // Name what they could pay (their players or picks), not just that they
+    // could buy (Isaiah, 2026-11-27: every item carries a concrete action).
+    const read = c.lead.buyers.find((b) => b.roster_id === s.roster_id);
+    const offer = read?.ask ? (read.ask.fair ?? read.ask.floor ?? read.ask.great) : null;
+    const pays = offer ? `Could pay ${rung(offer)} for your ${c.lead.player.name}` : null;
     const named = [c.buyer, ...c.fallbackBuyers, ...c.lead.buyers.filter(isShortAt)];
-    if (named.some((b) => b.roster_id === s.roster_id)) return { text: `Could buy your ${c.lead.player.name}`, role: "buyer" };
-    // Newly contending in the card's league: a backup call for the same player.
-    if (s.role === "buyer" && !s.injury) return { text: `Now contending: a backup call for your ${c.lead.player.name}`, role: "buyer" };
+    if (named.some((b) => b.roster_id === s.roster_id)) return { text: pays ?? `Could buy your ${c.lead.player.name}`, role: "buyer" };
+    // Newly contending in the card's league: a backup buyer for the same
+    // player, said only when they hold a fair return.
+    if (s.role === "buyer" && !s.injury && pays) return { text: `Now contending: ${pays[0].toLowerCase()}${pays.slice(1)}`, role: "buyer" };
   }
   return s.role && s.action ? { text: s.action, role: s.role } : null;
 }
@@ -336,7 +356,7 @@ function askRowsHtml(c: TradeCard): string | null {
   if (!a || (!a.fair && !a.floor && !a.great)) return null;
   const rows = ([["Great return", a.great], ["Fair, about even", a.fair], ["Least worth taking", a.floor]] as const)
     .filter(([, r]) => r)
-    .map(([l, r]) => `<tr><td valign="top" style="padding:6px 10px 0 0;font:600 11px ${SANS};color:${C.amber};white-space:nowrap;text-transform:uppercase;letter-spacing:.06em;">${l}</td><td style="padding:5px 0 0;font:600 14px/1.4 ${SANS};color:${C.ink};">${esc(rung(r!))}</td></tr>`)
+    .map(([l, r]) => `<tr><td valign="top" style="padding:6px 10px 0 0;font:600 11px ${SANS};color:${C.amber};white-space:nowrap;text-transform:uppercase;letter-spacing:.06em;">${l}</td><td style="padding:5px 0 0;font:600 14px/1.4 ${SANS};color:${C.ink};">${esc(rung(r!, c.buyer.label))}</td></tr>`)
     .join("");
   return `Ask ${esc(c.buyer.label)} for one of these, best first. All are bench players no older than him, within 15% of his value by our trade values:<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px;">${rows}</table>`;
 }

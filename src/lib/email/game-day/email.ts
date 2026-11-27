@@ -10,7 +10,7 @@ import { esc } from "@/lib/email/trade-desk/render";
 import type { LineupPanel } from "./lineup";
 import { panelHeadline, renderPanelHtml, renderPanelText, swingLeague } from "./panel";
 
-export const GAME_DAY_TEMPLATE_VERSION = "2026-11-26.gameday1";
+export const GAME_DAY_TEMPLATE_VERSION = "2026-11-27.gameday2";
 
 const C = { bg: "#EFEBE3", card: "#FFFFFF", ink: "#15181D", ink2: "#46505E", mute: "#8A919C", night: "#15181D", gold: "#F2A93B" };
 const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";

@@ -68,6 +68,10 @@ export interface TradeCard {
   verdict: ContendOrSellVerdict;
 }
 
+/** The buyer has at least one named return (player or pick) in the fairness band. */
+export function hasNamedAsk(b: BuyerRead): boolean {
+  return !!(b.ask && (b.ask.fair || b.ask.floor || b.ask.great));
+}
 /** A buyer the email may name: short at the position, not merely deep. */
 export function isShortAt(b: BuyerRead): boolean {
   return b.startable_at_pos <= b.starters_at_pos;
@@ -87,12 +91,12 @@ function cardFor(l: DeskLeague, seasonStartDate: string | null | undefined, now?
   for (const c of v.candidates) {
     const n = sellLeaningCount(c.panel);
     if (n < 2) continue;
-    const short = c.buyers.filter(isShortAt);
-    if (short.length === 0) continue;
-    // The buyer with a priced fair package leads (design QA, 2026-11-26): a
-    // card never points at a manager it then says has nothing to give.
-    const priced = (b: BuyerRead) => (b.ask?.fair ? 2 : b.ask && (b.ask.floor || b.ask.great) ? 1 : 0);
-    const buyers = [...short].sort((a, b) => priced(b) - priced(a));
+    // Only buyers with a named return (their players or picks, ask.ts):
+    // "what would I trade Warren for? This seems arbitrary without suggested
+    // trades" (Isaiah, 2026-11-27). No concrete ask, no trade card.
+    const priced = (b: BuyerRead) => (b.ask?.fair ? 2 : hasNamedAsk(b) ? 1 : 0);
+    const buyers = c.buyers.filter((b) => isShortAt(b) && hasNamedAsk(b)).sort((a, b) => priced(b) - priced(a));
+    if (buyers.length === 0) continue;
     if (Math.round(c.decay.value_now) < 1 || Math.round(c.decay.value_lost) < MIN_CARD_VALUE_KEPT) continue;
     return {
       leagueId: l.leagueId,

@@ -22,7 +22,9 @@ const panel = (stances: Stance[], headline: Stance) => ({
   balance: 0,
   headline,
 });
-const shortBuyer = { label: "pmac", startable_at_pos: 1, starters_at_pos: 2 };
+const fairAsk = { fair: { player_id: "pick:2027:1:0", kind: "pick", name: "2027 1st", position: "PICK", value: 40 }, floor: null, great: null, target_value: 40 };
+const shortBuyer = { label: "pmac", startable_at_pos: 1, starters_at_pos: 2, ask: fairAsk };
+const shortNoAsk = { label: "bare", startable_at_pos: 1, starters_at_pos: 2, ask: null };
 const deepBuyer = { label: "deep", startable_at_pos: 4, starters_at_pos: 2 };
 const cand = (o: { stances: Stance[]; buyers?: unknown[]; value_now?: number; value_lost?: number }) => ({
   player: { player_id: "p1", name: "Saquon Barkley", position: "RB", age: 29, value: 40, ppg_started: 15 },
@@ -68,6 +70,8 @@ const sv = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell
 check("value_now under 1 says the player is worth too little", !!sv?.reason.includes("worth under 1 value point"), sv?.reason);
 const sl = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"], value_lost: 1 })]));
 check("small offseason drop names the floor", !!sl?.reason.includes("avoids under 3 value points"), sl?.reason);
+const na = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"], buyers: [shortNoAsk] })]));
+check("short buyer with no fair return says there is nothing concrete to ask for", !!na?.reason.includes("nothing concrete to ask for"), na?.reason);
 const ok = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"] })]));
 check("a sale that clears every gate becomes a trade card, not a call", ok === undefined);
 

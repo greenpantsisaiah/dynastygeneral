@@ -15,6 +15,7 @@ import {
   type IntegrityIssue,
 } from "../src/lib/players/integrity";
 import type { LeagueSnapshot } from "../src/lib/strategy/league-state/snapshot";
+import { playerPosition } from "../src/lib/strategy/archetypes/schema";
 import type { AvailablePlayer } from "../src/lib/players/available";
 import type { PlayerValue } from "../src/lib/players/values";
 import type { Decision } from "../src/lib/strategy/decision-synthesis/types";
@@ -177,7 +178,16 @@ function run() {
       snap, available: [], playerValues: new Map(), decision: null,
       rosterPositionsRaw: ["QB"], playersFetchedAt: Date.now(),
     });
-    check("unknown-position players fire severe", has(r.issues, "position_unknown"));
+    check("unknown-position players fire a warning", has(r.issues, "position_unknown"));
+    check("unknown position never raises the red banner (warning, not severe)", r.issues.filter((i) => i.kind === "position_unknown").every((i) => i.severity === "warning"));
+  }
+  {
+    // Two-way player: Sleeper position "DB", fantasy_positions ["WR", "DB"]
+    // (Travis Hunter, 2026-11-27 Europa banner). He is a WR for every count.
+    check("playerPosition reads fantasy_positions when position is not fantasy", playerPosition({ position: "DB", fantasy_positions: ["WR", "DB"] }) === "WR");
+    check("playerPosition keeps a direct fantasy position", playerPosition({ position: "te", fantasy_positions: ["WR"] }) === "TE");
+    check("playerPosition merges DEF into DST", playerPosition({ position: "DEF" }) === "DST");
+    check("playerPosition is null for pure IDP and missing records", playerPosition({ position: "LB", fantasy_positions: ["LB"] }) === null && playerPosition(null) === null);
   }
   {
     // Clean roster: counts sum equals player_ids length.

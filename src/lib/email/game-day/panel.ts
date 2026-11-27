@@ -140,15 +140,15 @@ export function swingLeague(leagues: LeagueLineup[]): LeagueLineup | null {
 function nextLine(top: LeagueLineup, leagues: LeagueLineup[]): string {
   const next = leagues.filter((l) => l !== top && l.swing).sort((a, b) => swingSize(b.swing) - swingSize(a.swing))[0];
   const care = `If you fix one lineup with care, fix ${top.leagueName}.`;
-  if (!next || swingSize(next.swing) < MIN_SWING) return `No other game this week moves your playoff chance by 5 points. ${care}`;
-  return `The next biggest swing is ${next.leagueName}, about ${round5(swingSize(next.swing))} points. ${care}`;
+  if (!next || swingSize(next.swing) < MIN_SWING) return `No other game this week moves your playoff chance by 5 percentage points. ${care}`;
+  return `The next biggest swing is ${next.leagueName}, about ${round5(swingSize(next.swing))} percentage points. ${care}`;
 }
 
 export function gamblerRead(leagues: LeagueLineup[]): VoiceRead {
   const top = swingLeague(leagues);
   const source = "From 5,000 simulated seasons of each league, rerun with this season's scores.";
   if (!top) {
-    return { title: "No single game swings it", lines: ["None of this week's games moves your playoff chance by more than 5 points. Set lineups for points, not for any one game."], source };
+    return { title: "No single game swings it", lines: ["None of this week's games moves your playoff chance by more than 5 percentage points. Set lineups for points, not for any one game."], source };
   }
   const s = top.swing!;
   const lines = [

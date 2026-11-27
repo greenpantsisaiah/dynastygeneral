@@ -78,6 +78,8 @@ export default async function HomePage({
     resultsWeek,
     leagues,
     seasonStartDate: nfl.season_start_date,
+    // Same rule as the email: a trade whose trade-by time has passed is gone.
+    now: new Date(),
   });
   const { items, digest } = buildDecisionItems({ model, season: nfl.season });
 

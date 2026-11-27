@@ -3,7 +3,8 @@
  * the buyer's own roster (Isaiah, 2026-11-26: "this doesn't tell me what
  * to sell Jaylen for... a range of acceptable to awesome").
  *
- * Every rung is one real player the buyer rosters, priced on the same
+ * Every rung is one real player the buyer rosters (or one of the buyer's
+ * own future rookie picks, priced on the same market scale), priced on the same
  * scoring scale as the player being sold (the VALUE_MODE seam values the
  * priced pool already computed for every roster). No new value math lives
  * here: the bands only place the buyer's players around the seller's value.
@@ -17,7 +18,10 @@
  */
 
 export interface AskRung {
+  /** A player id, or `pick:<season>:<round>:<n>` for a future rookie pick. */
   player_id: string;
+  /** "pick" for one of the buyer's own future rookie picks (position "PICK"). */
+  kind?: "player" | "pick";
   name: string;
   position: string;
   value: number;
@@ -62,7 +66,13 @@ export const ADDON_WEIGHT = 0.5;
 /** Pairs are searched among the buyer's top N eligible players only. */
 const PAIR_POOL = 25;
 /** Unknown age sorts after every known age (prefer what we can vouch for). */
-const ageKey = (o: AskRung) => (typeof o.age === "number" ? o.age : 99);
+const ageKey = (o: AskRung) => (o.kind === "pick" ? PICK_AGE : typeof o.age === "number" ? o.age : 99);
+/**
+ * A future pick sorts like a rookie of this age: younger than almost any
+ * veteran return, so a seller's ask prefers picks to an aging player of the
+ * same value. INTERNAL_HEURISTIC (typical NFL rookie age), not calibrated.
+ */
+const PICK_AGE = 22;
 
 export function buildAskLadder(args: {
   targetValue: number;
@@ -79,10 +89,11 @@ export function buildAskLadder(args: {
   const pool = args.offers.filter(
     (o) =>
       o.value > 0 &&
-      SKILL.has(o.position) &&
-      o.position !== args.excludePosition &&
-      !o.starter &&
-      (maxAge == null || (typeof o.age === "number" && o.age <= maxAge)),
+      (o.kind === "pick" ||
+        (SKILL.has(o.position) &&
+          o.position !== args.excludePosition &&
+          !o.starter &&
+          (maxAge == null || (typeof o.age === "number" && o.age <= maxAge)))),
   );
   const used = new Set<string>();
   // Youngest first, then closest to the band's anchor.

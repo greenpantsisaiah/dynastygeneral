@@ -28,7 +28,7 @@ import type {
   LeagueSnapshot,
   RosterSnapshot,
 } from "../league-state/snapshot";
-import { normalizePosition, type Position } from "../archetypes/schema";
+import { playerPosition, type Position } from "../archetypes/schema";
 import { scoreWinNowFor } from "../windows/compute";
 import { tierForScore, type ContenderYear } from "./types";
 
@@ -76,7 +76,7 @@ async function resolveMyRosterPlayers(
     const p: SleeperPlayer | undefined = map.get(id);
     if (!p) continue;
     out.push({
-      position: normalizePosition(p.position ?? null),
+      position: playerPosition(p),
       age: typeof p.age === "number" ? p.age : null,
       search_rank:
         typeof p.search_rank === "number" && p.search_rank > 0
