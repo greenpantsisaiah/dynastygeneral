@@ -20,7 +20,7 @@
 import type { AskLadder } from "@/lib/strategy/verdict/ask";
 
 import type { Stance, VoiceName } from "@/lib/strategy/verdict/voices";
-import { MIN_CARD_VALUE_KEPT, STANCE_LABEL, isShortAt, playoffDelta, sellLeaningCount, type DeskLeague, type TradeCard, type TradeDeskModel } from "@/lib/email/trade-desk/model";
+import { MIN_CARD_VALUE_KEPT, STANCE_LABEL, hasNamedAsk, isShortAt, playoffDelta, sellLeaningCount, type DeskLeague, type TradeCard, type TradeDeskModel } from "@/lib/email/trade-desk/model";
 import { fmtPct, fmtScore, playoffRange as rangeOf, RANGE_LABEL } from "@/lib/email/trade-desk/league-week";
 import {
   allShifts,
@@ -359,6 +359,7 @@ function leagueCall(l: DeskLeague, m: TradeDeskModel, season: string): LeagueCal
     if (!c) reason = "No player on the roster has a buyer worth pricing.";
     else if (n < 2) reason = `${n === 0 ? "None" : "Only one"} of the three analysts would sell ${c.player.name} on his own.`;
     else if (c.buyers.filter(isShortAt).length === 0) reason = `No team is short at ${c.player.position}, so nobody needs ${c.player.name} enough to pay full value.`;
+    else if (!c.buyers.some((b) => isShortAt(b) && hasNamedAsk(b))) reason = `No team short at ${c.player.position} has a fair return for ${c.player.name} on our trade values, players or picks, so there is nothing concrete to ask for.`;
     else if (Math.round(c.decay.value_now) < 1) reason = `${c.player.name} is worth under 1 value point on the engine's 0 to 100 scale, too little to trade.`;
     else reason = `Selling ${c.player.name} now avoids under ${MIN_CARD_VALUE_KEPT} value points of offseason drop, too little to force a deal.`;
   } else if (head === "split") {

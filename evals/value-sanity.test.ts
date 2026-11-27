@@ -28,7 +28,7 @@
  */
 
 import { loadRealLeagueSnapshot } from "./fixtures/real-leagues/load";
-import { normalizeFantasyCalcValues, type FantasyCalcEntry } from "../src/lib/players/values";
+import { futurePickKey, normalizeFantasyCalcValues, type FantasyCalcEntry } from "../src/lib/players/values";
 import { evaluateForPlayer } from "../src/lib/engine/evaluation/wiring";
 import { VALUE_MODE, scoringValueFor } from "../src/lib/players/value-mode";
 
@@ -141,6 +141,17 @@ for (const [fmt, entries] of Object.entries(fc)) {
   });
   check(`${fmt}: scoring vs FantasyCalc Spearman >= ${MIN_SPEARMAN}`, rho >= MIN_SPEARMAN, rho.toFixed(4));
   check(`${fmt}: largest rank move <= ${MAX_RANK_SHIFT}`, worst <= MAX_RANK_SHIFT, `${worstName} ${worst}`);
+}
+
+console.log("── 4. future picks ride the player scale (one normalization) ──");
+{
+  const { pickValues, byPlayerId } = normalizeFantasyCalcValues(fc["2:1"]);
+  const p = (season: string, round: number) => pickValues.get(futurePickKey(season, round));
+  check("2027 1st priced", typeof p("2027", 1) === "number" && p("2027", 1)! > 0, String(p("2027", 1)));
+  check("rounds descend: 2027 1st > 2nd > 3rd > 4th", p("2027", 1)! > p("2027", 2)! && p("2027", 2)! > p("2027", 3)! && p("2027", 3)! >= p("2027", 4)!);
+  check("years descend: 2027 1st > 2028 1st > 2029 1st", p("2027", 1)! > p("2028", 1)! && p("2028", 1)! > p("2029", 1)!);
+  check("picks never land in the player map", ![...byPlayerId.values()].some((v) => (v.position ?? "").toUpperCase() === "PICK"));
+  check("2027 1st on the player scale (FantasyCalc 2844 / top-3 avg)", p("2027", 1) === Math.round((2844 / ((10619 + 10461 + 10387) / 3)) * 100), String(p("2027", 1)));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

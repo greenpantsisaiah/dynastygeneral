@@ -930,9 +930,11 @@ export default async function LeagueHubPage({
             );
             // Each severe issue becomes (or bumps) one incident per kind,
             // which the hourly incident watch turns into a fix ticket.
+            // position_unknown is a warning (no banner for users) but is
+            // still a data-shape fault we must hear about, so it records too.
             const { recordIncidentSoon } = await import("@/lib/ops/incidents");
             for (const it of integrityReport.issues) {
-              if (it.severity !== "severe") continue;
+              if (it.severity !== "severe" && it.kind !== "position_unknown") continue;
               recordIncidentSoon({
                 source: "integrity",
                 key: it.kind,

@@ -76,9 +76,10 @@ async function main() {
             rosterPositionsRaw: league.roster_positions ?? [],
             playersFetchedAt: Date.now(),
           });
-          const severe = report.issues.filter((i) => i.severity === "severe");
+          // position_unknown is a warning in the UI but a data-shape fault here.
+          const severe = report.issues.filter((i) => i.severity === "severe" || i.kind === "position_unknown");
           check(
-            `${name}: no severe integrity issue`,
+            `${name}: no severe or position_unknown integrity issue`,
             severe.length === 0,
             severe.map((i) => `${i.kind}: ${i.headline} [${i.evidence}]`).join("; ") || undefined,
           );

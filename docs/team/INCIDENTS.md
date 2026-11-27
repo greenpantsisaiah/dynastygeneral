@@ -7,7 +7,7 @@ Origin (2026-11-26): Isaiah tapped a trade link in the weekly email and landed o
 ## 1. Prevent (before merge)
 
 - **Real data in CI.** `evals/real-league-integrity.test.ts` runs the live hub pipeline (snapshot, priced pool, integrity suite) over every league in the committed real-league snapshot and fails on any severe integrity issue. A change that breaks a real user's league fails CI, not a user's phone.
-- **Fix at the source, through a canonical.** A data-shape bug is fixed once at ingest (example: `fantasyPositionOf` applied in `players/cache.ts`), never patched per surface.
+- **Fix at the source, through a canonical.** A data-shape bug is fixed once at ingest (example: every per-player position read goes through `playerPosition`, which falls back to `fantasy_positions` for two-way players), never patched per surface.
 - **No raw engine output on a default view.** Users see plain Voice A lines that say what on the page is affected (`userFacingIntegrityNote`). Engine vocabulary, evidence, and debugging hints render only under `?diagnose=1`. Honesty stays (a partial answer is never served silently); jargon goes.
 - **Every new surface ships its own guard.** A new page, email, cron, or API route lands with: a test on real fixture data, its failure path logged with a `[tag]` (so it becomes an incident automatically), and, for a page, a path in the incident watch's probe list when it is reachable from an email link.
 

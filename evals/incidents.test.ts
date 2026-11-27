@@ -13,7 +13,7 @@
 
 import { fingerprintOf, incidentFromConsoleArgs, withCronIncidents, recordIncident, __setIncidentStore } from "../src/lib/ops/incidents";
 import { userFacingIntegrityNote, type IntegrityKind } from "../src/lib/players/integrity";
-import { fantasyPositionOf } from "../src/lib/strategy/archetypes/schema";
+import { playerPosition } from "../src/lib/strategy/archetypes/schema";
 
 let passed = 0;
 let failed = 0;
@@ -72,12 +72,12 @@ async function main() {
     check(`${kind}: plain line`, !bad, line);
   }
 
-  console.log("canonical fantasy position");
-  check("Travis Hunter (DB, [DB, WR]) reads WR", fantasyPositionOf({ position: "DB", fantasy_positions: ["DB", "WR"] }) === "WR");
-  check("a plain WR is unchanged", fantasyPositionOf({ position: "WR", fantasy_positions: ["WR"] }) === "WR");
-  check("DEF stays DEF (normalizePosition owns DEF -> DST)", fantasyPositionOf({ position: "DEF", fantasy_positions: ["DEF"] }) === "DEF");
-  check("a pure IDP player keeps its label", fantasyPositionOf({ position: "LB", fantasy_positions: ["LB"] }) === "LB");
-  check("null position falls back to fantasy_positions", fantasyPositionOf({ position: null, fantasy_positions: ["RB"] }) === "RB");
+  console.log("canonical player position (two-way players)");
+  check("Travis Hunter (DB, [DB, WR]) reads WR", playerPosition({ position: "DB", fantasy_positions: ["DB", "WR"] }) === "WR");
+  check("a plain WR is unchanged", playerPosition({ position: "WR", fantasy_positions: ["WR"] }) === "WR");
+  check("DEF normalizes to DST", playerPosition({ position: "DEF", fantasy_positions: ["DEF"] }) === "DST");
+  check("a pure IDP player has no fantasy position", playerPosition({ position: "LB", fantasy_positions: ["LB"] }) === null);
+  check("null position falls back to fantasy_positions", playerPosition({ position: null, fantasy_positions: ["RB"] }) === "RB");
 
   console.log("cron wrapper + recorder");
   const fake = fakeStore();

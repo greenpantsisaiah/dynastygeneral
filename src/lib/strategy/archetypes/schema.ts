@@ -45,27 +45,24 @@ export function normalizePosition(
 }
 
 /**
- * Canonical fantasy position for a Sleeper player record. Reads
- * `position` first; when that is not a fantasy position (a two-way
- * player like Travis Hunter is `position: "DB"` with
- * `fantasy_positions: ["DB", "WR"]`), falls back to the first
- * fantasy-relevant entry of `fantasy_positions`. Returns the raw label
- * (so `normalizePosition` still owns DEF -> DST) or null.
- *
- * Applied once at ingest (`players/cache.ts`), so every consumer that
- * reads `player.position` sees the fantasy position. Bug class avoided:
- * 2026-11-26 Europa hub "POSITION UNKNOWN" banner, a rostered WR counted
- * as no position. Locked by evals/real-league-integrity.test.ts.
+ * A Sleeper player's fantasy position: `position` through normalizePosition,
+ * else the first fantasy-relevant entry of `fantasy_positions`. Two-way and
+ * re-listed players carry a non-fantasy primary (Travis Hunter is `DB` with
+ * fantasy_positions [DB, WR]); reading `position` alone dropped him from
+ * every count and raised a severe "position unknown" integrity banner on
+ * the hub (Isaiah, Europa, 2026-11-26). Use this for any per-player read.
  */
-export function fantasyPositionOf(p: {
-  position?: string | null;
-  fantasy_positions?: readonly string[] | null;
-}): string | null {
-  if (normalizePosition(p.position ?? null)) return p.position ?? null;
-  for (const fp of p.fantasy_positions ?? []) {
-    if (normalizePosition(fp)) return fp;
+export function playerPosition(
+  p: { position?: string | null; fantasy_positions?: readonly string[] | null } | null | undefined,
+): Position | null {
+  if (!p) return null;
+  const direct = normalizePosition(p.position);
+  if (direct) return direct;
+  for (const f of p.fantasy_positions ?? []) {
+    const n = normalizePosition(f);
+    if (n) return n;
   }
-  return p.position ?? null;
+  return null;
 }
 
 export type LeagueFormat = "1qb" | "superflex" | "2qb";

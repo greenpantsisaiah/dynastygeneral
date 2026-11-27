@@ -31,11 +31,12 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: an inline `position.toUpperCase() === "DEF"` normalizer, or a hand-rolled `normPos` closure that maps DEF -> DST. Lint rule "no inline DEF->DST position normalizer (use normalizePosition)" bans the `.toUpperCase() === "DEF"` shape outside `schema.ts`.
 - **Bug class avoided**: 2026-05-23 architecture audit found 4 near-identical DEF -> DST normalizers (two byte-identical `normPos` closures in the hub and Coach route, plus `forecast.toPosition` and a scout inline). Code checking `=== "DST"` without the merge silently misses `DEF` and vice versa.
 
-### Player fantasy position (two-way players)
+### Player position (two-way players)
 
-- **Canonical**: `fantasyPositionOf(player)` in `src/lib/strategy/archetypes/schema.ts`, applied ONCE at ingest by `withFantasyPosition` in `src/lib/players/cache.ts`
-- **Returns**: the raw fantasy position label (`position` when it is a fantasy position, else the first fantasy entry of `fantasy_positions`, else `position`). `normalizePosition` still owns DEF -> DST. The original Sleeper label is kept as `sleeper_position`.
-- **Rule**: every consumer reads `player.position` from the cache and gets the fantasy position. Do not re-implement the fallback per surface.
+- **Canonical**: `playerPosition(p)` in `src/lib/strategy/archetypes/schema.ts`
+- **Returns**: `Position | null`. `position` through `normalizePosition`, else the first fantasy-relevant entry of `fantasy_positions`, else null.
+- **Consumers**: snapshot per-roster counts + named players (`league-state/snapshot.ts`), the priced pool depth lookup, contender-outlook forecast, contend-or-sell verdict loader, scout scoring, game-day lineup.
+- **Anti-pattern**: `normalizePosition(p.position)` on a raw Sleeper player record. It drops two-way players from every count.
 - **Bug class avoided**: 2026-11-26 Europa hub "POSITION UNKNOWN" banner. Travis Hunter is Sleeper `position: "DB"`, `fantasy_positions: ["DB", "WR"]`; a rostered WR counted as no position. Locked by `evals/real-league-integrity.test.ts` (live pipeline on every real-league fixture) and `evals/incidents.test.ts`.
 
 ### Production incident log
@@ -420,6 +421,16 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Rule**: one verdict object feeds the hub card, Coach, and the weekly email. Voices are policies over the same registered facts; they may not cite a number that is not in `VoiceFacts`. Copy never implies a contender should overpay (`contender_premium@v1` is unknown).
 - **Anti-pattern**: a surface that re-runs the simulator with its own inputs, re-derives decay from age, or writes its own sell / push call. Consume the verdict.
 - **Bug class avoided**: board, Coach and email giving three different contend-or-sell answers for one roster.
+
+### Future rookie pick market value (trade asks)
+
+- **Canonical**: `resolveFuturePickValues({ isSuperflex, isPpr, isHalfPpr })` in `src/lib/players/values.ts`, keyed by `futurePickKey(season, round)`
+- **Returns**: `Map<"season:round", number>` on the SAME 0-100 scale as player values: FantasyCalc prices picks in its player feed, so `normalizeFantasyCalcValues` runs one normalization (top-3 average) over both. Only the slot-unknown entry ("2027 1st") is read; the Early/Mid/Late variants need a draft slot we do not know.
+- **Inputs**: league format. Ownership comes from `computeOwnedFuturePicks` (traded_picks aware).
+- **Consumers**: `attachAskLadders` in `strategy/verdict/load.ts`, so a sell card can ask for "their 2028 1st plus their 2028 4th" when no bench player fits (Isaiah, 2026-11-27: "what would I trade Warren for?").
+- **Distinct (NOT this canonical)**: `startupPickValue` (startup draft slots) and `valueForFuturePick` (the scout's 180-point roster-strength scale). Neither composes with player values in a trade ask.
+- **Anti-pattern**: pricing a future pick for a trade ask from the scout scale or a hand-written round table.
+- **Bug class avoided**: a trade card that names a buyer but no return, or tells the user to "ask for their draft picks" with no pick named.
 
 ### Signup source attribution (which channel sent a signup)
 

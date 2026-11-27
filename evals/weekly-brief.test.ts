@@ -75,6 +75,16 @@ function verdict(window: ContendOrSellVerdict["trade_window"] = { open: true, de
     buyers: () => ids.map((id) => ({ roster_id: id, label: id === 11 ? `<script>Evil</script>${tag}` : `Team ${id}${tag}`, title_pct: 0, playoff_pct: 0, startable_at_pos: id % 4, starters_at_pos: 3 })),
   });
   if (!r.ok) throw new Error(r.reason);
+  // Production attaches the ask ladder in load.ts; odd buyers get none so
+  // the card's "named return or no card" rule is exercised.
+  for (const c of r.verdict.candidates) {
+    for (const b of c.buyers) {
+      b.ask = b.roster_id % 2 === 1 ? null : buildAskLadder({ targetValue: c.player.value, excludePosition: c.player.position, offers: [
+        { player_id: `y${b.roster_id}`, name: `Young Piece ${b.roster_id}`, position: c.player.position === "TE" ? "WR" : "TE", value: c.player.value, age: 23 },
+        { player_id: `pick:2027:2:${b.roster_id}`, kind: "pick", name: "2027 2nd", position: "PICK", value: c.player.value * 0.9, age: null },
+      ] });
+    }
+  }
   return r.verdict;
 }
 const week = (bestBall = false) =>
@@ -256,6 +266,20 @@ const aged = buildAskLadder({ targetValue: 50, soldAge: 25, excludePosition: "RB
 check("ask ladder skips older players and the buyer's starters", aged?.fair?.name === "Younger Bench" && ![aged?.floor, aged?.great].some((r) => r?.name === "Old Vet" || r?.name === "Their Starter"), JSON.stringify(aged));
 check("every rung sits within 15% of the sold value", [ladder?.fair, ladder?.floor, ladder?.great].every((r) => !r || (r.value >= 42.5 && r.value <= 57.5)));
 check("ask ladder is null with nothing in band", buildAskLadder({ targetValue: 50, offers: [{ player_id: "x", name: "X", position: "WR", value: 10 }], excludePosition: "RB" }) === null);
+const withPicks = buildAskLadder({ targetValue: 50, soldAge: 23, excludePosition: "TE", offers: [
+  { player_id: "o", name: "Old Vet", position: "WR", value: 50, age: 29 },
+  { player_id: "pick:2027:1:0", kind: "pick", name: "their 2027 1st", position: "PICK", value: 51, age: null },
+  { player_id: "pick:2027:2:0", kind: "pick", name: "their 2027 2nd", position: "PICK", value: 30, age: null },
+  { player_id: "pick:2028:1:0", kind: "pick", name: "their 2028 1st", position: "PICK", value: 44, age: null },
+] });
+check("ask ladder names the buyer's future picks when no young player fits", withPicks?.fair?.name === "their 2027 1st" && withPicks.floor?.name === "their 2028 1st", JSON.stringify(withPicks));
+check("a pick is never filtered out by the sold player's age", !!withPicks?.fair && withPicks.fair.kind === "pick");
+const named = compose(FIXTURES.trades);
+check("every buyer a card names carries a concrete ask", /Ask Team \d+ for Young Piece \d+ \(TE\)/.test(named.text) && !/ask Team \d+ for draft picks/.test(named.text), named.text.slice(0, 0));
+check("a pick rung reads without a position tag", /Team \d+'s 2027 2nd is the least worth taking/.test(named.text) && !named.text.includes("(PICK)"));
+const unpriced = verdict();
+for (const c of unpriced.candidates) for (const b of c.buyers) b.ask = null;
+check("no concrete ask from any buyer, no trade card", !/Open the offer/.test(compose([L("1", "Finders & Keepers", "dynasty", unpriced)]).text));
 const simT = { teams: [{ roster_id: 1, wins: 7, losses: 4, ties: 0 }, { roster_id: 2, wins: 5, losses: 6, ties: 0 }] };
 const r1 = { roster_id: 1, manager: "Me", is_me: true, player_ids: [], starters: [] };
 const r2 = { roster_id: 2, manager: "Them", is_me: false, player_ids: [], starters: [] };
