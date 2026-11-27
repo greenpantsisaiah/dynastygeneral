@@ -22,6 +22,7 @@
  * draft-completions across all tracked users (low).
  */
 
+import { withCronIncidents } from "@/lib/ops/incidents";
 import { NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import {
@@ -82,7 +83,7 @@ function logErrorAndCollect(
   result.errors.push({ stage });
 }
 
-export async function GET(request: Request): Promise<Response> {
+async function handleCron(request: Request): Promise<Response> {
   const result: RunResult = {
     ok: true,
     scanned_users: 0,
@@ -311,3 +312,7 @@ export async function GET(request: Request): Promise<Response> {
 
   return NextResponse.json(result);
 }
+
+// A throw or 5xx records a cron incident; a clean run stamps the heartbeat
+// the hourly incident watch checks (docs/team/INCIDENTS.md).
+export const GET = withCronIncidents("aar-notifications", handleCron);

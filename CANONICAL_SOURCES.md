@@ -31,6 +31,20 @@ The bug class this prevents: two parallel implementations of the same concept, d
 - **Anti-pattern**: an inline `position.toUpperCase() === "DEF"` normalizer, or a hand-rolled `normPos` closure that maps DEF -> DST. Lint rule "no inline DEF->DST position normalizer (use normalizePosition)" bans the `.toUpperCase() === "DEF"` shape outside `schema.ts`.
 - **Bug class avoided**: 2026-05-23 architecture audit found 4 near-identical DEF -> DST normalizers (two byte-identical `normPos` closures in the hub and Coach route, plus `forecast.toPosition` and a scout inline). Code checking `=== "DST"` without the merge silently misses `DEF` and vice versa.
 
+### Player position (two-way players)
+
+- **Canonical**: `playerPosition(p)` in `src/lib/strategy/archetypes/schema.ts`
+- **Returns**: `Position | null`. `position` through `normalizePosition`, else the first fantasy-relevant entry of `fantasy_positions`, else null.
+- **Consumers**: snapshot per-roster counts + named players (`league-state/snapshot.ts`), the priced pool depth lookup, contender-outlook forecast, contend-or-sell verdict loader, scout scoring, game-day lineup.
+- **Anti-pattern**: `normalizePosition(p.position)` on a raw Sleeper player record. It drops two-way players from every count.
+- **Bug class avoided**: 2026-11-26 Europa hub "POSITION UNKNOWN" banner. Travis Hunter is Sleeper `position: "DB"`, `fantasy_positions: ["DB", "WR"]`; a rostered WR counted as no position. Locked by `evals/real-league-integrity.test.ts` (live pipeline on every real-league fixture) and `evals/incidents.test.ts`.
+
+### Production incident log
+
+- **Canonical**: `recordIncident` / `recordIncidentSoon` / `withCronIncidents` in `src/lib/ops/incidents.ts`; read by `/api/ops/incidents` and the hourly incident watch. Contract: `docs/team/INCIDENTS.md`.
+- **Rule**: production faults are recorded here, deduped by fingerprint. Tagged `console.error("[stage]", ...)` lines are captured automatically; crons are wrapped; severe integrity issues record per kind.
+- **Anti-pattern**: a surface-specific alert path, an unwrapped cron, an untagged silent catch, or showing raw engine diagnostics to users instead of recording them.
+
 ### Roster identity (is this my roster, co-owner-aware)
 
 - **Canonical**: `isRosterOwnedBy(roster, sleeperUserId)` in `src/lib/sleeper/roster-identity.ts`

@@ -12,6 +12,10 @@ Scoreboard: calibration and accuracy of logged predictions.
 
 `docs/team/CHARTER.md`, `docs/team/CHANNELS.md`, `MODEL_LIVE_PLAN.md` (especially the value-pipe deviation entry: no rubric beats the market yet), `VALIDATION_PLAN.md`, `MODEL_CARD.md`, `negative-results.md`, `RESEARCH_CORPUS.md`. The design doc "Agentic design: team verdicts, stats steward, claims steward" (claude.ai/artifact/CV5EwKfBhpUEJ93oJLwk6v) is the founder-approved direction.
 
+## Senior standard
+
+Work to `docs/team/OPERATING_STANDARD.md`: name the structural flaw behind a symptom, guard the class, look for where else it shows. Your role's question: Is every number a user sees a registered prediction with a source and a range, and can you reproduce it from the real-league snapshot? A number two surfaces disagree on, or one you cannot reproduce, is an `incident` you file (principles 1, 2 and 6).
+
 ## The foundation (build it if missing)
 
 - **Registry** (`predictions/registry.ts`, reviewed like code): one entry per prediction type with id and version (`playoff_odds@v1`), the theory with sources from `RESEARCH_CORPUS.md`, the exact metric, resolution date rule, baseline, the success bar written before any data, and status `hypothesis` -> `provisional` -> `validated` -> `retired` (changed only by you, with evidence attached).

@@ -27,6 +27,7 @@
  * cannot finish leaves the rest to the next hour; idempotent per week.
  */
 
+import { withCronIncidents } from "@/lib/ops/incidents";
 import { NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getNflState } from "@/lib/sleeper";
@@ -52,7 +53,7 @@ function isProd(): boolean {
   return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
 }
 
-export async function GET(request: Request): Promise<Response> {
+async function handleCron(request: Request): Promise<Response> {
   const started = Date.now();
   const url = new URL(request.url);
   const dry = url.searchParams.get("dry") === "1";
@@ -262,3 +263,7 @@ export async function GET(request: Request): Promise<Response> {
   console.log("[cron:weekly-brief:result]", JSON.stringify({ ...result, profiles: (profiles ?? []).length, from }));
   return NextResponse.json(result);
 }
+
+// A throw or 5xx records a cron incident; a clean run stamps the heartbeat
+// the hourly incident watch checks (docs/team/INCIDENTS.md).
+export const GET = withCronIncidents("weekly-brief", handleCron);
