@@ -44,6 +44,14 @@ The founder now runs the product across several Warp terminal tabs (one tab per 
 - Never delete a branch that has unmerged commits.
 - After a PR merges, retire the worktree with `git worktree remove <path>` (only once merged).
 
+# Production quality is every agent's job (prevent, detect, resolve)
+
+Founder standard (2026-11-26): "Automated testing and resolving errors isn't rocket science. We have to succeed and prevent issues and detect them." A user should never be the first to find a fault. Every agent, whether building, reviewing, or planning as product manager, owns this by default and proposes the guard without being asked. Contract: `docs/team/INCIDENTS.md`.
+
+- **Prevent.** Every change that touches data or a user surface ships a test on the committed real-league snapshot (`evals/real-league-integrity.test.ts` is the pattern). Fix data-shape bugs once at ingest through a canonical. Never show raw engine output (integrity kinds, evidence, "?diagnose=1") on a default view; say in plain Voice A what on the page is affected.
+- **Detect.** Every failure path logs with a `[tag]` (it becomes an incident automatically), every cron is wrapped in `withCronIncidents`, and every page reachable from an email link is in the hourly incident watch's probes. Before shipping, answer "how would we know if this broke?" with "an incident opens," never "a user tells us."
+- **Resolve.** New `incident` issues are fixed by the on-call engineer routine through the normal PR gate. When a user reports a bug the watch missed, the fix PR also closes the detection gap (a test, a probe, or a tag).
+
 # Project invariants and workflow
 
 Read these before fixing bugs, adding surfaces, or touching the strategy engine. They capture root-quality lessons that survive compaction.

@@ -44,6 +44,30 @@ export function normalizePosition(
   return FANTASY_POSITIONS.includes(u as Position) ? (u as Position) : null;
 }
 
+/**
+ * Canonical fantasy position for a Sleeper player record. Reads
+ * `position` first; when that is not a fantasy position (a two-way
+ * player like Travis Hunter is `position: "DB"` with
+ * `fantasy_positions: ["DB", "WR"]`), falls back to the first
+ * fantasy-relevant entry of `fantasy_positions`. Returns the raw label
+ * (so `normalizePosition` still owns DEF -> DST) or null.
+ *
+ * Applied once at ingest (`players/cache.ts`), so every consumer that
+ * reads `player.position` sees the fantasy position. Bug class avoided:
+ * 2026-11-26 Europa hub "POSITION UNKNOWN" banner, a rostered WR counted
+ * as no position. Locked by evals/real-league-integrity.test.ts.
+ */
+export function fantasyPositionOf(p: {
+  position?: string | null;
+  fantasy_positions?: readonly string[] | null;
+}): string | null {
+  if (normalizePosition(p.position ?? null)) return p.position ?? null;
+  for (const fp of p.fantasy_positions ?? []) {
+    if (normalizePosition(fp)) return fp;
+  }
+  return p.position ?? null;
+}
+
 export type LeagueFormat = "1qb" | "superflex" | "2qb";
 
 export type LeagueScoring = "PPR" | "half-PPR" | "standard" | "TE-premium";

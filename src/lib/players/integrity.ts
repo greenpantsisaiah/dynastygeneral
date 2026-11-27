@@ -497,3 +497,38 @@ export function summarizeIntegrityReport(report: IntegrityReport): string {
     .map((i) => `[${i.severity}] ${i.kind}: ${i.headline}`);
   return `integrity: ${report.severe_count} severe, ${report.warning_count} warning. Top: ${head.join(" | ")}`;
 }
+
+/**
+ * Plain-language line a user sees for a severe integrity issue, in Voice A.
+ * The raw kind, headline, and evidence are engineering data: they render
+ * only under `?diagnose=1` and go to the incident log
+ * (`lib/ops/incidents.ts`), never to a user's default view. Each line says
+ * what is affected on the page, so a partial answer is still never served
+ * silently (the reason the banner exists), without asking the user to debug.
+ */
+export function userFacingIntegrityNote(issue: IntegrityIssue): string {
+  switch (issue.kind) {
+    case "pool_missing_player":
+      return "A top-100 player is missing from the available list, so the picks below may skip a real option.";
+    case "drafted_in_available":
+      return "A player who is already drafted still shows as available. Check the board before you pick.";
+    case "roster_not_found":
+      return "Your roster could not be matched in this league, so the reads below are league-wide, not about your team.";
+    case "roster_identity_mismatch":
+      return "This page may be showing another manager's team. Open it again from your league list to reload your own roster.";
+    case "position_unknown":
+      return "A player on your roster has a position the engine does not score yet, so position counts on this page may be one short.";
+    case "format_mismatch":
+    case "starter_reqs_drift":
+      return "The league's starting lineup rules did not load cleanly, so starter counts on this page may be off.";
+    case "cache_stale":
+      return "Player data is a few hours old, so very recent moves may not show yet.";
+    case "availability_incoherent":
+    case "weak_recommendation":
+      return "The pick suggestion below did not pass a consistency check. Compare it with the other options before acting.";
+    case "cross_source_position":
+      return "Two data sources disagree on a player's position, so that player may be grouped wrong on this page.";
+    case "pricing_unresolved":
+      return "Player values did not load, so rankings and trade math on this page are rough until the next refresh.";
+  }
+}

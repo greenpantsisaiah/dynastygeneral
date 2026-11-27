@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/ops/report-client-error";
 import "./globals.css";
 import { Geist, Geist_Mono } from "next/font/google";
 
@@ -23,6 +24,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("[global-error]", error);
+    reportClientError(error, "global");
   }, [error]);
 
   return (

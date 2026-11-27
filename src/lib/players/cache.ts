@@ -1,4 +1,17 @@
 import { sleeperPlayerSchema, type SleeperPlayer } from "@/lib/sleeper/schemas";
+import { fantasyPositionOf } from "@/lib/strategy/archetypes/schema";
+
+/**
+ * Rewrite `position` to the canonical fantasy position at ingest, so a
+ * two-way player (Sleeper `position: "DB"`, `fantasy_positions:
+ * ["DB", "WR"]`) reads as WR everywhere. The original label is kept as
+ * `sleeper_position` for diagnostics.
+ */
+export function withFantasyPosition(p: SleeperPlayer): SleeperPlayer {
+  const pos = fantasyPositionOf(p);
+  if (pos === (p.position ?? null)) return p;
+  return { ...p, position: pos, sleeper_position: p.position ?? null };
+}
 
 /**
  * Player metadata cache.
@@ -82,7 +95,7 @@ async function fetchPlayers(): Promise<CacheEntry> {
   for (const [id, raw] of Object.entries(json as Record<string, unknown>)) {
     const r = sleeperPlayerSchema.safeParse(raw);
     if (r.success) {
-      players.set(id, r.data);
+      players.set(id, withFantasyPosition(r.data));
     } else {
       bad++;
       if (warned < MAX_PARSE_WARNINGS) {
