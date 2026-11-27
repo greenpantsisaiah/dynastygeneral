@@ -2028,6 +2028,7 @@ export default async function LeagueHubPage({
   // email already show everyone). Only the full card stays behind the
   // contend_or_sell_card flag (Coach keeps contend_or_sell_verdict).
   let contendOrSell: ContendOrSellVerdict | null = null;
+  let contendResultsWeek: number | null = null;
   // Redraft leagues read the verdict's "this_season" horizon (PR #143):
   // no offseason decay, no sell package.
   const showContendOrSellCard = flagOn(
@@ -2043,7 +2044,10 @@ export default async function LeagueHubPage({
         seasonType: nflState?.season_type ?? null,
         playerValuesById: playerValuesByIdJson,
       });
-      if (res.ok) contendOrSell = res.verdict;
+      if (res.ok) {
+        contendOrSell = res.verdict;
+        contendResultsWeek = res.resultsWeek;
+      }
     } catch (err) {
       captureError(issues, "hub:contend-or-sell", err);
     }
@@ -2057,7 +2061,7 @@ export default async function LeagueHubPage({
           league,
           verdict: contendOrSell,
           season: nflState.season,
-          resultsWeek: Math.max(0, nflState.week - 1),
+          resultsWeek: contendResultsWeek ?? Math.max(0, nflState.week - 1),
           tier: authUser?.tier ?? "free",
           seasonStartDate: nflState.season_start_date ?? null,
         })

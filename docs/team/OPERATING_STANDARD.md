@@ -53,7 +53,7 @@ An item a user sees names who, what, for what, by when, and why, and is logged a
 The email, the app and Coach show the same fact because they read the same object, not because three builders happen to agree.
 
 - Practice: one builder per fact (CANONICAL_SOURCES). An email item links to the same item id in the app; if the item changed since the email, the app says what changed and why.
-- Automation (next, engineer): a parity test on the real-league snapshot that builds the email items, the /home items, the league page call and the Coach context for each league and fails if the counterparty, the pieces, the verdict or the week differ. The Coach mirror lint (`REQUIRED_IN_COACH`) is the existing model.
+- Automation (shipping, `evals/surface-parity.test.ts`): runs the email/home path and the league page path (whose verdict loader Coach shares) on the real-league snapshot at four clocks, including the Tuesday window where the results week flips, and fails if the partner, the ask, the verdict, the week or the deadline differ. First catch: the Warren offer (email ladovina11, app Revolver420) came from the page and Coach computing the results week differently. The Coach mirror lint (`REQUIRED_IN_COACH`) is the companion guard.
 - Owner: engineer builds, reviewer enforces.
 
 ### 3. Never show stale or expired advice
