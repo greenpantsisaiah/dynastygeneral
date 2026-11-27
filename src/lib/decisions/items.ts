@@ -126,6 +126,8 @@ export interface TradeItem extends BaseItem {
   package_note: string | null;
   /** Button label, e.g. "Open the offer to gridirongoat". */
   cta_label: string;
+  /** Set when the app shows the trade exactly as an email sent it (emailed.ts). */
+  emailed_at?: string;
 }
 
 export interface ShiftItem extends BaseItem {

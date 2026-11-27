@@ -19,6 +19,7 @@ import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { buildTradeDeskModel } from "@/lib/email/trade-desk/model";
 import { buildDecisionItems } from "@/lib/decisions/items";
+import { loadEmailedTrades, overlayEmailedTrades } from "@/lib/decisions/emailed";
 import { DecisionHome } from "@/components/home/decision-feed";
 
 export const metadata = {
@@ -72,6 +73,7 @@ export default async function HomePage({
   if (leagues.length === 0) {
     return <EmptyHome line={`No ${nfl.season} Sleeper leagues found for ${username}. Join or connect one and its decisions land here.`} />;
   }
+  const now = new Date();
   const model = buildTradeDeskModel({
     ownerName: briefOwnerName(displayName, username),
     tier: user.tier,
@@ -79,9 +81,16 @@ export default async function HomePage({
     leagues,
     seasonStartDate: nfl.season_start_date,
     // Same rule as the email: a trade whose trade-by time has passed is gone.
-    now: new Date(),
+    now,
   });
-  const { items, digest } = buildDecisionItems({ model, season: nfl.season });
+  const live = buildDecisionItems({ model, season: nfl.season });
+  // A trade the email sent stays here as emailed until its trade-by time,
+  // so the email and the app never name different buyers.
+  const { items, digest } = overlayEmailedTrades({
+    ...live,
+    emailed: await loadEmailedTrades(supabase, user.id, now),
+    now,
+  });
 
   const q = new URLSearchParams({ username, season: nfl.season }).toString();
   return (

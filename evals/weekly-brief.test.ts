@@ -16,6 +16,8 @@ import { DEFAULT_SIMS } from "../src/lib/strategy/verdict/season-sim";
 import { lastCompletedWeek } from "../src/lib/strategy/verdict/weeks";
 import { buildLeagueWeek, fmtPct, playoffRange, shiftAction } from "../src/lib/email/trade-desk/league-week";
 import { buildAskLadder } from "../src/lib/strategy/verdict/ask";
+import { emailedTradeRows, overlayEmailedTrades } from "../src/lib/decisions/emailed";
+import type { TradeItem } from "../src/lib/decisions/items";
 import { leagueHref } from "../src/lib/email/trade-desk/render";
 import { tradeBy } from "../src/lib/email/trade-desk/deadline";
 import { resolveMailingAddress } from "../src/lib/email/mailing-address";
@@ -357,6 +359,35 @@ check("default From carries the brand name", briefFrom(undefined) === "Dynasty G
 check("bare EMAIL_FROM gets the brand name", briefFrom("alerts@dynastygeneral.app") === "Dynasty General <alerts@dynastygeneral.app>");
 check("EMAIL_FROM with a display name is kept", briefFrom("DG Team <x@dynastygeneral.app>") === "DG Team <x@dynastygeneral.app>");
 check("blank EMAIL_FROM falls back to the default", briefFrom("  ") === "Dynasty General <brief@dynastygeneral.app>");
+
+console.log("\n── emailed trades stay as emailed in the app ──");
+{
+  const sentAt = new Date("2026-11-24T13:00:00Z");
+  const rows = emailedTradeRows({ userId: "u1", items: dated.items, templateVersion: "v", sendMode: "broadcast", sentAt });
+  const emailedTrade = dated.items.find((i) => i.kind === "trade");
+  check("send saves each emailed trade with its deadline", rows.length === 1 && rows[0].item_id === emailedTrade?.id && rows[0].deadline === emailedTrade?.deadline);
+  const saved = rows.map((r) => r.item as TradeItem);
+  // Hours later the live rebuild names someone else (the Revolver420 case).
+  const relabeled = dated.items.map((i) => (i.kind === "trade" ? { ...i, manager: "Someone Else", verdict: "different" } : i));
+  const before = new Date(new Date(emailedTrade!.deadline!).getTime() - 3_600_000);
+  const o = overlayEmailedTrades({ items: relabeled, digest: dated.digest, emailed: saved, now: before });
+  const t = o.items.filter((i) => i.kind === "trade") as TradeItem[];
+  check("app shows the emailed trade, word for word, before the deadline", t.length === 1 && t[0].verdict === (emailedTrade as TradeItem).verdict && !!t[0].emailed_at);
+  check("same item id as the email link", t[0]?.id === emailedTrade?.id);
+  const after = new Date(new Date(emailedTrade!.deadline!).getTime() + 60_000);
+  const o2 = overlayEmailedTrades({ items: relabeled, digest: dated.digest, emailed: saved, now: after });
+  check("after the trade-by time the live read takes over", (o2.items.find((i) => i.kind === "trade") as TradeItem | undefined)?.manager === "Someone Else");
+  const noLive = dated.items.filter((i) => i.kind !== "trade");
+  const o3 = overlayEmailedTrades({ items: noLive, digest: { ...dated.digest, headline: "No trades worth trying this week." }, emailed: saved, now: before });
+  check("an emailed trade the live rebuild dropped still shows, and the headline counts it", o3.items.some((i) => i.kind === "trade") && o3.digest.headline.startsWith("1 trade worth trying"), o3.digest.headline);
+  check("emailed trade replaces that league's 'no sale' call", !o3.items.some((i) => i.kind === "league_call" && i.league_id === emailedTrade?.league_id));
+}
+console.log("\n── buyer rows say something concrete or drop ──");
+{
+  const vague = shiftAction({ role: "buyer", roster: r2, me: r1, sim: simT, hurt: null });
+  check("a contending buyer with no named need has no 'for you' line", vague === null);
+  check("no row says 'likely to pay for help'", !/likely to pay for help/.test(compose(FIXTURES.trades).text + compose(FIXTURES.many_leagues).text));
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -69,7 +69,8 @@ import { ContendOrSellCard } from "@/components/league/contend-or-sell-card";
 import { SeasonStrip } from "@/components/league/season-strip";
 import { SeasonStandings, type SeasonStandingsRow } from "@/components/league/season-standings";
 import { loadContendOrSellVerdict } from "@/lib/strategy/verdict/load";
-import { leagueDecision } from "@/lib/decisions/league-decision";
+import { forLeaguePage, leagueDecision } from "@/lib/decisions/league-decision";
+import { loadEmailedTrades } from "@/lib/decisions/emailed";
 import { seasonQuickPrompts } from "@/lib/coach/season-prompts";
 import { leagueKind } from "@/lib/email/build-brief";
 import { TradeCard as WeekTradeCard, LeagueCallCard } from "@/components/home/decision-feed";
@@ -2036,7 +2037,7 @@ export default async function LeagueHubPage({
 
   // This week's call: the same decision item /home and the weekly email
   // build for this league (one builder), so the three never disagree.
-  const weekCall =
+  const liveWeekCall =
     contendOrSell && nflState?.week
       ? leagueDecision({
           league,
@@ -2047,6 +2048,19 @@ export default async function LeagueHubPage({
           seasonStartDate: nflState.season_start_date ?? null,
         })
       : null;
+  // A trade the email sent for this league stays as emailed until its
+  // trade-by time, so the page, /home and the email name the same buyer.
+  let weekCall = liveWeekCall;
+  if (authUser) {
+    try {
+      const emailed = (await loadEmailedTrades(await createClient(), authUser.id, new Date())).find(
+        (t) => t.league_id === leagueId,
+      );
+      if (emailed) weekCall = forLeaguePage(emailed);
+    } catch (err) {
+      captureError(issues, "hub:emailed-trade", err);
+    }
+  }
 
   // Draft journal entries: user's own picks_made with player names
   // resolved + pick label formatted. Powers the post-Quadrant

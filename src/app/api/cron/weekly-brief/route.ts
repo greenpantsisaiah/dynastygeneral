@@ -38,6 +38,7 @@ import { effectiveTier } from "@/lib/auth/session";
 import { WEEKLY_BRIEF_TEMPLATE_VERSION, briefRenderTier, composeWeeklyBrief, type DeskLeague } from "@/lib/email/weekly-brief";
 import { briefSendKind, honorForce, resolveSendMode } from "@/lib/email/send-guard";
 import { OPT_OUT, WEEKLY_BRIEF_LIST, unsubscribeUrl } from "@/lib/email/unsubscribe";
+import { emailedTradeRows, saveEmailedTrades } from "@/lib/decisions/emailed";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -194,6 +195,7 @@ export async function GET(request: Request): Promise<Response> {
         console.error("[cron:weekly-brief:sleeper]", userId, err instanceof Error ? err.message : err);
       }
     }
+    const sendStart = new Date();
     const brief = composeWeeklyBrief({
       // display_name holds the email for email signups: never greet with an address.
       ownerName: briefOwnerName(profile.display_name as string | null, username),
@@ -208,11 +210,12 @@ export async function GET(request: Request): Promise<Response> {
       unsubscribeUrl: unsub,
       mailingAddress: mailingAddress ?? "",
       // Send time, so a trade whose trade-by time has passed never prints.
-      sendDate: new Date(),
+      sendDate: sendStart,
       preview: !!preview,
     });
     // The content lint blocks a broadcast; a preview still goes out with
     // the failures listed on top so the owner sees what would be blocked.
+    const sentAt = new Date();
     if (!preview && brief.lint.length > 0) {
       result.lint_blocked++;
       console.error("[cron:weekly-brief:lint]", userId, JSON.stringify(brief.lint));
@@ -239,6 +242,14 @@ export async function GET(request: Request): Promise<Response> {
       },
       { onConflict: "user_id,league_id,kind" },
     );
+    // The app shows these trades exactly as emailed until their trade-by
+    // time (decisions/emailed.ts). Best-effort; never fails the send.
+    if (!sendErr) {
+      await saveEmailedTrades(
+        admin,
+        emailedTradeRows({ userId, items: brief.items, templateVersion: WEEKLY_BRIEF_TEMPLATE_VERSION, sendMode: preview ? "preview" : "broadcast", sentAt }),
+      );
+    }
     if (sendErr) {
       result.failed++;
       // Surface the provider's reason (e.g. unverified sender domain) in

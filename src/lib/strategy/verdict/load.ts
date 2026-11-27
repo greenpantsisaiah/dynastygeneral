@@ -28,6 +28,7 @@ import type { BuyerInput, BuyerRead } from "./buyers";
 import { buildAskLadder, type AskRung } from "./ask";
 import { computeOwnedFuturePicks, resolveRookieRounds } from "@/lib/players/future-picks";
 import { futurePickKey, resolveFuturePickValues } from "@/lib/players/values";
+import { alignPicksToScoring } from "@/lib/players/value-mode";
 
 const SKILL: Position[] = ["QB", "RB", "WR", "TE"];
 /** Sleeper's default when a league does not set playoff_week_start. */
@@ -181,14 +182,17 @@ async function attachAskLadders(
   const meta = (id: string) => known.get(id) ?? fetched.get(id);
   // The buyer's own future rookie picks are a return too (Isaiah,
   // 2026-11-27: "what would I trade Warren for?"). Redraft leagues have none.
-  const pickValues =
+  // Priced on the same scoring scale as the players (alignPicksToScoring),
+  // so "about even" means the same thing for a pick as for a player.
+  const market =
     snapshot.league_type === "redraft"
-      ? new Map<string, number>()
+      ? null
       : await resolveFuturePickValues({
           isSuperflex: snapshot.format === "superflex" || snapshot.format === "2qb",
           isPpr: snapshot.scoring.includes("PPR"),
           isHalfPpr: snapshot.scoring.includes("half-PPR"),
         });
+  const pickValues = market ? alignPicksToScoring({ ...market, scoredById: values }) : new Map<string, number>();
   const rosterIds = snapshot.rosters.map((r) => r.roster_id);
   const rounds = resolveRookieRounds(snapshot.draft.rounds);
   const picksFor = (rosterId: number): AskRung[] => {

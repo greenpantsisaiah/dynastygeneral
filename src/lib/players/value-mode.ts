@@ -146,3 +146,44 @@ export async function scoringValueByIds(args: {
 
   return { valueById, valueMap, evaluationById, priorDrivenById };
 }
+
+/**
+ * Puts future picks on the SCORING scale players are priced on. Picks have
+ * no rubric (no position, no signals), so their honest estimate is the
+ * market price. But players read through the rubric blend, which on the
+ * live seam sits about 1 point under market in the 15-35 band where picks
+ * live (2026-11-27 snapshot check). A pick left at raw market would look
+ * about 4% rich next to a player of the same market value, enough to move a
+ * rung across the +/-5% "about even" band.
+ *
+ * So each pick takes the median (scoring - market) shift of the players
+ * whose MARKET value is within PICK_ALIGN_WINDOW of the pick's: the same
+ * blend, read off the players it was applied to. Fewer than
+ * PICK_ALIGN_MIN_PLAYERS neighbours leaves the market price. In "market"
+ * mode the shift is exactly 0, so picks equal market, like players.
+ */
+export const PICK_ALIGN_WINDOW = 0.15; // INTERNAL_HEURISTIC: the trade fairness band width
+export const PICK_ALIGN_MIN_PLAYERS = 5; // INTERNAL_HEURISTIC
+export function alignPicksToScoring(args: {
+  picks: Map<string, number>;
+  marketById: Map<string, number>;
+  scoredById: Record<string, number>;
+}): Map<string, number> {
+  const pairs: Array<[number, number]> = [];
+  for (const [id, m] of args.marketById) {
+    const s = args.scoredById[id];
+    if (typeof s === "number" && m > 0) pairs.push([m, s - m]);
+  }
+  const out = new Map<string, number>();
+  for (const [key, m] of args.picks) {
+    const near = pairs.filter(([pm]) => Math.abs(pm - m) <= m * PICK_ALIGN_WINDOW).map(([, d]) => d).sort((a, b) => a - b);
+    if (near.length < PICK_ALIGN_MIN_PLAYERS) {
+      out.set(key, m);
+      continue;
+    }
+    const mid = Math.floor(near.length / 2);
+    const median = near.length % 2 ? near[mid] : (near[mid - 1] + near[mid]) / 2;
+    out.set(key, Math.max(0, m + median));
+  }
+  return out;
+}

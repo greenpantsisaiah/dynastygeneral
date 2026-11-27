@@ -46,15 +46,22 @@ export function leagueDecision(args: {
   const found = items.find((i): i is TradeItem | LeagueCallItem => i.kind === "trade" || i.kind === "league_call");
   if (!found) return null;
   if (found.kind === "league_call") return found;
-  // A one-league model numbers the card "1 of 1" and assumes it was
-  // emailed; neither is known from this page, so neither is claimed. The
-  // playoff stat sits in the season strip right above; "Win the league"
-  // stays because the sale stat beside it reads against it. The analysts
-  // live in the keep-or-sell card below, so the card does not repeat them.
+  return forLeaguePage(found);
+}
+
+/**
+ * The league page's trade card. A one-league model numbers the card "1 of
+ * 1" and assumes it was emailed; neither is known from this page, so
+ * neither is claimed (an emailed trade keeps its emailed flag). The playoff
+ * stat sits in the season strip right above; "Win the league" stays because
+ * the sale stat beside it reads against it. The analysts live in the
+ * keep-or-sell card below, so the card does not repeat them.
+ */
+export function forLeaguePage(found: TradeItem): TradeItem {
   return {
     ...found,
     kicker: "Worth trying",
-    delivery: { emailed: false },
+    delivery: found.emailed_at ? found.delivery : { emailed: false },
     stats: found.stats.filter((x) => x.label !== "Playoffs"),
     voices: [],
   };

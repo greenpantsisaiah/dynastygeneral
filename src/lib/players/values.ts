@@ -239,21 +239,24 @@ export function futurePickKey(season: string, round: number): string {
 /**
  * Market value of future rookie picks (season + round, slot unknown) on
  * the same 0-100 scale as players: FantasyCalc prices picks in the same
- * feed as players, so one normalization puts both on one scale and a pick
- * composes with a player in a trade ask. Keyed by `futurePickKey`. Empty
- * when FantasyCalc is unreachable (callers then name no pick).
+ * feed as players, so one normalization puts both on one scale. Keyed by
+ * `futurePickKey`. `marketById` is the players' market value from the SAME
+ * fetch, so a caller can align picks to the scoring seam
+ * (`alignPicksToScoring` in value-mode.ts). Empty maps when FantasyCalc is
+ * unreachable (callers then name no pick).
  */
 export async function resolveFuturePickValues(args: {
   isSuperflex: boolean;
   isPpr: boolean;
   isHalfPpr: boolean;
-}): Promise<Map<string, number>> {
+}): Promise<{ picks: Map<string, number>; marketById: Map<string, number> }> {
   const numQbs = args.isSuperflex ? 2 : 1;
   const ppr = args.isPpr ? 1 : args.isHalfPpr ? 0.5 : 0;
   try {
-    return (await getPlayerValues({ numQbs, ppr })).pickValues;
+    const entry = await getPlayerValues({ numQbs, ppr });
+    return { picks: entry.pickValues, marketById: new Map([...entry.byPlayerId].map(([id, v]) => [id, v.value])) };
   } catch {
-    return new Map();
+    return { picks: new Map(), marketById: new Map() };
   }
 }
 

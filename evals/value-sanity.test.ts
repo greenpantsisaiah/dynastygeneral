@@ -30,7 +30,7 @@
 import { loadRealLeagueSnapshot } from "./fixtures/real-leagues/load";
 import { futurePickKey, normalizeFantasyCalcValues, type FantasyCalcEntry } from "../src/lib/players/values";
 import { evaluateForPlayer } from "../src/lib/engine/evaluation/wiring";
-import { VALUE_MODE, scoringValueFor } from "../src/lib/players/value-mode";
+import { VALUE_MODE, alignPicksToScoring, scoringValueFor } from "../src/lib/players/value-mode";
 
 /** Top-N by FantasyCalc value per format. Covers every rostered starter in a 12-team SF league. */
 const TOP_N = 150;
@@ -152,6 +152,38 @@ console.log("── 4. future picks ride the player scale (one normalization) �
   check("years descend: 2027 1st > 2028 1st > 2029 1st", p("2027", 1)! > p("2028", 1)! && p("2028", 1)! > p("2029", 1)!);
   check("picks never land in the player map", ![...byPlayerId.values()].some((v) => (v.position ?? "").toUpperCase() === "PICK"));
   check("2027 1st on the player scale (FantasyCalc 2844 / top-3 avg)", p("2027", 1) === Math.round((2844 / ((10619 + 10461 + 10387) / 3)) * 100), String(p("2027", 1)));
+}
+
+console.log("── 5. picks sit on the scoring scale players are priced on ──");
+{
+  const picks = new Map([["2027:1", 27], ["2027:2", 15]]);
+  const marketById = new Map<string, number>();
+  const scoredById: Record<string, number> = {};
+  for (let i = 0; i < 10; i++) {
+    marketById.set(`a${i}`, 26 + i * 0.2);
+    scoredById[`a${i}`] = 26 + i * 0.2 - 1; // the blend reads 1 point under market here
+  }
+  const aligned = alignPicksToScoring({ picks, marketById, scoredById });
+  check("a pick takes its market neighbours' scoring shift", aligned.get("2027:1") === 26, String(aligned.get("2027:1")));
+  check("too few neighbours leaves the market price", aligned.get("2027:2") === 15, String(aligned.get("2027:2")));
+  const same: Record<string, number> = Object.fromEntries([...marketById]);
+  check("market mode (scoring == market) leaves picks exactly at market", alignPicksToScoring({ picks, marketById, scoredById: same }).get("2027:1") === 27);
+}
+{
+  // Live seam on the real snapshot: the aligned 2027 1st moves by the
+  // blend's local shift, which is small (under 3 points) and never up.
+  const { byPlayerId, pickValues } = normalizeFantasyCalcValues(fc["2:1"]);
+  const marketById = new Map([...byPlayerId].map(([id, v]) => [id, v.value]));
+  const scoredById: Record<string, number> = {};
+  for (const v of byPlayerId.values()) {
+    if (!SKILL.has((v.position ?? "").toUpperCase())) continue;
+    const p = players[v.player_id] ?? {};
+    scoredById[v.player_id] = scoringValueFor(v, evaluateForPlayer({ player_signals: null, team_signals: null, ktc_value: v.value, adp: null, search_rank: typeof p.search_rank === "number" ? p.search_rank : null, position: v.position, age: typeof p.age === "number" ? p.age : null, years_exp: typeof p.years_exp === "number" ? p.years_exp : null }), VALUE_MODE);
+  }
+  const a = alignPicksToScoring({ picks: pickValues, marketById, scoredById });
+  const m1 = pickValues.get("2027:1")!;
+  const s1 = a.get("2027:1")!;
+  check("real snapshot: aligned 2027 1st within 3 points of market", Math.abs(s1 - m1) < 3, `${m1} -> ${s1}`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

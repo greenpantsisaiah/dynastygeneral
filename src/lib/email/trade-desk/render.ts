@@ -262,6 +262,9 @@ export function allShifts(m: TradeDeskModel, limit = MAX_SHIFT_ROWS): Array<Leag
   const size = (s: LeagueShift) => (s.from && s.to ? Math.abs(ORDER.indexOf(s.to) - ORDER.indexOf(s.from)) : 0);
   return m.leagues
     .flatMap((l) => (l.week?.shifts ?? []).map((s) => ({ ...s, league: l.leagueName.trim(), leagueId: l.leagueId, carded: carded.has(l.leagueId) })))
+    // A buyer row with no concrete action for you is dropped, not padded
+    // with "likely to pay for help" (2026-11-27).
+    .filter((s) => s.role !== "buyer" || forYou(s, m) !== null)
     .sort((a, b) => Number(b.carded) - Number(a.carded) || Number(!!b.injury) - Number(!!a.injury) || size(b) - size(a))
     .slice(0, limit);
 }

@@ -296,7 +296,10 @@ export function shiftAction(a: {
     const pos = (a.hurt.position ?? "").toUpperCase();
     return { text: `Needs ${SKILL.has(pos) ? `a ${pos}` : "help"} with ${a.hurt.name} out`, players: [a.hurt.name] };
   }
-  return { text: "Now contending; likely to pay for help", players: [] };
+  // Climbed into contention with no named need: nothing concrete to do, so
+  // no line (Isaiah, 2026-11-27). A trade card in this league can still
+  // name what they could pay (render.ts forYou).
+  return null;
 }
 
 /** Probabilities as printed in the brief: rounded to 5, clamped to "<2%" / ">98%". */
