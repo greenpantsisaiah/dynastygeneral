@@ -189,6 +189,29 @@ export function computeOwnedFuturePicks(args: {
 }
 
 /**
+ * One season's picks a roster owns, each with its ORIGINAL owner (whose
+ * finish sets the draft slot). Same override rule as
+ * computeOwnedFuturePicks, kept per pick instead of counted.
+ */
+export function ownedPicksWithOrigin(args: {
+  rosterId: number;
+  rosterIds: number[];
+  tradedPicks: TradedPick[];
+  season: string;
+  rounds: number;
+}): Array<{ season: string; round: number; original_owner: number }> {
+  const overrides = new Map<string, number>();
+  for (const t of args.tradedPicks) overrides.set(`${t.season}:${t.round}:${t.original_owner}`, t.current_owner);
+  const out: Array<{ season: string; round: number; original_owner: number }> = [];
+  for (let round = 1; round <= args.rounds; round++) {
+    for (const rid of args.rosterIds) {
+      if ((overrides.get(`${args.season}:${round}:${rid}`) ?? rid) === args.rosterId) out.push({ season: args.season, round, original_owner: rid });
+    }
+  }
+  return out;
+}
+
+/**
  * Expected dynasty value of the rookie produced by a future pick,
  * post-NFL-draft. Used by the contender-outlook forecast to materialize
  * "the player this pick becomes" once the pick has landed in some prior

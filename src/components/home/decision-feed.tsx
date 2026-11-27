@@ -160,7 +160,11 @@ export function TradeCard({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Kicker>{item.kicker}</Kicker>
           <span className="flex flex-wrap gap-2">
-            {item.delivery.emailed && <Chip>In Tuesday&apos;s email</Chip>}
+            {item.emailed_at ? (
+              <Chip>As emailed {emailedDay(item.emailed_at)}</Chip>
+            ) : (
+              item.delivery.emailed && <Chip>In Tuesday&apos;s email</Chip>
+            )}
             {item.deadline_label && <Chip tone="deadline">{item.deadline_label}</Chip>}
           </span>
         </div>
@@ -592,4 +596,9 @@ export function DecisionHome({
       </aside>
     </div>
   );
+}
+
+/** "Tue Nov 24" in Central time, for the "As emailed" chip. */
+function emailedDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" });
 }

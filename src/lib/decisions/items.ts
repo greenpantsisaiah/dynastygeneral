@@ -126,6 +126,8 @@ export interface TradeItem extends BaseItem {
   package_note: string | null;
   /** Button label, e.g. "Open the offer to gridirongoat". */
   cta_label: string;
+  /** Set when the app shows the trade exactly as an email sent it (emailed.ts). */
+  emailed_at?: string;
 }
 
 export interface ShiftItem extends BaseItem {
@@ -238,10 +240,27 @@ export interface DecisionDigest {
 
 const deEntity = (t: string) => t.replace(/&minus;/g, "-").replace(/&lt;/g, "<");
 
+/**
+ * What selling every candidate together does, from the verdict's own package
+ * numbers (design-qa, PR #161: the note named the players but never said what
+ * the analysts found).
+ */
+function packageNote(v: TradeCard["verdict"]): string | null {
+  if (v.candidates.length < 2) return null;
+  const names = v.candidates.map((x) => x.player.name).join(" and ");
+  const kept = Math.round(v.package.value_kept_by_selling);
+  const keptText = kept < 1 ? "under 1 value point" : `about ${kept} value point${kept === 1 ? "" : "s"}`;
+  const before = fmtPct(v.odds.title_pct);
+  const after = fmtPct(v.package.title_pct_if_sold);
+  const near = (x: string) => (x.startsWith("<") ? `under ${x.slice(1)}` : x.startsWith(">") ? `over ${x.slice(1)}` : `near ${x}`);
+  const odds = before === after ? `leaves your chance to win the league ${near(before)}` : `moves your chance to win the league from ${before} to ${after}`;
+  return `Selling ${names} together keeps ${keptText} from the offseason drop and ${odds}.`;
+}
+
 function tradeItem(c: TradeCard, i: number, m: TradeDeskModel, season: string): TradeItem {
   const v = c.verdict;
   const eff = sellEffect(c);
-  const pkg = v.candidates.length > 1 ? `The analysts also priced selling ${v.candidates.map((x) => x.player.name).join(" and ")} together.` : null;
+  const pkg = packageNote(v);
   return {
     id: decisionItemId("trade", season, m.aheadWeek, c.leagueId, c.lead.player.player_id),
     kind: "trade",
@@ -356,10 +375,14 @@ function leagueCall(l: DeskLeague, m: TradeDeskModel, season: string): LeagueCal
     title = "The analysts lean sell, but no sale is worth chasing yet.";
     // Mirrors cardFor's gates in order, so the reason names the gate that failed.
     const n = c ? sellLeaningCount(c.panel) : 0;
-    if (!c) reason = "No player on the roster has a buyer worth pricing.";
+    const passed = m.tradeByPassed?.[l.leagueId];
+    if (passed) {
+      title = "The analysts lean sell, but this week's trade window has closed.";
+      reason = `The safe trade-by time, ${passed}, has passed, so this week's trade is off. The next brief reprices it.`;
+    } else if (!c) reason = "No player on the roster has a buyer worth pricing.";
     else if (n < 2) reason = `${n === 0 ? "None" : "Only one"} of the three analysts would sell ${c.player.name} on his own.`;
     else if (c.buyers.filter(isShortAt).length === 0) reason = `No team is short at ${c.player.position}, so nobody needs ${c.player.name} enough to pay full value.`;
-    else if (!c.buyers.some((b) => isShortAt(b) && hasNamedAsk(b))) reason = `No team short at ${c.player.position} has a fair return for ${c.player.name} on our trade values, players or picks, so there is nothing concrete to ask for.`;
+    else if (!c.buyers.some((b) => isShortAt(b) && hasNamedAsk(b))) reason = `No team short at ${c.player.position} has a fair return for ${c.player.name} on the engine's trade values, players or picks, so there is nothing concrete to ask for.`;
     else if (Math.round(c.decay.value_now) < 1) reason = `${c.player.name} is worth under 1 value point on the engine's 0 to 100 scale, too little to trade.`;
     else reason = `Selling ${c.player.name} now avoids under ${MIN_CARD_VALUE_KEPT} value points of offseason drop, too little to force a deal.`;
   } else if (head === "split") {

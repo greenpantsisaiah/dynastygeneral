@@ -27,8 +27,10 @@ import { buildContendOrSellVerdict, type VerdictPlayer, type VerdictResult } fro
 import { buildSimInputFromSleeper, replacementPpg, startedPoints } from "./from-sleeper";
 import type { BuyerInput, BuyerRead } from "./buyers";
 import { buildAskLadder, type AskRung } from "./ask";
-import { computeOwnedFuturePicks, resolveRookieRounds } from "@/lib/players/future-picks";
-import { futurePickKey, resolveFuturePickValues } from "@/lib/players/values";
+import { computeOwnedFuturePicks, ownedPicksWithOrigin, resolveRookieRounds } from "@/lib/players/future-picks";
+import type { TeamOdds } from "./season-sim";
+import { futurePickKey, resolveFuturePickValues, type PickTier } from "@/lib/players/values";
+import { alignPicksToScoring } from "@/lib/players/value-mode";
 
 const SKILL: Position[] = ["QB", "RB", "WR", "TE"];
 /** Sleeper's default when a league does not set playoff_week_start. */
@@ -170,7 +172,7 @@ export async function loadContendOrSellVerdict(args: {
     // Last finished week's lineups: a contender's starters are not on the table.
     const lastRows = matchupsByWeek[firstUnplayedWeek - 1] ?? [];
     const starters = new Set(lastRows.flatMap((m) => m.starters ?? []));
-    await attachAskLadders(result.verdict.candidates, args.snapshot, args.playerValuesById, playersMap, starters);
+    await attachAskLadders(result.verdict.candidates, args.snapshot, args.playerValuesById, playersMap, starters, result.verdict.league_odds);
   }
   return result.ok ? { ...result, resultsWeek } : result;
 }
@@ -185,6 +187,7 @@ async function attachAskLadders(
   values: Record<string, number>,
   known: Map<string, SleeperPlayer>,
   starters: Set<string>,
+  leagueOdds: Record<number, TeamOdds>,
 ): Promise<void> {
   const buyerIds = new Set(candidates.flatMap((c) => c.buyers.map((b) => b.roster_id)));
   const rosters = snapshot.rosters.filter((r) => buyerIds.has(r.roster_id));
@@ -193,36 +196,55 @@ async function attachAskLadders(
   const meta = (id: string) => known.get(id) ?? fetched.get(id);
   // The buyer's own future rookie picks are a return too (Isaiah,
   // 2026-11-27: "what would I trade Warren for?"). Redraft leagues have none.
-  const pickValues =
+  // Priced on the same scoring scale as the players (alignPicksToScoring),
+  // so "about even" means the same thing for a pick as for a player.
+  const market =
     snapshot.league_type === "redraft"
-      ? new Map<string, number>()
+      ? null
       : await resolveFuturePickValues({
           isSuperflex: snapshot.format === "superflex" || snapshot.format === "2qb",
           isPpr: snapshot.scoring.includes("PPR"),
           isHalfPpr: snapshot.scoring.includes("half-PPR"),
         });
+  const pickValues = market ? alignPicksToScoring({ ...market, scoredById: values }) : new Map<string, number>();
   const rosterIds = snapshot.rosters.map((r) => r.roster_id);
   const rounds = resolveRookieRounds(snapshot.draft.rounds);
+  // The next draft's slot follows the ORIGINAL owner's finish, so a
+  // contender's 1st is priced as a late 1st (design QA 2026-11-27: a 9-2
+  // team's generic "2027 1st" overstated the return). Projected finish is
+  // the simulator's mean wins; thirds map to FantasyCalc's Late / Mid /
+  // Early. INTERNAL_HEURISTIC: equal thirds, not the league's real lottery.
+  const nextSeason = String(Number(snapshot.season) + 1);
+  const finish = Object.values(leagueOdds).sort((a, b) => b.mean_wins - a.mean_wins || b.title_pct - a.title_pct || a.roster_id - b.roster_id);
+  const tierOf = (rid: number): PickTier | undefined => {
+    const i = finish.findIndex((o) => o.roster_id === rid);
+    if (i < 0 || finish.length < 3) return undefined;
+    return i < finish.length / 3 ? "late" : i >= (2 * finish.length) / 3 ? "early" : "mid";
+  };
   const picksFor = (rosterId: number): AskRung[] => {
     if (pickValues.size === 0) return [];
-    const owned = computeOwnedFuturePicks({ rosterId, rosterIds, tradedPicks: snapshot.draft.traded_picks, leagueSeason: snapshot.season, rounds });
     const out: AskRung[] = [];
-    for (const o of owned) {
-      const value = pickValues.get(futurePickKey(o.season, o.round));
-      if (typeof value !== "number" || value <= 0) continue;
-      for (let n = 0; n < o.count; n++) {
-        const label = `${o.season} ${ordinal(o.round)}`;
-        out.push({
-          player_id: `pick:${o.season}:${o.round}:${n}`,
-          kind: "pick",
-          // Rendered "their 2027 1st" / "Revolver420's 2027 1st" (render.ts).
-          name: label,
-          position: "PICK",
-          value,
-          age: null,
-          starter: false,
-        });
-      }
+    const push = (season: string, round: number, tier: PickTier | undefined, n: number) => {
+      const value = (tier ? pickValues.get(futurePickKey(season, round, tier)) : undefined) ?? pickValues.get(futurePickKey(season, round));
+      if (typeof value !== "number" || value <= 0) return;
+      const priced = tier && pickValues.has(futurePickKey(season, round, tier)) ? tier : undefined;
+      out.push({
+        player_id: `pick:${season}:${round}:${n}`,
+        kind: "pick",
+        // Rendered "their late 2027 1st" / "Revolver420's 2028 2nd" (render.ts).
+        name: `${priced ? `${priced} ` : ""}${season} ${ordinal(round)}`,
+        position: "PICK",
+        value,
+        age: null,
+        starter: false,
+      });
+    };
+    ownedPicksWithOrigin({ rosterId, rosterIds, tradedPicks: snapshot.draft.traded_picks, season: nextSeason, rounds }).forEach((p, n) =>
+      push(p.season, p.round, tierOf(p.original_owner), n),
+    );
+    for (const o of computeOwnedFuturePicks({ rosterId, rosterIds, tradedPicks: snapshot.draft.traded_picks, leagueSeason: snapshot.season, rounds })) {
+      if (o.season === nextSeason) continue;
+      for (let n = 0; n < o.count; n++) push(o.season, o.round, undefined, n);
     }
     return out;
   };

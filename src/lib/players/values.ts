@@ -189,11 +189,13 @@ export function normalizeFantasyCalcValues(
   const pickValues = new Map<string, number>();
   for (const entry of entries) {
     if ((entry.player.position ?? "").toUpperCase() === "PICK") {
-      // Only FantasyCalc's slot-unknown pick ("2027 1st"); the
-      // "(Early)/(Mid)/(Late)" variants need a draft slot we do not know
-      // for a future season.
+      // "2027 1st" (slot unknown) and, for the next draft only,
+      // "2027 1st (Late)" etc. (slot by the original owner's finish).
       const m = FANTASYCALC_PICK_NAME.exec(entry.player.name.trim());
-      if (m) pickValues.set(futurePickKey(m[1], Number(m[2])), Math.max(0, Math.min(100, Math.round((entry.value / scaleMax) * 100))));
+      if (m) {
+        const tier = m[3] ? (m[3].toLowerCase() as PickTier) : undefined;
+        pickValues.set(futurePickKey(m[1], Number(m[2]), tier), Math.max(0, Math.min(100, Math.round((entry.value / scaleMax) * 100))));
+      }
       continue;
     }
     const fcName = entry.player.name;
@@ -228,32 +230,37 @@ export function normalizeFantasyCalcValues(
   return { byPlayerId, byNamePosKey, scale_max: scaleMax, pickValues };
 }
 
-/** FantasyCalc's slot-unknown future pick name, e.g. "2027 1st". */
-const FANTASYCALC_PICK_NAME = /^(\d{4}) (\d+)(?:st|nd|rd|th)$/;
+/** FantasyCalc's future pick name, e.g. "2027 1st" or "2027 1st (Late)". */
+const FANTASYCALC_PICK_NAME = /^(\d{4}) (\d+)(?:st|nd|rd|th)(?: \((Early|Mid|Late)\))?$/;
 
-/** Key for a future rookie pick in `pickValues`. */
-export function futurePickKey(season: string, round: number): string {
-  return `${season}:${round}`;
+export type PickTier = "early" | "mid" | "late";
+
+/** Key for a future rookie pick in `pickValues`; tiered keys exist for the next draft only. */
+export function futurePickKey(season: string, round: number, tier?: PickTier): string {
+  return tier ? `${season}:${round}:${tier}` : `${season}:${round}`;
 }
 
 /**
  * Market value of future rookie picks (season + round, slot unknown) on
  * the same 0-100 scale as players: FantasyCalc prices picks in the same
- * feed as players, so one normalization puts both on one scale and a pick
- * composes with a player in a trade ask. Keyed by `futurePickKey`. Empty
- * when FantasyCalc is unreachable (callers then name no pick).
+ * feed as players, so one normalization puts both on one scale. Keyed by
+ * `futurePickKey`. `marketById` is the players' market value from the SAME
+ * fetch, so a caller can align picks to the scoring seam
+ * (`alignPicksToScoring` in value-mode.ts). Empty maps when FantasyCalc is
+ * unreachable (callers then name no pick).
  */
 export async function resolveFuturePickValues(args: {
   isSuperflex: boolean;
   isPpr: boolean;
   isHalfPpr: boolean;
-}): Promise<Map<string, number>> {
+}): Promise<{ picks: Map<string, number>; marketById: Map<string, number> }> {
   const numQbs = args.isSuperflex ? 2 : 1;
   const ppr = args.isPpr ? 1 : args.isHalfPpr ? 0.5 : 0;
   try {
-    return (await getPlayerValues({ numQbs, ppr })).pickValues;
+    const entry = await getPlayerValues({ numQbs, ppr });
+    return { picks: entry.pickValues, marketById: new Map([...entry.byPlayerId].map(([id, v]) => [id, v.value])) };
   } catch {
-    return new Map();
+    return { picks: new Map(), marketById: new Map() };
   }
 }
 
