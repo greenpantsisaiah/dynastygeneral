@@ -62,6 +62,9 @@ async function main() {
       const rebuilt = compose(after);
       const o2 = overlayEmailedTrades({ items: rebuilt.items, digest: rebuilt.digest, emailed: saved, now: after });
       check(`${t.league_name}: no trade card after trade-by`, !o2.items.some((i) => i.kind === "trade" && i.league_id === t.league_id));
+      const emailedLeagues = new Set(saved.map((x) => x.league_id));
+      const stray = o2.items.filter((i): i is LeagueCallItem => i.kind === "league_call" && i.reason.includes("has passed") && !emailedLeagues.has(i.league_id));
+      check(`${t.league_name}: no league without a trade says the trade is off`, stray.length === 0, stray.map((x) => x.league_name).join(", "));
       const lc = o2.items.find((i): i is LeagueCallItem => i.kind === "league_call" && i.league_id === t.league_id);
       if (lc && lc.stance && (lc.stance === "sell" || lc.stance === "lean_sell")) {
         check(`${t.league_name}: call says the window closed`, lc.reason.includes("has passed"), lc.reason);

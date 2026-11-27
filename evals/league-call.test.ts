@@ -83,6 +83,10 @@ check("short buyer with no fair return says there is nothing concrete to ask for
   check("past trade-by: no trade card", model.cards.length === 0);
   check("past trade-by: reason names the closed window", !!pc?.reason.includes("Thu Dec 3, 7:15 PM CT, has passed"), pc?.reason);
   check("past trade-by: no drop-size reason", !!pc && !/value point/.test(pc.reason), pc?.reason);
+  const l2 = league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"], buyers: [deepBuyer] })]);
+  const m2 = buildTradeDeskModel({ ownerName: "x", tier: "pro", resultsWeek: 11, leagues: [l2], seasonStartDate: "2026-09-09", now: new Date("2026-12-04T01:16:00Z") });
+  const pc2 = buildDecisionItems({ model: m2, season: "2026" }).items.find((i): i is LeagueCallItem => i.kind === "league_call");
+  check("past trade-by, no card anyway: keeps its own reason", !!pc2?.reason.startsWith("No team is short at RB") && !pc2.reason.includes("has passed"), pc2?.reason);
 }
 const ok = call(league("sell", ["sell", "sell", "push"], [cand({ stances: ["sell", "sell", "push"] })]));
 check("a sale that clears every gate becomes a trade card, not a call", ok === undefined);
