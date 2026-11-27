@@ -29,6 +29,7 @@
 
 import { loadRealLeagueSnapshot } from "./fixtures/real-leagues/load";
 import { futurePickKey, normalizeFantasyCalcValues, type FantasyCalcEntry } from "../src/lib/players/values";
+import { ownedPicksWithOrigin } from "../src/lib/players/future-picks";
 import { evaluateForPlayer } from "../src/lib/engine/evaluation/wiring";
 import { VALUE_MODE, alignPicksToScoring, scoringValueFor } from "../src/lib/players/value-mode";
 
@@ -184,6 +185,17 @@ console.log("── 5. picks sit on the scoring scale players are priced on ─�
   const m1 = pickValues.get("2027:1")!;
   const s1 = a.get("2027:1")!;
   check("real snapshot: aligned 2027 1st within 3 points of market", Math.abs(s1 - m1) < 3, `${m1} -> ${s1}`);
+}
+
+console.log("── 6. next draft's picks priced by the original owner's slot ──");
+{
+  const { pickValues } = normalizeFantasyCalcValues(fc["2:1"]);
+  const late = pickValues.get(futurePickKey("2027", 1, "late"));
+  const early = pickValues.get(futurePickKey("2027", 1, "early"));
+  const generic = pickValues.get(futurePickKey("2027", 1));
+  check("tiered 2027 1sts parsed: early > generic > late", early! > generic! && generic! > late!, `${early} ${generic} ${late}`);
+  const owned = ownedPicksWithOrigin({ rosterId: 2, rosterIds: [1, 2, 3], season: "2027", rounds: 2, tradedPicks: [{ season: "2027", round: 1, original_owner: 3, current_owner: 2, owner_id: 2, previous_owner_id: 3, roster_id: 3 } as never, { season: "2027", round: 2, original_owner: 2, current_owner: 1, owner_id: 1, previous_owner_id: 2, roster_id: 2 } as never] });
+  check("owned picks keep their original owner (traded-in 1st from roster 3, own 1st; 2nd traded away)", JSON.stringify(owned.map((p) => [p.round, p.original_owner])) === JSON.stringify([[1, 2], [1, 3]]), JSON.stringify(owned));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

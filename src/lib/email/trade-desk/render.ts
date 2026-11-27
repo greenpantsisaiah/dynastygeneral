@@ -72,7 +72,7 @@ const h = (t: string, size = 22, mt = 8) =>
 const p = (t: string, size = 14, color = C.ink2, mt = 8) =>
   `<p style="margin:${mt}px 0 0;font-family:${SANS};font-size:${size}px;line-height:1.55;color:${color};">${t}</p>`;
 const card = (inner: string, border?: string) =>
-  `<tr><td style="padding:0 0 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.card};border-radius:10px;${border ? `border-top:4px solid ${border};` : ""}"><tr><td style="padding:22px;">${inner}</td></tr></table></td></tr>`;
+  `<tr><td style="padding:0 0 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.card};border-radius:10px;${border ? `border-top:4px solid ${border};` : ""}"><tr><td style="padding:20px 18px;">${inner}</td></tr></table></td></tr>`;
 const button = (t: string, href: string) =>
   `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:${C.ink};border:1px solid ${C.ink};border-radius:6px;"><a href="${esc(href)}" style="display:inline-block;padding:11px 16px;font-family:${SANS};font-size:13px;font-weight:600;color:#fff;text-decoration:none;">${t}</a></td></tr></table>`;
 
@@ -353,6 +353,15 @@ ${action}`,
     C.amber,
   );
 }
+/** What the rungs are made of, said truthfully (design QA 2026-11-27: picks are not bench players). */
+function askPoolLine(a: NonNullable<TradeCard["buyer"]["ask"]>): string {
+  const pieces = [a.great, a.fair, a.floor].flatMap((r) => (r ? [r, ...(r.plus ? [r.plus] : [])] : []));
+  const picks = pieces.some((r) => r.position === "PICK");
+  const players = pieces.some((r) => r.position !== "PICK");
+  if (picks && players) return "Their bench players no older than him and their own draft picks, all";
+  if (picks) return "Their own draft picks, all";
+  return "All are bench players no older than him,";
+}
 /** The ask range as three scannable rows (same rungs as askLine). */
 function askRowsHtml(c: TradeCard): string | null {
   const a = c.buyer.ask;
@@ -361,7 +370,7 @@ function askRowsHtml(c: TradeCard): string | null {
     .filter(([, r]) => r)
     .map(([l, r]) => `<tr><td valign="top" style="padding:6px 10px 0 0;font:600 11px ${SANS};color:${C.amber};white-space:nowrap;text-transform:uppercase;letter-spacing:.06em;">${l}</td><td style="padding:5px 0 0;font:600 14px/1.4 ${SANS};color:${C.ink};">${esc(rung(r!, c.buyer.label))}</td></tr>`)
     .join("");
-  return `Ask ${esc(c.buyer.label)} for one of these, best first. All are bench players no older than him, within 15% of his value by our trade values:<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px;">${rows}</table>`;
+  return `Ask ${esc(c.buyer.label)} for one of these, best first. ${askPoolLine(a)} within 15% of his value by our trade values:<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px;">${rows}</table>`;
 }
 function locked(appUrl: string): string {
   const rows = [["A message ready to paste", 130], ["Fallback ask if they say no", 90]] as const;
@@ -435,13 +444,15 @@ function shiftsHtml(m: TradeDeskModel, appUrl: string): string {
       const role = fy == null ? "" : m.tier === "pro"
         ? `<span style="font:600 12px/1.35 ${SANS};color:${ROLE_TONE[fy.role]};">${esc(fy.text)}</span>`
         : `<span style="display:inline-block;width:80px;height:10px;border-radius:5px;background:#E2DCCF;"></span>`;
-      return `<tr><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};"><div style="font:600 13px/1.3 ${SANS};color:${C.ink};">${esc(s.manager)}</div><div style="font:11px/1.3 ${SANS};color:${C.mute};">${esc(s.league)}</div></td><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};line-height:2;">${mv}</td><td style="padding:8px 8px 8px 0;border-top:1px solid ${C.rule};font:12px/1.4 ${SANS};color:${C.ink2};">${esc(s.why)}</td><td align="right" width="30%" style="padding:8px 0;border-top:1px solid ${C.rule};">${role}</td></tr>`;
+      // Two columns, the range and the why stacked under the manager, so a
+      // 390px phone never wraps the why to one word a line (design QA 2026-11-27).
+      return `<tr><td valign="top" style="padding:8px 10px 8px 0;border-top:1px solid ${C.rule};"><div style="font:600 13px/1.3 ${SANS};color:${C.ink};">${esc(s.manager)} <span style="font:400 11px ${SANS};color:${C.mute};">${esc(s.league)}</span></div><div style="line-height:2;">${mv}</div><div style="font:12px/1.4 ${SANS};color:${C.ink2};">${esc(s.why)}</div></td><td valign="top" align="right" width="38%" style="padding:8px 0;border-top:1px solid ${C.rule};">${role}</td></tr>`;
     })
     .join("");
   const freeLink = m.tier === "free" ? `<p style="margin:10px 0 0;font:13px ${SANS};"><a href="${esc(appUrl)}/pricing" style="color:${C.amber};font-weight:600;text-decoration:none;">See who could buy or sell to you &rarr;</a></p>` : "";
   return card(`${kicker("League shifts since last week")}
 ${h(esc(shiftsHeadline(rows, m)), 20, 8)}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;"><tr><td style="padding-bottom:6px;">${kicker("Manager")}</td><td style="padding-bottom:6px;">${kicker("Range")}</td><td style="padding-bottom:6px;">${kicker("Why")}</td><td align="right" style="padding-bottom:6px;">${kicker("For you")}</td></tr>${body}</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;"><tr><td style="padding-bottom:6px;">${kicker("Manager, range and why")}</td><td align="right" style="padding-bottom:6px;">${kicker("For you")}</td></tr>${body}</table>
 ${p(RANGES_LEGEND, 11, C.mute, 10)}${freeLink}`);
 }
 
@@ -458,7 +469,7 @@ ${p(esc(heroSub(m)), 15)}${m.leagues.length === 0 ? `<div style="margin-top:14px
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(deskSubject(m))}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg};"><tr><td align="center" style="padding:20px 8px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;">
-<tr><td style="padding:0 0 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.night};border-radius:10px;"><tr><td style="padding:14px 20px;font-family:${MONO};font-size:11px;letter-spacing:.16em;color:${C.gold};font-weight:700;">DYNASTY GENERAL <span style="color:#7E8794;font-weight:400;">· WEEKLY BRIEF · BETA</span></td><td align="right" style="padding:14px 20px;font-family:${MONO};font-size:11px;color:#AEB6C2;">${headerRight(m, a.sendDate)}</td></tr></table></td></tr>
+<tr><td style="padding:0 0 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.night};border-radius:10px;"><tr><td style="padding:14px 8px 14px 16px;font-family:${MONO};font-size:11px;letter-spacing:.16em;color:${C.gold};font-weight:700;">DYNASTY GENERAL <span style="color:#7E8794;font-weight:400;">· WEEKLY BRIEF · BETA</span></td><td align="right" style="padding:14px 16px 14px 8px;font-family:${MONO};font-size:11px;color:#AEB6C2;">${headerRight(m, a.sendDate)}</td></tr></table></td></tr>
 ${body}
 <tr><td style="padding:6px 4px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${C.mute};">${esc(METHOD(m))}<br>You get this because you have a Dynasty General account. <a href="${esc(a.unsubscribeUrl)}" style="color:${C.mute};">Unsubscribe</a><br>Dynasty General · ${esc(a.mailingAddress)}</td></tr>
 </table></td></tr></table></body></html>`;

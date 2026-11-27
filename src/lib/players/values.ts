@@ -189,11 +189,13 @@ export function normalizeFantasyCalcValues(
   const pickValues = new Map<string, number>();
   for (const entry of entries) {
     if ((entry.player.position ?? "").toUpperCase() === "PICK") {
-      // Only FantasyCalc's slot-unknown pick ("2027 1st"); the
-      // "(Early)/(Mid)/(Late)" variants need a draft slot we do not know
-      // for a future season.
+      // "2027 1st" (slot unknown) and, for the next draft only,
+      // "2027 1st (Late)" etc. (slot by the original owner's finish).
       const m = FANTASYCALC_PICK_NAME.exec(entry.player.name.trim());
-      if (m) pickValues.set(futurePickKey(m[1], Number(m[2])), Math.max(0, Math.min(100, Math.round((entry.value / scaleMax) * 100))));
+      if (m) {
+        const tier = m[3] ? (m[3].toLowerCase() as PickTier) : undefined;
+        pickValues.set(futurePickKey(m[1], Number(m[2]), tier), Math.max(0, Math.min(100, Math.round((entry.value / scaleMax) * 100))));
+      }
       continue;
     }
     const fcName = entry.player.name;
@@ -228,12 +230,14 @@ export function normalizeFantasyCalcValues(
   return { byPlayerId, byNamePosKey, scale_max: scaleMax, pickValues };
 }
 
-/** FantasyCalc's slot-unknown future pick name, e.g. "2027 1st". */
-const FANTASYCALC_PICK_NAME = /^(\d{4}) (\d+)(?:st|nd|rd|th)$/;
+/** FantasyCalc's future pick name, e.g. "2027 1st" or "2027 1st (Late)". */
+const FANTASYCALC_PICK_NAME = /^(\d{4}) (\d+)(?:st|nd|rd|th)(?: \((Early|Mid|Late)\))?$/;
 
-/** Key for a future rookie pick in `pickValues`. */
-export function futurePickKey(season: string, round: number): string {
-  return `${season}:${round}`;
+export type PickTier = "early" | "mid" | "late";
+
+/** Key for a future rookie pick in `pickValues`; tiered keys exist for the next draft only. */
+export function futurePickKey(season: string, round: number, tier?: PickTier): string {
+  return tier ? `${season}:${round}:${tier}` : `${season}:${round}`;
 }
 
 /**

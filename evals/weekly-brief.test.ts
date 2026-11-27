@@ -278,6 +278,7 @@ check("ask ladder names the buyer's future picks when no young player fits", wit
 check("a pick is never filtered out by the sold player's age", !!withPicks?.fair && withPicks.fair.kind === "pick");
 const named = compose(FIXTURES.trades);
 check("every buyer a card names carries a concrete ask", /Ask Team \d+ for Young Piece \d+ \(TE\)/.test(named.text) && !/ask Team \d+ for draft picks/.test(named.text), named.text.slice(0, 0));
+check("ask lead-in names picks when the rungs include picks, never 'All are bench players'", named.html.includes("Their bench players no older than him and their own draft picks") && !named.html.includes("All are bench players"));
 check("a pick rung reads without a position tag", /Team \d+'s 2027 2nd is the least worth taking/.test(named.text) && !named.text.includes("(PICK)"));
 const unpriced = verdict();
 for (const c of unpriced.candidates) for (const b of c.buyers) b.ask = null;
