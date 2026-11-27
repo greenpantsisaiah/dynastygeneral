@@ -252,7 +252,8 @@ function packageNote(v: TradeCard["verdict"]): string | null {
   const keptText = kept < 1 ? "under 1 value point" : `about ${kept} value point${kept === 1 ? "" : "s"}`;
   const before = fmtPct(v.odds.title_pct);
   const after = fmtPct(v.package.title_pct_if_sold);
-  const odds = before === after ? `leaves your title odds near ${before}` : `moves your title odds from ${before} to ${after}`;
+  const near = (x: string) => (x.startsWith("<") ? `under ${x.slice(1)}` : x.startsWith(">") ? `over ${x.slice(1)}` : `near ${x}`);
+  const odds = before === after ? `leaves your chance to win the league ${near(before)}` : `moves your chance to win the league from ${before} to ${after}`;
   return `Selling ${names} together keeps ${keptText} from the offseason drop and ${odds}.`;
 }
 
