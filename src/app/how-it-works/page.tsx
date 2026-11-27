@@ -45,9 +45,8 @@ export default function HowItWorksPage() {
                 rosters, draft state, traded picks, opponent owners, league
                 format (1QB / superflex / TE-premium), and your full pick
                 schedule. Sleeper is live today; MyFantasyLeague support is
-                shipping next via the same engine. We never store league data
-                on a server. Each pick triggers a fresh read; the snapshot
-                lives only as long as the page does.
+                shipping next via the same engine. Each visit triggers a
+                fresh read of your league.
               </p>
               <p>
                 Mid-draft, picks live on the host's draft endpoint, NOT on the
@@ -66,9 +65,9 @@ export default function HowItWorksPage() {
             >
               <p>
                 Two windows are computed: CAN-WIN-NOW and FUTURE-EARNED-VALUE,
-                both 0-100. You declare a target weighting (e.g. 65/35 lean
-                win-now); we show you whether each next pick keeps you on plan
-                or drifts you off it.
+                both 0-100, read from the players you actually roster. Nothing
+                to declare up front: your picks reveal the plan, and the engine
+                shows which way each next pick moves it.
               </p>
               <p>
                 Below it, the killer dynasty insight: the Contender Outlook.
@@ -184,7 +183,7 @@ export default function HowItWorksPage() {
             <p className="mt-3 text-muted">
               Connect your Sleeper account today (MyFantasyLeague support
               ships next). We pull your dynasty leagues and show you the
-              engine's read on each one. Free tier covers one league.
+              engine's read on each one. Free during the beta, every league included.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
