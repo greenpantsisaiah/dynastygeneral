@@ -33,7 +33,7 @@ import { resolvePlayerValues } from "@/lib/players/values";
 import { rerankByConsensus } from "@/lib/players/rerank";
 import { annotateStartableDepth } from "@/lib/engine/roster-fit";
 import { resolvePlayers } from "@/lib/players/cache";
-import { normalizePosition } from "@/lib/strategy/archetypes/schema";
+import { playerPosition } from "@/lib/strategy/archetypes/schema";
 import { resolveEnrichedPlayers } from "@/lib/players/enriched-player";
 import {
   evaluateForPlayer,
@@ -188,7 +188,7 @@ export async function buildPricedPool(
       annotateStartableDepth({
         snap,
         valueOf: (id) => playerValuesById[id] ?? null,
-        positionOf: (id) => normalizePosition(depthPlayers.get(id)?.position),
+        positionOf: (id) => playerPosition(depthPlayers.get(id)),
       });
     } catch (err) {
       console.error(

@@ -261,7 +261,12 @@ function runPositionNormalizationCheck(args: {
   return [
     {
       kind: "position_unknown",
-      severity: "severe",
+      // Warning, not severe (2026-11-27): it logs and shows under
+      // ?diagnose=1 but never puts a red banner on the page. Two-way
+      // players (Travis Hunter: position "DB", fantasy_positions WR) now
+      // resolve through `playerPosition`; what is left here is IDP or a
+      // record with no fantasy position, which no skill-position math reads.
+      severity: "warning",
       headline: `${unknown} player${unknown === 1 ? "" : "s"} on your roster ${unknown === 1 ? "has" : "have"} unrecognized position`,
       detail: `These players don't count toward starter-requirement math. The engine may report wrong holes (e.g., "fill RB hole" when you actually have an RB the system can't categorize). Likely causes: Sleeper schema change, new position code, or stale player record without a position field.`,
       evidence: `player_ids on roster: ${expected}, counted by position: ${counted}, unaccounted: ${unknown}`,

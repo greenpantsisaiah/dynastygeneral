@@ -20,12 +20,14 @@ import { resolvePlayers } from "@/lib/players/cache";
 import { getRealisticStarterMax } from "@/lib/engine/roster-fit";
 import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 import { tradeWindow } from "./trade-window";
-import { normalizePosition, type Position } from "../archetypes/schema";
+import { normalizePosition, playerPosition, type Position } from "../archetypes/schema";
 import type { LeagueSnapshot } from "../league-state/snapshot";
 import { buildContendOrSellVerdict, type VerdictPlayer, type VerdictResult } from "./compose";
 import { buildSimInputFromSleeper, replacementPpg, startedPoints } from "./from-sleeper";
 import type { BuyerInput, BuyerRead } from "./buyers";
 import { buildAskLadder, type AskRung } from "./ask";
+import { computeOwnedFuturePicks, resolveRookieRounds } from "@/lib/players/future-picks";
+import { futurePickKey, resolveFuturePickValues } from "@/lib/players/values";
 
 const SKILL: Position[] = ["QB", "RB", "WR", "TE"];
 /** Sleeper's default when a league does not set playoff_week_start. */
@@ -106,7 +108,7 @@ export async function loadContendOrSellVerdict(args: {
     return {
       id,
       name: p?.full_name || [p?.first_name, p?.last_name].filter(Boolean).join(" ") || id,
-      position: normalizePosition(p?.position ?? null),
+      position: playerPosition(p),
       age: typeof p?.age === "number" ? p.age : null,
     };
   });
@@ -177,13 +179,48 @@ async function attachAskLadders(
   const ids = rosters.flatMap((r) => r.player_ids).filter((id) => !known.has(id));
   const fetched = ids.length > 0 ? await resolvePlayers(ids) : new Map<string, SleeperPlayer>();
   const meta = (id: string) => known.get(id) ?? fetched.get(id);
+  // The buyer's own future rookie picks are a return too (Isaiah,
+  // 2026-11-27: "what would I trade Warren for?"). Redraft leagues have none.
+  const pickValues =
+    snapshot.league_type === "redraft"
+      ? new Map<string, number>()
+      : await resolveFuturePickValues({
+          isSuperflex: snapshot.format === "superflex" || snapshot.format === "2qb",
+          isPpr: snapshot.scoring.includes("PPR"),
+          isHalfPpr: snapshot.scoring.includes("half-PPR"),
+        });
+  const rosterIds = snapshot.rosters.map((r) => r.roster_id);
+  const rounds = resolveRookieRounds(snapshot.draft.rounds);
+  const picksFor = (rosterId: number): AskRung[] => {
+    if (pickValues.size === 0) return [];
+    const owned = computeOwnedFuturePicks({ rosterId, rosterIds, tradedPicks: snapshot.draft.traded_picks, leagueSeason: snapshot.season, rounds });
+    const out: AskRung[] = [];
+    for (const o of owned) {
+      const value = pickValues.get(futurePickKey(o.season, o.round));
+      if (typeof value !== "number" || value <= 0) continue;
+      for (let n = 0; n < o.count; n++) {
+        const label = `${o.season} ${ordinal(o.round)}`;
+        out.push({
+          player_id: `pick:${o.season}:${o.round}:${n}`,
+          kind: "pick",
+          // Rendered "their 2027 1st" / "Revolver420's 2027 1st" (render.ts).
+          name: label,
+          position: "PICK",
+          value,
+          age: null,
+          starter: false,
+        });
+      }
+    }
+    return out;
+  };
   const offersFor = (rosterId: number): AskRung[] => {
     const r = rosters.find((x) => x.roster_id === rosterId);
     if (!r) return [];
     const out: AskRung[] = [];
     for (const id of r.player_ids) {
       const p = meta(id);
-      const position = normalizePosition(p?.position ?? null);
+      const position = playerPosition(p);
       const value = values[id];
       if (!p || !position || typeof value !== "number") continue;
       // Never ask a seller to take back a hurt player (design QA, 2026-11-26).
@@ -192,11 +229,16 @@ async function attachAskLadders(
       if (!name) continue;
       out.push({ player_id: id, name, position, value, age: typeof p.age === "number" ? p.age : null, starter: starters.has(id) });
     }
-    return out;
+    return [...out, ...picksFor(rosterId)];
   };
   for (const c of candidates) {
     for (const b of c.buyers) {
       b.ask = buildAskLadder({ targetValue: c.player.value, offers: offersFor(b.roster_id), excludePosition: c.player.position, soldAge: c.player.age });
     }
   }
+}
+
+function ordinal(n: number): string {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${s}`;
 }

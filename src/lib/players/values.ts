@@ -75,6 +75,8 @@ type CacheEntry = {
   // Top-of-dataset value used to scale to 0-100. Surfaced so consumers
   // can re-anchor or debug if FantasyCalc shifts their internal scale.
   scale_max: number;
+  /** Future rookie picks on the same 0-100 scale (see `futurePickKey`). */
+  pickValues: Map<string, number>;
 };
 
 const cache = new Map<FormatKey, CacheEntry>();
@@ -147,11 +149,11 @@ async function fetchValues(
     }
   }
 
-  const { byPlayerId, byNamePosKey, scale_max } = normalizeFantasyCalcValues(
+  const { byPlayerId, byNamePosKey, scale_max, pickValues } = normalizeFantasyCalcValues(
     parsed.data,
     (key) => sleeperByNameKey.get(key) ?? null,
   );
-  return { byPlayerId, byNamePosKey, fetchedAt: Date.now(), scale_max };
+  return { byPlayerId, byNamePosKey, fetchedAt: Date.now(), scale_max, pickValues };
 }
 
 /**
@@ -165,7 +167,12 @@ async function fetchValues(
 export function normalizeFantasyCalcValues(
   entries: FantasyCalcEntry[],
   fallbackSleeper: (key: string) => { id: string; team: string | null } | null = () => null,
-): { byPlayerId: Map<string, PlayerValue>; byNamePosKey: Map<string, PlayerValue>; scale_max: number } {
+): {
+  byPlayerId: Map<string, PlayerValue>;
+  byNamePosKey: Map<string, PlayerValue>;
+  scale_max: number;
+  pickValues: Map<string, number>;
+} {
   const sleeperByNameKey = { get: fallbackSleeper };
   // Find the top value to normalize to 0-100. Use top-3 average so a
   // single outlier (rookie with anomalous early value) doesn't
@@ -179,7 +186,16 @@ export function normalizeFantasyCalcValues(
 
   const byPlayerId = new Map<string, PlayerValue>();
   const byNamePosKey = new Map<string, PlayerValue>();
+  const pickValues = new Map<string, number>();
   for (const entry of entries) {
+    if ((entry.player.position ?? "").toUpperCase() === "PICK") {
+      // Only FantasyCalc's slot-unknown pick ("2027 1st"); the
+      // "(Early)/(Mid)/(Late)" variants need a draft slot we do not know
+      // for a future season.
+      const m = FANTASYCALC_PICK_NAME.exec(entry.player.name.trim());
+      if (m) pickValues.set(futurePickKey(m[1], Number(m[2])), Math.max(0, Math.min(100, Math.round((entry.value / scaleMax) * 100))));
+      continue;
+    }
     const fcName = entry.player.name;
     const fcPos = entry.player.position ?? null;
     const fcTeam = entry.player.maybeTeam ?? null;
@@ -209,7 +225,36 @@ export function normalizeFantasyCalcValues(
     byNamePosKey.set(key, pv);
   }
 
-  return { byPlayerId, byNamePosKey, scale_max: scaleMax };
+  return { byPlayerId, byNamePosKey, scale_max: scaleMax, pickValues };
+}
+
+/** FantasyCalc's slot-unknown future pick name, e.g. "2027 1st". */
+const FANTASYCALC_PICK_NAME = /^(\d{4}) (\d+)(?:st|nd|rd|th)$/;
+
+/** Key for a future rookie pick in `pickValues`. */
+export function futurePickKey(season: string, round: number): string {
+  return `${season}:${round}`;
+}
+
+/**
+ * Market value of future rookie picks (season + round, slot unknown) on
+ * the same 0-100 scale as players: FantasyCalc prices picks in the same
+ * feed as players, so one normalization puts both on one scale and a pick
+ * composes with a player in a trade ask. Keyed by `futurePickKey`. Empty
+ * when FantasyCalc is unreachable (callers then name no pick).
+ */
+export async function resolveFuturePickValues(args: {
+  isSuperflex: boolean;
+  isPpr: boolean;
+  isHalfPpr: boolean;
+}): Promise<Map<string, number>> {
+  const numQbs = args.isSuperflex ? 2 : 1;
+  const ppr = args.isPpr ? 1 : args.isHalfPpr ? 0.5 : 0;
+  try {
+    return (await getPlayerValues({ numQbs, ppr })).pickValues;
+  } catch {
+    return new Map();
+  }
 }
 
 export async function getPlayerValues(args: {

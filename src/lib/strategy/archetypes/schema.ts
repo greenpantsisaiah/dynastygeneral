@@ -44,6 +44,27 @@ export function normalizePosition(
   return FANTASY_POSITIONS.includes(u as Position) ? (u as Position) : null;
 }
 
+/**
+ * A Sleeper player's fantasy position: `position` through normalizePosition,
+ * else the first fantasy-relevant entry of `fantasy_positions`. Two-way and
+ * re-listed players carry a non-fantasy primary (Travis Hunter is `DB` with
+ * fantasy_positions [DB, WR]); reading `position` alone dropped him from
+ * every count and raised a severe "position unknown" integrity banner on
+ * the hub (Isaiah, Europa, 2026-11-26). Use this for any per-player read.
+ */
+export function playerPosition(
+  p: { position?: string | null; fantasy_positions?: readonly string[] | null } | null | undefined,
+): Position | null {
+  if (!p) return null;
+  const direct = normalizePosition(p.position);
+  if (direct) return direct;
+  for (const f of p.fantasy_positions ?? []) {
+    const n = normalizePosition(f);
+    if (n) return n;
+  }
+  return null;
+}
+
 export type LeagueFormat = "1qb" | "superflex" | "2qb";
 
 export type LeagueScoring = "PPR" | "half-PPR" | "standard" | "TE-premium";

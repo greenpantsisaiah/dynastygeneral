@@ -17,7 +17,7 @@
  * Moneyballer swap, and a bench player is used at most once).
  */
 
-import { normalizePosition, type Position } from "@/lib/strategy/archetypes/schema";
+import { playerPosition, type Position } from "@/lib/strategy/archetypes/schema";
 import { buildSimInputFromSleeper } from "@/lib/strategy/verdict/from-sleeper";
 import { simulateSeason } from "@/lib/strategy/verdict/season-sim";
 import { isRosterOwnedBy } from "@/lib/sleeper/roster-identity";
@@ -244,7 +244,7 @@ export function buildLeagueLineup(args: {
     const name = playerName(id, p);
     if (!name) return null;
     const r = (p ?? {}) as Record<string, unknown>;
-    const pos = normalizePosition((r.position as string | undefined) ?? (/^[A-Z]{2,3}$/.test(id) ? "DEF" : null));
+    const pos = p ? playerPosition(p) : /^[A-Z]{2,3}$/.test(id) ? "DST" : null;
     const team = (r.team as string | null | undefined) ?? (pos === "DST" ? id : null);
     const kickoff = team ? args.schedule.byTeam.get(team) ?? null : null;
     const bye = !!team && !kickoff && NFL_TEAMS.has(team) && args.schedule.byTeam.size > 0;

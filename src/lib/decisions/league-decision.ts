@@ -23,6 +23,8 @@ export function leagueDecision(args: {
   resultsWeek: number;
   tier: BriefTier;
   seasonStartDate?: string | null;
+  /** Drops a trade whose trade-by time has passed, same as the email. Defaults to the current time. */
+  now?: Date;
 }): TradeItem | LeagueCallItem | null {
   const model = buildTradeDeskModel({
     ownerName: "",
@@ -38,6 +40,7 @@ export function leagueDecision(args: {
       },
     ],
     seasonStartDate: args.seasonStartDate,
+    now: args.now ?? new Date(),
   });
   const { items } = buildDecisionItems({ model, season: args.season });
   const found = items.find((i): i is TradeItem | LeagueCallItem => i.kind === "trade" || i.kind === "league_call");
