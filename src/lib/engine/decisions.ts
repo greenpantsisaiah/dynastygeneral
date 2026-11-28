@@ -1,8 +1,5 @@
 import { runStructured, type RunResult } from "./anthropic";
 import { assembleContext, renderContextForPrompt } from "./context";
-import { checkGrounding, checkOfferClaims, groundingFeedback, mergeIssues, type GroundingIssue } from "./grounding";
-import { loadOfferValues } from "./offer-pricing";
-import { renderOfferValues, type OfferValues } from "./offer-values";
 import {
   pickOutputJsonSchema,
   pickOutputSchema,
@@ -111,18 +108,6 @@ export async function runTradeIncoming(
     sleeperUsername: input.sleeperUsername ?? null,
   });
 
-  // Every piece of the offer priced on the one scale (#176 rebuild): the
-  // analysts quote these numbers instead of inventing them. A failure here
-  // degrades to no block; the grounding check below still holds.
-  let offerBlock = "";
-  let offer: OfferValues | null = null;
-  try {
-    offer = await loadOfferValues(ctx, input.offer);
-    offerBlock = renderOfferValues(offer);
-  } catch (err) {
-    console.error("[trade:offer-values]", err instanceof Error ? `${err.message}\n${err.stack}` : err);
-  }
-
   const userMessage = [
     `# Decision: Incoming trade`,
     ``,
@@ -132,7 +117,6 @@ export async function runTradeIncoming(
     `**I receive:** ${input.offer.you_receive.join(", ")}`,
     input.offer.other_manager ? `**From:** ${input.offer.other_manager}` : "",
     ``,
-    offerBlock ? `${offerBlock}\n` : "",
     input.notes ? `## Notes\n${input.notes}\n` : "",
     `## Context`,
     renderContextForPrompt(ctx),
@@ -142,62 +126,21 @@ export async function runTradeIncoming(
     .filter(Boolean)
     .join("\n");
 
-  const run = (message: string) =>
-    runStructured({
-      toolName: "trade_incoming_decision",
-      toolDescription:
-        "Emit a structured decision for an incoming trade offer, including walk-away floor and negotiation message when appropriate.",
-      inputJsonSchema: tradeIncomingOutputJsonSchema as unknown as Record<
-        string,
-        unknown
-      >,
-      outputSchema: tradeIncomingOutputSchema,
-      userMessage: message,
-      model: "sonnet",
-      maxTokens: 1800, // +300 for the three analysts (each one sentence)
-      temperature: 0.35,
-    });
-
-  // Grounding: every number cited must be in the message we sent. One retry
-  // naming the invented numbers; if the analysts still invent, their row is
-  // dropped (the rest of the verdict stays) and an incident opens.
-  let result = await run(userMessage);
-  if (result.mode === "live") {
-    let issues = tradeGroundingIssues(result.output, userMessage, offer, offerBlock);
-    // Retry only when the first call left room under the route's limit.
-    if (issues.length > 0 && result.latencyMs < 30_000) {
-      console.warn("[trade:grounding-retry]", JSON.stringify(issues));
-      const retry = await run(`${userMessage}\n\n${groundingFeedback(issues)}`);
-      result = { ...retry, latencyMs: result.latencyMs + retry.latencyMs };
-      issues = tradeGroundingIssues(result.output, userMessage, offer, offerBlock);
-    }
-    if (issues.some((i) => i.field.startsWith("analysts"))) {
-      console.error("[trade:analysts-ungrounded]", JSON.stringify(issues));
-      result = { ...result, output: { ...result.output, analysts: null } };
-    } else if (issues.length > 0) {
-      console.error("[trade:reasoning-ungrounded]", JSON.stringify(issues));
-    }
-  }
+  const result = await runStructured({
+    toolName: "trade_incoming_decision",
+    toolDescription:
+      "Emit a structured decision for an incoming trade offer, including walk-away floor and negotiation message when appropriate.",
+    inputJsonSchema: tradeIncomingOutputJsonSchema as unknown as Record<
+      string,
+      unknown
+    >,
+    outputSchema: tradeIncomingOutputSchema,
+    userMessage,
+    model: "sonnet",
+    maxTokens: 1800, // +300 for the three analysts (each one sentence)
+    temperature: 0.35,
+  });
   return { ...result, teamDisplay: ctx.me.team_name };
-}
-
-/** The fields of an incoming-trade verdict that may cite numbers. */
-export function tradeGroundingIssues(
-  out: TradeIncomingOutput,
-  context: string,
-  offer: OfferValues | null = null,
-  offerBlock = "",
-): GroundingIssue[] {
-  const fields = [
-    ...(out.analysts ?? []).map((a, i) => ({ field: `analysts[${i}] ${a.voice}`, text: a.line })),
-    { field: "recommendation", text: out.recommendation },
-    ...out.reasoning.map((r, i) => ({ field: `reasoning[${i}]`, text: r })),
-    { field: "opportunity_cost", text: out.opportunity_cost },
-    { field: "walk_away_floor", text: out.walk_away_floor },
-  ];
-  const general = checkGrounding(fields, context);
-  if (!offer || !offerBlock) return general;
-  return mergeIssues(general, checkOfferClaims(fields, [...offer.send, ...offer.receive], offerBlock));
 }
 
 // ── Trade: outbound ───────────────────────────────────────────────────────
