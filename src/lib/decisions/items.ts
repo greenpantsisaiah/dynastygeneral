@@ -37,6 +37,7 @@ import {
   shiftsHeadline,
   forYou,
   verdictLine,
+  openingOffer,
   avgTeamLine,
   weekHeadline,
 } from "@/lib/email/trade-desk/render";
@@ -126,6 +127,12 @@ export interface TradeItem extends BaseItem {
   package_note: string | null;
   /** Button label, e.g. "Open the offer to gridirongoat". */
   cta_label: string;
+  /**
+   * The opening offer ready to send (`openingOffer`): both sides, to prefill
+   * the trade check, and a message to paste to the manager. Absent on items
+   * saved before it existed.
+   */
+  offer?: { send: string[]; receive: string[]; message: string } | null;
   /** Set when the app shows the trade exactly as an email sent it (emailed.ts). */
   emailed_at?: string;
 }
@@ -294,6 +301,7 @@ function tradeItem(c: TradeCard, i: number, m: TradeDeskModel, season: string): 
     manager: c.buyer.label,
     package_note: pkg,
     cta_label: `Open the offer to ${c.buyer.label}`,
+    offer: openingOffer(c),
   };
 }
 

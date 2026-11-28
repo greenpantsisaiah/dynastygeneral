@@ -11,12 +11,15 @@ import { TradeForm } from "./trade-form";
 
 type PageProps = {
   params: Promise<{ leagueId: string }>;
-  searchParams: Promise<{ mode?: string; username?: string; season?: string }>;
+  searchParams: Promise<{ mode?: string; username?: string; season?: string; send?: string; receive?: string; manager?: string }>;
 };
 
 export default async function TradePage({ params, searchParams }: PageProps) {
   const { leagueId } = await params;
-  const { mode, username = "", season = "" } = await searchParams;
+  const { mode, username = "", season = "", send = "", receive = "", manager = "" } = await searchParams;
+  // Prefill from a /home trade card: the opening offer the analysts priced.
+  const clip = (v: string) => v.slice(0, 300);
+  const prefill = { send: clip(send), receive: clip(receive), manager: clip(manager) };
   const outbound = mode === "outbound";
 
   const back = `/leagues/${leagueId}${
@@ -53,10 +56,18 @@ export default async function TradePage({ params, searchParams }: PageProps) {
               : "Paste what you send and what you receive. You'll get accept / counter / decline / wait, the opponent read, leverage, stronger ask, and a copy-ready message you can paste into your league chat."}
           </p>
 
+          {!outbound && prefill.send && prefill.receive && (
+            <p className="mt-4 max-w-2xl rounded-lg border border-accent/30 bg-accent/5 p-3 text-sm text-foreground">
+              Filled in with your opening offer{prefill.manager ? ` to ${prefill.manager}` : ""}. Check it now, or when
+              they answer, change it to their counter and check that.
+            </p>
+          )}
+
           <TradeForm
             leagueId={leagueId}
             sleeperUsername={username}
             mode={outbound ? "outbound" : "incoming"}
+            prefill={prefill}
           />
         </div>
       </main>

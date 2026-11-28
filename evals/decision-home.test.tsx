@@ -9,8 +9,8 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TeamTile } from "../src/lib/decisions/character";
-import { DecisionHome } from "../src/components/home/decision-feed";
-import { decisionItemId, type DecisionDigest, type DecisionItem } from "../src/lib/decisions/items";
+import { DecisionHome, TradeCard } from "../src/components/home/decision-feed";
+import { decisionItemId, type DecisionDigest, type DecisionItem, type TradeItem } from "../src/lib/decisions/items";
 
 let passed = 0;
 let failed = 0;
@@ -40,6 +40,7 @@ const items: DecisionItem[] = [
     ],
     verdict: "2 of 3 lean sell, if the price is right.", if_it_doesnt_land: "tacoTuesday and dbo are also short a WR.",
     package_note: null, cta_label: "Open the offer to gridirongoat",
+    offer: { send: ["Mike Evans"], receive: ["Jaylen Wright"], message: "Hey gridirongoat, you look light at WR for the stretch run. Would you do Jaylen Wright for Mike Evans? Open to talking it through." },
   },
   {
     ...base, id: henryId, kind: "trade", league_id: "12m", league_name: "12 Man", priority: 9, direction: "buy",
@@ -189,5 +190,10 @@ check("no 'push' in copy", !/\bpush\b/i.test(html.replace(/stance[^"]*"/g, "")))
 check("no 'title odds'", !/title odds/i.test(html));
 check("no exclamation points in copy", !/>[^<]*![^<]*</.test(html));
 
+{
+  const h = renderToStaticMarkup(<TradeCard item={items[0] as TradeItem} open={true} focused={false} offerHref="/x" coachHref="/c" />);
+  check("trade card shows the message to send with a copy button", h.includes("Message to gridirongoat") && h.includes("Would you do Jaylen Wright for Mike Evans?") && h.includes("Copy message"));
+  check("trade card explains the reply step", h.includes("change it to their counter"));
+}
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
