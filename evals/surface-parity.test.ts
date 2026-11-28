@@ -23,6 +23,7 @@ import { installSnapshotFetch } from "../scripts/lib/snapshot-replay";
 let passed = 0;
 let failed = 0;
 let compared = 0;
+let offers = 0;
 function check(name: string, ok: boolean, detail?: string) {
   if (ok) passed++;
   else failed++;
@@ -105,6 +106,18 @@ async function main() {
           now,
         });
         const { items } = buildDecisionItems({ model, season: nfl.season });
+        // The opening offer a trade card hands the user agrees with the card:
+        // same buyer, same first return the verdict names, sold player named.
+        for (const t of items) {
+          if (t.kind !== "trade" || !t.offer) continue;
+          offers++;
+          const o = t.offer;
+          check(
+            `${username} @ ${day}: offer to ${t.manager} matches the card`,
+            o.message.includes(t.manager) && o.message.includes(o.send[0]) && t.verdict.includes(o.receive[0]) && !o.message.includes("\u2014") && !/\btheir\b/.test(o.message),
+            JSON.stringify({ o, verdict: t.verdict }),
+          );
+        }
 
         for (const entry of snap.leagues) {
           const leagueId = entry.league.league_id;
@@ -165,6 +178,7 @@ async function main() {
   console.error = origError;
   // A parity test that compares nothing proves nothing.
   check(`compared at least 8 email/page call pairs (got ${compared})`, compared >= 8);
+  check(`real leagues produced at least one opening offer (got ${offers})`, offers >= 1);
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

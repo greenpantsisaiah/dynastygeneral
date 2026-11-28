@@ -157,6 +157,24 @@ export function askLine(c: TradeCard): string | null {
   if (a.great && open !== a.great) out.push(`${rung(a.great, c.buyer.label)} would be a great return.`);
   return out.join(" ");
 }
+/**
+ * The opening offer, ready to send: the assets on each side (to prefill the
+ * trade check) and a message to paste to the buyer. Opens at the same rung
+ * `askLine` names first, so the card, the message and the checked deal agree.
+ * Null when the buyer has no priced return.
+ */
+export function openingOffer(c: TradeCard): { send: string[]; receive: string[]; message: string } | null {
+  const a = c.buyer.ask;
+  const open = a ? (a.fair ?? a.great ?? a.floor) : null;
+  if (!open) return null;
+  const player = c.lead.player.name;
+  const receive = [open.name, ...(open.plus ? [open.plus.name] : [])];
+  const what = rung(open, null)
+    .replace(/ \((QB|RB|WR|TE|K|DST)\)/g, "")
+    .replace(/\btheir\b/g, "your");
+  const message = `Hey ${c.buyer.label}, you look light at ${c.lead.player.position} for the stretch run. Would you do ${what} for ${player}? Open to talking it through.`;
+  return { send: [player], receive, message };
+}
 const verdictHead = (c: TradeCard) => `${c.sellLeaning} of 3 lean sell, if the price is right.`;
 export function verdictLine(c: TradeCard): string {
   const d = c.lead.decay;

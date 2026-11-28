@@ -10,6 +10,7 @@
  */
 
 import type { ReactNode } from "react";
+import { ClientCopy } from "@/components/decision/client-copy";
 import { fmtPct } from "@/lib/email/trade-desk/league-week";
 import type {
   DecisionDigest,
@@ -212,6 +213,15 @@ export function TradeCard({
           </p>
           {item.package_note && <p className="mt-1.5 text-sm text-muted-2">{item.package_note}</p>}
         </div>
+        {item.offer && (
+          <div className="rounded-lg border border-accent/30 bg-accent/5 p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">Message to {item.manager}</p>
+              <ClientCopy text={item.offer.message} variant="prominent" label="Copy message" />
+            </div>
+            <p className="mt-2 text-sm text-foreground">{item.offer.message}</p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2.5">
           <Button href={offerHref} primary>
             {item.cta_label}
@@ -219,8 +229,10 @@ export function TradeCard({
           <Button href={coachHref}>Talk it through with Coach</Button>
         </div>
         <p className="text-xs text-muted-2">
-          Opens this league&apos;s trade view. You send the offer in Sleeper; Dynasty General can&apos;t send trades for
-          you.
+          {item.offer
+            ? `Opens this deal in the trade check. When ${item.manager} answers, change it to their counter and check it again: you get take it, counter or pass, and a reply to send. `
+            : "Opens this league's trade view. "}
+          You send the offer in Sleeper; Dynasty General can&apos;t send trades for you.
         </p>
       </div>
     </details>

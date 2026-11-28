@@ -20,7 +20,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { buildTradeDeskModel } from "@/lib/email/trade-desk/model";
-import { buildDecisionItems } from "@/lib/decisions/items";
+import { buildDecisionItems, type TradeItem } from "@/lib/decisions/items";
 import { loadEmailedTrades, overlayEmailedTrades } from "@/lib/decisions/emailed";
 import { DecisionHome } from "@/components/home/decision-feed";
 import { loadLineupPanel } from "@/lib/email/game-day/load";
@@ -125,7 +125,7 @@ export default async function HomePage({
             return t ? [t] : [];
           }).sort((a, b) => b.order - a.order)}
           hrefs={{
-            offer: (t) => `/leagues/${t.league_id}/trade?${q}`,
+            offer: (t) => `/leagues/${t.league_id}/trade?${q}${tradeCheckParams(t)}`,
             coach: (t) => `/leagues/${t.league_id}/coach?${q}&ask=${encodeURIComponent(`Talk me through this call: ${t.title}`)}`,
             sleeper: (l) => `https://sleeper.com/leagues/${l.league_id}/team`,
             league: (id) => `/leagues/${id}?${q}`,
@@ -136,6 +136,12 @@ export default async function HomePage({
       </main>
     </>
   );
+}
+
+/** Prefills the trade check with the opening offer (send, receive, manager). */
+function tradeCheckParams(t: TradeItem): string {
+  if (!t.offer) return "";
+  return `&${new URLSearchParams({ send: t.offer.send.join(", "), receive: t.offer.receive.join(", "), manager: t.manager }).toString()}`;
 }
 
 /** Most time /home waits on the lineup panel before rendering without it. */
