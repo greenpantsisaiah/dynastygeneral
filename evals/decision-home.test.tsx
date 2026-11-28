@@ -143,6 +143,10 @@ check("all three analysts read the lineups", (lHtml.match(/title="(Strategist|Mo
 check("each action opens the lineup in Sleeper", lHtml.includes('href="https://sleeper.com/leagues/rd/team"') && lHtml.includes("Fix 777. →"));
 const tHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={items} focusId={null} hrefs={hrefs} lineups={desk} />);
 check("with trade cards, the trade headline still leads", tHtml.includes(`>${escH}<`) && tHtml.indexOf(evansId) < tHtml.indexOf('id="lineups"'));
+const teams = [{ leagueId: "12m", leagueName: "12 Man", chip: "Rebuilder", line: "Patient build. War year projects 2028. Best room: QB (5th of 12).", rival: "Top rival: Willfredson, 9-2, 35% to win the league." }];
+const cHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={noTrades} focusId={null} hrefs={hrefs} lineups={desk} teams={teams} />);
+check("your teams render before the lineups and decisions", cHtml.indexOf("Patient build. War year projects 2028.") > 0 && cHtml.indexOf("Patient build") < cHtml.indexOf('id="lineups"'));
+check("each team links to its league and shows its rival", cHtml.includes('href="/leagues/12m"') && cHtml.includes("Top rival: Willfredson"));
 check("no em dash with lineups", !lHtml.includes("\u2014"));
 
 console.log("\n3. Analysts");

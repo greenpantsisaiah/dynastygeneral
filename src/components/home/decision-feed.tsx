@@ -603,18 +603,60 @@ export function QuietCalls({ calls, focusId, leagueHref, heading }: { calls: Lea
   );
 }
 
+/** One team's character on /home (built by src/lib/decisions/character.ts). */
+export interface TeamTile {
+  leagueId: string;
+  leagueName: string;
+  chip: string | null;
+  line: string;
+  rival: string | null;
+  /** Sort key: your chance to win the league, best first. */
+  order?: number;
+}
+
+/**
+ * "Your teams": who each team is (posture, best and thinnest room) and who
+ * it is chasing. The app's origin is characterizing your teams; the
+ * decisions below read as the next step for a team you can see.
+ */
+export function YourTeams({ teams, leagueHref }: { teams: TeamTile[]; leagueHref: (id: string) => string }) {
+  if (teams.length === 0) return null;
+  return (
+    <section id="your-teams" className="flex flex-col gap-2">
+      <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">Your teams · who they are, who they chase</h2>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {teams.map((t) => (
+          <li key={t.leagueId} className="rounded-xl border border-border-soft bg-surface p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <a href={leagueHref(t.leagueId)} className="font-semibold text-foreground hover:text-accent">
+                {t.leagueName}
+              </a>
+              {t.chip && <span className="rounded-full border border-border-strong px-2.5 py-0.5 text-xs text-foreground">{t.chip}</span>}
+            </div>
+            <p className="mt-1.5 text-sm text-muted">{t.line}</p>
+            {t.rival && <p className="mt-1.5 text-sm text-foreground">{t.rival}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function DecisionHome({
   digest,
   items,
   focusId,
   hrefs,
   lineups = null,
+  teams = [],
 }: {
   digest: DecisionDigest;
   items: DecisionItem[];
   focusId: string | null;
   /** This week's lineup panel (the Game Day email's three-analyst read), when one could be built. */
   lineups?: LineupDesk | null;
+  /** Each team's character line and top rival, shown before the decisions. */
+  teams?: TeamTile[];
   hrefs: {
     offer: (item: TradeItem) => string;
     coach: (item: TradeItem) => string;
@@ -653,6 +695,8 @@ export function DecisionHome({
           <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-[42px]">{headline}</h1>
           <p className="mt-3 max-w-2xl text-base text-muted">{subline}</p>
         </section>
+
+        <YourTeams teams={teams} leagueHref={hrefs.league} />
 
         {lineupsLead && lineupCard}
 

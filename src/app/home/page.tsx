@@ -23,6 +23,7 @@ import { loadEmailedTrades, overlayEmailedTrades } from "@/lib/decisions/emailed
 import { DecisionHome } from "@/components/home/decision-feed";
 import { loadLineupPanel } from "@/lib/email/game-day/load";
 import { buildLineupDesk, type LineupDesk } from "@/lib/email/game-day/panel";
+import { characterChip, characterLine, rivalLine } from "@/lib/decisions/character";
 
 export const metadata = {
   title: "Home",
@@ -72,6 +73,7 @@ export default async function HomePage({
       nflWeek: nfl.week,
       seasonType: nfl.season_type,
       logTag: "home",
+      withCharacter: true,
     }),
     nfl.season_type === "regular" ? loadLineupDesk(username, nfl.season, nfl.week) : Promise.resolve(null),
   ]);
@@ -107,6 +109,12 @@ export default async function HomePage({
           items={items}
           focusId={item ?? null}
           lineups={lineups}
+          teams={leagues.flatMap((l) => {
+            const c = l.character;
+            const line = c ? characterLine(c) : null;
+            if (!c || !line) return [];
+            return [{ leagueId: l.leagueId, leagueName: l.leagueName, chip: characterChip(c), line, rival: rivalLine(c), order: c.me?.title_pct ?? -1 }];
+          }).sort((a, b) => b.order - a.order)}
           hrefs={{
             offer: (t) => `/leagues/${t.league_id}/trade?${q}`,
             coach: (t) => `/leagues/${t.league_id}/coach?${q}&ask=${encodeURIComponent(`Talk me through this call: ${t.title}`)}`,

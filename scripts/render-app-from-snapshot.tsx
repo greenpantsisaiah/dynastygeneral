@@ -86,9 +86,16 @@ async function main() {
     const schedule = parseNflSchedule(readFileSync(gamesPath, "utf8"), ns.season, ns.week);
     const res = await loadLineupPanel({ username, season: ns.season, week: ns.week, now: sunday, schedule, logTag: "render-app" });
     if ("error" in res) throw new Error(res.error);
+    const { leagues: withChar } = await buildBriefLeagues({ username, season: ns.season, nflWeek: ns.week, seasonType: ns.season_type, logTag: "render-app", now, withCharacter: true });
+    const { characterChip, characterLine, rivalLine } = await import("../src/lib/decisions/character");
+    const teams = withChar.flatMap((l) => {
+      const c = l.character;
+      const line = c ? characterLine(c) : null;
+      return c && line ? [{ leagueId: l.leagueId, leagueName: l.leagueName, chip: characterChip(c), line, rival: rivalLine(c), order: c.me?.title_pct ?? -1 }] : [];
+    }).sort((a, b) => b.order - a.order);
     const wk = compose(leagues, sunday);
     const o3 = overlayEmailedTrades({ items: wk.items, digest: wk.digest, emailed: saved, now: sunday });
-    writeFileSync(join(outDir, "home_weekend_lineups.html"), page("home weekend", renderToStaticMarkup(<DecisionHome digest={o3.digest} items={o3.items} focusId={null} hrefs={hrefs} lineups={buildLineupDesk(res.panel)} />)));
+    writeFileSync(join(outDir, "home_weekend_lineups.html"), page("home weekend", renderToStaticMarkup(<DecisionHome digest={o3.digest} items={o3.items} focusId={null} hrefs={hrefs} lineups={buildLineupDesk(res.panel)} teams={teams} />)));
   }
   // 5. No leagues (email).
   const none = compose([], now);

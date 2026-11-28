@@ -15,6 +15,7 @@
  *     least MIN_CARD_VALUE_KEPT value points.
  */
 
+import type { LeagueCharacter } from "@/lib/decisions/character";
 import type { ContendOrSellVerdict, SellCandidate } from "@/lib/strategy/verdict/compose";
 import type { BuyerRead } from "@/lib/strategy/verdict/buyers";
 import type { Panel, Stance, VoiceName } from "@/lib/strategy/verdict/voices";
@@ -33,6 +34,8 @@ export interface DeskLeague {
   week: LeagueWeek | null;
   /** Why the league has no verdict / no week (shown, never hidden). */
   note?: string;
+  /** Who this team is (posture, rooms, top rival). App only; the email does not read it. */
+  character?: LeagueCharacter | null;
 }
 
 export const MAX_CARDS = 3;
