@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { cookies } from "next/headers";
+import { after } from "next/server";
+import { sendWelcomeBriefIfDue } from "@/lib/email/welcome-send";
 import { HOME_PREVIEW_COOKIE, HOME_PREVIEW_TTL_MS, homePreviewToken } from "@/lib/auth/home-preview";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
@@ -32,6 +34,9 @@ import { parseSignupSource } from "@/lib/growth/signup-source";
  * - Every brief carries a one-click unsubscribe, which covers an address
  *   entered by someone other than its owner.
  */
+
+/** Room for the welcome brief, which runs after the response (next/server `after`). */
+export const maxDuration = 120;
 
 const bodySchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
@@ -153,9 +158,14 @@ export async function POST(req: Request) {
 
   await setHomePreview(sleeperUser.username ?? sleeper_username);
 
-  // Welcome brief hook: once src/lib/email/welcome-brief.ts lands (the
-  // PR after Trade Desk #133), call `await sendWelcomeBriefIfDue(created.user.id)`
-  // here. It is idempotent, never throws, and respects the send guard.
+  // The welcome brief (teams characterized + the first call) goes out after
+  // the response, so the signup never waits on Sleeper. Held until Isaiah
+  // approves its template version (welcome-send.ts); never throws.
+  const userId = created.user.id;
+  after(async () => {
+    const outcome = await sendWelcomeBriefIfDue(userId);
+    console.info("[brief-signup:welcome]", userId, outcome);
+  });
   console.info("[brief-signup:created]", JSON.stringify({ user: created.user.id, utm: signupUtm }));
   return Response.json({ ok: true, username: sleeperUser.username ?? sleeper_username });
 }
