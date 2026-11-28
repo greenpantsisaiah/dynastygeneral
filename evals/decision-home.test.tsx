@@ -164,6 +164,8 @@ check("each team links to its league and shows its rival", cHtml.includes('href=
 const many = Array.from({ length: 5 }, (_, i) => ({ ...teams[0], leagueId: `l${i}`, leagueName: `League ${i}` }));
 const mHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={noTrades} focusId={null} hrefs={hrefs} lineups={desk} teams={many} />);
 check("more than 3 teams: the rest fold under one tap, none dropped", mHtml.includes("Show 2 more teams") && mHtml.includes("League 4") && mHtml.indexOf("League 2") < mHtml.indexOf("Show 2 more teams"));
+check("rival bars share the odds meters' 0-100% scale", cHtml.includes("width:35%") && cHtml.includes("width:3%"));
+check("favorite label is about title odds, not record", renderToStaticMarkup(<DecisionHome digest={digest} items={noTrades} focusId={null} hrefs={hrefs} lineups={desk} teams={[{ ...teams[0], rival: { ...teams[0].rival!, favorite: true } }]} />).includes("Title favorite · top threat"));
 check("tile leads with the odds numbers", cHtml.includes("70%") && cHtml.includes("Playoffs") && cHtml.includes("Win it all"));
 check("room meters: one dot per team, rank shown", cHtml.includes("5th/12") && cHtml.includes("10th/12") && (cHtml.match(/rounded-full bg-border-strong/g) ?? []).length >= 22);
 check("no em dash with lineups", !lHtml.includes("\u2014"));
