@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { getUserByUsername } from "@/lib/sleeper";
 import { parseSignupSource } from "@/lib/growth/signup-source";
@@ -13,27 +12,18 @@ import { parseSignupSource } from "@/lib/growth/signup-source";
  * `handle_new_user` trigger (migration 0002) creates the profiles +
  * subscriptions rows, so the weekly brief cron (which reads `profiles`)
  * picks the account up on the next Tuesday with no change to the send.
- * A NEW account is signed in on the spot (session cookie set on this
- * response), so the "Open my home" button lands on /home, the app's
- * home, instead of a signed-out league list (2026-11-28 audit: ad signups
- * never reached /home). Later visits sign in with Google on the same
- * address, or with the "Email me a sign-in link" option on /login.
+ * The user signs in later with Google on the same address, or with the
+ * "Email me a sign-in link" option on /login (signInWithOtp with
+ * shouldCreateUser false, so it only reaches accounts that exist).
  *
  * Safety:
  * - Rate limited per IP (shares the waitlist bucket: 3 per minute).
  * - The Sleeper username is verified against the public API before any
  *   write, so a typo never creates a brief that can't render.
- * - An address that already has an account is left untouched and is NOT
- *   signed in (we never re-point someone's brief at a different Sleeper
- *   user, or hand a session for an existing account to an unauthenticated
- *   form). The JSON body is the same either way; an existing owner
- *   following the button to /home is asked to sign in. (The session
- *   cookie on a new account does differ from the no-cookie existing
- *   case; the 3-per-minute rate limit bounds that as an enumeration path.)
- * - A new account gets a session at once (lands signed in on /home). The
- *   account is flagged `instant_session`; the owner's first sign-in
- *   through /auth/callback signs out every other session, so a stranger
- *   who typed the owner's address loses access before the owner adds data.
+ * - An address that already has an account is left untouched (we never
+ *   re-point someone's brief at a different Sleeper user from an
+ *   unauthenticated form). The response is the same either way, so the
+ *   form does not reveal which addresses have accounts.
  * - Every brief carries a one-click unsubscribe, which covers an address
  *   entered by someone other than its owner.
  */
@@ -119,13 +109,9 @@ export async function POST(req: Request) {
     // sign-in on the same address land on this account instead of
     // forking a second one.
     email_confirm: true,
-    // instant_session marks the session this form hands out below. The
-    // owner's first real sign-in (auth callback) revokes every other
-    // session and clears the flag, so a session minted by someone who
-    // typed another person's address dies once that owner signs in.
     user_metadata: signupUtm
-      ? { signup_source: "landing_brief", signup_utm: signupUtm, instant_session: true }
-      : { signup_source: "landing_brief", instant_session: true },
+      ? { signup_source: "landing_brief", signup_utm: signupUtm }
+      : { signup_source: "landing_brief" },
   });
 
   if (createErr || !created?.user) {
@@ -158,34 +144,9 @@ export async function POST(req: Request) {
     console.error("[brief-signup:profile]", created.user.id, profileErr.message);
   }
 
-  await signInNewAccount(admin, email);
-
   // Welcome brief hook: once src/lib/email/welcome-brief.ts lands (the
   // PR after Trade Desk #133), call `await sendWelcomeBriefIfDue(created.user.id)`
   // here. It is idempotent, never throws, and respects the send guard.
   console.info("[brief-signup:created]", JSON.stringify({ user: created.user.id, utm: signupUtm }));
   return Response.json({ ok: true, username: sleeperUser.username ?? sleeper_username });
-}
-
-/**
- * Sets the session cookie for an account this request just created, so the
- * signup lands signed in. Mints a one-time magic-link token server-side
- * (generateLink sends no email) and redeems it on the cookie-bound client.
- * Best-effort: on failure the account still exists and the user signs in
- * from /login; the failure is logged with a tag so it becomes an incident.
- */
-async function signInNewAccount(admin: ReturnType<typeof getAdminClient>, email: string): Promise<void> {
-  try {
-    const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
-    const tokenHash = data?.properties?.hashed_token;
-    if (error || !tokenHash) {
-      console.error("[brief-signup:signin]", error?.message ?? "no hashed_token");
-      return;
-    }
-    const supabase = await createClient();
-    const { error: verifyErr } = await supabase.auth.verifyOtp({ type: "magiclink", token_hash: tokenHash });
-    if (verifyErr) console.error("[brief-signup:signin]", verifyErr.message);
-  } catch (err) {
-    console.error("[brief-signup:signin]", err instanceof Error ? `${err.message}\n${err.stack}` : err);
-  }
 }
