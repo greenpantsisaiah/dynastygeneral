@@ -103,6 +103,48 @@ check("a league call links into its league", html.includes('href="/leagues/im"')
 check("week table links to all leagues", html.includes('href="/leagues"') && html.includes("All my leagues"));
 check("a week row with no recs shows the call's stance, linked to the call card", html.includes(`href="#${decisionItemId("league_call", "2026", 12, "bb", "call")}"`));
 
+console.log("\n2c. Do-nothing calls fold into one quiet list (Isaiah 2026-11-28)");
+const quietStart = html.indexOf("No trade move this week");
+check("quiet list exists", quietStart > 0);
+check("'Keep your roster' (not actionable) sits in the quiet list, not as a card", quietStart > 0 && html.indexOf("Keep your roster: no sale beats holding it.") > quietStart);
+check("quiet rows keep their item id so email links land", html.includes(`<details id="${decisionItemId("league_call", "2026", 12, "im", "call")}"`));
+const playId = decisionItemId("league_call", "2026", 12, "rd", "call");
+const withPlay: DecisionItem[] = [
+  ...items,
+  { ...base, id: playId, kind: "league_call", league_id: "rd", league_name: "777.", delivery: { emailed: false }, priority: 298, title: "Play to win this season.", stance: "push", stance_label: "Keep going", context: "Playoffs 98% · Redraft · 6-5", reason: "Redraft rosters reset after the season, so a sale banks nothing.", voices: [], actionable: true },
+];
+const playHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={withPlay} focusId={null} hrefs={hrefs} />);
+const playCard = playHtml.indexOf(`<article id="${playId}"`);
+check("an actionable call renders as a full card", playCard > 0);
+check("the actionable card comes before the quiet list", playCard > 0 && playCard < playHtml.indexOf("No trade move this week in your other leagues"));
+
+console.log("\n2d. Lineups lead the page when no trade is worth trying");
+const desk = {
+  week: 12,
+  headline: "2 lineup fixes before Sun 12:00 PM. 777. is the game that moves your season.",
+  sub: "Your three analysts read all 7 lineups as they stand now. They agree on the holes and split on what matters most.",
+  reads: [
+    { voice: "strategist" as const, name: "The Strategist", letter: "S", title: "Fill the hole first", lines: ["Parker Washington is Out and still in your 777. lineup."], source: "From Sleeper injury status." },
+    { voice: "moneyball" as const, name: "The Moneyballer", letter: "M", title: "1 slot leaves points on the bench", lines: ["In Europa, X sits at 14.0."], source: "Points per game." },
+    { voice: "gambler" as const, name: "The Gambler", letter: "G", title: "Play for 777.", lines: ["777. is the game that moves your season."], source: "From 5,000 simulated seasons." },
+  ],
+  agree: "All 3 agree on benching Parker Washington in 777.",
+  actions: [{ leagueId: "rd", leagueName: "777.", verb: "Fix" as const, when: "locks Sun 12:00 PM" }],
+  hasFix: true,
+  skipped: null,
+};
+const noTrades = items.filter((i) => i.kind !== "trade");
+const lHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={noTrades} focusId={null} hrefs={hrefs} lineups={desk} />);
+check("lineup headline becomes the page headline", lHtml.includes(desk.headline));
+const escH = digest.headline.replace(/'/g, "&#x27;");
+check("trade headline moves into the subline", lHtml.includes(escH));
+check("lineup card sits above the league calls", lHtml.indexOf('id="lineups"') > 0 && lHtml.indexOf('id="lineups"') < lHtml.indexOf("No trade move this week"));
+check("all three analysts read the lineups", (lHtml.match(/title="(Strategist|Moneyballer|Gambler): /g) ?? []).length >= 3 || ["Strategist", "Moneyballer", "Gambler"].every((n) => lHtml.includes(n)));
+check("each action opens the lineup in Sleeper", lHtml.includes('href="https://sleeper.com/leagues/rd/team"') && lHtml.includes("Fix 777. →"));
+const tHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={items} focusId={null} hrefs={hrefs} lineups={desk} />);
+check("with trade cards, the trade headline still leads", tHtml.includes(`>${escH}<`) && tHtml.indexOf(evansId) < tHtml.indexOf('id="lineups"'));
+check("no em dash with lineups", !lHtml.includes("\u2014"));
+
 console.log("\n3. Analysts");
 const dots = (html.match(/title="(Strategist|Moneyballer|Gambler): /g) ?? []).length;
 check("every trade shows all three analysts on the scale", dots === 6, String(dots));

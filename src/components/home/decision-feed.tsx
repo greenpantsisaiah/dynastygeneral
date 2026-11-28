@@ -24,6 +24,7 @@ import type {
   WeekRowItem,
 } from "@/lib/decisions/items";
 import type { Stance, VoiceName } from "@/lib/strategy/verdict/voices";
+import type { LineupDesk } from "@/lib/email/game-day/panel";
 
 /** One cast everywhere: same names and colors as the email (off the red/green axis). */
 export const ANALYST: Record<VoiceName, { name: string; letter: string; color: string }> = {
@@ -500,15 +501,120 @@ export function RootForList({ items }: { items: RootForItem[] }) {
   );
 }
 
+/**
+ * This week's lineups: the Game Day panel (three analysts on every lineup),
+ * the same copy the Sunday email prints, with a button per league that
+ * opens the lineup in Sleeper. Lineups are the decision that comes back
+ * every week, so on a week with no trade worth trying this leads the page.
+ */
+export function LineupDeskCard({ desk, sleeperHref }: { desk: LineupDesk; sleeperHref: (leagueId: string) => string }) {
+  return (
+    <section id="lineups" className="scroll-mt-4 flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Kicker>Week {desk.week} lineups · the three analysts</Kicker>
+        {desk.hasFix && <Chip tone="deadline">Fix before kickoff</Chip>}
+      </div>
+      <ul className="flex flex-col">
+        {desk.reads.map((r) => (
+          <li key={r.voice} className="flex gap-3 border-t border-border-soft py-3 first:border-t-0 first:pt-0">
+            <AnalystDot voice={r.voice} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">
+                {ANALYST[r.voice].name} <span className="font-normal text-muted-2">·</span>{" "}
+                <span style={{ color: ANALYST[r.voice].color }}>{r.title}</span>
+              </p>
+              {r.lines.map((t, i) => (
+                <p key={i} className="mt-1 text-sm text-muted">
+                  {t}
+                </p>
+              ))}
+              <p className="mt-1 text-xs text-muted-2">{r.source}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-foreground">{desk.agree}</p>
+      {desk.actions.length > 0 && (
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">Open each lineup in Sleeper, in kickoff order</p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {desk.actions.map((a) => (
+              <div key={a.leagueId} className="flex flex-col gap-1">
+                <Button href={sleeperHref(a.leagueId)} primary={a.verb === "Fix"}>
+                  {a.verb} {a.leagueName} →
+                </Button>
+                <span className="text-xs text-muted-2">{a.when}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {desk.skipped && <p className="text-xs text-muted-2">{desk.skipped}</p>}
+      <p className="text-xs text-muted-2">Dynasty General can&apos;t change Sleeper lineups for you; each button opens that lineup.</p>
+    </section>
+  );
+}
+
+/**
+ * Leagues where the call is "nothing to do this week", one line each
+ * (Isaiah 2026-11-28: a home full of do-nothing cards reads as nothing to
+ * do). Each row keeps the call's reason and the three analysts one tap
+ * away, and keeps its item id so email links and the week table land here.
+ */
+export function QuietCalls({ calls, focusId, leagueHref, heading }: { calls: LeagueCallItem[]; focusId: string | null; leagueHref: (id: string) => string; heading: string }) {
+  if (calls.length === 0) return null;
+  return (
+    <section className="rounded-xl border border-border-soft bg-surface p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">{heading}</h2>
+        <span className="text-xs text-muted-2">Tap a league for the reason and the analysts</span>
+      </div>
+      <ul className="mt-2">
+        {calls.map((c) => (
+          <li key={c.id} className="border-t border-border-soft">
+            <details id={c.id} open={c.id === focusId} className={`group scroll-mt-4 py-3 ${c.id === focusId ? "rounded-md ring-2 ring-accent/40" : ""}`}>
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-semibold text-foreground">{c.league_name}</span>
+                <span className="rounded-full border border-border-strong px-2 py-0.5 text-xs text-foreground">{c.stance_label}</span>
+                <span className="font-mono text-[11px] text-muted-2">{c.context}</span>
+              </summary>
+              <p className="mt-2 text-sm text-foreground">{c.title}</p>
+              <p className="mt-1 text-sm text-muted">{c.reason}</p>
+              {c.voices.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {c.voices.map((v) => (
+                    <li key={v.voice} className="text-sm text-muted">
+                      <span className="font-semibold" style={{ color: ANALYST[v.voice].color }}>
+                        {ANALYST[v.voice].name} · {v.stance_label}.
+                      </span>{" "}
+                      {v.line}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <a href={leagueHref(c.league_id ?? "")} className="mt-2 inline-block text-sm font-semibold text-accent hover:underline">
+                Open {c.league_name} →
+              </a>
+            </details>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function DecisionHome({
   digest,
   items,
   focusId,
   hrefs,
+  lineups = null,
 }: {
   digest: DecisionDigest;
   items: DecisionItem[];
   focusId: string | null;
+  /** This week's lineup panel (the Game Day email's three-analyst read), when one could be built. */
+  lineups?: LineupDesk | null;
   hrefs: {
     offer: (item: TradeItem) => string;
     coach: (item: TradeItem) => string;
@@ -527,7 +633,15 @@ export function DecisionHome({
   const calls = items
     .filter((i): i is LeagueCallItem => i.kind === "league_call")
     .sort((a, b) => b.priority - a.priority);
+  const actCalls = calls.filter((c) => c.actionable);
+  const quietCalls = calls.filter((c) => !c.actionable);
   const focused = focusId ? items.find((i) => i.id === focusId) ?? null : null;
+  // With no trade card, the week's lineups are the decision: they lead the
+  // page and own the headline. The digest's trade headline moves under it.
+  const lineupsLead = !!lineups && feed.length === 0;
+  const headline = lineupsLead ? lineups!.headline : digest.headline;
+  const subline = lineupsLead ? `${lineups!.sub} ${digest.headline}` : digest.subline;
+  const lineupCard = lineups ? <LineupDeskCard desk={lineups} sleeperHref={(id) => `https://sleeper.com/leagues/${encodeURIComponent(id)}/team`} /> : null;
   const firstTrade = feed.find((i) => i.kind === "trade")?.id ?? null;
   const openTrade = focused?.kind === "trade" ? focused.id : firstTrade;
 
@@ -536,9 +650,11 @@ export function DecisionHome({
       <div className="flex min-w-0 flex-col gap-5">
         <section>
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">{digest.kicker}</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-[42px]">{digest.headline}</h1>
-          <p className="mt-3 max-w-2xl text-base text-muted">{digest.subline}</p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-[42px]">{headline}</h1>
+          <p className="mt-3 max-w-2xl text-base text-muted">{subline}</p>
         </section>
+
+        {lineupsLead && lineupCard}
 
         {swing && <SwingCard item={swing} />}
 
@@ -562,18 +678,26 @@ export function DecisionHome({
           ),
         )}
 
+        {!lineupsLead && lineupCard}
+
         <QuietList items={quiet} hrefFor={hrefs.item} />
 
-        {calls.length > 0 && (
+        {actCalls.length > 0 && (
           <section className="flex flex-col gap-3">
             <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
               {feed.length > 0 ? "Your other leagues · the analysts' call" : "Your leagues · the analysts' call"}
             </h2>
-            {calls.map((c) => (
+            {actCalls.map((c) => (
               <LeagueCallCard key={c.id} item={c} focused={c.id === focusId} leagueHref={hrefs.league(c.league_id ?? "")} />
             ))}
           </section>
         )}
+        <QuietCalls
+          calls={quietCalls}
+          focusId={focusId}
+          leagueHref={hrefs.league}
+          heading={actCalls.length + feed.length > 0 ? "No trade move this week in your other leagues" : "No trade move this week"}
+        />
         <RootForList items={roots} />
       </div>
 

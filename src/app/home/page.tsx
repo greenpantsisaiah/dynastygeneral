@@ -21,6 +21,8 @@ import { buildTradeDeskModel } from "@/lib/email/trade-desk/model";
 import { buildDecisionItems } from "@/lib/decisions/items";
 import { loadEmailedTrades, overlayEmailedTrades } from "@/lib/decisions/emailed";
 import { DecisionHome } from "@/components/home/decision-feed";
+import { loadLineupPanel } from "@/lib/email/game-day/load";
+import { buildLineupDesk, type LineupDesk } from "@/lib/email/game-day/panel";
 
 export const metadata = {
   title: "Home",
@@ -63,13 +65,16 @@ export default async function HomePage({
     );
   }
 
-  const { leagues, resultsWeek } = await buildBriefLeagues({
-    username,
-    season: nfl.season,
-    nflWeek: nfl.week,
-    seasonType: nfl.season_type,
-    logTag: "home",
-  });
+  const [{ leagues, resultsWeek }, lineups] = await Promise.all([
+    buildBriefLeagues({
+      username,
+      season: nfl.season,
+      nflWeek: nfl.week,
+      seasonType: nfl.season_type,
+      logTag: "home",
+    }),
+    nfl.season_type === "regular" ? loadLineupDesk(username, nfl.season, nfl.week) : Promise.resolve(null),
+  ]);
   if (leagues.length === 0) {
     return <EmptyHome line={`No ${nfl.season} Sleeper leagues found for ${username}. Join or connect one and its decisions land here.`} />;
   }
@@ -101,6 +106,7 @@ export default async function HomePage({
           digest={digest}
           items={items}
           focusId={item ?? null}
+          lineups={lineups}
           hrefs={{
             offer: (t) => `/leagues/${t.league_id}/trade?${q}`,
             coach: (t) => `/leagues/${t.league_id}/coach?${q}&ask=${encodeURIComponent(`Talk me through this call: ${t.title}`)}`,
@@ -113,6 +119,42 @@ export default async function HomePage({
       </main>
     </>
   );
+}
+
+/** Most time /home waits on the lineup panel before rendering without it. */
+const LINEUP_BUDGET_MS = 20_000;
+
+/**
+ * This week's lineup panel (the Game Day email's three-analyst read). A
+ * failure or a slow Sleeper never blocks /home: the page renders without
+ * the card and the failure is logged with a tag, so it becomes an incident.
+ */
+async function loadLineupDesk(username: string, season: string, week: number): Promise<LineupDesk | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      console.error("[home:lineups] lineup panel exceeded", LINEUP_BUDGET_MS, "ms; rendering without it");
+      resolve(null);
+    }, LINEUP_BUDGET_MS);
+  });
+  const work = (async () => {
+    try {
+      const res = await loadLineupPanel({ username, season, week, now: new Date(), logTag: "home:lineups" });
+      if ("error" in res) {
+        console.error("[home:lineups]", res.error);
+        return null;
+      }
+      return buildLineupDesk(res.panel);
+    } catch (err) {
+      console.error("[home:lineups]", err instanceof Error ? `${err.message}\n${err.stack}` : err);
+      return null;
+    }
+  })();
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function EmptyHome({ line }: { line: string }) {
