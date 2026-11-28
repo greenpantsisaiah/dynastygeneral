@@ -182,8 +182,8 @@ export default function HowItWorksPage() {
             </h2>
             <p className="mt-3 text-muted">
               Connect your Sleeper account today (MyFantasyLeague support
-              ships next). We pull your dynasty leagues and show you the
-              engine's read on each one. Free during the beta, every league included.
+              ships next). We pull your leagues and show you the
+              engine's read on each one. Free during the beta.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
