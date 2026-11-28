@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { cookies } from "next/headers";
+import { after } from "next/server";
+import { sendWelcomeBriefIfDue } from "@/lib/email/welcome-send";
+import { HOME_PREVIEW_COOKIE, HOME_PREVIEW_TTL_MS, homePreviewToken } from "@/lib/auth/home-preview";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 import { getUserByUsername } from "@/lib/sleeper";
@@ -24,9 +28,15 @@ import { parseSignupSource } from "@/lib/growth/signup-source";
  *   re-point someone's brief at a different Sleeper user from an
  *   unauthenticated form). The response is the same either way, so the
  *   form does not reveal which addresses have accounts.
+ * - The response sets a view-only /home preview cookie for the verified
+ *   Sleeper username (public Sleeper data only, 24 hours, no session),
+ *   identically for new and existing addresses. See home-preview.ts.
  * - Every brief carries a one-click unsubscribe, which covers an address
  *   entered by someone other than its owner.
  */
+
+/** Room for the welcome brief, which runs after the response (next/server `after`). */
+export const maxDuration = 120;
 
 const bodySchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
@@ -121,7 +131,9 @@ export async function POST(req: Request) {
       createErr?.status === 422 ||
       /already (been )?registered|already exists/i.test(msg);
     if (exists) {
-      // Existing account: change nothing, answer the same as a new one.
+      // Existing account: change nothing, answer the same as a new one
+      // (the same view-only preview cookie, so nothing reveals the account).
+      await setHomePreview(sleeperUser.username ?? sleeper_username);
       return Response.json({ ok: true, username: sleeperUser.username ?? sleeper_username });
     }
     console.error("[brief-signup:create]", createErr?.code, msg);
@@ -144,9 +156,41 @@ export async function POST(req: Request) {
     console.error("[brief-signup:profile]", created.user.id, profileErr.message);
   }
 
-  // Welcome brief hook: once src/lib/email/welcome-brief.ts lands (the
-  // PR after Trade Desk #133), call `await sendWelcomeBriefIfDue(created.user.id)`
-  // here. It is idempotent, never throws, and respects the send guard.
+  await setHomePreview(sleeperUser.username ?? sleeper_username);
+
+  // The welcome brief (teams characterized + the first call) goes out after
+  // the response, so the signup never waits on Sleeper. Held until Isaiah
+  // approves its template version (welcome-send.ts); never throws.
+  const userId = created.user.id;
+  after(async () => {
+    const outcome = await sendWelcomeBriefIfDue(userId);
+    console.info("[brief-signup:welcome]", userId, outcome);
+  });
   console.info("[brief-signup:created]", JSON.stringify({ user: created.user.id, utm: signupUtm }));
   return Response.json({ ok: true, username: sleeperUser.username ?? sleeper_username });
+}
+
+/**
+ * View-only /home preview of this Sleeper username's public leagues
+ * (`src/lib/auth/home-preview.ts`). Not a session: no account data, no
+ * writes. Best-effort; without a signing secret the button still opens
+ * /home and asks the visitor to sign in.
+ */
+async function setHomePreview(username: string): Promise<void> {
+  try {
+    const token = homePreviewToken(username, Date.now());
+    if (!token) {
+      console.error("[brief-signup:preview]", "no signing secret; preview cookie not set");
+      return;
+    }
+    (await cookies()).set(HOME_PREVIEW_COOKIE, token, {
+      maxAge: Math.floor(HOME_PREVIEW_TTL_MS / 1000),
+      path: "/home",
+      sameSite: "lax",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+    });
+  } catch (err) {
+    console.error("[brief-signup:preview]", err instanceof Error ? err.message : err);
+  }
 }

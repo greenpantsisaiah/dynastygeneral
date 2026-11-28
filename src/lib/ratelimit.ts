@@ -36,7 +36,8 @@ type BucketName =
   | "last-visit"
   | "soundboard"
   | "soundboard-submit"
-  | "plays";
+  | "plays"
+  | "client-error";
 
 type LimitSpec = {
   // Requests allowed
@@ -118,6 +119,10 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // only thing standing between a bot and the founder's calibration
   // tables. Tight.
   "soundboard-submit": { requests: 5, window: "10 m" },
+  // Client error beacon (/api/ops/client-error). Public; a crashed page
+  // reports once per message per load, so a real user sends a few at
+  // most. Tight cap so one IP cannot flood the incident log (#162).
+  "client-error": { requests: 10, window: "1 m" },
 };
 
 let redis: Redis | null = null;
