@@ -30,10 +30,19 @@ export interface RoomRead {
 export interface LeagueCharacter {
   kind: LeagueKind;
   /** Dynasty and keeper only: the multi-year posture. */
-  posture: { category: PostureCategory; headline: string } | null;
+  posture: { category: PostureCategory; headline: string; peak_year: number | null } | null;
   strongest: RoomRead | null;
   weakest: RoomRead | null;
-  me: { wins: number; losses: number; ties: number; title_pct: number; playoff_pct: number } | null;
+  me: {
+    wins: number;
+    losses: number;
+    ties: number;
+    title_pct: number;
+    playoff_pct: number;
+    /** 1 = best chance to win the league among `teams`. */
+    title_rank: number;
+    teams: number;
+  } | null;
   /** The other team with the best chance to win the league. */
   rival: { manager: string; wins: number; losses: number; ties: number; title_pct: number } | null;
 }
@@ -70,7 +79,7 @@ export function buildLeagueCharacter(args: {
       totalTeams: snap.total_teams,
       championHistory: args.championHistory ?? null,
     });
-    posture = { category: p.category, headline: p.headline };
+    posture = { category: p.category, headline: p.headline, peak_year: p.contender_window?.peak_year ?? null };
   }
 
   const valueMap = new Map(Object.entries(args.valuesById).map(([id, value]) => [id, { value }]));
@@ -86,8 +95,18 @@ export function buildLeagueCharacter(args: {
   let me: LeagueCharacter["me"] = null;
   let rival: LeagueCharacter["rival"] = null;
   if (v) {
-    me = { wins: mine.wins, losses: mine.losses, ties: mine.ties, title_pct: v.odds.title_pct, playoff_pct: v.odds.playoff_pct };
-    const best = Object.values(v.league_odds)
+    const all = Object.values(v.league_odds);
+    const title_rank = 1 + all.filter((o) => o.roster_id !== mine.roster_id && o.title_pct > v.odds.title_pct).length;
+    me = {
+      wins: mine.wins,
+      losses: mine.losses,
+      ties: mine.ties,
+      title_pct: v.odds.title_pct,
+      playoff_pct: v.odds.playoff_pct,
+      title_rank,
+      teams: Math.max(all.length, snap.total_teams),
+    };
+    const best = all
       .filter((o) => o.roster_id !== mine.roster_id)
       .sort((a, b) => b.title_pct - a.title_pct)[0];
     const r = best ? snap.rosters.find((x) => x.roster_id === best.roster_id) : undefined;
@@ -114,16 +133,55 @@ export function characterChip(c: LeagueCharacter): string | null {
 }
 
 /**
- * "Patient build. War year projects 2028. Best room: QB (5th of 12). Thinnest: RB (10th)."
- * Redraft drops the multi-year posture: a redraft team is this season only.
+ * Who this team is, in plain fantasy terms, from numbers only:
+ * "Rebuilding, built to peak in 2028. Deep at QB (2nd of 12), thin at RB (10th of 12)."
+ * "Best title chance in the league. The league's worst QBs."
+ * Isaiah 2026-11-28 on the welcome email: lines like "This season is the
+ * whole story" and "Best room" read as AI and carry no fact. Every clause
+ * here is a rank or a year; a position that is neither top nor bottom third
+ * is left out rather than padded.
  */
-export function characterLine(c: LeagueCharacter): string | null {
-  const parts: string[] = [];
-  if (c.posture) parts.push(c.posture.headline);
-  else if (c.kind === "redraft" && c.me) parts.push(`Redraft: this season is the whole story, ${fmtPct(c.me.playoff_pct)} to make the playoffs.`);
-  if (c.strongest) parts.push(`Best room: ${c.strongest.position} (${ord(c.strongest.rank)} of ${c.strongest.total}).`);
-  if (c.weakest) parts.push(`Thinnest: ${c.weakest.position} (${ord(c.weakest.rank)}).`);
+export function characterNote(c: LeagueCharacter): string | null {
+  // Season first (every format has one), then the dynasty posture when it
+  // adds a direction. "Balanced" is left out: next to a 9-2 record it reads
+  // as a contradiction, and the title-chance rank already places the team.
+  const season = c.me ? titlePhrase(c.me.title_rank, c.me.teams) : null;
+  const posture = c.posture && c.posture.category !== "balanced" ? POSTURE_PLAIN[c.posture.category](c.posture.peak_year) : null;
+  const label = season && posture ? `${season}; ${posture.charAt(0).toLowerCase()}${posture.slice(1)}` : (season ?? posture);
+  const rooms = [strengthPhrase(c.strongest), weaknessPhrase(c.weakest)].filter((x): x is string => !!x);
+  const parts = [label ? `${label}.` : null, rooms.length ? `${cap(rooms.join(", "))}.` : null].filter(Boolean);
   return parts.length ? parts.join(" ") : null;
+}
+
+const POSTURE_PLAIN: Record<PostureCategory, (peak: number | null) => string> = {
+  contender: () => "Contender now",
+  win_now: (y) => (y ? `Close to contending, built to peak in ${y}` : "Close to contending"),
+  balanced: () => "Middle of the pack",
+  rebuilder: (y) => (y ? `Rebuilding, built to peak in ${y}` : "Rebuilding"),
+  teardown: (y) => (y ? `Tearing down, built to peak in ${y}` : "Tearing down"),
+  tank: () => "Bottom of the league",
+};
+function titlePhrase(rank: number, teams: number): string {
+  if (rank === 1) return "Best title chance in the league";
+  if (rank <= teams / 2) return `${ord(rank)}-best title chance of ${teams}`;
+  return `Title long shot (${ord(rank)} of ${teams})`;
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const third = (total: number) => Math.max(1, Math.round(total / 3));
+function strengthPhrase(r: RoomRead | null): string | null {
+  if (!r) return null;
+  if (r.rank === 1) return `the league's best ${r.position}s`;
+  return r.rank <= third(r.total) ? `deep at ${r.position} (${ord(r.rank)} of ${r.total})` : null;
+}
+function weaknessPhrase(r: RoomRead | null): string | null {
+  if (!r) return null;
+  if (r.rank === r.total) return `the league's worst ${r.position}s`;
+  return r.rank > r.total - third(r.total) ? `thin at ${r.position} (${ord(r.rank)} of ${r.total})` : null;
+}
+
+/** Kept for callers of the old name: the same plain characterization. */
+export function characterLine(c: LeagueCharacter): string | null {
+  return characterNote(c);
 }
 
 /**
@@ -154,7 +212,7 @@ export interface TeamTile {
   leagueName: string;
   /** Posture label (dynasty, keeper) or the league kind (redraft, best ball). */
   chip: string | null;
-  /** One short line, or null when the posture headline would be filler. */
+  /** Plain characterization from `characterNote`, or null when there is no fact to state. */
   note: string | null;
   /** Probabilities 0..1 with display text from `fmtPct`. */
   playoff: { pct: number; label: string } | null;
@@ -184,9 +242,7 @@ export function teamTile(leagueId: string, leagueName: string, c: LeagueCharacte
   const me = c.me;
   if (!me && !c.strongest && !c.posture) return null;
   const pct = (p: number) => ({ pct: p, label: fmtPct(p) });
-  // "Balanced" already says mid-pack; its headline ("Two playable lenses")
-  // adds no read, so the tile shows the numbers alone.
-  const note = c.posture ? (c.posture.category === "balanced" ? null : c.posture.headline) : c.kind === "redraft" ? "This season is the whole story." : null;
+  const note = characterNote(c);
   const r = c.rival;
   return {
     leagueId,

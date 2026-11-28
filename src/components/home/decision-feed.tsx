@@ -643,7 +643,7 @@ function RoomMeter({ label, room, tone }: { label: string; room: RoomRead; tone:
   const mark = tone === "success" ? "bg-success" : "bg-warning";
   return (
     <div className="flex items-center gap-2 text-xs" aria-label={`${label}: ${room.position}, ${ordinal(room.rank)} of ${room.total}`}>
-      <span className="w-16 shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-2">{label}</span>
+      <span className="w-20 shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-2">{label}</span>
       <span className="w-7 shrink-0 font-semibold text-foreground">{room.position}</span>
       <span className="flex min-w-0 flex-1 items-center justify-between" aria-hidden>
         {dots.map((d) => (
@@ -712,8 +712,8 @@ function TeamTileCard({ t, href }: { t: TeamTile; href: string }) {
       )}
       {(t.best || t.thinnest) && (
         <div className="mt-3 flex flex-col gap-1.5">
-          {t.best && <RoomMeter label="Best" room={t.best} tone="success" />}
-          {t.thinnest && <RoomMeter label="Thinnest" room={t.thinnest} tone="warning" />}
+          {t.best && <RoomMeter label="Strongest" room={t.best} tone="success" />}
+          {t.thinnest && <RoomMeter label="Weakest" room={t.thinnest} tone="warning" />}
         </div>
       )}
       {t.rival && <RivalRow r={t.rival} />}

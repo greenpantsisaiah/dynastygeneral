@@ -20,7 +20,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { getNflState } from "@/lib/sleeper";
 import { briefOwnerName, buildBriefLeagues } from "@/lib/email/build-brief";
 import { buildTradeDeskModel, type BriefTier } from "@/lib/email/trade-desk/model";
-import { buildDecisionItems } from "@/lib/decisions/items";
+import { buildDecisionItems, type DecisionItem } from "@/lib/decisions/items";
 import { WELCOME_BRIEF_TEMPLATE_VERSION, composeWelcomeBrief, type ComposedWelcome } from "@/lib/email/welcome-brief";
 import { briefRenderTier } from "@/lib/email/weekly-brief";
 import { resolveSendMode } from "@/lib/email/send-guard";
@@ -44,6 +44,8 @@ export async function buildWelcomeBrief(args: {
   logTag: string;
   now?: Date;
   preview?: boolean;
+  /** Render-only hook (the --no-trade sample render); production never sets it. */
+  filterItems?: (items: DecisionItem[]) => DecisionItem[];
 }): Promise<ComposedWelcome | { error: "nfl_state_unavailable" }> {
   const nfl = await getNflState();
   if (!nfl || !nfl.week) return { error: "nfl_state_unavailable" };
@@ -71,7 +73,7 @@ export async function buildWelcomeBrief(args: {
   return composeWelcomeBrief({
     ownerName,
     leagues,
-    items,
+    items: args.filterItems ? args.filterItems(items) : items,
     appUrl: args.appUrl,
     unsubscribeUrl: args.unsubscribeUrl,
     mailingAddress: args.mailingAddress,
