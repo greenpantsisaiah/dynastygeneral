@@ -8,6 +8,7 @@
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
+import type { TeamTile } from "../src/lib/decisions/character";
 import { DecisionHome } from "../src/components/home/decision-feed";
 import { decisionItemId, type DecisionDigest, type DecisionItem } from "../src/lib/decisions/items";
 
@@ -143,10 +144,28 @@ check("all three analysts read the lineups", (lHtml.match(/title="(Strategist|Mo
 check("each action opens the lineup in Sleeper", lHtml.includes('href="https://sleeper.com/leagues/rd/team"') && lHtml.includes("Fix 777. →"));
 const tHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={items} focusId={null} hrefs={hrefs} lineups={desk} />);
 check("with trade cards, the trade headline still leads", tHtml.includes(`>${escH}<`) && tHtml.indexOf(evansId) < tHtml.indexOf('id="lineups"'));
-const teams = [{ leagueId: "12m", leagueName: "12 Man", chip: "Rebuilder", line: "Patient build. War year projects 2028. Best room: QB (5th of 12).", rival: "Top rival: Willfredson, 9-2, 35% to win the league." }];
+const teams: TeamTile[] = [
+  {
+    leagueId: "12m",
+    leagueName: "12 Man",
+    chip: "Rebuilder",
+    note: "Patient build. War year projects 2028.",
+    playoff: { pct: 0.7, label: "70%" },
+    title: { pct: 0.01, label: "<2%" },
+    best: { position: "QB", rank: 5, total: 12 },
+    thinnest: { position: "RB", rank: 10, total: 12 },
+    rival: { manager: "Willfredson", record: "9-2", myRecord: "7-4", titleLabel: "35%", myTitleLabel: "<2%", titlePct: 0.35, myTitlePct: 0.01, gamesBack: 2, favorite: false },
+    order: 0.01,
+  },
+];
 const cHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={noTrades} focusId={null} hrefs={hrefs} lineups={desk} teams={teams} />);
 check("your teams render before the lineups and decisions", cHtml.indexOf("Patient build. War year projects 2028.") > 0 && cHtml.indexOf("Patient build") < cHtml.indexOf('id="lineups"'));
-check("each team links to its league and shows its rival", cHtml.includes('href="/leagues/12m"') && cHtml.includes("Top rival: Willfredson"));
+check("each team links to its league and shows its rival", cHtml.includes('href="/leagues/12m"') && cHtml.includes("Willfredson") && cHtml.includes("2 GB"));
+const many = Array.from({ length: 5 }, (_, i) => ({ ...teams[0], leagueId: `l${i}`, leagueName: `League ${i}` }));
+const mHtml = renderToStaticMarkup(<DecisionHome digest={digest} items={noTrades} focusId={null} hrefs={hrefs} lineups={desk} teams={many} />);
+check("more than 3 teams: the rest fold under one tap, none dropped", mHtml.includes("Show 2 more teams") && mHtml.includes("League 4") && mHtml.indexOf("League 2") < mHtml.indexOf("Show 2 more teams"));
+check("tile leads with the odds numbers", cHtml.includes("70%") && cHtml.includes("Playoffs") && cHtml.includes("Win it all"));
+check("room meters: one dot per team, rank shown", cHtml.includes("5th/12") && cHtml.includes("10th/12") && (cHtml.match(/rounded-full bg-border-strong/g) ?? []).length >= 22);
 check("no em dash with lineups", !lHtml.includes("\u2014"));
 
 console.log("\n3. Analysts");

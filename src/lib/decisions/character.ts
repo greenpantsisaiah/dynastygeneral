@@ -143,3 +143,74 @@ export function rivalLine(c: LeagueCharacter): string | null {
   const games = gap === 0 ? `level on record at ${rec(me)}` : gap > 0 ? `${gap === 1 ? "1 game" : `${gap} games`} back at ${rec(me)}` : `${-gap === 1 ? "1 game" : `${-gap} games`} ahead on record at ${rec(me)}`;
   return `Top rival: ${r.manager}, ${rec(r)}, ${fmtPct(r.title_pct)} to win the league. You are ${games}, ${fmtPct(me.title_pct)} to win it.`;
 }
+
+/**
+ * One team, shaped for the /home tile: numbers first, words second
+ * (Isaiah 2026-11-28 on the prose tiles: "pure text, not data or fun").
+ * Every number is read off `LeagueCharacter`; nothing is re-derived here.
+ */
+export interface TeamTile {
+  leagueId: string;
+  leagueName: string;
+  /** Posture label (dynasty, keeper) or the league kind (redraft, best ball). */
+  chip: string | null;
+  /** One short line, or null when the posture headline would be filler. */
+  note: string | null;
+  /** Probabilities 0..1 with display text from `fmtPct`. */
+  playoff: { pct: number; label: string } | null;
+  title: { pct: number; label: string } | null;
+  best: RoomRead | null;
+  thinnest: RoomRead | null;
+  rival: {
+    manager: string;
+    record: string;
+    myRecord: string;
+    titleLabel: string;
+    myTitleLabel: string;
+    titlePct: number;
+    myTitlePct: number;
+    /** Games behind the rival on record (negative = ahead); ties count half. */
+    gamesBack: number;
+    /** You have the better chance to win the league. */
+    favorite: boolean;
+  } | null;
+  /** Sort key: your chance to win the league, best first. */
+  order: number;
+}
+
+const KIND_CHIP: Record<LeagueKind, string> = { dynasty: "Dynasty", keeper: "Keeper", redraft: "Redraft", best_ball: "Best ball" };
+
+export function teamTile(leagueId: string, leagueName: string, c: LeagueCharacter): TeamTile | null {
+  const me = c.me;
+  if (!me && !c.strongest && !c.posture) return null;
+  const pct = (p: number) => ({ pct: p, label: fmtPct(p) });
+  // "Balanced" already says mid-pack; its headline ("Two playable lenses")
+  // adds no read, so the tile shows the numbers alone.
+  const note = c.posture ? (c.posture.category === "balanced" ? null : c.posture.headline) : c.kind === "redraft" ? "This season is the whole story." : null;
+  const r = c.rival;
+  return {
+    leagueId,
+    leagueName,
+    chip: c.posture ? POSTURE_LABEL[c.posture.category] : KIND_CHIP[c.kind],
+    note,
+    playoff: me ? pct(me.playoff_pct) : null,
+    title: me ? pct(me.title_pct) : null,
+    best: c.strongest,
+    thinnest: c.weakest,
+    rival:
+      me && r
+        ? {
+            manager: r.manager,
+            record: rec(r),
+            myRecord: rec(me),
+            titleLabel: fmtPct(r.title_pct),
+            myTitleLabel: fmtPct(me.title_pct),
+            titlePct: r.title_pct,
+            myTitlePct: me.title_pct,
+            gamesBack: r.wins + r.ties / 2 - (me.wins + me.ties / 2),
+            favorite: me.title_pct >= r.title_pct,
+          }
+        : null,
+    order: me?.title_pct ?? -1,
+  };
+}

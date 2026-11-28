@@ -87,11 +87,10 @@ async function main() {
     const res = await loadLineupPanel({ username, season: ns.season, week: ns.week, now: sunday, schedule, logTag: "render-app" });
     if ("error" in res) throw new Error(res.error);
     const { leagues: withChar } = await buildBriefLeagues({ username, season: ns.season, nflWeek: ns.week, seasonType: ns.season_type, logTag: "render-app", now, withCharacter: true });
-    const { characterChip, characterLine, rivalLine } = await import("../src/lib/decisions/character");
+    const { teamTile } = await import("../src/lib/decisions/character");
     const teams = withChar.flatMap((l) => {
-      const c = l.character;
-      const line = c ? characterLine(c) : null;
-      return c && line ? [{ leagueId: l.leagueId, leagueName: l.leagueName, chip: characterChip(c), line, rival: rivalLine(c), order: c.me?.title_pct ?? -1 }] : [];
+      const t = l.character ? teamTile(l.leagueId, l.leagueName, l.character) : null;
+      return t ? [t] : [];
     }).sort((a, b) => b.order - a.order);
     const wk = compose(leagues, sunday);
     const o3 = overlayEmailedTrades({ items: wk.items, digest: wk.digest, emailed: saved, now: sunday });

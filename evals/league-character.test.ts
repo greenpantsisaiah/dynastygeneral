@@ -6,7 +6,7 @@
  * no em dash. Plus the shared rosterValueRank helper.
  * Run: npm run test:league-character
  */
-import { characterChip, characterLine, rivalLine, type LeagueCharacter } from "../src/lib/decisions/character";
+import { characterChip, characterLine, rivalLine, teamTile, type LeagueCharacter } from "../src/lib/decisions/character";
 import { rosterValueRank } from "../src/lib/strategy/posture/detect";
 import type { LeagueSnapshot } from "../src/lib/strategy/league-state/snapshot";
 
@@ -50,6 +50,14 @@ const v: Record<string, number> = { a: 10, b: 5, c: 30 };
 check("ranks by summed value", rosterValueRank({ snap, rosterId: 1, valueOf: (id) => v[id] }) === 2);
 check("top roster is 1", rosterValueRank({ snap, rosterId: 2, valueOf: (id) => v[id] }) === 1);
 check("unknown roster is null", rosterValueRank({ snap, rosterId: 9, valueOf: (id) => v[id] }) === null);
+
+const tile = teamTile("12m", "12 Man", dyn)!;
+check("tile: posture chip and short note", tile.chip === "Rebuilder" && tile.note === "Patient build. War year projects 2028.");
+check("tile: games back from records", tile.rival?.gamesBack === 2 && tile.rival?.favorite === false && tile.rival?.myRecord === "7-4");
+check("tile: rooms carried as rank meters", tile.best?.rank === 5 && tile.thinnest?.rank === 10);
+const bal = teamTile("b", "B", { ...dyn, posture: { category: "balanced", headline: "Mid-pack. Two playable lenses; pick a direction." } })!;
+check("tile: balanced drops the filler headline", bal.chip === "Balanced" && bal.note === null);
+check("tile: redraft chip is the league kind", teamTile("r", "R", red)!.chip === "Redraft");
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

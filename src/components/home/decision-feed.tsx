@@ -25,6 +25,14 @@ import type {
 } from "@/lib/decisions/items";
 import type { Stance, VoiceName } from "@/lib/strategy/verdict/voices";
 import type { LineupDesk } from "@/lib/email/game-day/panel";
+import type { RoomRead, TeamTile } from "@/lib/decisions/character";
+
+export type { TeamTile };
+
+const ordinal = (n: number) => {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${s}`;
+};
 
 /** One cast everywhere: same names and colors as the email (off the red/green axis). */
 export const ANALYST: Record<VoiceName, { name: string; letter: string; color: string }> = {
@@ -604,40 +612,135 @@ export function QuietCalls({ calls, focusId, leagueHref, heading }: { calls: Lea
 }
 
 /** One team's character on /home (built by src/lib/decisions/character.ts). */
-export interface TeamTile {
-  leagueId: string;
-  leagueName: string;
-  chip: string | null;
-  line: string;
-  rival: string | null;
-  /** Sort key: your chance to win the league, best first. */
-  order?: number;
+/** Width for a probability bar: never zero, so a "<2%" still shows a sliver. */
+const barWidth = (p: number) => `${Math.max(3, Math.min(100, p * 100))}%`;
+
+function OddsMeter({ label, value, tone }: { label: string; value: { pct: number; label: string }; tone: "accent" | "success" }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-3xl font-semibold leading-none tabular-nums text-foreground">{value.label}</span>
+      <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">{label}</span>
+      <div className="h-1.5 rounded-full bg-surface-2" role="img" aria-label={`${label} ${value.label}`}>
+        <div className={`h-1.5 rounded-full ${tone === "success" ? "bg-success" : "bg-accent"}`} style={{ width: barWidth(value.pct) }} />
+      </div>
+    </div>
+  );
+}
+
+/** A position group's league rank as a strip of one dot per team, yours marked. */
+function RoomMeter({ label, room, tone }: { label: string; room: RoomRead; tone: "success" | "warning" }) {
+  const dots = Array.from({ length: Math.min(room.total, 20) }, (_, i) => i + 1);
+  const mark = tone === "success" ? "bg-success" : "bg-warning";
+  return (
+    <div className="flex items-center gap-2 text-xs" aria-label={`${label}: ${room.position}, ${ordinal(room.rank)} of ${room.total}`}>
+      <span className="w-16 shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-2">{label}</span>
+      <span className="w-7 shrink-0 font-semibold text-foreground">{room.position}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-between" aria-hidden>
+        {dots.map((d) => (
+          <span key={d} className={d === room.rank ? `h-2.5 w-2.5 rounded-full ${mark}` : "h-1.5 w-1.5 rounded-full bg-border-strong"} />
+        ))}
+      </span>
+      <span className="w-12 shrink-0 text-right tabular-nums text-muted">
+        {ordinal(room.rank)}/{room.total}
+      </span>
+    </div>
+  );
+}
+
+function RivalRow({ r }: { r: NonNullable<TeamTile["rival"]> }) {
+  const top = Math.max(r.myTitlePct, r.titlePct, 0.05);
+  const gb = r.gamesBack;
+  const badge =
+    gb > 0
+      ? { text: `${gb} GB`, cls: "border-warning/50 text-warning" }
+      : gb < 0
+        ? { text: `${-gb} up`, cls: "border-success/50 text-success" }
+        : { text: "Level", cls: "border-border-strong text-muted" };
+  const row = (who: string, record: string, pct: number, label: string, mine: boolean) => (
+    <div className="flex items-center gap-2 text-xs">
+      <span className={`min-w-0 flex-1 truncate ${mine ? "font-semibold text-foreground" : "text-foreground"}`}>{who}</span>
+      <span className="w-10 shrink-0 whitespace-nowrap tabular-nums text-muted">{record}</span>
+      <span className="h-1.5 w-16 shrink-0 rounded-full bg-surface-2 sm:w-24">
+        <span className={`block h-1.5 rounded-full ${mine ? "bg-accent" : "bg-muted-2"}`} style={{ width: `${Math.max(4, (pct / top) * 100)}%` }} />
+      </span>
+      <span className="w-10 shrink-0 text-right tabular-nums text-foreground">{label}</span>
+    </div>
+  );
+  return (
+    <div className="mt-3 rounded-lg border border-border-soft bg-background/40 p-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+          {r.favorite ? "You lead · top threat" : "Top rival · title race"}
+        </span>
+        <span className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] tabular-nums ${badge.cls}`}>{badge.text}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        {row("You", r.myRecord, r.myTitlePct, r.myTitleLabel, true)}
+        {row(r.manager, r.record, r.titlePct, r.titleLabel, false)}
+      </div>
+    </div>
+  );
+}
+
+/** Teams shown before "Show N more": the best title odds first, so the races that matter lead. */
+const TEAMS_SHOWN = 3;
+
+function TeamTileCard({ t, href }: { t: TeamTile; href: string }) {
+  return (
+    <li className="rounded-xl border border-border-soft bg-surface p-4">
+      <div className="flex items-center justify-between gap-2">
+        <a href={href} className="min-w-0 font-semibold text-foreground hover:text-accent">
+          {t.leagueName}
+        </a>
+        {t.chip && <span className="shrink-0 rounded-full border border-border-strong px-2.5 py-0.5 text-xs text-foreground">{t.chip}</span>}
+      </div>
+      {t.note && <p className="mt-1 text-xs text-muted">{t.note}</p>}
+      {(t.playoff || t.title) && (
+        <div className="mt-3 grid grid-cols-2 gap-4">
+          {t.playoff && <OddsMeter label="Playoffs" value={t.playoff} tone="success" />}
+          {t.title && <OddsMeter label="Win it all" value={t.title} tone="accent" />}
+        </div>
+      )}
+      {(t.best || t.thinnest) && (
+        <div className="mt-3 flex flex-col gap-1.5">
+          {t.best && <RoomMeter label="Best" room={t.best} tone="success" />}
+          {t.thinnest && <RoomMeter label="Thinnest" room={t.thinnest} tone="warning" />}
+        </div>
+      )}
+      {t.rival && <RivalRow r={t.rival} />}
+    </li>
+  );
 }
 
 /**
- * "Your teams": who each team is (posture, best and thinnest room) and who
- * it is chasing. The app's origin is characterizing your teams; the
- * decisions below read as the next step for a team you can see.
+ * "Your teams": who each team is and who it is chasing, numbers first. The
+ * app's origin is characterizing your teams; the decisions below read as the
+ * next step for a team you can see. Tiles are built by `teamTile`
+ * (`src/lib/decisions/character.ts`); this only draws them.
  */
 export function YourTeams({ teams, leagueHref }: { teams: TeamTile[]; leagueHref: (id: string) => string }) {
   if (teams.length === 0) return null;
   return (
     <section id="your-teams" className="flex flex-col gap-2">
       <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">Your teams · who they are, who they chase</h2>
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {teams.map((t) => (
-          <li key={t.leagueId} className="rounded-xl border border-border-soft bg-surface p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <a href={leagueHref(t.leagueId)} className="font-semibold text-foreground hover:text-accent">
-                {t.leagueName}
-              </a>
-              {t.chip && <span className="rounded-full border border-border-strong px-2.5 py-0.5 text-xs text-foreground">{t.chip}</span>}
-            </div>
-            <p className="mt-1.5 text-sm text-muted">{t.line}</p>
-            {t.rival && <p className="mt-1.5 text-sm text-foreground">{t.rival}</p>}
-          </li>
+      <ul className="grid gap-2">
+        {teams.slice(0, TEAMS_SHOWN).map((t) => (
+          <TeamTileCard key={t.leagueId} t={t} href={leagueHref(t.leagueId)} />
         ))}
       </ul>
+      {teams.length > TEAMS_SHOWN && (
+        <details className="group">
+          <summary className="cursor-pointer list-none py-1 text-sm text-accent">
+            <span className="group-open:hidden">Show {teams.length - TEAMS_SHOWN} more {teams.length - TEAMS_SHOWN === 1 ? "team" : "teams"}</span>
+            <span className="hidden group-open:inline">Show fewer teams</span>
+          </summary>
+          <ul className="mt-2 grid gap-2">
+            {teams.slice(TEAMS_SHOWN).map((t) => (
+              <TeamTileCard key={t.leagueId} t={t} href={leagueHref(t.leagueId)} />
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }

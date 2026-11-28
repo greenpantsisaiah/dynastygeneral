@@ -23,7 +23,7 @@ import { loadEmailedTrades, overlayEmailedTrades } from "@/lib/decisions/emailed
 import { DecisionHome } from "@/components/home/decision-feed";
 import { loadLineupPanel } from "@/lib/email/game-day/load";
 import { buildLineupDesk, type LineupDesk } from "@/lib/email/game-day/panel";
-import { characterChip, characterLine, rivalLine } from "@/lib/decisions/character";
+import { teamTile } from "@/lib/decisions/character";
 
 export const metadata = {
   title: "Home",
@@ -110,10 +110,8 @@ export default async function HomePage({
           focusId={item ?? null}
           lineups={lineups}
           teams={leagues.flatMap((l) => {
-            const c = l.character;
-            const line = c ? characterLine(c) : null;
-            if (!c || !line) return [];
-            return [{ leagueId: l.leagueId, leagueName: l.leagueName, chip: characterChip(c), line, rival: rivalLine(c), order: c.me?.title_pct ?? -1 }];
+            const t = l.character ? teamTile(l.leagueId, l.leagueName, l.character) : null;
+            return t ? [t] : [];
           }).sort((a, b) => b.order - a.order)}
           hrefs={{
             offer: (t) => `/leagues/${t.league_id}/trade?${q}`,
