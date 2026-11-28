@@ -18,7 +18,7 @@ import type { ContendOrSellVerdict } from "@/lib/strategy/verdict/compose";
 import type { ChampionHistory, PostureCategory } from "@/lib/strategy/posture/types";
 import { classifyRosterPosture, rosterValueRank } from "@/lib/strategy/posture/detect";
 import { analyzeTeamIdentity } from "@/lib/strategy/team-identity/analyze";
-import { fmtPct, playoffRange, RANGE_LABEL } from "@/lib/email/trade-desk/league-week";
+import { fmtPct } from "@/lib/email/trade-desk/league-week";
 import type { LeagueKind } from "@/lib/email/trade-desk/model";
 
 export interface RoomRead {
@@ -102,10 +102,14 @@ const ord = (n: number) => {
 };
 const rec = (x: { wins: number; losses: number; ties: number }) => `${x.wins}-${x.losses}${x.ties ? `-${x.ties}` : ""}`;
 
-/** The chip: posture in dynasty and keeper, this season's playoff range otherwise. */
+/**
+ * The chip: posture in dynasty and keeper, this season's playoff odds
+ * otherwise. The odds, not the range label: "Favorite" read as "favorite to
+ * win the league" beside a rival line that says otherwise (design-qa, #171).
+ */
 export function characterChip(c: LeagueCharacter): string | null {
   if (c.posture) return POSTURE_LABEL[c.posture.category];
-  if (c.me) return RANGE_LABEL[playoffRange(c.me.playoff_pct)];
+  if (c.me) return `Playoffs ${fmtPct(c.me.playoff_pct)}`;
   return null;
 }
 

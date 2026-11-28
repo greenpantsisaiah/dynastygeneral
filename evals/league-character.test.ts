@@ -29,7 +29,7 @@ check("dynasty: posture chip", characterChip(dyn) === "Rebuilder");
 check("dynasty: posture headline then rooms", characterLine(dyn) === "Patient build. War year projects 2028. Best room: QB (5th of 12). Thinnest: RB (10th).", characterLine(dyn) ?? "");
 const red: LeagueCharacter = { ...dyn, kind: "redraft", posture: null, me: { ...dyn.me!, playoff_pct: 0.9 } };
 check("redraft: no war year, this season framing", characterLine(red)!.startsWith("Redraft: this season is the whole story, 90% to make the playoffs.") && !characterLine(red)!.includes("War year"));
-check("redraft: chip is the playoff range", characterChip(red) === "Favorite", characterChip(red) ?? "");
+check("redraft: chip is the playoff odds", /^Playoffs \S+%$/.test(characterChip(red) ?? ""), characterChip(red) ?? "");
 
 console.log("\n2. Rival line");
 check("behind: names rival, record, odds, games back", rivalLine(dyn) === "Top rival: Willfredson, 9-2, 35% to win the league. You are 2 games back at 7-4, <2% to win it.", rivalLine(dyn) ?? "");

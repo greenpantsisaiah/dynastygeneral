@@ -26,8 +26,14 @@ import { parseSignupSource } from "@/lib/growth/signup-source";
  * - An address that already has an account is left untouched and is NOT
  *   signed in (we never re-point someone's brief at a different Sleeper
  *   user, or hand a session for an existing account to an unauthenticated
- *   form). The JSON response is the same either way; an existing owner
- *   following the button to /home is asked to sign in.
+ *   form). The JSON body is the same either way; an existing owner
+ *   following the button to /home is asked to sign in. (The session
+ *   cookie on a new account does differ from the no-cookie existing
+ *   case; the 3-per-minute rate limit bounds that as an enumeration path.)
+ * - A new account gets a session at once (lands signed in on /home). The
+ *   account is flagged `instant_session`; the owner's first sign-in
+ *   through /auth/callback signs out every other session, so a stranger
+ *   who typed the owner's address loses access before the owner adds data.
  * - Every brief carries a one-click unsubscribe, which covers an address
  *   entered by someone other than its owner.
  */
@@ -113,9 +119,13 @@ export async function POST(req: Request) {
     // sign-in on the same address land on this account instead of
     // forking a second one.
     email_confirm: true,
+    // instant_session marks the session this form hands out below. The
+    // owner's first real sign-in (auth callback) revokes every other
+    // session and clears the flag, so a session minted by someone who
+    // typed another person's address dies once that owner signs in.
     user_metadata: signupUtm
-      ? { signup_source: "landing_brief", signup_utm: signupUtm }
-      : { signup_source: "landing_brief" },
+      ? { signup_source: "landing_brief", signup_utm: signupUtm, instant_session: true }
+      : { signup_source: "landing_brief", instant_session: true },
   });
 
   if (createErr || !created?.user) {
