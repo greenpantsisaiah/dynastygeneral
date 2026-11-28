@@ -140,7 +140,7 @@ import {
 import { LaneCohortDistribution } from "@/components/league/lane-cohort-distribution";
 import { PostureBanner } from "@/components/league/posture-banner";
 import { FuturePickCabinet } from "@/components/league/future-pick-cabinet";
-import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
+import { classifyRosterPosture, rosterValueRank } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import type { RosterPosture } from "@/lib/strategy/posture/types";
 import { DraftPositionBanner } from "@/components/league/draft-position-banner";
@@ -1244,20 +1244,11 @@ export default async function LeagueHubPage({
           // here so posture always has a tier to read.
           let valueRank = draftProgress?.league_rank.numeric_value ?? null;
           if (valueRank == null) {
-            const totalsByRoster = new Map<number, number>();
-            for (const r of leagueSnapshot.rosters) {
-              let sum = 0;
-              for (const id of r.player_ids ?? []) {
-                const v = lrValueMap.get(id);
-                if (v && typeof v.value === "number") sum += v.value;
-              }
-              totalsByRoster.set(r.roster_id, sum);
-            }
-            const ranked = [...totalsByRoster.entries()].sort(
-              (a, b) => b[1] - a[1],
-            );
-            const idx = ranked.findIndex(([rid]) => rid === myRoster.roster_id);
-            if (idx >= 0) valueRank = idx + 1;
+            valueRank = rosterValueRank({
+              snap: leagueSnapshot,
+              rosterId: myRoster.roster_id,
+              valueOf: (id) => lrValueMap.get(id)?.value,
+            });
           }
 
           let championHistory = null;

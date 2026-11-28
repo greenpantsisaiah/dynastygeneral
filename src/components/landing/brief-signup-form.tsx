@@ -69,8 +69,8 @@ export function BriefSignupForm() {
           You&apos;re in
         </div>
         <p className="mt-2 text-base text-foreground">
-          Your leagues are ready to open now. Your first brief arrives soon
-          after signup, then weekly during the season.
+          Your leagues are ready to open now.
+          The brief arrives every Tuesday during the NFL season.
         </p>
         <Link
           href={href}

@@ -209,6 +209,13 @@ export interface LeagueCallItem extends BaseItem {
   /** Why there is no trade card, one sentence. */
   reason: string;
   voices: DecisionVoice[];
+  /**
+   * True when the call asks the user to do something this week (a redraft
+   * league still alive: "Play to win this season"). False for the "do
+   * nothing" calls (no sale worth chasing, window closed, keep the roster),
+   * which /home folds into one quiet list instead of a full card each.
+   */
+  actionable?: boolean;
 }
 
 export type DecisionItem = TradeItem | ShiftItem | SwingItem | LineupItem | RootForItem | WeekRowItem | LeagueCallItem;
@@ -359,6 +366,7 @@ function leagueCall(l: DeskLeague, m: TradeDeskModel, season: string): LeagueCal
       ...base,
       priority: 200 + Math.round(playoffs * 10),
       title: over ? "Season is over; redraft has nothing to sell for." : "Play to win this season.",
+      actionable: !over,
       stance: head,
       stance_label: STANCE_LABEL[head],
       reason: over
