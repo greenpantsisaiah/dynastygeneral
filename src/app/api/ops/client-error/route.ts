@@ -4,13 +4,18 @@
  * a crash a user sees becomes an incident even though it never reached a
  * server log (docs/team/INCIDENTS.md).
  *
- * Public by necessity (the browser calls it). Abuse limits: body capped at
- * 4 KB, fields truncated, and the incident recorder dedupes and throttles
- * per fingerprint, so a flood writes one incident with a large count.
+ * Public by necessity (the browser calls it). Abuse limits (issue #162):
+ * same-origin check, a per-IP rate limit, body capped at 4 KB, fields
+ * truncated, route keys collapsed to a bounded shape, and a cap on new
+ * client fingerprints per hour (the excess folds into one overflow
+ * incident). The recorder then dedupes and throttles per fingerprint, so
+ * a flood writes one incident with a large count.
  */
 
 import { NextResponse } from "next/server";
-import { recordIncident } from "@/lib/ops/incidents";
+import { admitClientIncident, recordIncident } from "@/lib/ops/incidents";
+import { isSameOriginBeacon, routeKeyFor } from "@/lib/ops/client-error-guard";
+import { checkRateLimit, clientIpFrom } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +26,9 @@ function str(v: unknown, n: number): string | null {
 }
 
 export async function POST(req: Request) {
+  if (!isSameOriginBeacon(req.headers)) return NextResponse.json({ ok: false }, { status: 403 });
+  const rate = await checkRateLimit("client-error", clientIpFrom(req));
+  if (!rate.allowed) return NextResponse.json({ ok: false }, { status: 429 });
   let body: Record<string, unknown> = {};
   try {
     const text = (await req.text()).slice(0, MAX_BODY);
@@ -33,12 +41,14 @@ export async function POST(req: Request) {
   if (!message) return NextResponse.json({ ok: false }, { status: 400 });
   const path = str(body.path, 200)?.split("?")[0] ?? null;
   // Group by the route shape, not the concrete id, so one broken page is one incident.
-  const routeKey = (path ?? "unknown").replace(/\/\d{3,}(?=\/|$)/g, "/[id]");
-  await recordIncident({
+  const routeKey = routeKeyFor(path);
+  const boundary = body.boundary === "global" ? "global" : "page";
+  const input = await admitClientIncident({
     source: "client_error",
-    key: `${str(body.boundary, 20) ?? "error"}:${routeKey}`,
+    key: `${boundary}:${routeKey}`,
     message,
     context: { path, digest: str(body.digest, 40), stack: str(body.stack, 300) },
   });
+  await recordIncident(input);
   return NextResponse.json({ ok: true });
 }

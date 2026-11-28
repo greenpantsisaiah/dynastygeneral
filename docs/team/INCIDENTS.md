@@ -21,7 +21,7 @@ All faults land in one deduped incident log (`src/lib/ops/incidents.ts`, Upstash
 | `logged_error` | Every tagged `console.error("[stage]", err)`, mirrored by the console capture installed in `register()` |
 | `integrity` | Each severe engine-integrity issue on the hub, one incident per kind |
 | `cron` | `withCronIncidents` around every cron: a throw or 5xx records an incident; a clean run stamps a heartbeat |
-| `client_error` | The app error boundaries post to `/api/ops/client-error` when a page crashes in the browser |
+| `client_error` | The app error boundaries post to `/api/ops/client-error` when a page crashes in the browser (same-origin only, 10 per minute per IP, route ids collapsed, at most 25 new client fingerprints per hour; the rest group under `client_error / overflow`) |
 | `probe` | The hourly watch opens key pages and every real-league page signed out, the way email links do |
 
 Deduping: one fingerprint per source + key + normalized message (ids and numbers stripped), with a running count.

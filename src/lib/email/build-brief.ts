@@ -17,6 +17,8 @@ import { buildLeagueWeek } from "@/lib/email/trade-desk/league-week";
 import { tradeWindow } from "@/lib/strategy/verdict/trade-window";
 import { buildFormatRulesFromSnapshot } from "@/lib/engine/llm-contract";
 import type { DeskLeague, LeagueKind } from "@/lib/email/trade-desk/model";
+import { buildLeagueCharacter, type LeagueCharacter } from "@/lib/decisions/character";
+import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 
 export function leagueKind(lg: SleeperLeague): LeagueKind {
   const s = (lg.settings ?? {}) as Record<string, unknown>;
@@ -38,6 +40,8 @@ export async function buildBriefLeagues(args: {
   /** Tag for error logs (cron vs preview). */
   logTag: string;
   now?: Date;
+  /** Also read each team's character (posture, rooms, top rival) for /home. Off for the email. */
+  withCharacter?: boolean;
 }): Promise<BriefBuild> {
   const leagues: DeskLeague[] = [];
   let resultsWeek = args.nflWeek - 1;
@@ -89,11 +93,40 @@ export async function buildBriefLeagues(args: {
               valueById: ctx.pricedPool.playerValuesById,
             })
           : null;
+      let character: LeagueCharacter | null = null;
+      if (args.withCharacter) {
+        try {
+          const kind = base.kind;
+          const championHistory =
+            kind === "dynasty" || kind === "keeper"
+              ? await readChampionHistory({ leagueId: lg.league_id, userOwnerId: su.user_id }).catch((err) => {
+                  console.error(`[${args.logTag}:champion-history]`, lg.league_id, err instanceof Error ? err.message : err);
+                  return null;
+                })
+              : null;
+          character = buildLeagueCharacter({
+            kind,
+            snap: ctx.snapshot,
+            ranked: ctx.ranked,
+            valuesById: ctx.pricedPool.playerValuesById,
+            nameOf: (id) => {
+              const p = players.get(id) as { full_name?: string; first_name?: string; last_name?: string; position?: string } | undefined;
+              if (!p) return null;
+              return { name: p.full_name ?? [p.first_name, p.last_name].filter(Boolean).join(" "), position: p.position ?? null };
+            },
+            verdict: res.ok ? res.verdict : null,
+            championHistory,
+          });
+        } catch (err) {
+          console.error(`[${args.logTag}:character]`, lg.league_id, err instanceof Error ? `${err.message}\n${err.stack}` : err);
+        }
+      }
       leagues.push({
         ...base,
         verdict: res.ok ? res.verdict : null,
         week,
         note: res.ok ? undefined : `No read this week (${res.reason}).`,
+        character,
       });
     } catch (err) {
       console.error(`[${args.logTag}:league]`, lg.league_id, err instanceof Error ? `${err.message}\n${err.stack}` : err);

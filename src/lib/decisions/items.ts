@@ -37,6 +37,7 @@ import {
   shiftsHeadline,
   forYou,
   verdictLine,
+  openingOffer,
   avgTeamLine,
   weekHeadline,
 } from "@/lib/email/trade-desk/render";
@@ -126,6 +127,12 @@ export interface TradeItem extends BaseItem {
   package_note: string | null;
   /** Button label, e.g. "Open the offer to gridirongoat". */
   cta_label: string;
+  /**
+   * The opening offer ready to send (`openingOffer`): both sides, to prefill
+   * the trade check, and a message to paste to the manager. Absent on items
+   * saved before it existed.
+   */
+  offer?: { send: string[]; receive: string[]; message: string } | null;
   /** Set when the app shows the trade exactly as an email sent it (emailed.ts). */
   emailed_at?: string;
 }
@@ -209,6 +216,13 @@ export interface LeagueCallItem extends BaseItem {
   /** Why there is no trade card, one sentence. */
   reason: string;
   voices: DecisionVoice[];
+  /**
+   * True when the call asks the user to do something this week (a redraft
+   * league still alive: "Play to win this season"). False for the "do
+   * nothing" calls (no sale worth chasing, window closed, keep the roster),
+   * which /home folds into one quiet list instead of a full card each.
+   */
+  actionable?: boolean;
 }
 
 export type DecisionItem = TradeItem | ShiftItem | SwingItem | LineupItem | RootForItem | WeekRowItem | LeagueCallItem;
@@ -287,6 +301,7 @@ function tradeItem(c: TradeCard, i: number, m: TradeDeskModel, season: string): 
     manager: c.buyer.label,
     package_note: pkg,
     cta_label: `Open the offer to ${c.buyer.label}`,
+    offer: openingOffer(c),
   };
 }
 
@@ -359,6 +374,7 @@ function leagueCall(l: DeskLeague, m: TradeDeskModel, season: string): LeagueCal
       ...base,
       priority: 200 + Math.round(playoffs * 10),
       title: over ? "Season is over; redraft has nothing to sell for." : "Play to win this season.",
+      actionable: !over,
       stance: head,
       stance_label: STANCE_LABEL[head],
       reason: over

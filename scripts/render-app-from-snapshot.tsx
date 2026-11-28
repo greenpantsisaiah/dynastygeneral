@@ -8,7 +8,11 @@
  *   - after the trade-by time: the trade gone in the app.
  * Plus the no-leagues email. Static HTML with the built app CSS.
  *
- * Usage: npx tsx scripts/render-app-from-snapshot.tsx <username> <outDir> [--css=path]
+ * With --games=<nflverse games.csv>, also renders /home on the weekend
+ * after the trade-by time, with the week's lineup panel leading
+ * (home_weekend_lineups.html), at --lineups-now (default Sunday 10 AM CT).
+ *
+ * Usage: npx tsx scripts/render-app-from-snapshot.tsx <username> <outDir> [--css=path] [--games=path] [--lineups-now=ISO]
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -72,6 +76,26 @@ async function main() {
   const after = compose(leagues, deadline);
   const o2 = overlayEmailedTrades({ items: after.items, digest: after.digest, emailed: saved, now: deadline });
   writeFileSync(join(outDir, "home_after_deadline.html"), page("home after deadline", renderToStaticMarkup(<DecisionHome digest={o2.digest} items={o2.items} focusId={null} hrefs={hrefs} />)));
+  // 4b. The weekend: trade window closed, this week's lineups lead the page.
+  const gamesPath = process.argv.find((a) => a.startsWith("--games="))?.split("=")[1];
+  if (gamesPath) {
+    const { parseNflSchedule } = await import("../src/lib/email/game-day/schedule");
+    const { loadLineupPanel } = await import("../src/lib/email/game-day/load");
+    const { buildLineupDesk } = await import("../src/lib/email/game-day/panel");
+    const sunday = new Date(process.argv.find((a) => a.startsWith("--lineups-now="))?.split("=")[1] ?? "2026-11-29T16:00:00Z");
+    const schedule = parseNflSchedule(readFileSync(gamesPath, "utf8"), ns.season, ns.week);
+    const res = await loadLineupPanel({ username, season: ns.season, week: ns.week, now: sunday, schedule, logTag: "render-app" });
+    if ("error" in res) throw new Error(res.error);
+    const { leagues: withChar } = await buildBriefLeagues({ username, season: ns.season, nflWeek: ns.week, seasonType: ns.season_type, logTag: "render-app", now, withCharacter: true });
+    const { teamTile } = await import("../src/lib/decisions/character");
+    const teams = withChar.flatMap((l) => {
+      const t = l.character ? teamTile(l.leagueId, l.leagueName, l.character) : null;
+      return t ? [t] : [];
+    }).sort((a, b) => b.order - a.order);
+    const wk = compose(leagues, sunday);
+    const o3 = overlayEmailedTrades({ items: wk.items, digest: wk.digest, emailed: saved, now: sunday });
+    writeFileSync(join(outDir, "home_weekend_lineups.html"), page("home weekend", renderToStaticMarkup(<DecisionHome digest={o3.digest} items={o3.items} focusId={null} hrefs={hrefs} lineups={buildLineupDesk(res.panel)} teams={teams} />)));
+  }
   // 5. No leagues (email).
   const none = compose([], now);
   writeFileSync(join(outDir, "brief_no_leagues.html"), none.html);

@@ -8,7 +8,7 @@
 import { BANNED, visibleText } from "@/lib/email/trade-desk/lint";
 import { esc } from "@/lib/email/trade-desk/render";
 import type { LineupPanel } from "./lineup";
-import { panelHeadline, renderPanelHtml, renderPanelText, swingLeague } from "./panel";
+import { heroSubLine, panelHeadline, renderPanelHtml, renderPanelText } from "./panel";
 
 export const GAME_DAY_TEMPLATE_VERSION = "2026-11-27.gameday2";
 
@@ -35,11 +35,7 @@ function dateLabel(d: Date): string {
 }
 
 export function heroSub(p: LineupPanel): string {
-  const n = p.leagues.length;
-  const top = swingLeague(p.leagues);
-  const fixes = p.leagues.some((l) => l.fixes.length || l.swaps.length);
-  if (!fixes && !top) return `Your three analysts read all ${n} lineups. Nothing to change before kickoff.`;
-  return `Your three analysts read all ${n} lineups as they stand now. They agree on the holes and split on what matters most.`;
+  return heroSubLine(p);
 }
 
 export function composeGameDayEmail(args: {

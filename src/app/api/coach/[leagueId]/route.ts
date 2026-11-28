@@ -62,7 +62,7 @@ import {
 import { buildPickApproach } from "@/lib/strategy/pick-approach/predict";
 import { resolveStandingDecision } from "@/lib/strategy/decision-synthesis/decision-bundle";
 import { dialsForSynthesisFrom } from "@/lib/strategy/decision-synthesis/types";
-import { classifyRosterPosture } from "@/lib/strategy/posture/detect";
+import { classifyRosterPosture, rosterValueRank } from "@/lib/strategy/posture/detect";
 import { readChampionHistory } from "@/lib/strategy/posture/champion-history";
 import {
   getSeasonStats,
@@ -1527,20 +1527,11 @@ export async function POST(
   // active-startup suppression (rounds > 6 mid-draft is degenerate).
   let coachPosture: ReturnType<typeof classifyRosterPosture> | null = null;
   if (me) {
-    const totalsByRoster = new Map<number, number>();
-    for (const r of snapshot.rosters) {
-      let sum = 0;
-      for (const id of r.player_ids ?? []) {
-        const v = playerValueMap.get(id);
-        if (v && typeof v.value === "number") sum += v.value;
-      }
-      totalsByRoster.set(r.roster_id, sum);
-    }
-    const rankedByValue = [...totalsByRoster.entries()].sort(
-      (a, b) => b[1] - a[1],
-    );
-    const myIdx = rankedByValue.findIndex(([rid]) => rid === me.roster_id);
-    const valueRank = myIdx >= 0 ? myIdx + 1 : null;
+    const valueRank = rosterValueRank({
+      snap: snapshot,
+      rosterId: me.roster_id,
+      valueOf: (id) => playerValueMap.get(id)?.value,
+    });
 
     let coachChampionHistory: Awaited<
       ReturnType<typeof readChampionHistory>
