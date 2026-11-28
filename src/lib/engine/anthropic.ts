@@ -203,6 +203,11 @@ function stubFor<TSchema extends z.ZodTypeAny>(
     case "trade_incoming_decision":
       return {
         action: "counter",
+        analysts: [
+          { voice: "moneyball", stance: "counter", line: "[DEV STUB] The offer is 8% short of your side by the pricing values." },
+          { voice: "strategist", stance: "counter", line: "[DEV STUB] You start 2 RBs and this leaves you with 1 startable." },
+          { voice: "gambler", stance: "accept", line: "[DEV STUB] Their player is 24; yours loses value by August." },
+        ],
         recommendation: "[DEV STUB] Counter: ask for a future 2nd.",
         reasoning: [
           "[DEV STUB] Offer is fair on raw value, not on roster fit.",

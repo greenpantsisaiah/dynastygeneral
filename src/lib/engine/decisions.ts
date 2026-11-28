@@ -137,7 +137,7 @@ export async function runTradeIncoming(
     outputSchema: tradeIncomingOutputSchema,
     userMessage,
     model: "sonnet",
-    maxTokens: 1500,
+    maxTokens: 1800, // +300 for the three analysts (each one sentence)
     temperature: 0.35,
   });
   return { ...result, teamDisplay: ctx.me.team_name };
