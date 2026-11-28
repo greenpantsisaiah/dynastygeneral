@@ -48,7 +48,7 @@ const bodySchema = z.discriminatedUnion("mode", [
 ]);
 
 export const runtime = "nodejs";
-export const maxDuration = 45;
+export const maxDuration = 90; // one grounding retry fits (runTradeIncoming)
 
 export async function POST(req: Request) {
   const gate = await checkProGate();
