@@ -117,7 +117,7 @@ export function welcomeSubject(tiles: TeamTile[], first: FirstCall | null, leagu
 export function welcomeSub(tiles: TeamTile[], first: FirstCall | null): string {
   const top = tiles.find((t) => t.title);
   const parts = [top ? `Best title shot: ${top.leagueName}, ${top.title!.label} to win the league.` : null];
-  if (!first) parts.push("No trade is worth making in any league this week.");
+  if (!first) parts.push("No trade calls are open right now. New trade reads arrive Tuesday.");
   return parts.filter(Boolean).join(" ");
 }
 

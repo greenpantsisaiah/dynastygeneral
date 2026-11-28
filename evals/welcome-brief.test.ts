@@ -111,7 +111,7 @@ async function main() {
       check(`${username}: characterizes every league with a read`, b.tiles.length >= Math.min(snap.leagues.length - 1, 1) && b.tiles.length > 0, `${b.tiles.length} tiles`);
       check(`${username}: shows at most ${WELCOME_TEAMS_SHOWN} rows, names the rest`, b.tiles.slice(WELCOME_TEAMS_SHOWN).every((t) => b.text.includes(t.leagueName)));
       check(`${username}: a first move links to its /home item, or the hero says there is none`,
-        b.firstCall ? b.html.includes(encodeURIComponent(b.firstCall.id).replace(/'/g, "&#39;")) : b.text.includes("No trade is worth making"));
+        b.firstCall ? b.html.includes(encodeURIComponent(b.firstCall.id).replace(/'/g, "&#39;")) : b.text.includes("No trade calls are open right now"));
       check(`${username}: subject leads with the team count`, /^Your (\d+ teams|team):/.test(b.subject), b.subject);
       const flagged = ["whole story", "Best room", "Thinnest", ", read", "first read", "Defend it", "playable lenses", "War year"].filter((w) => b.text.includes(w) || b.subject.includes(w));
       check(`${username}: none of the flagged filler phrases`, flagged.length === 0, flagged.join(", "));
