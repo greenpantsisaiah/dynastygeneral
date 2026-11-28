@@ -10,7 +10,10 @@ import type { SleeperLeague, SleeperLeagueUser, SleeperMatchup, SleeperPlayer, S
 import { parseNflSchedule } from "../src/lib/email/game-day/schedule";
 import { buildLeagueLineup, ctWhen, normCdf, shrinkPpg, swapZ, type LeagueLineup } from "../src/lib/email/game-day/lineup";
 import { actionVerb, agreeLine, andList, gamblerRead, moneyballRead, panelHeadline, strategistRead } from "../src/lib/email/game-day/panel";
-import { composeGameDayEmail } from "../src/lib/email/game-day/email";
+import { composeGameDayEmail, GAME_DAY_TEMPLATE_VERSION } from "../src/lib/email/game-day/email";
+import { resolveSendMode } from "../src/lib/email/send-guard";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { simulateSeason } from "../src/lib/strategy/verdict/season-sim";
 import { buildSimInputFromSleeper } from "../src/lib/strategy/verdict/from-sleeper";
 
@@ -146,6 +149,19 @@ check("no em dash", !/—/.test(em.html + em.text));
 check("Sleeper lineup link", em.html.includes("https://sleeper.com/leagues/L1/team"));
 const bad = composeGameDayEmail({ ownerName: "izzy", panel, unsubscribeUrl: "https://x/u", mailingAddress: "", sendDate: sunday10, preview: true });
 check("missing address is a lint failure shown on previews", bad.lint.includes("missing mailing address") && bad.html.includes("Preview only"));
+
+// ---------- send guard (user send path, 2026-11-28) ----------
+console.log("send guard");
+{
+  const route = readFileSync(join(process.cwd(), "src/app/api/cron/game-day/route.ts"), "utf8");
+  check("route gates users on EMAIL_GAME_DAY_APPROVED_VERSION via resolveSendMode", /resolveSendMode\(\{[\s\S]*?GAME_DAY_TEMPLATE_VERSION[\s\S]*?EMAIL_GAME_DAY_APPROVED_VERSION/.test(route));
+  check("route only adds [Preview] and reaches admins on preview runs", route.includes("preview ? `[Preview] ${out.subject}` : out.subject") && route.includes("preview && !preview.has(email)"));
+  check("route blocks a broadcast on lint", /if \(!preview\) \{\s*result\.lint_blocked\+\+/.test(route));
+  const g = (approved: string | undefined) => resolveSendMode({ templateVersion: GAME_DAY_TEMPLATE_VERSION, approvedVersion: approved, previewTo: undefined, replyTo: "owner@example.com", requestedMode: null });
+  check("unset approval previews to the owner only", g(undefined).mode === "preview");
+  check("stale approval previews", g("2026-11-20.gameday1").mode === "preview");
+  check("matching approval broadcasts", g(GAME_DAY_TEMPLATE_VERSION).mode === "broadcast");
+}
 
 if (failed > 0) {
   console.log(`\n${failed} failed`);
