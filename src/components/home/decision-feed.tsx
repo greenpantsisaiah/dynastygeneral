@@ -36,9 +36,11 @@ const ordinal = (n: number) => {
 };
 
 /** One cast everywhere: same names and colors as the email (off the red/green axis). */
-import { ANALYST } from "@/lib/decisions/analysts";
-
-export { ANALYST };
+export const ANALYST: Record<VoiceName, { name: string; letter: string; color: string }> = {
+  strategist: { name: "Strategist", letter: "S", color: "#7C5CC4" },
+  moneyball: { name: "Moneyballer", letter: "M", color: "#2A6FB8" },
+  gambler: { name: "Gambler", letter: "G", color: "#C76A12" },
+};
 
 const COLUMN: Record<Stance, number> = { sell: 0, lean_sell: 1, split: 2, lean_push: 3, push: 4 };
 const SCALE_LABELS = {
