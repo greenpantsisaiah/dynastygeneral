@@ -9,7 +9,7 @@
  */
 
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { HOME_PREVIEW_COOKIE, readHomePreview } from "@/lib/auth/home-preview";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
@@ -26,6 +26,8 @@ import { DecisionHome } from "@/components/home/decision-feed";
 import { loadLineupPanel } from "@/lib/email/game-day/load";
 import { buildLineupDesk, type LineupDesk } from "@/lib/email/game-day/panel";
 import { teamTile } from "@/lib/decisions/character";
+import { checkRateLimit, clientIpFromHeaders } from "@/lib/ratelimit";
+import { cachedPreview, previewCacheKey, previewLimitLine } from "@/lib/home/preview-cache";
 
 export const metadata = {
   title: "Home",
@@ -76,17 +78,45 @@ export default async function HomePage({
     );
   }
 
-  const [{ leagues, resultsWeek }, lineups] = await Promise.all([
-    buildBriefLeagues({
-      username,
-      season: nfl.season,
-      nflWeek: nfl.week,
-      seasonType: nfl.season_type,
-      logTag: "home",
-      withCharacter: true,
-    }),
-    nfl.season_type === "regular" ? loadLineupDesk(username, nfl.season, nfl.week) : Promise.resolve(null),
-  ]);
+  // Signed-out preview: the cookie is replayable for 24h, and each build
+  // runs season simulations for every league. Per-IP limits first, then one
+  // shared build per username per week (preview-cache.ts).
+  if (previewUsername) {
+    const ip = clientIpFromHeaders(await headers());
+    const [burst, daily] = await Promise.all([
+      checkRateLimit("home-preview", ip),
+      checkRateLimit("home-preview-daily", ip),
+    ]);
+    const blocked = !burst.allowed ? burst : !daily.allowed ? daily : null;
+    if (blocked) {
+      console.warn("[home:preview-limited]", JSON.stringify({ limit: blocked.limit, reset_ms: blocked.reset_ms }));
+      return (
+        <EmptyHome
+          line={previewLimitLine(blocked.limit, burst.allowed ? "day" : "10 minutes", blocked.reset_ms)}
+          href={loginHref}
+          linkLabel="Sign in to keep going"
+        />
+      );
+    }
+  }
+  const season = nfl.season;
+  const week = nfl.week;
+  const seasonType = nfl.season_type;
+  const load = () =>
+    Promise.all([
+      buildBriefLeagues({
+        username,
+        season,
+        nflWeek: week,
+        seasonType,
+        logTag: "home",
+        withCharacter: true,
+      }),
+      seasonType === "regular" ? loadLineupDesk(username, season, week) : Promise.resolve(null),
+    ]);
+  const [{ leagues, resultsWeek }, lineups] = previewUsername
+    ? await cachedPreview(previewCacheKey(username, season, week), load)
+    : await load();
   if (leagues.length === 0) {
     return <EmptyHome line={`No ${nfl.season} Sleeper leagues found for ${username}. Join or connect one and its decisions land here.`} />;
   }
@@ -199,7 +229,15 @@ function PreviewBanner({ username, loginHref }: { username: string; loginHref: s
   );
 }
 
-function EmptyHome({ line }: { line: string }) {
+function EmptyHome({
+  line,
+  href = "/leagues",
+  linkLabel = "Go to my leagues",
+}: {
+  line: string;
+  href?: string;
+  linkLabel?: string;
+}) {
   return (
     <>
       <SiteNav />
@@ -207,8 +245,8 @@ function EmptyHome({ line }: { line: string }) {
         <div className="mx-auto max-w-3xl px-6 py-12">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">Home</h1>
           <p className="mt-3 text-muted">{line}</p>
-          <Link href="/leagues" className="mt-6 inline-block text-sm text-accent underline">
-            Go to my leagues
+          <Link href={href} className="mt-6 inline-block text-sm text-accent underline">
+            {linkLabel}
           </Link>
         </div>
       </main>

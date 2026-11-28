@@ -37,7 +37,9 @@ type BucketName =
   | "soundboard"
   | "soundboard-submit"
   | "plays"
-  | "client-error";
+  | "client-error"
+  | "home-preview"
+  | "home-preview-daily";
 
 type LimitSpec = {
   // Requests allowed
@@ -123,6 +125,13 @@ const LIMITS: Record<BucketName, LimitSpec> = {
   // reports once per message per load, so a real user sends a few at
   // most. Tight cap so one IP cannot flood the incident log (#162).
   "client-error": { requests: 10, window: "1 m" },
+  // Signed-out /home preview (dg_home_preview cookie, 24h, replayable).
+  // Each uncached render builds every league with season simulations.
+  // A real visitor opens it a few times after signing up; 10 per 10 min
+  // covers refreshes, and the daily cap stops a replayed cookie from
+  // running simulations all day. Repeat views also hit the preview cache.
+  "home-preview": { requests: 10, window: "10 m" },
+  "home-preview-daily": { requests: 40, window: "1 d" },
 };
 
 let redis: Redis | null = null;
