@@ -4,7 +4,9 @@ import { analyst, type AnalystKey } from "@/components/landing/analysts";
  * A labeled SAMPLE of the weekly brief's trade card. Illustrative
  * numbers only (no real league, no real managers), in the same shape the
  * real brief renders: deadline chip, three stat tiles, where the three
- * analysts land on one scale, the verdict, and the fallback.
+ * analysts land on one scale, the verdict with a named return to ask for
+ * (a player or pick the buyer owns, as in `askLine`, trade-desk/render.ts),
+ * and the fallback.
  */
 
 const STANCES = ["Sell now", "Lean sell", "Split", "Lean keep", "Keep going"] as const;
@@ -41,7 +43,7 @@ export function SampleTradeCard() {
           Sample · Worth trying · 1 of 2
         </div>
         <span className="rounded-full border border-border-strong px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-          Closes Thu 7:15 PM CT
+          Trade before Thu 7:15 PM CT
         </span>
       </div>
       <p className="mt-3 text-lg font-semibold leading-snug text-foreground">
@@ -99,8 +101,9 @@ export function SampleTradeCard() {
           2 of 3 lean sell, if the price is right.
         </span>{" "}
         <span className="text-muted">
-          Open by asking for full value: about 14 on our 0 to 100 scale. If it doesn&apos;t land, two other
-          managers are short a WR.
+          Ask him for his RB2 plus his 2027 2nd, about even by the engine&apos;s
+          trade values. His 2027 1st would be a great return. If it doesn&apos;t
+          land, two other managers are short a WR.
         </span>
       </div>
 
