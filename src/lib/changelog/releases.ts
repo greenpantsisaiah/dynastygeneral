@@ -33,6 +33,62 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    version: "2026-11-28",
+    title: "Home reads your teams first, and trade cards come with the message",
+    summary:
+      "Home opens with one tile per league that says what kind of team you have and who your top rival is. Trade cards now include a message you can copy and send.",
+    changes: [
+      {
+        tag: "YOUR TEAMS, READ",
+        text: "Home opens with one tile per league, sorted by your chance to win it. Each tile names the team's posture, its best and thinnest position group, and your top rival with record, games back and both teams' title odds. Redraft tiles read this season only.",
+      },
+      {
+        tag: "LINEUPS FIRST",
+        text: "In a week with no trade worth trying, home leads with your lineups: the three analysts weigh each start, with a button to set it in Sleeper. Leagues with no move this week fold into one short list you can tap open.",
+      },
+      {
+        tag: "A MESSAGE TO SEND",
+        text: "Each trade card on home includes an opening message to the other manager, built from the same ask the card names, with a Copy message button.",
+      },
+      {
+        tag: "WHEN THEY REPLY",
+        text: "Open the offer from a trade card and the trade check fills in the deal and the manager. When they counter, edit the deal to match and check it again for take it, counter or pass.",
+      },
+      {
+        tag: "SIGNUP PREVIEW",
+        text: "After the homepage signup, Open my home shows a view-only preview of your leagues for 24 hours, built from your public Sleeper data. Sign in to keep it.",
+      },
+    ],
+  },
+  {
+    version: "2026-11-27",
+    title: "One home feed for your leagues, and trades that name the return",
+    summary:
+      "Home now lists the call in each of your leagues, the league page opens on this season, and every trade worth trying names what to ask for.",
+    changes: [
+      {
+        tag: "ONE HOME FEED",
+        text: "Home lists what to do in each of your leagues, built from the same items the weekly brief emails you. A trade from the email stays marked as emailed until its trade-by time, then drops off.",
+      },
+      {
+        tag: "ASK FOR A NAMED RETURN",
+        text: "Each trade worth trying names a player or future pick the other manager owns, priced on the engine's trade values, with the least worth taking and a great return where one exists.",
+      },
+      {
+        tag: "THIS SEASON FIRST",
+        text: "In-season, the league page opens on this week's call and real standings with playoff odds; draft cards sit below. Redraft and best ball leagues read this season only.",
+      },
+      {
+        tag: "SAME RESULTS WEEK",
+        text: "The email, the league page and Coach now read the same results week when they pick this week's trade.",
+      },
+      {
+        tag: "TWO-WAY PLAYERS",
+        text: "Travis Hunter and other two-way players count at their fantasy position instead of triggering a 'position unknown' warning.",
+      },
+    ],
+  },
+  {
     version: "2026-11-26",
     title: "A weekly brief for every league you're in",
     summary:
@@ -40,7 +96,7 @@ export const RELEASES: Release[] = [
     changes: [
       {
         tag: "ONE-STEP SIGNUP",
-        text: "The homepage takes an email and a Sleeper username in one form. No confirm link; your leagues open right away and the first brief follows soon after.",
+        text: "The homepage takes an email and a Sleeper username in one form. No confirm link; your leagues open right away, and the brief arrives every Tuesday during the NFL season.",
       },
       {
         tag: "THREE ANALYSTS",
