@@ -18,13 +18,13 @@
 
 import type { DeskLeague } from "@/lib/email/trade-desk/model";
 import { VOICE_COLOR, VOICE_NAME } from "@/lib/email/trade-desk/model";
-import { esc, ordinal } from "@/lib/email/trade-desk/render";
+import { esc } from "@/lib/email/trade-desk/render";
 import { BANNED, visibleText } from "@/lib/email/trade-desk/lint";
-import { decisionItemHref, type DecisionItem, type LeagueCallItem, type TradeItem } from "@/lib/decisions/items";
+import { decisionItemHref, type DecisionItem, type DecisionVoice, type TradeItem } from "@/lib/decisions/items";
 import { teamTile, type TeamTile } from "@/lib/decisions/character";
 
 /** Bump on ANY change to the rendered email (see EMAIL_WELCOME_APPROVED_VERSION). */
-export const WELCOME_BRIEF_TEMPLATE_VERSION = "2026-11-28.welcome1";
+export const WELCOME_BRIEF_TEMPLATE_VERSION = "2026-11-28.welcome2";
 
 /** Team rows shown before "and N more on your home". */
 export const WELCOME_TEAMS_SHOWN = 6;
@@ -38,18 +38,45 @@ const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-s
 const SERIF = "Georgia,'Times New Roman',serif";
 const MONO = "'SFMono-Regular',Menlo,Consolas,monospace";
 
-export type FirstCall = TradeItem | LeagueCallItem;
+export type FirstCall = TradeItem;
 
 /**
- * The decision the email leads with: the top trade worth trying, else a
- * league call that asks for something this week, else the first league call.
- * Same ordering /home uses (items arrive priority-ordered from the builder).
+ * The move the email leads with: the top trade worth trying, with names.
+ * Only a real move qualifies. A "keep going" or "play to win" league call is
+ * not one (Isaiah 2026-11-28: a first call that says "keep doing what you're
+ * doing" in a lot of words doesn't land); with no trade the hero says so in
+ * one line and the team facts lead.
  */
 export function pickFirstCall(items: DecisionItem[]): FirstCall | null {
   const trades = items.filter((i): i is TradeItem => i.kind === "trade");
-  if (trades.length) return [...trades].sort((a, b) => b.priority - a.priority)[0];
-  const calls = items.filter((i): i is LeagueCallItem => i.kind === "league_call");
-  return calls.find((c) => c.actionable) ?? [...calls].sort((a, b) => b.priority - a.priority)[0] ?? null;
+  return trades.length ? [...trades].sort((a, b) => b.priority - a.priority)[0] : null;
+}
+
+/** First sentence of an analyst line: one tight sentence per analyst. */
+export function firstSentence(line: string): string {
+  return line.split(/(?<=[.!?])\s+(?=[A-Z0-9])/)[0].trim();
+}
+
+/**
+ * The analysts as email lines: one sentence each, or one line when all
+ * three take the same stance.
+ */
+export function analystLines(voices: DecisionVoice[]): Array<{ voice: DecisionVoice["voice"] | null; label: string; line: string }> {
+  if (voices.length === 0) return [];
+  const same = voices.length > 1 && voices.every((v) => v.stance === voices[0].stance);
+  if (same) return [{ voice: null, label: `All ${voices.length === 3 ? "three" : voices.length} analysts · ${voices[0].stance_label}.`, line: firstSentence(voices[0].line) }];
+  return voices.map((v) => ({ voice: v.voice, label: `${VOICE_NAME[v.voice]} · ${v.stance_label}.`, line: firstSentence(v.line) }));
+}
+
+/** "Your 8 teams: 5 headed for the playoffs". The headline leads with the count. */
+export function welcomeHeadline(tiles: TeamTile[], leagueCount: number): string {
+  const n = Math.max(tiles.length, leagueCount);
+  if (n === 0) return "No Sleeper leagues found yet";
+  const withOdds = tiles.filter((t) => t.playoff);
+  if (n === 1 && withOdds.length === 1) return `Your team: ${withOdds[0].playoff!.label} to make the playoffs`;
+  if (withOdds.length === 0) return `Your ${plural(n, "team")}`;
+  const k = withOdds.filter((t) => t.playoff!.pct >= 0.5).length;
+  return `Your ${plural(n, "team")}: ${k === 0 ? "none" : k === n ? `all ${k}` : k} headed for the playoffs`;
 }
 
 /** Team tiles, best chance to win the league first (the /home order). */
@@ -63,7 +90,6 @@ export function welcomeTiles(leagues: DeskLeague[]): TeamTile[] {
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const room = (r: { position: string; rank: number; total: number }) => `${r.position}, ${ordinal(r.rank)} of ${r.total}`;
 
 /** One plain line about the top rival, the same facts the /home tile shows. */
 export function rivalSentence(t: TeamTile): string | null {
@@ -82,12 +108,17 @@ function fmtGames(g: number): string {
 }
 
 export function welcomeSubject(tiles: TeamTile[], first: FirstCall | null, leagueCount: number): string {
-  const n = Math.max(tiles.length, leagueCount);
-  if (n === 0) return "Connect your Sleeper leagues to get your first read";
-  const teams = plural(n, "team");
-  if (first?.kind === "trade") return `Your ${teams}, read. First call: ${first.title.split(", ")[0].replace(/\.$/, "")}`;
-  if (first) return `Your ${teams}, read. First call in ${first.league_name}: ${first.stance_label}`;
-  return `Your ${teams}, read`;
+  if (Math.max(tiles.length, leagueCount) === 0) return "Connect your Sleeper leagues to see your teams";
+  const head = welcomeHeadline(tiles, leagueCount);
+  return first ? `${head}. First move: ${first.title.split(", ")[0].replace(/\.$/, "")}` : head;
+}
+
+/** The hero line under the headline: the best title shot, and the no-move line when there is no trade. */
+export function welcomeSub(tiles: TeamTile[], first: FirstCall | null): string {
+  const top = tiles.find((t) => t.title);
+  const parts = [top ? `Best title shot: ${top.leagueName}, ${top.title!.label} to win the league.` : null];
+  if (!first) parts.push("No trade is worth making in any league this week.");
+  return parts.filter(Boolean).join(" ");
 }
 
 export interface WelcomeBriefArgs {
@@ -133,41 +164,35 @@ function meter(label: string, o: { pct: number; label: string } | null, color: s
 }
 
 function tileHtml(t: TeamTile, first: boolean): string {
-  const rooms = [t.best ? `<b style="color:${C.ink};">Best room</b> ${esc(room(t.best))}` : null, t.thinnest ? `<b style="color:${C.ink};">Thinnest</b> ${esc(room(t.thinnest))}` : null]
-    .filter(Boolean)
-    .join(` <span style="color:${C.mute};">·</span> `);
   const rival = rivalSentence(t);
   return `<tr><td style="padding:${first ? 4 : 16}px 0 16px;${first ? "" : `border-top:1px solid ${C.rule};`}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td valign="top" style="font:600 15px/1.3 ${SANS};color:${C.ink};">${esc(t.leagueName)}</td><td valign="top" align="right">${t.chip ? chip(t.chip) : ""}</td></tr></table>
 ${t.note ? p(esc(t.note), 13, C.ink2, 4) : ""}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;table-layout:fixed;"><tr><td width="50%" valign="top" style="padding-right:10px;">${meter("Playoffs", t.playoff, C.green)}</td><td width="50%" valign="top" style="padding-left:10px;">${meter("Win the league", t.title, C.gold)}</td></tr></table>
-${rooms ? p(rooms, 13, C.ink2, 10) : ""}${rival ? p(esc(rival), 13, C.ink2, 6) : ""}
+${rival ? p(esc(rival), 13, C.ink2, 10) : ""}
 </td></tr>`;
 }
 
 function callHtml(c: FirstCall, appUrl: string): string {
-  const voices = c.voices
-    .map((x) => `<tr><td valign="top" width="26" style="padding:8px 10px 8px 0;"><div style="width:22px;height:22px;border-radius:11px;background:${VOICE_COLOR[x.voice]};color:#fff;font:700 10px/22px ${SANS};text-align:center;">${VOICE_NAME[x.voice][0]}</div></td><td style="padding:8px 0;border-top:1px solid ${C.rule};font-family:${SANS};font-size:13px;line-height:1.5;color:${C.ink2};"><b style="color:${C.ink};">${esc(VOICE_NAME[x.voice])} · ${esc(x.stance_label)}.</b> ${esc(x.line)}</td></tr>`)
+  const voices = analystLines(c.voices)
+    .map((x) => {
+      const dot = x.voice
+        ? `<div style="width:22px;height:22px;border-radius:11px;background:${VOICE_COLOR[x.voice]};color:#fff;font:700 10px/22px ${SANS};text-align:center;">${VOICE_NAME[x.voice][0]}</div>`
+        : `<div style="width:22px;height:22px;border-radius:11px;background:${C.ink};color:#fff;font:700 10px/22px ${SANS};text-align:center;">3</div>`;
+      return `<tr><td valign="top" width="26" style="padding:8px 10px 8px 0;">${dot}</td><td style="padding:8px 0;border-top:1px solid ${C.rule};font-family:${SANS};font-size:13px;line-height:1.5;color:${C.ink2};"><b style="color:${C.ink};">${esc(x.label)}</b> ${esc(x.line)}</td></tr>`;
+    })
     .join("");
-  const body =
-    c.kind === "trade"
-      ? `${kicker(`${esc(c.league_name ?? "")}${c.deadline_label ? ` · ${esc(c.deadline_label)}` : ""}`, C.amber)}${h(esc(c.title), 21, 8)}`
-      : `${kicker(`${esc(c.league_name ?? "")} · ${esc(c.context)}`, C.amber)}${h(esc(c.stance_label), 21, 8)}${p(esc(c.reason), 14)}`;
-  const verdict =
-    c.kind === "trade"
-      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:${C.amberBg};border-radius:8px;"><tr><td style="padding:12px 14px;font:14px/1.5 ${SANS};color:${C.ink};">${esc(c.verdict)}</td></tr></table>`
-      : "";
   return card(
-    `${kicker("Your first call", C.amber)}<div style="margin-top:10px;">${body}</div>
-${voices ? `<div style="margin-top:14px;">${kicker("Where the three analysts land")}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">${voices}</table>` : ""}
-${verdict}
-<div style="margin-top:16px;">${button(c.kind === "trade" ? "Open this trade on your home" : "Open this call on your home", decisionItemHref(appUrl, c.id))}</div>`,
+    `${kicker("Your first move", C.amber)}<div style="margin-top:10px;">${kicker(`${esc(c.league_name ?? "")}${c.deadline_label ? ` · ${esc(c.deadline_label)}` : ""}`, C.amber)}${h(esc(c.title), 21, 8)}</div>
+${voices ? `<div style="margin-top:14px;">${kicker("The analysts")}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">${voices}</table>` : ""}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:${C.amberBg};border-radius:8px;"><tr><td style="padding:12px 14px;font:14px/1.5 ${SANS};color:${C.ink};">${esc(c.verdict)}</td></tr></table>
+<div style="margin-top:16px;">${button("Open this trade on your home", decisionItemHref(appUrl, c.id))}</div>`,
     C.amber,
   );
 }
 
 const METHOD =
-  "Playoff and league-winning chances come from simulated seasons of each league built from this season's scores. They are model estimates with no graded track record yet. Rooms rank the total player value you hold at each position against every team in the league.";
+  "Playoff and league-winning chances come from simulated seasons of each league built from this season's scores. They are model estimates with no graded track record yet. Position ranks compare the total player value you hold at each position against every team in the league.";
 const WHY = "You get this because you signed up for the Dynasty General weekly brief at dynastygeneral.app.";
 const FOUNDER = "Which of these teams do you care about most? Hit reply and tell me. I read every reply myself.";
 
@@ -181,11 +206,8 @@ export function composeWelcomeBrief(a: WelcomeBriefArgs): ComposedWelcome {
   const missing = a.leagues.filter((l) => !tiles.some((t) => t.leagueId === l.leagueId));
   const n = a.leagues.length;
 
-  const headline = n === 0 ? "No Sleeper leagues found yet" : `Your ${plural(n, "team")}, read`;
-  const sub =
-    n === 0
-      ? "Join or connect a Sleeper league and the first read lands on your home page."
-      : "Where each team stands right now, its best and thinnest rooms, and the rival to watch. Then the first call worth making. The full read, with every league and the three analysts, is on your home page.";
+  const headline = welcomeHeadline(tiles, n);
+  const sub = n === 0 ? "Join or connect a Sleeper league and your teams show up on your home page." : welcomeSub(tiles, firstCall);
 
   // ---------- HTML ----------
   const hero = card(`${kicker([a.ownerName, "Welcome"].filter(Boolean).map(esc).join(" · "))}
@@ -193,7 +215,7 @@ ${h(esc(headline), 27)}
 ${p(esc(sub), 15)}
 <div style="margin-top:14px;">${button(n === 0 ? "Connect Sleeper" : "Open your home", n === 0 ? `${a.appUrl.replace(/\/$/, "")}/connect` : home)}</div>`, C.gold);
   const teams = shown.length
-    ? card(`${kicker(`Your teams · best chance to win first`)}
+    ? card(`${kicker(`Your teams · best title chance first`)}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">${shown.map((t, i) => tileHtml(t, i === 0)).join("")}</table>
 ${more > 0 ? p(`<a href="${esc(home)}" style="color:${C.amber};font-weight:600;text-decoration:none;">${esc(`And ${plural(more, "more team")} on your home`)} &rarr;</a> <span style="color:${C.mute};">${esc(tiles.slice(WELCOME_TEAMS_SHOWN).map((t) => t.leagueName).join(", "))}</span>`, 13, C.ink2, 4) : ""}${missing.length ? p(esc(`No read yet for ${missing.map((l) => l.leagueName).join(", ")}.`), 12, C.mute, 8) : ""}`)
     : "";
@@ -204,22 +226,20 @@ ${more > 0 ? p(`<a href="${esc(home)}" style="color:${C.amber};font-weight:600;t
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(subject)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg};"><tr><td align="center" style="padding:20px 8px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;">
-<tr><td style="padding:0 0 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.night};border-radius:10px;"><tr><td style="padding:14px 16px;font-family:${MONO};font-size:11px;letter-spacing:.16em;color:${C.gold};font-weight:700;">DYNASTY GENERAL <span style="color:#7E8794;font-weight:400;">· YOUR FIRST READ · BETA</span></td></tr></table></td></tr>
+<tr><td style="padding:0 0 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.night};border-radius:10px;"><tr><td style="padding:14px 16px;font-family:${MONO};font-size:11px;letter-spacing:.16em;color:${C.gold};font-weight:700;">DYNASTY GENERAL <span style="color:#7E8794;font-weight:400;">· WELCOME · BETA</span></td></tr></table></td></tr>
 ${hero}${teams}${call}${founder}
 <tr><td style="padding:6px 4px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${C.mute};">${esc(METHOD)}<br>${esc(WHY)} <a href="${esc(a.unsubscribeUrl)}" style="color:${C.mute};">Unsubscribe</a><br>Dynasty General · ${esc(a.mailingAddress)}</td></tr>
 </table></td></tr></table></body></html>`;
 
   // ---------- text ----------
-  const out: string[] = ["DYNASTY GENERAL · YOUR FIRST READ (BETA)", ""];
+  const out: string[] = ["DYNASTY GENERAL · WELCOME (BETA)", ""];
   out.push([a.ownerName, "Welcome"].filter(Boolean).join(" · "), headline, sub, `${n === 0 ? "Connect Sleeper" : "Open your home"}: ${n === 0 ? `${a.appUrl.replace(/\/$/, "")}/connect` : home}`, "");
   if (shown.length) {
-    out.push("YOUR TEAMS · BEST CHANCE TO WIN FIRST");
+    out.push("YOUR TEAMS · BEST TITLE CHANCE FIRST");
     for (const t of shown) {
       out.push(`${t.leagueName}${t.chip ? ` (${t.chip})` : ""}`);
       if (t.note) out.push(`  ${t.note}`);
       out.push(`  Playoffs ${t.playoff?.label ?? "no odds yet"}. Win the league ${t.title?.label ?? "no odds yet"}.`);
-      const rooms = [t.best ? `Best room ${room(t.best)}` : null, t.thinnest ? `Thinnest ${room(t.thinnest)}` : null].filter(Boolean).join(". ");
-      if (rooms) out.push(`  ${rooms}.`);
       const rival = rivalSentence(t);
       if (rival) out.push(`  ${rival}`);
     }
@@ -228,14 +248,10 @@ ${hero}${teams}${call}${founder}
     out.push("");
   }
   if (firstCall) {
-    out.push("YOUR FIRST CALL");
-    if (firstCall.kind === "trade") {
-      out.push(`${firstCall.league_name ?? ""}${firstCall.deadline_label ? ` · ${firstCall.deadline_label}` : ""}`, firstCall.title);
-    } else {
-      out.push(`${firstCall.league_name ?? ""} · ${firstCall.context}`, firstCall.stance_label, firstCall.reason);
-    }
-    for (const v of firstCall.voices) out.push(`  ${VOICE_NAME[v.voice]} · ${v.stance_label}. ${v.line}`);
-    if (firstCall.kind === "trade") out.push(firstCall.verdict);
+    out.push("YOUR FIRST MOVE");
+    out.push(`${firstCall.league_name ?? ""}${firstCall.deadline_label ? ` · ${firstCall.deadline_label}` : ""}`, firstCall.title);
+    for (const v of analystLines(firstCall.voices)) out.push(`  ${v.label} ${v.line}`);
+    out.push(firstCall.verdict);
     out.push(`Open it on your home: ${decisionItemHref(a.appUrl, firstCall.id)}`, "");
   }
   out.push(FOUNDER, "The weekly brief arrives every Tuesday during the season with the trades worth trying.", "Isaiah, founder", "");
