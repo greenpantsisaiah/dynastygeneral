@@ -265,3 +265,52 @@ export function renderPanelText(a: PanelArgs): string {
   }
   return out.join("\n");
 }
+
+// ---------- the app's copy of the panel (/home) ----------
+
+/**
+ * The same lineup panel the Game Day email renders, as plain data for the
+ * app. Every sentence comes from the functions above, so /home and the
+ * email never word a lineup call differently.
+ */
+export interface LineupDesk {
+  week: number;
+  headline: string;
+  sub: string;
+  reads: Array<VoiceRead & { voice: "strategist" | "moneyball" | "gambler"; name: string; letter: string }>;
+  agree: string;
+  /** Leagues to open in Sleeper, in kickoff order. */
+  actions: Array<{ leagueId: string; leagueName: string; verb: "Fix" | "Check" | "Open"; when: string }>;
+  /** True when a hole or a swap is on the table (not just a swing game to watch). */
+  hasFix: boolean;
+  skipped: string | null;
+}
+
+/** The line under the headline, shared by the Game Day email and /home. */
+export function heroSubLine(p: LineupPanel): string {
+  const n = p.leagues.length;
+  const top = swingLeague(p.leagues);
+  const fixes = p.leagues.some((l) => l.fixes.length || l.swaps.length);
+  if (!fixes && !top) return `Your three analysts read all ${n} lineups. Nothing to change before kickoff.`;
+  return `Your three analysts read all ${n} lineups as they stand now. They agree on the holes and split on what matters most.`;
+}
+
+export function buildLineupDesk(p: LineupPanel): LineupDesk | null {
+  if (p.leagues.length === 0) return null;
+  const rs = reads(p);
+  return {
+    week: p.week,
+    headline: panelHeadline(p),
+    sub: heroSubLine(p),
+    reads: VOICES.map((v, i) => ({ ...rs[i], voice: v.key, name: v.name, letter: v.letter })),
+    agree: agreeLine(p.leagues),
+    actions: actionLeagues(p).map((l) => ({
+      leagueId: l.leagueId,
+      leagueName: l.leagueName,
+      verb: actionVerb(l),
+      when: l.lock ? `locks ${ctWhen(l.lock, l.asOf)}` : "nothing to fix",
+    })),
+    hasFix: p.leagues.some((l) => l.swaps.length || l.fixes.some((f) => f.kind !== "game_time")),
+    skipped: p.skipped.length ? `Not read: ${p.skipped.map((s) => `${s.leagueName} (${s.reason})`).join(", ")}.` : null,
+  };
+}

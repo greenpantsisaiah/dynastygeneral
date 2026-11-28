@@ -332,3 +332,27 @@ export function classifyRosterPosture(args: {
     headline: headlineFor(category, window),
   };
 }
+
+/**
+ * 1-indexed rank of a roster by total rostered player value (the value the
+ * posture classifier reads as "current-year roster value rank"). One
+ * helper so the league page, Coach and /home rank the same way. Null when
+ * the roster is not in the snapshot.
+ */
+export function rosterValueRank(args: {
+  snap: LeagueSnapshot;
+  rosterId: number;
+  valueOf: (playerId: string) => number | undefined;
+}): number | null {
+  const totals = args.snap.rosters.map((r) => {
+    let sum = 0;
+    for (const id of r.player_ids ?? []) {
+      const v = args.valueOf(id);
+      if (typeof v === "number") sum += v;
+    }
+    return { rid: r.roster_id, sum };
+  });
+  totals.sort((a, b) => b.sum - a.sum);
+  const idx = totals.findIndex((t) => t.rid === args.rosterId);
+  return idx >= 0 ? idx + 1 : null;
+}

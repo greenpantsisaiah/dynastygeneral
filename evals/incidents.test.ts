@@ -11,7 +11,8 @@
  * (5) the cron wrapper records a 5xx and a throw.
  */
 
-import { fingerprintOf, incidentFromConsoleArgs, withCronIncidents, recordIncident, __setIncidentStore } from "../src/lib/ops/incidents";
+import { fingerprintOf, incidentFromConsoleArgs, withCronIncidents, recordIncident, __setIncidentStore, admitClientIncident, CLIENT_ERROR_NEW_PER_HOUR } from "../src/lib/ops/incidents";
+import { isSameOriginBeacon, routeKeyFor } from "../src/lib/ops/client-error-guard";
 import { userFacingIntegrityNote, userFacingIntegrityNotes, type IntegrityIssue, type IntegrityKind } from "../src/lib/players/integrity";
 import { playerPosition } from "../src/lib/strategy/archetypes/schema";
 
@@ -105,6 +106,36 @@ async function main() {
   await recordIncident({ source: "server_error", key: "/x", message: "same" }, now + 120_000);
   const h = [...fake.hashes.values()].find((x) => x.key === "/x");
   check("throttled writes keep an honest count", fake.writes.length - before === 2 && Number(h?.count) === 6, `writes=${fake.writes.length - before} count=${h?.count}`);
+  __setIncidentStore(undefined);
+
+  // Client-error beacon abuse guards (issue #162).
+  const hdr = (o: Record<string, string>) => new Headers(o);
+  check("beacon: same-origin Origin passes", isSameOriginBeacon(hdr({ origin: "https://dynastygeneral.app", host: "dynastygeneral.app", "sec-fetch-site": "same-origin" })));
+  check("beacon: preview host matches its own Origin", isSameOriginBeacon(hdr({ origin: "https://dg-abc.vercel.app", host: "dg-abc.vercel.app" })));
+  check("beacon: cross-site Origin refused", !isSameOriginBeacon(hdr({ origin: "https://evil.example", host: "dynastygeneral.app" })));
+  check("beacon: cross-site fetch metadata refused", !isSameOriginBeacon(hdr({ "sec-fetch-site": "cross-site", host: "dynastygeneral.app" })));
+  check("beacon: no Origin falls to the rate limit", isSameOriginBeacon(hdr({ host: "dynastygeneral.app" })));
+  check("route key: ids collapse", routeKeyFor("/leagues/1315790476086878208/trade") === "/leagues/[id]/trade" && routeKeyFor("/leagues/1183924497274310656/trade") === "/leagues/[id]/trade");
+  check("route key: junk segments collapse", routeKeyFor("/%3Cscript%3E") === "/[x]" && routeKeyFor("/a/b/c/d/e") === "/a/b/c");
+  check("route key: non-path is unknown", routeKeyFor("https://x.y/z") === "unknown" && routeKeyFor(null) === "unknown");
+
+  const sets = new Map<string, Set<string>>();
+  __setIncidentStore({
+    sismember: async (k: string, m: string) => (sets.get(k)?.has(m) ? 1 : 0),
+    scard: async (k: string) => sets.get(k)?.size ?? 0,
+    sadd: async (k: string, m: string) => { const x = sets.get(k) ?? new Set<string>(); x.add(m); sets.set(k, x); return 1; },
+    expire: async () => 1,
+  } as never);
+  const at = Date.UTC(2026, 10, 27, 3, 0, 0);
+  const mk = (i: number) => ({ source: "client_error" as const, key: `page:/r${String.fromCharCode(97 + (i % 26))}${i}`, message: `crash kind ${String.fromCharCode(97 + (i % 26))}` });
+  const admitted = [];
+  for (let i = 0; i < CLIENT_ERROR_NEW_PER_HOUR + 10; i++) admitted.push(await admitClientIncident(mk(i), at));
+  const overflow = admitted.filter((x) => x.key === "overflow").length;
+  check("cap: new client fingerprints past the hourly cap fold into overflow", overflow === 10, `overflow=${overflow}`);
+  check("cap: a fingerprint already admitted this hour still passes", (await admitClientIncident(mk(0), at)).key === mk(0).key);
+  check("cap: the next hour starts a fresh budget", (await admitClientIncident(mk(99), at + 3_600_000)).key === mk(99).key);
+  check("cap: overflow is one fingerprint", new Set(admitted.filter((x) => x.key === "overflow").map((x) => fingerprintOf(x))).size === 1);
+  check("cap: other sources untouched", (await admitClientIncident({ source: "server_error", key: "k", message: "m" }, at)).key === "k");
   __setIncidentStore(undefined);
 
   console.log(`\n${passed} passed, ${failed} failed`);

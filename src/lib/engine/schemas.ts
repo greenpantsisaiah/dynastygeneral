@@ -113,8 +113,21 @@ export const counterOfferSchema = z.object({
 });
 export type CounterOffer = z.infer<typeof counterOfferSchema>;
 
+/** One analyst's take on an incoming offer (the three can disagree). */
+export const analystTakeSchema = z.object({
+  voice: z.enum(["strategist", "moneyball", "gambler"]),
+  stance: tradeActionSchema,
+  line: z.string().min(4),
+});
+export type AnalystTake = z.infer<typeof analystTakeSchema>;
+
 export const tradeIncomingOutputSchema = z.object({
   action: tradeActionSchema,
+  /**
+   * The three analysts, each with their own call and one sentence citing a
+   * number from the context. Nullish so an older shared verdict still parses.
+   */
+  analysts: z.array(analystTakeSchema).max(3).nullish(),
   recommendation: z
     .string()
     .min(4)
@@ -318,6 +331,7 @@ export const tradeIncomingOutputJsonSchema = {
   type: "object",
   required: [
     "action",
+    "analysts",
     "recommendation",
     "reasoning",
     "strategy_fit",
@@ -329,6 +343,22 @@ export const tradeIncomingOutputJsonSchema = {
   ],
   properties: {
     action: { type: "string", enum: ["accept", "counter", "decline", "wait"] },
+    analysts: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      description:
+        "The three analysts in this order: moneyball, strategist, gambler. Each gives its own stance and one sentence citing a number from the context.",
+      items: {
+        type: "object",
+        required: ["voice", "stance", "line"],
+        properties: {
+          voice: { type: "string", enum: ["moneyball", "strategist", "gambler"] },
+          stance: { type: "string", enum: ["accept", "counter", "decline", "wait"] },
+          line: { type: "string" },
+        },
+      },
+    },
     recommendation: { type: "string" },
     reasoning: {
       type: "array",

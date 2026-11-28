@@ -10,6 +10,7 @@
  */
 
 import type { ReactNode } from "react";
+import { ClientCopy } from "@/components/decision/client-copy";
 import { fmtPct } from "@/lib/email/trade-desk/league-week";
 import type {
   DecisionDigest,
@@ -24,13 +25,20 @@ import type {
   WeekRowItem,
 } from "@/lib/decisions/items";
 import type { Stance, VoiceName } from "@/lib/strategy/verdict/voices";
+import type { LineupDesk } from "@/lib/email/game-day/panel";
+import type { RoomRead, TeamTile } from "@/lib/decisions/character";
+
+export type { TeamTile };
+
+const ordinal = (n: number) => {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${s}`;
+};
 
 /** One cast everywhere: same names and colors as the email (off the red/green axis). */
-export const ANALYST: Record<VoiceName, { name: string; letter: string; color: string }> = {
-  strategist: { name: "Strategist", letter: "S", color: "#7C5CC4" },
-  moneyball: { name: "Moneyballer", letter: "M", color: "#2A6FB8" },
-  gambler: { name: "Gambler", letter: "G", color: "#C76A12" },
-};
+import { ANALYST } from "@/lib/decisions/analysts";
+
+export { ANALYST };
 
 const COLUMN: Record<Stance, number> = { sell: 0, lean_sell: 1, split: 2, lean_push: 3, push: 4 };
 const SCALE_LABELS = {
@@ -203,6 +211,15 @@ export function TradeCard({
           </p>
           {item.package_note && <p className="mt-1.5 text-sm text-muted-2">{item.package_note}</p>}
         </div>
+        {item.offer && (
+          <div className="rounded-lg border border-accent/30 bg-accent/5 p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">Message to {item.manager}</p>
+              <ClientCopy text={item.offer.message} variant="prominent" label="Copy message" />
+            </div>
+            <p className="mt-2 text-sm text-foreground">{item.offer.message}</p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2.5">
           <Button href={offerHref} primary>
             {item.cta_label}
@@ -210,8 +227,10 @@ export function TradeCard({
           <Button href={coachHref}>Talk it through with Coach</Button>
         </div>
         <p className="text-xs text-muted-2">
-          Opens this league&apos;s trade view. You send the offer in Sleeper; Dynasty General can&apos;t send trades for
-          you.
+          {item.offer
+            ? `Opens this deal in the trade check. When ${item.manager} answers, change it to their counter and check it again: you get take it, counter or pass, and a reply to send. `
+            : "Opens this league's trade view. "}
+          You send the offer in Sleeper; Dynasty General can&apos;t send trades for you.
         </p>
       </div>
     </details>
@@ -500,15 +519,256 @@ export function RootForList({ items }: { items: RootForItem[] }) {
   );
 }
 
+/**
+ * This week's lineups: the Game Day panel (three analysts on every lineup),
+ * the same copy the Sunday email prints, with a button per league that
+ * opens the lineup in Sleeper. Lineups are the decision that comes back
+ * every week, so on a week with no trade worth trying this leads the page.
+ */
+export function LineupDeskCard({ desk, sleeperHref }: { desk: LineupDesk; sleeperHref: (leagueId: string) => string }) {
+  return (
+    <section id="lineups" className="scroll-mt-4 flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Kicker>Week {desk.week} lineups · the three analysts</Kicker>
+        {desk.hasFix && <Chip tone="deadline">Fix before kickoff</Chip>}
+      </div>
+      <ul className="flex flex-col">
+        {desk.reads.map((r) => (
+          <li key={r.voice} className="flex gap-3 border-t border-border-soft py-3 first:border-t-0 first:pt-0">
+            <AnalystDot voice={r.voice} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">
+                {ANALYST[r.voice].name} <span className="font-normal text-muted-2">·</span>{" "}
+                <span style={{ color: ANALYST[r.voice].color }}>{r.title}</span>
+              </p>
+              {r.lines.map((t, i) => (
+                <p key={i} className="mt-1 text-sm text-muted">
+                  {t}
+                </p>
+              ))}
+              <p className="mt-1 text-xs text-muted-2">{r.source}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-foreground">{desk.agree}</p>
+      {desk.actions.length > 0 && (
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">Open each lineup in Sleeper, in kickoff order</p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {desk.actions.map((a) => (
+              <div key={a.leagueId} className="flex flex-col gap-1">
+                <Button href={sleeperHref(a.leagueId)} primary={a.verb === "Fix"}>
+                  {a.verb} {a.leagueName} →
+                </Button>
+                <span className="text-xs text-muted-2">{a.when}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {desk.skipped && <p className="text-xs text-muted-2">{desk.skipped}</p>}
+      <p className="text-xs text-muted-2">Dynasty General can&apos;t change Sleeper lineups for you; each button opens that lineup.</p>
+    </section>
+  );
+}
+
+/**
+ * Leagues where the call is "nothing to do this week", one line each
+ * (Isaiah 2026-11-28: a home full of do-nothing cards reads as nothing to
+ * do). Each row keeps the call's reason and the three analysts one tap
+ * away, and keeps its item id so email links and the week table land here.
+ */
+export function QuietCalls({ calls, focusId, leagueHref, heading }: { calls: LeagueCallItem[]; focusId: string | null; leagueHref: (id: string) => string; heading: string }) {
+  if (calls.length === 0) return null;
+  return (
+    <section className="rounded-xl border border-border-soft bg-surface p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">{heading}</h2>
+        <span className="text-xs text-muted-2">Tap a league for the reason and the analysts</span>
+      </div>
+      <ul className="mt-2">
+        {calls.map((c) => (
+          <li key={c.id} className="border-t border-border-soft">
+            <details id={c.id} open={c.id === focusId} className={`group scroll-mt-4 py-3 ${c.id === focusId ? "rounded-md ring-2 ring-accent/40" : ""}`}>
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-semibold text-foreground">{c.league_name}</span>
+                <span className="rounded-full border border-border-strong px-2 py-0.5 text-xs text-foreground">{c.stance_label}</span>
+                <span className="font-mono text-[11px] text-muted-2">{c.context}</span>
+              </summary>
+              <p className="mt-2 text-sm text-foreground">{c.title}</p>
+              <p className="mt-1 text-sm text-muted">{c.reason}</p>
+              {c.voices.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {c.voices.map((v) => (
+                    <li key={v.voice} className="text-sm text-muted">
+                      <span className="font-semibold" style={{ color: ANALYST[v.voice].color }}>
+                        {ANALYST[v.voice].name} · {v.stance_label}.
+                      </span>{" "}
+                      {v.line}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <a href={leagueHref(c.league_id ?? "")} className="mt-2 inline-block text-sm font-semibold text-accent hover:underline">
+                Open {c.league_name} →
+              </a>
+            </details>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** One team's character on /home (built by src/lib/decisions/character.ts). */
+/** Width for a probability bar: never zero, so a "<2%" still shows a sliver. */
+const barWidth = (p: number) => `${Math.max(3, Math.min(100, p * 100))}%`;
+
+function OddsMeter({ label, value, tone }: { label: string; value: { pct: number; label: string }; tone: "accent" | "success" }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-3xl font-semibold leading-none tabular-nums text-foreground">{value.label}</span>
+      <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">{label}</span>
+      <div className="h-1.5 rounded-full bg-surface-2" role="img" aria-label={`${label} ${value.label}`}>
+        <div className={`h-1.5 rounded-full ${tone === "success" ? "bg-success" : "bg-accent"}`} style={{ width: barWidth(value.pct) }} />
+      </div>
+    </div>
+  );
+}
+
+/** A position group's league rank as a strip of one dot per team, yours marked. */
+function RoomMeter({ label, room, tone }: { label: string; room: RoomRead; tone: "success" | "warning" }) {
+  const dots = Array.from({ length: Math.min(room.total, 20) }, (_, i) => i + 1);
+  const mark = tone === "success" ? "bg-success" : "bg-warning";
+  return (
+    <div className="flex items-center gap-2 text-xs" aria-label={`${label}: ${room.position}, ${ordinal(room.rank)} of ${room.total}`}>
+      <span className="w-16 shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-2">{label}</span>
+      <span className="w-7 shrink-0 font-semibold text-foreground">{room.position}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-between" aria-hidden>
+        {dots.map((d) => (
+          <span key={d} className={d === room.rank ? `h-2.5 w-2.5 rounded-full ${mark}` : "h-1.5 w-1.5 rounded-full bg-border-strong"} />
+        ))}
+      </span>
+      <span className="w-12 shrink-0 text-right tabular-nums text-muted">
+        {ordinal(room.rank)}/{room.total}
+      </span>
+    </div>
+  );
+}
+
+function RivalRow({ r }: { r: NonNullable<TeamTile["rival"]> }) {
+  const gb = r.gamesBack;
+  const badge =
+    gb > 0
+      ? { text: `${gb} GB`, cls: "border-warning/50 text-warning" }
+      : gb < 0
+        ? { text: `${-gb} up`, cls: "border-success/50 text-success" }
+        : { text: "Level", cls: "border-border-strong text-muted" };
+  const row = (who: string, record: string, pct: number, label: string, mine: boolean) => (
+    <div className="flex items-center gap-2 text-xs">
+      <span className={`min-w-0 flex-1 truncate ${mine ? "font-semibold text-foreground" : "text-foreground"}`}>{who}</span>
+      <span className="w-10 shrink-0 whitespace-nowrap tabular-nums text-muted">{record}</span>
+      <span className="h-1.5 w-16 shrink-0 rounded-full bg-surface-2 sm:w-24">
+        <span className={`block h-1.5 rounded-full ${mine ? "bg-accent" : "bg-muted-2"}`} style={{ width: barWidth(pct) }} />
+      </span>
+      <span className="w-10 shrink-0 text-right tabular-nums text-foreground">{label}</span>
+    </div>
+  );
+  return (
+    <div className="mt-3 rounded-lg border border-border-soft bg-background/40 p-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
+          {r.favorite ? "Title favorite · top threat" : "Top rival · title race"}
+        </span>
+        <span className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] tabular-nums ${badge.cls}`}>{badge.text}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        {row("You", r.myRecord, r.myTitlePct, r.myTitleLabel, true)}
+        {row(r.manager, r.record, r.titlePct, r.titleLabel, false)}
+      </div>
+    </div>
+  );
+}
+
+/** Teams shown before "Show N more": the best title odds first, so the races that matter lead. */
+const TEAMS_SHOWN = 3;
+
+function TeamTileCard({ t, href }: { t: TeamTile; href: string }) {
+  return (
+    <li className="rounded-xl border border-border-soft bg-surface p-4">
+      <div className="flex items-center justify-between gap-2">
+        <a href={href} className="min-w-0 font-semibold text-foreground hover:text-accent">
+          {t.leagueName}
+        </a>
+        {t.chip && <span className="shrink-0 rounded-full border border-border-strong px-2.5 py-0.5 text-xs text-foreground">{t.chip}</span>}
+      </div>
+      {t.note && <p className="mt-1 text-xs text-muted">{t.note}</p>}
+      {(t.playoff || t.title) && (
+        <div className="mt-3 grid grid-cols-2 gap-4">
+          {t.playoff && <OddsMeter label="Playoffs" value={t.playoff} tone="success" />}
+          {t.title && <OddsMeter label="Win it all" value={t.title} tone="accent" />}
+        </div>
+      )}
+      {(t.best || t.thinnest) && (
+        <div className="mt-3 flex flex-col gap-1.5">
+          {t.best && <RoomMeter label="Best" room={t.best} tone="success" />}
+          {t.thinnest && <RoomMeter label="Thinnest" room={t.thinnest} tone="warning" />}
+        </div>
+      )}
+      {t.rival && <RivalRow r={t.rival} />}
+    </li>
+  );
+}
+
+/**
+ * "Your teams": who each team is and who it is chasing, numbers first. The
+ * app's origin is characterizing your teams; the decisions below read as the
+ * next step for a team you can see. Tiles are built by `teamTile`
+ * (`src/lib/decisions/character.ts`); this only draws them.
+ */
+export function YourTeams({ teams, leagueHref }: { teams: TeamTile[]; leagueHref: (id: string) => string }) {
+  if (teams.length === 0) return null;
+  return (
+    <section id="your-teams" className="flex flex-col gap-2">
+      <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">Your teams · who they are, who they chase</h2>
+      <ul className="grid gap-2">
+        {teams.slice(0, TEAMS_SHOWN).map((t) => (
+          <TeamTileCard key={t.leagueId} t={t} href={leagueHref(t.leagueId)} />
+        ))}
+      </ul>
+      {teams.length > TEAMS_SHOWN && (
+        <details className="group">
+          <summary className="cursor-pointer list-none py-1 text-sm text-accent">
+            <span className="group-open:hidden">Show {teams.length - TEAMS_SHOWN} more {teams.length - TEAMS_SHOWN === 1 ? "team" : "teams"}</span>
+            <span className="hidden group-open:inline">Show fewer teams</span>
+          </summary>
+          <ul className="mt-2 grid gap-2">
+            {teams.slice(TEAMS_SHOWN).map((t) => (
+              <TeamTileCard key={t.leagueId} t={t} href={leagueHref(t.leagueId)} />
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
 export function DecisionHome({
   digest,
   items,
   focusId,
   hrefs,
+  lineups = null,
+  teams = [],
 }: {
   digest: DecisionDigest;
   items: DecisionItem[];
   focusId: string | null;
+  /** This week's lineup panel (the Game Day email's three-analyst read), when one could be built. */
+  lineups?: LineupDesk | null;
+  /** Each team's character line and top rival, shown before the decisions. */
+  teams?: TeamTile[];
   hrefs: {
     offer: (item: TradeItem) => string;
     coach: (item: TradeItem) => string;
@@ -527,7 +787,15 @@ export function DecisionHome({
   const calls = items
     .filter((i): i is LeagueCallItem => i.kind === "league_call")
     .sort((a, b) => b.priority - a.priority);
+  const actCalls = calls.filter((c) => c.actionable);
+  const quietCalls = calls.filter((c) => !c.actionable);
   const focused = focusId ? items.find((i) => i.id === focusId) ?? null : null;
+  // With no trade card, the week's lineups are the decision: they lead the
+  // page and own the headline. The digest's trade headline moves under it.
+  const lineupsLead = !!lineups && feed.length === 0;
+  const headline = lineupsLead ? lineups!.headline : digest.headline;
+  const subline = lineupsLead ? `${lineups!.sub} ${digest.headline}` : digest.subline;
+  const lineupCard = lineups ? <LineupDeskCard desk={lineups} sleeperHref={(id) => `https://sleeper.com/leagues/${encodeURIComponent(id)}/team`} /> : null;
   const firstTrade = feed.find((i) => i.kind === "trade")?.id ?? null;
   const openTrade = focused?.kind === "trade" ? focused.id : firstTrade;
 
@@ -536,9 +804,13 @@ export function DecisionHome({
       <div className="flex min-w-0 flex-col gap-5">
         <section>
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">{digest.kicker}</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-[42px]">{digest.headline}</h1>
-          <p className="mt-3 max-w-2xl text-base text-muted">{digest.subline}</p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-[42px]">{headline}</h1>
+          <p className="mt-3 max-w-2xl text-base text-muted">{subline}</p>
         </section>
+
+        <YourTeams teams={teams} leagueHref={hrefs.league} />
+
+        {lineupsLead && lineupCard}
 
         {swing && <SwingCard item={swing} />}
 
@@ -562,18 +834,26 @@ export function DecisionHome({
           ),
         )}
 
+        {!lineupsLead && lineupCard}
+
         <QuietList items={quiet} hrefFor={hrefs.item} />
 
-        {calls.length > 0 && (
+        {actCalls.length > 0 && (
           <section className="flex flex-col gap-3">
             <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-2">
               {feed.length > 0 ? "Your other leagues · the analysts' call" : "Your leagues · the analysts' call"}
             </h2>
-            {calls.map((c) => (
+            {actCalls.map((c) => (
               <LeagueCallCard key={c.id} item={c} focused={c.id === focusId} leagueHref={hrefs.league(c.league_id ?? "")} />
             ))}
           </section>
         )}
+        <QuietCalls
+          calls={quietCalls}
+          focusId={focusId}
+          leagueHref={hrefs.league}
+          heading={actCalls.length + feed.length > 0 ? "No trade move this week in your other leagues" : "No trade move this week"}
+        />
         <RootForList items={roots} />
       </div>
 

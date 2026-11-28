@@ -45,10 +45,13 @@ export function TradeForm({
   leagueId,
   sleeperUsername,
   mode,
+  prefill,
 }: {
   leagueId: string;
   sleeperUsername?: string;
   mode: EngineMode;
+  /** From a /home trade card: the opening offer to check (comma-separated). */
+  prefill?: { send: string; receive: string; manager: string };
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
@@ -137,7 +140,7 @@ export function TradeForm({
     <div className="mt-10 space-y-8">
       <PaywallModal reason={paywall} onClose={() => setPaywall(null)} />
       <form onSubmit={onSubmit} className="grid gap-4">
-        {mode === "incoming" ? <IncomingFields /> : <OutboundFields />}
+        {mode === "incoming" ? <IncomingFields prefill={prefill} /> : <OutboundFields />}
         <div>
           <button
             type="submit"
@@ -216,13 +219,14 @@ function MetaWrap({
   );
 }
 
-function IncomingFields() {
+function IncomingFields({ prefill }: { prefill?: { send: string; receive: string; manager: string } }) {
   return (
     <>
       <Field label="You send (your assets going out)">
         <AssetTokenInput
           name="you_send"
           required
+          initialValue={prefill?.send}
           placeholder="Type a player or pick. Add multiple. e.g. Jalen Hurts, 2027 2nd"
         />
       </Field>
@@ -230,12 +234,14 @@ function IncomingFields() {
         <AssetTokenInput
           name="you_receive"
           required
+          initialValue={prefill?.receive}
           placeholder="Type a player or pick. Add multiple. e.g. Malik Nabers, 2026 4th"
         />
       </Field>
       <Field label="Who's offering (optional: team or manager name)">
         <input
           name="other_manager"
+          defaultValue={prefill?.manager}
           placeholder="EO386 · TeamName"
           className={inputCls}
         />
