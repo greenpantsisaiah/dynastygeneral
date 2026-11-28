@@ -36,7 +36,7 @@ export const RELEASES: Release[] = [
     version: "2026-11-28",
     title: "Home reads your teams first, and trade cards come with the message",
     summary:
-      "Home opens with one tile per league that says what kind of team you have and who your top rival is. Trade cards now include a message you can copy and send, and the trade check shows three analysts instead of one verdict.",
+      "Home opens with one tile per league that says what kind of team you have and who your top rival is. Trade cards now include a message you can copy and send.",
     changes: [
       {
         tag: "YOUR TEAMS, READ",
@@ -53,10 +53,6 @@ export const RELEASES: Release[] = [
       {
         tag: "WHEN THEY REPLY",
         text: "Open the offer from a trade card and the trade check fills in the deal and the manager. When they counter, edit the deal to match and check it again for take it, counter or pass.",
-      },
-      {
-        tag: "THREE ANALYSTS",
-        text: "The trade check now shows the Moneyballer on value, the Strategist on roster fit and the Gambler on odds, each with a call, plus how they split.",
       },
       {
         tag: "SIGNUP PREVIEW",
