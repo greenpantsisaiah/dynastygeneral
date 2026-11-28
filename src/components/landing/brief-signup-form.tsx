@@ -15,7 +15,8 @@ type State =
  * The one signup on the homepage: email + Sleeper username. Posts to
  * /api/brief-signup, which creates the account and stores the Sleeper
  * identity so the Tuesday brief can find every league. On success the
- * user goes straight to their leagues; there is no confirm click.
+ * button opens a view-only /home preview of those leagues (public Sleeper
+ * data, no session); signing in keeps it. There is no confirm click.
  */
 export function BriefSignupForm() {
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -62,7 +63,8 @@ export function BriefSignupForm() {
   }
 
   if (state.kind === "done") {
-    const href = `/connect?platform=sleeper&username=${encodeURIComponent(state.username)}`;
+    // The signup response set a view-only /home preview of these leagues.
+    const href = "/home";
     return (
       <div className="mt-8 max-w-xl rounded-lg border border-accent/40 bg-accent/10 p-5">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
@@ -76,7 +78,7 @@ export function BriefSignupForm() {
           href={href}
           className="mt-4 inline-flex h-11 items-center justify-center rounded-md bg-accent px-5 text-sm font-semibold text-black transition hover:brightness-110"
         >
-          Open my leagues →
+          Open my home →
         </Link>
       </div>
     );
