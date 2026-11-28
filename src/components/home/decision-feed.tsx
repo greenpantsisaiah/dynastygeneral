@@ -648,7 +648,6 @@ function RoomMeter({ label, room, tone }: { label: string; room: RoomRead; tone:
 }
 
 function RivalRow({ r }: { r: NonNullable<TeamTile["rival"]> }) {
-  const top = Math.max(r.myTitlePct, r.titlePct, 0.05);
   const gb = r.gamesBack;
   const badge =
     gb > 0
@@ -661,7 +660,7 @@ function RivalRow({ r }: { r: NonNullable<TeamTile["rival"]> }) {
       <span className={`min-w-0 flex-1 truncate ${mine ? "font-semibold text-foreground" : "text-foreground"}`}>{who}</span>
       <span className="w-10 shrink-0 whitespace-nowrap tabular-nums text-muted">{record}</span>
       <span className="h-1.5 w-16 shrink-0 rounded-full bg-surface-2 sm:w-24">
-        <span className={`block h-1.5 rounded-full ${mine ? "bg-accent" : "bg-muted-2"}`} style={{ width: `${Math.max(4, (pct / top) * 100)}%` }} />
+        <span className={`block h-1.5 rounded-full ${mine ? "bg-accent" : "bg-muted-2"}`} style={{ width: barWidth(pct) }} />
       </span>
       <span className="w-10 shrink-0 text-right tabular-nums text-foreground">{label}</span>
     </div>
@@ -670,7 +669,7 @@ function RivalRow({ r }: { r: NonNullable<TeamTile["rival"]> }) {
     <div className="mt-3 rounded-lg border border-border-soft bg-background/40 p-2.5">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-          {r.favorite ? "You lead · top threat" : "Top rival · title race"}
+          {r.favorite ? "Title favorite · top threat" : "Top rival · title race"}
         </span>
         <span className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] tabular-nums ${badge.cls}`}>{badge.text}</span>
       </div>

@@ -9,6 +9,8 @@
  */
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { HOME_PREVIEW_COOKIE, readHomePreview } from "@/lib/auth/home-preview";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
 import { getOptionalUser } from "@/lib/auth/session";
@@ -40,18 +42,26 @@ export default async function HomePage({
   searchParams: Promise<{ item?: string }>;
 }) {
   const { item } = await searchParams;
+  const loginHref = `/login?next=${encodeURIComponent(item ? `/home?item=${item}` : "/home")}`;
   const user = await getOptionalUser();
-  if (!user) redirect(`/login?next=${encodeURIComponent(item ? `/home?item=${item}` : "/home")}`);
-  if (!flagOn("multi_league_home", user.id) && !isAdminEmail(user.email)) redirect("/leagues");
+  // Signed out: a fresh homepage signup carries a view-only preview of its
+  // Sleeper username's public leagues (no session, no account data).
+  const previewUsername = user ? null : readHomePreview((await cookies()).get(HOME_PREVIEW_COOKIE)?.value, Date.now());
+  if (!user && !previewUsername) redirect(loginHref);
+  if (user && !flagOn("multi_league_home", user.id) && !isAdminEmail(user.email)) redirect("/leagues");
 
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("sleeper_username, display_name")
-    .eq("id", user.id)
-    .maybeSingle();
-  const username = (profile?.sleeper_username as string | null) ?? null;
-  const displayName = (profile?.display_name as string | null) ?? null;
+  let username: string | null = previewUsername;
+  let displayName: string | null = null;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("sleeper_username, display_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    username = (profile?.sleeper_username as string | null) ?? null;
+    displayName = (profile?.display_name as string | null) ?? null;
+  }
 
   const nfl = await getNflState();
   if (!username || !nfl || !nfl.week) {
@@ -83,7 +93,7 @@ export default async function HomePage({
   const now = new Date();
   const model = buildTradeDeskModel({
     ownerName: briefOwnerName(displayName, username),
-    tier: user.tier,
+    tier: user?.tier ?? "free",
     resultsWeek,
     leagues,
     seasonStartDate: nfl.season_start_date,
@@ -95,7 +105,7 @@ export default async function HomePage({
   // so the email and the app never name different buyers.
   const { items, digest } = overlayEmailedTrades({
     ...live,
-    emailed: await loadEmailedTrades(supabase, user.id, now),
+    emailed: user ? await loadEmailedTrades(supabase, user.id, now) : [],
     now,
   });
 
@@ -104,6 +114,7 @@ export default async function HomePage({
     <>
       <SiteNav />
       <main className="flex-1 bg-background">
+        {previewUsername && <PreviewBanner username={previewUsername} loginHref={loginHref} />}
         <DecisionHome
           digest={digest}
           items={items}
@@ -161,6 +172,25 @@ async function loadLineupDesk(username: string, season: string, week: number): P
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Shown on the view-only preview a homepage signup lands on. Says what this
+ * is (public Sleeper leagues, no sign-in yet) and where signing in leads.
+ */
+function PreviewBanner({ username, loginHref }: { username: string; loginHref: string }) {
+  return (
+    <div className="border-b border-accent/30 bg-accent/10">
+      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-6 py-3 text-sm">
+        <p className="text-foreground">
+          Preview built from {username}&apos;s public Sleeper leagues. Sign in to keep it, open Coach and draft offers.
+        </p>
+        <Link href={loginHref} className="font-semibold text-accent underline">
+          Sign in
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 function EmptyHome({ line }: { line: string }) {
