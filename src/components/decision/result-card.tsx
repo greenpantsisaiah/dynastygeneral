@@ -1,4 +1,6 @@
+import { ANALYST } from "@/lib/decisions/analysts";
 import type {
+  AnalystTake,
   PickOutput,
   StrategyClarifyOutput,
   TradeIncomingOutput,
@@ -157,6 +159,11 @@ export function TradeIncomingResult({
       <div className="px-5 pb-5 pt-3 text-xl font-semibold leading-tight text-foreground">
         {result.recommendation}
       </div>
+      {result.analysts && result.analysts.length > 0 && (
+        <Row label="The three analysts">
+          <AnalystTakes takes={result.analysts} />
+        </Row>
+      )}
       <Row label="Why">
         <ul className="space-y-1.5">
           {result.reasoning.map((r, i) => (
@@ -181,6 +188,50 @@ export function TradeIncomingResult({
         </Row>
       )}
       <CalibrationFooter />
+    </div>
+  );
+}
+
+// The three analysts' takes on an incoming offer. They can disagree; the
+// count line says how they split so the user weighs it rather than obeys.
+const TAKE_LABEL: Record<AnalystTake["stance"], string> = {
+  accept: "Take it",
+  counter: "Counter",
+  decline: "Pass",
+  wait: "Wait",
+};
+function AnalystTakes({ takes }: { takes: AnalystTake[] }) {
+  const counts = new Map<string, number>();
+  for (const t of takes) counts.set(t.stance, (counts.get(t.stance) ?? 0) + 1);
+  const split = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([s, n]) => `${n} ${TAKE_LABEL[s as AnalystTake["stance"]].toLowerCase()}`)
+    .join(", ");
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted-2">{counts.size === 1 ? `All three say ${TAKE_LABEL[takes[0].stance].toLowerCase()}.` : `They split: ${split}.`}</p>
+      <ul className="space-y-2">
+        {takes.map((t) => {
+          const a = ANALYST[t.voice];
+          return (
+            <li key={t.voice} className="flex gap-2.5">
+              <span
+                className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                style={{ background: a.color }}
+                aria-hidden
+              >
+                {a.letter}
+              </span>
+              <span>
+                <b style={{ color: a.color }}>
+                  {a.name} · {TAKE_LABEL[t.stance]}.
+                </b>{" "}
+                <span className="text-muted">{t.line}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
