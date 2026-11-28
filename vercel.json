@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/game-day",
-      "schedule": "0 16 * * 0"
+      "schedule": "0 16,17 * * 0"
     }
   ]
 }
